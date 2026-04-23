@@ -955,51 +955,10 @@ export default function CFOCircleApp() {
   var [totalContacts,setTotal]       = useState(0);
   var [stageCounts,setStageCounts]   = useState({});
   var [statsLoading,setStatsLoading] = useState(true);
-  var [toasts,setToasts]             = useState([]);
 
   useEffect(function(){loadStats();},[]);
 
-  // Poll for new connections every 30 seconds
-  useEffect(function(){
-    var pollUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    var pollKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if(!pollUrl||!pollKey) return;
 
-    var channel;
-    try {
-      // Use Supabase realtime via REST polling as fallback
-      var lastCount = 0;
-      var pollInterval = setInterval(async function(){
-        try {
-          var res = await fetch(pollUrl+"/rest/v1/contacts?select=id,first_name,last_name,company_name,created_at&order=created_at.desc&limit=1", {
-            headers:{"apikey":pollKey,"Authorization":"Bearer "+pollKey}
-          });
-          var data = await res.json();
-          if(data && data.length > 0) {
-            var newest = data[0];
-            var ts = new Date(newest.created_at).getTime();
-            if(lastCount > 0 && ts > lastCount) {
-              // New contact!
-              var name = newest.first_name + " " + newest.last_name;
-              var co = newest.company_name || "";
-              var id = Date.now();
-              setToasts(function(prev){ return prev.concat([{id:id, name:name, company:co}]); });
-              setTotal(function(n){ return n+1; });
-              setTimeout(function(){ setToasts(function(prev){ return prev.filter(function(t){ return t.id!==id; }); }); }, 5000);
-            }
-            lastCount = ts;
-          }
-        } catch(e) {}
-      }, 30000); // poll every 30 seconds
-      return function(){ clearInterval(pollInterval); };
-    } catch(e) { console.error("realtime setup:", e); }
-  }, []);
-
-  function addToast(name, company) {
-    var id = Date.now();
-    setToasts(function(prev){ return prev.concat([{id:id, name:name, company:company}]); });
-    setTimeout(function(){ setToasts(function(prev){ return prev.filter(function(t){ return t.id!==id; }); }); }, 5000);
-  }
 
   async function loadStats(){
     setStatsLoading(true);
@@ -1068,21 +1027,5 @@ export default function CFOCircleApp() {
 
     </div>
 
-      {/* TOAST NOTIFICATIONS */}
-      <div style={{position:"fixed",bottom:24,right:24,zIndex:999,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end"}}>
-        {toasts.map(function(toast){
-          return (
-            <div key={toast.id} style={{background:"linear-gradient(135deg,#0f2030,#1a3a5c)",border:"1px solid "+G+"60",borderLeft:"3px solid "+G,borderRadius:8,padding:"14px 18px",minWidth:280,maxWidth:340,boxShadow:"0 8px 32px rgba(0,0,0,0.6)",display:"flex",gap:12,alignItems:"flex-start"}}>
-              <div style={{width:32,height:32,borderRadius:"50%",background:G+"20",border:"1px solid "+G+"50",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🔗</div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>New Connection</div>
-                <div style={{fontSize:14,color:T.text,fontWeight:600}}>{toast.name}</div>
-                {toast.company?<div style={{fontSize:12,color:T.muted,marginTop:2}}>{toast.company}</div>:null}
-              </div>
-              <button onClick={function(){ setToasts(function(prev){ return prev.filter(function(t){ return t.id!==toast.id; }); }); }} style={{background:"transparent",border:"none",color:T.dim,cursor:"pointer",fontSize:16,padding:"0 0 0 4px",marginLeft:"auto",flexShrink:0}}>✕</button>
-            </div>
-          );
-        })}
-      </div>
   );
 }
