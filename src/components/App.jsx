@@ -1,9 +1,10 @@
 "use client"
 import { useState, useEffect } from "react";
 
-// ─── DATA LAYER: Live Supabase ───────────────────────────────────────────────
-const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+// ─── DATA LAYER: Live Supabase ──────────────────────────────────────────────
+var SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+var SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 async function sbFetch(path, opts) {
   var h = {"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json","Prefer":"return=representation"};
@@ -238,6 +239,34 @@ function Drawer({title,open,onClose,onSave,children}) {
           <button onClick={onSave||onClose} style={{padding:"7px 18px",background:G+"18",border:"1px solid "+G+"50",color:G,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:700}}>Save Changes</button>
         </div>
       </div>
+
+      {/* TOAST NOTIFICATIONS */}
+      <div style={{position:"fixed",bottom:24,right:24,zIndex:999,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end"}}>
+        {toasts.map(function(toast){
+          return (
+            <div key={toast.id} style={{
+              background:"linear-gradient(135deg,#0f2030,#1a3a5c)",
+              border:"1px solid "+G+"60",
+              borderLeft:"3px solid "+G,
+              borderRadius:8,
+              padding:"14px 18px",
+              minWidth:280,
+              maxWidth:340,
+              boxShadow:"0 8px 32px rgba(0,0,0,0.6)",
+              display:"flex",gap:12,alignItems:"flex-start",
+              animation:"slideIn 0.3s ease",
+            }}>
+              <div style={{width:32,height:32,borderRadius:"50%",background:G+"20",border:"1px solid "+G+"50",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🔗</div>
+              <div>
+                <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>New Connection</div>
+                <div style={{fontSize:14,color:T.text,fontWeight:600}}>{toast.name}</div>
+                {toast.company && <div style={{fontSize:12,color:T.muted,marginTop:2}}>{toast.company}</div>}
+              </div>
+              <button onClick={function(){ setToasts(function(prev){ return prev.filter(function(t){ return t.id!==toast.id; }); }); }} style={{background:"transparent",border:"none",color:T.dim,cursor:"pointer",fontSize:16,padding:"0 0 0 4px",marginLeft:"auto",flexShrink:0}}>✕</button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -401,6 +430,9 @@ function ContactProfile({contactId,onBack}) {
   async function loadComms() {
     setCommsLoading(true);
     try {
+      // queryDB only handles contacts table in artifact mode.
+      // Communications are stored in Supabase but fetched via direct REST when deployed.
+      // In artifact mode, comms are populated via local state (stage changes, notes).
       var rows=await sbFetch("/communications?contact_id=eq."+contactId+"&order=occurred_at.desc&limit=100");
       setComms(Array.isArray(rows)?rows:[]);
     } catch(e) { setComms([]); }
@@ -411,6 +443,14 @@ function ContactProfile({contactId,onBack}) {
     if(!data||!data.id) return;
     setSaving(true);setSaveMsg("");
     try {
+      var d=localToDb(data);
+      var sets=Object.keys(d).map(function(k){
+        var v=d[k];
+        if(v===null||v===undefined)return k+"=NULL";
+        if(typeof v==="boolean")return k+"="+v;
+        if(Array.isArray(v))return k+"=ARRAY["+v.map(function(x){return "'"+String(x).replace(/'/g,"''")+"'";}).join(",")+"]::text[]";
+        return k+"='"+String(v).replace(/'/g,"''")+"'";
+      }).join(",");
       await sbFetch("/contacts?id=eq."+data.id,{method:"PATCH",body:JSON.stringify(localToDb(data))});
       setSaveMsg("Saved");
       setTimeout(function(){setSaveMsg("");},2000);
@@ -421,6 +461,7 @@ function ContactProfile({contactId,onBack}) {
   async function saveNote() {
     if(!noteText.trim()||!data||!data.id) return;
     try {
+      var body=noteText.trim().replace(/'/g,"''");
       await sbFetch("/communications",{method:"POST",body:JSON.stringify({contact_id:data.id,occurred_at:new Date().toISOString(),channel:"App",direction:"INTERNAL",step_label:"Note",body:noteText.trim(),source:"Manual",logged_by:"Dalen Lawrence"})});
       setNoteText("");setAddingNote(false);loadComms();
     } catch(e) { console.error("saveNote error:",e); }
@@ -582,7 +623,10 @@ function ContactProfile({contactId,onBack}) {
 
                   // Persist both stage update and stage-change log to Supabase
                   if(data && data.id){
-
+                    var bodyEsc = body.replace(/'/g,"''");
+                    var stageEsc = stage.replace(/'/g,"''");
+                    var sql1 = "UPDATE contacts SET pipeline_stage='"+stageEsc+"' WHERE id='"+data.id+"'";
+                    var sql2 = "INSERT INTO communications (contact_id,occurred_at,channel,direction,step_label,body,source,logged_by) VALUES ('"+data.id+"','"+iso+"','App','INTERNAL','Stage Change','"+bodyEsc+"','App','Dalen Lawrence')";
                     sbFetch("/contacts?id=eq."+data.id,{method:"PATCH",body:JSON.stringify({pipeline_stage:stage})}).catch(function(e){console.error("stage:",e);});
                     sbFetch("/communications",{method:"POST",body:JSON.stringify({contact_id:data.id,occurred_at:iso,channel:"App",direction:"INTERNAL",step_label:"Stage Change",body:body,source:"App",logged_by:"Dalen Lawrence"})}).catch(function(e){console.error("log:",e);});
                   }
@@ -863,6 +907,34 @@ function Dashboard({onNavigate,totalContacts,stageCounts}) {
           <div style={{padding:"10px 16px 14px"}}><button onClick={function(){onNavigate("pipeline");}} style={{width:"100%",padding:"8px",background:T.goldDim,border:"1px solid "+G+"40",color:G,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600}}>Open Full Pipeline →</button></div>
         </div>
       </div>
+
+      {/* TOAST NOTIFICATIONS */}
+      <div style={{position:"fixed",bottom:24,right:24,zIndex:999,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end"}}>
+        {toasts.map(function(toast){
+          return (
+            <div key={toast.id} style={{
+              background:"linear-gradient(135deg,#0f2030,#1a3a5c)",
+              border:"1px solid "+G+"60",
+              borderLeft:"3px solid "+G,
+              borderRadius:8,
+              padding:"14px 18px",
+              minWidth:280,
+              maxWidth:340,
+              boxShadow:"0 8px 32px rgba(0,0,0,0.6)",
+              display:"flex",gap:12,alignItems:"flex-start",
+              animation:"slideIn 0.3s ease",
+            }}>
+              <div style={{width:32,height:32,borderRadius:"50%",background:G+"20",border:"1px solid "+G+"50",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🔗</div>
+              <div>
+                <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>New Connection</div>
+                <div style={{fontSize:14,color:T.text,fontWeight:600}}>{toast.name}</div>
+                {toast.company && <div style={{fontSize:12,color:T.muted,marginTop:2}}>{toast.company}</div>}
+              </div>
+              <button onClick={function(){ setToasts(function(prev){ return prev.filter(function(t){ return t.id!==toast.id; }); }); }} style={{background:"transparent",border:"none",color:T.dim,cursor:"pointer",fontSize:16,padding:"0 0 0 4px",marginLeft:"auto",flexShrink:0}}>✕</button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -874,6 +946,7 @@ function Pipeline({onNavigate}) {
   async function loadContacts(){
     setLoading(true);setError(null);
     try{
+      var where=stageFilter!=="All"?"WHERE pipeline_stage='"+stageFilter.replace(/'/g,"''")+"' ":"";
       var qs="?select=id,first_name,last_name,title,company_name,email,email_type,pipeline_stage,member_status,lead_source,annual_revenue,industry,linkedin_location,linkedin_url,created_at&order=created_at.desc&limit=200";
       if(stageFilter!=="All")qs+="&pipeline_stage=eq."+encodeURIComponent(stageFilter);
       var data=await sbFetch("/contacts"+qs);
@@ -936,8 +1009,51 @@ export default function CFOCircleApp() {
   var [totalContacts,setTotal]       = useState(0);
   var [stageCounts,setStageCounts]   = useState({});
   var [statsLoading,setStatsLoading] = useState(true);
+  var [toasts,setToasts]             = useState([]);
 
   useEffect(function(){loadStats();},[]);
+
+  // Supabase realtime — fire toast when new contact inserted
+  useEffect(function(){
+    var SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    var SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if(!SB_URL||!SB_KEY) return;
+
+    var channel;
+    try {
+      // Use Supabase realtime via REST polling as fallback
+      var lastCount = 0;
+      var pollInterval = setInterval(async function(){
+        try {
+          var res = await fetch(SB_URL+"/rest/v1/contacts?select=id,first_name,last_name,company_name,created_at&order=created_at.desc&limit=1", {
+            headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
+          });
+          var data = await res.json();
+          if(data && data.length > 0) {
+            var newest = data[0];
+            var ts = new Date(newest.created_at).getTime();
+            if(lastCount > 0 && ts > lastCount) {
+              // New contact!
+              var name = newest.first_name + " " + newest.last_name;
+              var co = newest.company_name || "";
+              var id = Date.now();
+              setToasts(function(prev){ return prev.concat([{id:id, name:name, company:co}]); });
+              setTotal(function(n){ return n+1; });
+              setTimeout(function(){ setToasts(function(prev){ return prev.filter(function(t){ return t.id!==id; }); }); }, 5000);
+            }
+            lastCount = ts;
+          }
+        } catch(e) {}
+      }, 30000); // poll every 30 seconds
+      return function(){ clearInterval(pollInterval); };
+    } catch(e) { console.error("realtime setup:", e); }
+  }, []);
+
+  function addToast(name, company) {
+    var id = Date.now();
+    setToasts(function(prev){ return prev.concat([{id:id, name:name, company:company}]); });
+    setTimeout(function(){ setToasts(function(prev){ return prev.filter(function(t){ return t.id!==id; }); }); }, 5000);
+  }
 
   async function loadStats(){
     setStatsLoading(true);
@@ -1002,6 +1118,34 @@ export default function CFOCircleApp() {
           {screen==="claude"    && <Placeholder icon="★" title="Ask Claude" description="Ask anything about your pipeline in plain English. Claude reads your live Supabase data and responds."/>}
           {screen==="stalliant" && <Placeholder icon="★" title="Stalliant Prospects" description="CFO Circle contacts flagged as Stalliant prospects with signal type and revenue range."/>}
         </div>
+      </div>
+
+      {/* TOAST NOTIFICATIONS */}
+      <div style={{position:"fixed",bottom:24,right:24,zIndex:999,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end"}}>
+        {toasts.map(function(toast){
+          return (
+            <div key={toast.id} style={{
+              background:"linear-gradient(135deg,#0f2030,#1a3a5c)",
+              border:"1px solid "+G+"60",
+              borderLeft:"3px solid "+G,
+              borderRadius:8,
+              padding:"14px 18px",
+              minWidth:280,
+              maxWidth:340,
+              boxShadow:"0 8px 32px rgba(0,0,0,0.6)",
+              display:"flex",gap:12,alignItems:"flex-start",
+              animation:"slideIn 0.3s ease",
+            }}>
+              <div style={{width:32,height:32,borderRadius:"50%",background:G+"20",border:"1px solid "+G+"50",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🔗</div>
+              <div>
+                <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>New Connection</div>
+                <div style={{fontSize:14,color:T.text,fontWeight:600}}>{toast.name}</div>
+                {toast.company && <div style={{fontSize:12,color:T.muted,marginTop:2}}>{toast.company}</div>}
+              </div>
+              <button onClick={function(){ setToasts(function(prev){ return prev.filter(function(t){ return t.id!==toast.id; }); }); }} style={{background:"transparent",border:"none",color:T.dim,cursor:"pointer",fontSize:16,padding:"0 0 0 4px",marginLeft:"auto",flexShrink:0}}>✕</button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
