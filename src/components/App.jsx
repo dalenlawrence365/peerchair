@@ -240,33 +240,6 @@ function Drawer({title,open,onClose,onSave,children}) {
         </div>
       </div>
 
-      {/* TOAST NOTIFICATIONS */}
-      <div style={{position:"fixed",bottom:24,right:24,zIndex:999,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end"}}>
-        {toasts.map(function(toast){
-          return (
-            <div key={toast.id} style={{
-              background:"linear-gradient(135deg,#0f2030,#1a3a5c)",
-              border:"1px solid "+G+"60",
-              borderLeft:"3px solid "+G,
-              borderRadius:8,
-              padding:"14px 18px",
-              minWidth:280,
-              maxWidth:340,
-              boxShadow:"0 8px 32px rgba(0,0,0,0.6)",
-              display:"flex",gap:12,alignItems:"flex-start",
-              animation:"slideIn 0.3s ease",
-            }}>
-              <div style={{width:32,height:32,borderRadius:"50%",background:G+"20",border:"1px solid "+G+"50",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🔗</div>
-              <div>
-                <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>New Connection</div>
-                <div style={{fontSize:14,color:T.text,fontWeight:600}}>{toast.name}</div>
-                {toast.company && <div style={{fontSize:12,color:T.muted,marginTop:2}}>{toast.company}</div>}
-              </div>
-              <button onClick={function(){ setToasts(function(prev){ return prev.filter(function(t){ return t.id!==toast.id; }); }); }} style={{background:"transparent",border:"none",color:T.dim,cursor:"pointer",fontSize:16,padding:"0 0 0 4px",marginLeft:"auto",flexShrink:0}}>✕</button>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -908,33 +881,6 @@ function Dashboard({onNavigate,totalContacts,stageCounts}) {
         </div>
       </div>
 
-      {/* TOAST NOTIFICATIONS */}
-      <div style={{position:"fixed",bottom:24,right:24,zIndex:999,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end"}}>
-        {toasts.map(function(toast){
-          return (
-            <div key={toast.id} style={{
-              background:"linear-gradient(135deg,#0f2030,#1a3a5c)",
-              border:"1px solid "+G+"60",
-              borderLeft:"3px solid "+G,
-              borderRadius:8,
-              padding:"14px 18px",
-              minWidth:280,
-              maxWidth:340,
-              boxShadow:"0 8px 32px rgba(0,0,0,0.6)",
-              display:"flex",gap:12,alignItems:"flex-start",
-              animation:"slideIn 0.3s ease",
-            }}>
-              <div style={{width:32,height:32,borderRadius:"50%",background:G+"20",border:"1px solid "+G+"50",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🔗</div>
-              <div>
-                <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>New Connection</div>
-                <div style={{fontSize:14,color:T.text,fontWeight:600}}>{toast.name}</div>
-                {toast.company && <div style={{fontSize:12,color:T.muted,marginTop:2}}>{toast.company}</div>}
-              </div>
-              <button onClick={function(){ setToasts(function(prev){ return prev.filter(function(t){ return t.id!==toast.id; }); }); }} style={{background:"transparent",border:"none",color:T.dim,cursor:"pointer",fontSize:16,padding:"0 0 0 4px",marginLeft:"auto",flexShrink:0}}>✕</button>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -1013,11 +959,11 @@ export default function CFOCircleApp() {
 
   useEffect(function(){loadStats();},[]);
 
-  // Supabase realtime — fire toast when new contact inserted
+  // Poll for new connections every 30 seconds
   useEffect(function(){
-    var SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    var SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if(!SB_URL||!SB_KEY) return;
+    var pollUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    var pollKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if(!pollUrl||!pollKey) return;
 
     var channel;
     try {
@@ -1025,8 +971,8 @@ export default function CFOCircleApp() {
       var lastCount = 0;
       var pollInterval = setInterval(async function(){
         try {
-          var res = await fetch(SB_URL+"/rest/v1/contacts?select=id,first_name,last_name,company_name,created_at&order=created_at.desc&limit=1", {
-            headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
+          var res = await fetch(pollUrl+"/rest/v1/contacts?select=id,first_name,last_name,company_name,created_at&order=created_at.desc&limit=1", {
+            headers:{"apikey":pollKey,"Authorization":"Bearer "+pollKey}
           });
           var data = await res.json();
           if(data && data.length > 0) {
@@ -1120,33 +1066,23 @@ export default function CFOCircleApp() {
         </div>
       </div>
 
+    </div>
+
       {/* TOAST NOTIFICATIONS */}
       <div style={{position:"fixed",bottom:24,right:24,zIndex:999,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end"}}>
         {toasts.map(function(toast){
           return (
-            <div key={toast.id} style={{
-              background:"linear-gradient(135deg,#0f2030,#1a3a5c)",
-              border:"1px solid "+G+"60",
-              borderLeft:"3px solid "+G,
-              borderRadius:8,
-              padding:"14px 18px",
-              minWidth:280,
-              maxWidth:340,
-              boxShadow:"0 8px 32px rgba(0,0,0,0.6)",
-              display:"flex",gap:12,alignItems:"flex-start",
-              animation:"slideIn 0.3s ease",
-            }}>
+            <div key={toast.id} style={{background:"linear-gradient(135deg,#0f2030,#1a3a5c)",border:"1px solid "+G+"60",borderLeft:"3px solid "+G,borderRadius:8,padding:"14px 18px",minWidth:280,maxWidth:340,boxShadow:"0 8px 32px rgba(0,0,0,0.6)",display:"flex",gap:12,alignItems:"flex-start"}}>
               <div style={{width:32,height:32,borderRadius:"50%",background:G+"20",border:"1px solid "+G+"50",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🔗</div>
-              <div>
+              <div style={{flex:1}}>
                 <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>New Connection</div>
                 <div style={{fontSize:14,color:T.text,fontWeight:600}}>{toast.name}</div>
-                {toast.company && <div style={{fontSize:12,color:T.muted,marginTop:2}}>{toast.company}</div>}
+                {toast.company?<div style={{fontSize:12,color:T.muted,marginTop:2}}>{toast.company}</div>:null}
               </div>
               <button onClick={function(){ setToasts(function(prev){ return prev.filter(function(t){ return t.id!==toast.id; }); }); }} style={{background:"transparent",border:"none",color:T.dim,cursor:"pointer",fontSize:16,padding:"0 0 0 4px",marginLeft:"auto",flexShrink:0}}>✕</button>
             </div>
           );
         })}
       </div>
-    </div>
   );
 }
