@@ -542,5 +542,3 @@ export default function LiveCallCompanion({ contact, onEnd, onBack }) {
     </div>
   );
 }
-
-export default LiveCallCompanion;
