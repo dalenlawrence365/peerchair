@@ -1,8 +1,7 @@
 "use client"
 import { useState, useEffect, useRef } from "react";
 
-
-// HR data comes from contact prop — defined in LiveCallCompanion
+// HR is built from contact prop inside LiveCallCompanion
 
 // ── CURRENT ROOM MEMBERS ─────────────────────────────────────────────────────
 const ROOM = [
@@ -77,7 +76,7 @@ function getStalliantSignal(rev,finTeam,own,pressureList) {
 // ── MICRO COMPONENTS ─────────────────────────────────────────────────────────
 function Chip({on,label,color,onClick}) {
   return (
-    <div onClick={onClick} style={{display:"flex",alignItems:"flex-start",gap:5,padding:"5px 7px",borderRadius:4,cursor:"pointer",transition:"all 0.1s",background:on?`${color}12`:"rgba(255,255,255,0.02)",border:`1px solid ${on?`${color}40`:"rgba(255,255,255,0.05)"}`,fontSize:13,color:on?"#dce8f5":"#9ac4dc",lineHeight:1.3}}>
+    <div onClick={onClick} style={{display:"flex",alignItems:"flex-start",gap:5,padding:"5px 7px",borderRadius:4,cursor:"pointer",transition:"all 0.1s",background:on?(color)+"12":"rgba(255,255,255,0.02)",border:"1px solid ${on?"${color}40":"rgba(255,255,255,0.05)"}",fontSize:13,color:on?"#dce8f5":"#9ac4dc",lineHeight:1.3}}>
       <div style={{width:11,height:11,borderRadius:2,flexShrink:0,marginTop:1,border:`1px solid ${on?color:"rgba(255,255,255,0.12)"}`,background:on?color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"#0c1520",fontWeight:"bold"}}>{on?"✓":""}</div>
       {label}
     </div>
@@ -87,7 +86,7 @@ function Sel({label,val,set,opts,highlight}) {
   return (
     <div>
       <div style={{fontSize:13,letterSpacing:2,color:highlight?C:"#7aaac8",textTransform:"uppercase",marginBottom:3}}>{label}</div>
-      <select value={val} onChange={e=>set(e.target.value)} style={{width:"100%",background:"#0f1e2e",border:`1px solid ${val&&highlight?`${C}45`:"rgba(255,255,255,0.08)"}`,color:val?"#e0ecf8":"#7aaac8",padding:"5px 7px",borderRadius:4,fontSize:14,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+      <select value={val} onChange={function(e){set(e.target.value);}} style={{width:"100%",background:"#0f1e2e",border:"1px solid ${val&&highlight?"${C}45":"rgba(255,255,255,0.08)"}",color:val?"#e0ecf8":"#7aaac8",padding:"5px 7px",borderRadius:4,fontSize:14,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
         <option value="">—</option>
         {opts.map(o=><option key={o}>{o}</option>)}
       </select>
@@ -146,22 +145,21 @@ function HeyReachPopup({onClose}) {
 export default function LiveCallCompanion({ contact, onEnd, onBack }) {
   // Build HR from contact prop
   var HR = {
-    firstName: contact ? contact.firstName : "",
-    lastName:  contact ? contact.lastName  : "",
-    title:     contact ? contact.title     : "",
-    company:   contact ? contact.company   : "",
-    location:  contact ? contact.linkedinLocation : "",
-    source:    contact ? contact.leadSource : "LinkedIn / HeyReach",
-    connectedDate: contact ? contact.connectedDate : "",
-    email:     contact ? contact.email     : "",
-    emailType: contact ? contact.emailType : "",
-    lastMsg:   "",
-    headline:  contact ? contact.title     : "",
-    connections: "500+",
+    firstName:    contact ? (contact.firstName || "") : "",
+    lastName:     contact ? (contact.lastName  || "") : "",
+    title:        contact ? (contact.title     || "") : "",
+    company:      contact ? (contact.company   || "") : "",
+    location:     contact ? (contact.linkedinLocation || "") : "",
+    source:       contact ? (contact.leadSource || "LinkedIn / HeyReach") : "",
+    connectedDate:contact ? (contact.connectedDate || "") : "",
+    email:        contact ? (contact.email     || "") : "",
+    emailType:    contact ? (contact.emailType || "") : "",
+    lastMsg:      "",
+    headline:     contact ? (contact.title     || "") : "",
+    connections:  "500+",
     campaignStep: "Fit Call",
     mutualConnections: "0",
-    profileUrl: contact ? contact.linkedinUrl : "",
-    contactId:  contact ? contact.id        : null,
+    profileUrl:   contact ? (contact.linkedinUrl || "") : "",
   };
   const [step,setStep]           = useState(0);
   const [fb,setFb]               = useState({});
@@ -181,13 +179,9 @@ export default function LiveCallCompanion({ contact, onEnd, onBack }) {
   const [assess,setAssess]       = useState(null);
   const [showPricing,setShowPricing] = useState(false);
   const [showHR,setShowHR]       = useState(false);
-  const [email,setEmail]          = useState(HR.email);
-  const [emailType,setEmailType]  = useState(HR.emailType);
-  const [editingEmail,setEditingEmail] = useState(false);
   const [live,setLive]           = useState(false);
   const [secs,setSecs]           = useState(0);
   const [saved,setSaved]         = useState(false);
-  const [callStamp,setCallStamp]  = useState("");
   const timer = useRef(null);
 
   useEffect(()=>{ if(live) timer.current=setInterval(()=>setSecs(s=>s+1),1000); else clearInterval(timer.current); return()=>clearInterval(timer.current); },[live]);
@@ -235,7 +229,7 @@ export default function LiveCallCompanion({ contact, onEnd, onBack }) {
           <Sel label="Reports To" val={rpt} set={setRpt} opts={RPT}/>
           <Sel label="Industry" val={ind} set={setInd} opts={IND}/>
         </div>
-        {stalliant&&<div style={{padding:"9px 12px",background:`${stalliant.color}0d`,border:`1px solid ${stalliant.color}30`,borderLeft:`3px solid ${stalliant.color}`,borderRadius:6}}>
+        {stalliant&&<div style={{padding:"9px 12px",background:(stalliant.color)+"0d",border:"1px solid "+(stalliant.color)+"30",borderLeft:"3px solid "+(stalliant.color),borderRadius:6}}>
           <div style={{fontSize:14,color:stalliant.color,fontWeight:600,marginBottom:2}}>{stalliant.label}</div>
           <div style={{fontSize:13,color:"#9ac4dc",lineHeight:1.6}}>{stalliant.detail}</div>
         </div>}
@@ -281,7 +275,7 @@ export default function LiveCallCompanion({ contact, onEnd, onBack }) {
         <STitle label="Monthly Commitment — Get a Clear Answer"/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
           {[{v:true,l:"✓ Yes — can commit",c:"#2ecc71"},{v:false,l:"✗ Uncertain / No",c:"#e74c3c"}].map(({v,l,c})=>(
-            <button key={String(v)} onClick={()=>setCommit(v)} style={{padding:"16px 10px",borderRadius:7,cursor:"pointer",transition:"all 0.15s",border:`1px solid ${commit===v?c:"rgba(255,255,255,0.08)"}`,background:commit===v?`${c}14`:"rgba(255,255,255,0.02)",color:commit===v?c:"#cce4f8",fontSize:13}}>{l}</button>
+            <button key={String(v)} onClick={function(){setCommit(v);}} style={{padding:"16px 10px",borderRadius:7,cursor:"pointer",transition:"all 0.15s",border:"1px solid "+(commit===v?c:"rgba(255,255,255,0.08)"),background:commit===v?(c)+"14":"rgba(255,255,255,0.02)",color:commit===v?c:"#cce4f8",fontSize:13}}>{l}</button>
           ))}
         </div>
       </div>
@@ -323,13 +317,13 @@ export default function LiveCallCompanion({ contact, onEnd, onBack }) {
       <div style={{height:"100%",display:"flex",flexDirection:"column",gap:9}}>
         <STitle label="Fit Call Outcome"/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
-          {OUTCOMES.map(o=><button key={o.v} onClick={()=>setOutcome(o.v)} style={{padding:"13px 10px",borderRadius:6,cursor:"pointer",transition:"all 0.15s",border:`1px solid ${outcome===o.v?o.c:"rgba(255,255,255,0.08)"}`,background:outcome===o.v?`${o.c}14`:"rgba(255,255,255,0.02)",color:outcome===o.v?o.c:"#8ab4cc",fontSize:14}}>{o.l}</button>)}
+          {OUTCOMES.map(o=><button key={o.v} onClick={function(){setOutcome(o.v)}} style={{padding:"13px 10px",borderRadius:6,cursor:"pointer",transition:"all 0.15s",border:"1px solid "+(outcome===o.v?o.c:"rgba(255,255,255,0.08)"),background:outcome===o.v?(o.c)+"14":"rgba(255,255,255,0.02)",color:outcome===o.v?o.c:"#8ab4cc",fontSize:14}}>{o.l}</button>)}
         </div>
         <STitle label="Assessment Offered?" color="#4a9eba"/>
         <div style={{display:"flex",gap:7}}>
           {["Yes — sent link","No — not needed"].map(v=><button key={v} onClick={()=>setAssess(v)} style={{flex:1,padding:"9px",borderRadius:5,cursor:"pointer",border:`1px solid ${assess===v?"rgba(74,154,186,0.45)":"rgba(255,255,255,0.08)"}`,background:assess===v?"rgba(74,154,186,0.09)":"rgba(255,255,255,0.02)",color:assess===v?"#4a9eba":"#8ab4cc",fontSize:14}}>{v}</button>)}
         </div>
-        {outcome&&<div style={{padding:"9px 12px",borderRadius:5,fontSize:14,lineHeight:1.75,background:`${OUTCOMES.find(o=>o.v===outcome)?.c}0d`,border:`1px solid ${OUTCOMES.find(o=>o.v===outcome)?.c}30`,color:OUTCOMES.find(o=>o.v===outcome)?.c}}>
+        {outcome&&<div style={{padding:"9px 12px",borderRadius:5,fontSize:14,lineHeight:1.75,background:(OUTCOMES.find(o=>o.v===outcome)?.c)+"0d",border:"1px solid "+(OUTCOMES.find(o=>o.v===outcome)?.c)+"30",color:OUTCOMES.find(o=>o.v===outcome)?.c}}>
           {outcome==="strong_fit"&&"Move to Event Path → send formal invitation and assessment link within 24 hours."}
           {outcome==="possible_fit"&&"Follow up within 24 hrs. One more touch before deciding on event invitation."}
           {outcome==="bad_timing"&&"Warm close. Add to nurture sequence. Re-engage when event is scheduled."}
@@ -356,15 +350,12 @@ export default function LiveCallCompanion({ contact, onEnd, onBack }) {
             <div key={sc.id} onClick={()=>setStep(i)} title={sc.label} style={{width:i===step?20:6,height:6,borderRadius:3,cursor:"pointer",background:sc.contextual?"rgba(230,126,34,0.5)":i===step?C:i<step?"rgba(201,168,76,0.3)":"rgba(255,255,255,0.1)",transition:"all 0.25s"}}/>
           ))}
         </div>
-        {callStamp&&(
-          <div style={{fontSize:12,color:"#9ac4dc",letterSpacing:"0.5px",marginLeft:8,fontFamily:"'Courier New',monospace"}}>{callStamp}</div>
-        )}
         <div style={{display:"flex",alignItems:"center",gap:4,marginLeft:4}}>
           <div style={{width:6,height:6,borderRadius:"50%",background:live?"#2ecc71":"#6a9aba",boxShadow:live?"0 0 6px #2ecc71":"none"}}/>
           <span style={{fontSize:14,color:"#6a9aba",letterSpacing:1,textTransform:"uppercase"}}>{live?"Live":"Ready"}</span>
         </div>
         <div style={{marginLeft:"auto",fontFamily:"'Courier New',monospace",fontSize:22,fontWeight:"bold",color:tc,letterSpacing:2,transition:"color 0.5s"}}>{fmt(secs)}</div>
-        <button onClick={()=>{const nowLive=!live;setLive(nowLive);if(nowLive&&!callStamp){const n=new Date();setCallStamp(n.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' · '+n.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}));}}} style={{background:live?"rgba(231,76,60,0.15)":"rgba(46,204,113,0.15)",border:`1px solid ${live?"#e74c3c":"#2ecc71"}`,color:live?"#e74c3c":"#2ecc71",padding:"5px 13px",borderRadius:4,cursor:"pointer",fontSize:14,letterSpacing:1,textTransform:"uppercase"}}>{live?"■ End":"▶ Start"}</button>
+        <button onClick={()=>setLive(v=>!v)} style={{background:live?"rgba(231,76,60,0.15)":"rgba(46,204,113,0.15)",border:`1px solid ${live?"#e74c3c":"#2ecc71"}`,color:live?"#e74c3c":"#2ecc71",padding:"5px 13px",borderRadius:4,cursor:"pointer",fontSize:14,letterSpacing:1,textTransform:"uppercase"}}>{live?"■ End":"▶ Start"}</button>
       </div>
 
       {/* BODY */}
@@ -385,15 +376,12 @@ export default function LiveCallCompanion({ contact, onEnd, onBack }) {
                     <div style={{fontSize:13,color:sc.contextual?"rgba(230,126,34,0.35)":"#5a8aaa",letterSpacing:1}}>{sc.tag}</div>
                   </div>
                 </div>
-                {step===i&&<div style={{padding:"8px 10px 10px 10px"}}>
-                  <div style={{fontSize:14,color:fb[sc.id]?"#e8f2ff":"#f0f6ff",lineHeight:1.85,fontStyle:"italic",marginBottom:8,padding:"8px 12px",background:fb[sc.id]?"rgba(240,200,74,0.06)":"rgba(255,255,255,0.04)",borderRadius:5,borderLeft:fb[sc.id]?"2px solid #f0c84a":"2px solid rgba(255,255,255,0.2)"}}>
-                    {fb[sc.id]?`"${sc.fallback}"`:`"${sc.prompt}"`}
-                  </div>
-                  {sc.fallback&&(
-                    <button onClick={e=>{e.stopPropagation();setFb(v=>({...v,[sc.id]:!v[sc.id]}))}} style={{display:"block",background:fb[sc.id]?"rgba(255,255,255,0.04)":"rgba(240,200,74,0.12)",border:fb[sc.id]?"1px solid rgba(255,255,255,0.15)":"1px solid #f0c84a",color:fb[sc.id]?"#aacce0":"#f0c84a",fontSize:12,fontWeight:"700",padding:"4px 12px",borderRadius:4,cursor:"pointer"}}>
-                      {fb[sc.id]?"↩ Back to Script":"▸ Show Fallback"}
-                    </button>
-                  )}
+                {step===i&&<div style={{padding:"0 9px 9px 32px",overflow:"hidden"}}>
+                  <div style={{fontSize:15,color:"#f0f6ff",lineHeight:1.85,fontStyle:"italic",marginBottom:10,padding:"8px 12px",background:"rgba(255,255,255,0.04)",borderRadius:5,borderLeft:"2px solid rgba(255,255,255,0.2)"}}>"{sc.prompt}"</div>
+                  {sc.fallback&&<>
+                    <button onClick={e=>{e.stopPropagation();setFb(v=>({...v,[sc.id]:!v[sc.id]}))}} style={{display:"block",marginBottom:8,background:"rgba(240,200,74,0.12)",border:"1px solid #f0c84a",color:"#f0c84a",fontSize:12,fontWeight:"700",padding:"4px 12px",borderRadius:4,cursor:"pointer"}}>{fb[sc.id]?"▾ Hide Fallback":"▸ Show Fallback"}</button>
+                    {fb[sc.id]&&<div style={{fontSize:14,color:"#e8f2ff",lineHeight:1.75,fontStyle:"italic",padding:"8px 12px",background:"rgba(240,200,74,0.05)",borderRadius:5,borderLeft:"2px solid #f0c84a"}}>"{sc.fallback}"</div>}
+                  </>}
                 </div>}
               </div>
             ))}
@@ -422,40 +410,22 @@ export default function LiveCallCompanion({ contact, onEnd, onBack }) {
               </div>
               <button onClick={()=>setShowHR(true)} title="View HeyReach data" style={{background:"rgba(74,154,186,0.1)",border:"1px solid rgba(74,154,186,0.25)",color:"#4a9eba",borderRadius:4,padding:"4px 7px",cursor:"pointer",fontSize:14,letterSpacing:0.5,flexShrink:0,marginLeft:8}}>ℹ LinkedIn</button>
             </div>
-            <div style={{marginTop:7}}>
-              <div style={{fontSize:13,color:"#6a9eba",letterSpacing:2,textTransform:"uppercase",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <span>Email</span>
-                <button onClick={()=>setEditingEmail(v=>!v)} style={{background:"transparent",border:"none",color:editingEmail?"#f0c84a":"#4a9eba",fontSize:11,cursor:"pointer",padding:"0 2px",letterSpacing:0.5}}>
-                  {editingEmail?"✓ done":"✎ edit"}
-                </button>
+            <div style={{display:"flex",gap:5,marginTop:7}}>
+              <div style={{flex:1,background:"rgba(255,255,255,0.02)",borderRadius:3,padding:"4px 6px"}}>
+                <div style={{fontSize:13,color:"#6a9aba",letterSpacing:2,textTransform:"uppercase",marginBottom:1}}>Email</div>
+                <div style={{fontSize:14,color:"#c0dcf0"}}>{HR.email}</div>
               </div>
-              {editingEmail?(
-                <div style={{display:"flex",gap:5}}>
-                  <input
-                    value={email}
-                    onChange={e=>setEmail(e.target.value)}
-                    style={{flex:1,background:"#0f1e2e",border:"1px solid #f0c84a",color:"#f0f6ff",padding:"5px 8px",borderRadius:4,fontSize:13,outline:"none",fontFamily:"inherit",minWidth:0}}
-                    autoFocus
-                  />
-                  <select value={emailType} onChange={e=>setEmailType(e.target.value)} style={{background:"#0f1e2e",border:"1px solid rgba(255,255,255,0.12)",color:"#c0dcf0",padding:"5px 6px",borderRadius:4,fontSize:12,outline:"none",cursor:"pointer",flexShrink:0}}>
-                    <option>Personal</option>
-                    <option>Company</option>
-                    <option>Unknown</option>
-                  </select>
-                </div>
-              ):(
-                <div style={{display:"flex",gap:5,alignItems:"center"}}>
-                  <div style={{flex:1,background:"rgba(255,255,255,0.02)",borderRadius:3,padding:"4px 7px",fontSize:13,color:"#ddeaf8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{email}</div>
-                  <div style={{background:"rgba(255,255,255,0.02)",borderRadius:3,padding:"4px 7px",fontSize:12,color:"#9ac4dc",flexShrink:0}}>{emailType}</div>
-                </div>
-              )}
+              <div style={{flex:"0 0 auto",background:"rgba(255,255,255,0.02)",borderRadius:3,padding:"4px 6px"}}>
+                <div style={{fontSize:13,color:"#6a9aba",letterSpacing:2,textTransform:"uppercase",marginBottom:1}}>Type</div>
+                <div style={{fontSize:14,color:"#c0dcf0"}}>{HR.emailType}</div>
+              </div>
             </div>
           </div>
 
           {/* Signal + Stalliant */}
           <div style={{display:"flex",gap:5,flexShrink:0}}>
-            <div style={{flex:1,padding:"5px 7px",borderRadius:5,background:`${s.c}0e`,border:`1px solid ${s.c}28`,fontSize:14,color:s.c,textAlign:"center"}}>{s.l}</div>
-            {stalliant&&<div style={{flex:1,padding:"5px 7px",borderRadius:5,background:`${stalliant.color}0d`,border:`1px solid ${stalliant.color}30`,borderLeft:`2px solid ${stalliant.color}`,fontSize:14,color:stalliant.color,lineHeight:1.4,textAlign:"center"}}>★ Stalliant<br/><span style={{fontSize:13,opacity:0.75}}>{stalliant.type==="understaffed"?"Build function":"Automate/optimize"}</span></div>}
+            <div style={{flex:1,padding:"5px 7px",borderRadius:5,background:(s.c)+"0e",border:"1px solid "+(s.c)+"28",fontSize:14,color:s.c,textAlign:"center"}}>{s.l}</div>
+            {stalliant&&<div style={{flex:1,padding:"5px 7px",borderRadius:5,background:(stalliant.color)+"0d",border:"1px solid "+(stalliant.color)+"30",borderLeft:"2px solid "+(stalliant.color),fontSize:14,color:stalliant.color,lineHeight:1.4,textAlign:"center"}}>★ Stalliant<br/><span style={{fontSize:13,opacity:0.75}}>{stalliant.type==="understaffed"?"Build function":"Automate/optimize"}</span></div>}
           </div>
 
           {/* Counters */}
@@ -530,7 +500,7 @@ export default function LiveCallCompanion({ contact, onEnd, onBack }) {
       <div style={{background:"#0a1522",borderTop:"1px solid rgba(255,255,255,0.05)",padding:"7px 20px",display:"flex",alignItems:"center",gap:9,flexShrink:0,flexWrap:"wrap"}}>
         <div style={{fontSize:13,color:"#6a9aba",letterSpacing:2,textTransform:"uppercase",flexShrink:0}}>Outcome:</div>
         <div style={{display:"flex",gap:5,flex:1,flexWrap:"wrap"}}>
-          {OUTCOMES.map(o=><button key={o.v} onClick={()=>setOutcome(o.v)} style={{padding:"4px 9px",borderRadius:4,cursor:"pointer",transition:"all 0.12s",border:`1px solid ${outcome===o.v?o.c:"rgba(255,255,255,0.07)"}`,background:outcome===o.v?`${o.c}12`:"rgba(255,255,255,0.02)",color:outcome===o.v?o.c:"#7aaac8",fontSize:14}}>{o.l}</button>)}
+          {OUTCOMES.map(o=><button key={o.v} onClick={function(){setOutcome(o.v)}} style={{padding:"4px 9px",borderRadius:4,cursor:"pointer",transition:"all 0.12s",border:"1px solid "+(outcome===o.v?o.c:"rgba(255,255,255,0.07)"),background:outcome===o.v?(o.c)+"12":"rgba(255,255,255,0.02)",color:outcome===o.v?o.c:"#7aaac8",fontSize:14}}>{o.l}</button>)}
         </div>
         <button onClick={()=>{setSaved(true);setTimeout(()=>setSaved(false),2000);}} style={{padding:"7px 20px",background:saved?"rgba(46,204,113,0.16)":"linear-gradient(135deg,rgba(201,168,76,0.18),rgba(201,168,76,0.07))",border:`1px solid ${saved?"#2ecc71":"rgba(201,168,76,0.35)"}`,color:saved?"#2ecc71":C,borderRadius:5,cursor:"pointer",fontSize:14,letterSpacing:"1.5px",textTransform:"uppercase",transition:"all 0.2s",flexShrink:0}}>
           {saved?"✓ Saved":"Save & Close"}
