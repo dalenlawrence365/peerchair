@@ -1,4 +1,5 @@
 "use client"
+import LiveCallCompanion from "@/components/LiveCallCompanion";
 import { useState, useEffect } from "react";
 
 
@@ -423,7 +424,7 @@ function CircleJourney({data, onNodeClick}){
 }
 
 // ─── CONTACT PROFILE ─────────────────────────────────────────────────────────
-function ContactProfile({contactId,onBack}) {
+function ContactProfile({contactId,onBack,onStartFitCall}) {
   var [data,setData]           = useState(null);
   var [loading,setLoading]     = useState(true);
   var [saving,setSaving]       = useState(false);
@@ -596,7 +597,7 @@ function ContactProfile({contactId,onBack}) {
           <div style={{borderTop:"1px solid "+T.border,paddingTop:12,marginBottom:12}}>
             <div style={{fontSize:9,letterSpacing:2,color:T.dim,textTransform:"uppercase",marginBottom:8}}>Quick Actions</div>
             {[["📅 Schedule Fit Call",G],["✉ Send Assessment",T.blue],["📨 Event Invite",T.purple],["✎ Add Note",T.green],["📋 Reserve Pool",T.orange]].map(function(item){
-              return <button key={item[0]} onClick={function(){if(item[0].indexOf("Note")>-1){setAddingNote(true);setTab("timeline");}}} style={{display:"block",width:"100%",marginBottom:5,padding:"7px 10px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,color:item[1],borderRadius:5,cursor:"pointer",fontSize:11,textAlign:"left"}}>{item[0]}</button>;
+              return <button key={item[0]} onClick={function(){if(item[0].indexOf("Note")>-1){setAddingNote(true);setTab("timeline");} else if(item[0].indexOf("Fit Call")>-1 && onStartFitCall){onStartFitCall(data);}}} style={{display:"block",width:"100%",marginBottom:5,padding:"7px 10px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,color:item[1],borderRadius:5,cursor:"pointer",fontSize:11,textAlign:"left"}}>{item[0]}</button>;
             })}
           </div>
 
@@ -1113,6 +1114,7 @@ function AskClaude() {
 
 export default function CFOCircleApp() {
   var [screen,setScreen]             = useState("dashboard");
+  var [fitCallContact,setFitCallContact] = useState(null);
   var [selectedContact,setContact]   = useState(null);
   var [totalContacts,setTotal]       = useState(0);
   var [stageCounts,setStageCounts]   = useState({});
@@ -1179,11 +1181,12 @@ export default function CFOCircleApp() {
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
           {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts}/>}
           {screen==="pipeline"  && <Pipeline  onNavigate={navigate}/>}
-          {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} onBack={function(){navigate("pipeline");}}/>}
+          {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} onBack={function(){navigate("pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
           {screen==="events"    && <Placeholder icon="✦" title="Events" description="Manage your Experience Events — attendee lists, confirmations, and post-event follow-up."/>}
           {screen==="templates" && <Placeholder icon="✉" title="Templates" description="Your LinkedIn and email message library, organized by pipeline stage."/>}
           {screen==="claude"    && <AskClaude/>}
           {screen==="stalliant" && <Placeholder icon="★" title="Stalliant Prospects" description="CFO Circle contacts flagged as Stalliant prospects with signal type and revenue range."/>}
+          {screen==="fitcall" && fitCallContact && <LiveCallCompanion contact={fitCallContact} onEnd={function(){ setScreen("profile"); }} onBack={function(){ setScreen("profile"); }}/>}
         </div>
       </div>
 
