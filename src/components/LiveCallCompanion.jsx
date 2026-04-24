@@ -318,7 +318,7 @@ export default function LiveCallCompanion(props) {
               var isActive = i === step;
               var isDone = i < step;
               return (
-                <div key={s.id} onClick={function(){setStep(i);}} style={{borderRadius:5,border:"1px solid "+(isActive?s.contextual?"rgba(230,126,34,0.35)":"rgba(201,168,76,0.32)":"rgba(255,255,255,0.04)"),background:isActive?s.contextual?"rgba(230,126,34,0.04)":"rgba(201,168,76,0.04)":"transparent",cursor:"pointer",transition:"all 0.2s",overflow:"hidden",marginBottom:2}}>
+                <div key={s.id} onClick={function(){setStep(i);}} style={{borderRadius:5,border:"1px solid "+(isActive?s.contextual?"rgba(230,126,34,0.35)":"rgba(201,168,76,0.32)":"rgba(255,255,255,0.04)"),background:isActive?s.contextual?"rgba(230,126,34,0.04)":"rgba(201,168,76,0.04)":"transparent",cursor:"pointer",transition:"all 0.2s",marginBottom:2}}>
                   <div style={{padding:"6px 9px",display:"flex",alignItems:"center",gap:7}}>
                     <div style={{width:16,height:16,borderRadius:"50%",flexShrink:0,background:isActive?(s.contextual?"#e67e22":C):isDone?"rgba(201,168,76,0.22)":"rgba(255,255,255,0.06)",color:isActive?"#0c1520":isDone?"#f0c84a":"#8ab4cc",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:"bold"}}>
                       {isDone?"v":s.contextual?"?":i+1}
@@ -339,7 +339,7 @@ export default function LiveCallCompanion(props) {
               );
             })}
           </div>
-          <div style={{display:"flex",gap:5,paddingTop:9,borderTop:"1px solid rgba(255,255,255,0.04)",flexShrink:0,marginTop:7}}>
+          <div style={{display:"flex",gap:5,paddingTop:9,borderTop:"1px solid rgba(255,255,255,0.04)",flexShrink:0,marginTop:"auto"}}>
             <button onClick={function(){setStep(function(s){return Math.max(0,s-1);});}} style={{flex:1,padding:"5px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",color:"#8ab4cc",borderRadius:4,cursor:"pointer",fontSize:13,textTransform:"uppercase"}}>Prev</button>
             <button onClick={function(){setStep(function(s){return Math.min(SCRIPT.length-1,s+1);});}} style={{flex:1,padding:"5px",background:"rgba(201,168,76,0.05)",border:"1px solid rgba(201,168,76,0.18)",color:C,borderRadius:4,cursor:"pointer",fontSize:13,textTransform:"uppercase"}}>Next</button>
           </div>
