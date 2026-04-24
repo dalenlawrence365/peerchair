@@ -311,9 +311,9 @@ export default function LiveCallCompanion(props) {
       <div style={{display:"grid",gridTemplateColumns:"255px 1fr 255px",flex:1,overflow:"hidden",minHeight:0}}>
 
         {/* LEFT - Script */}
-        <div style={{background:"#0f1e2e",borderRight:"1px solid rgba(255,255,255,0.06)",padding:"12px 11px",overflow:"hidden",display:"flex",flexDirection:"column"}}>
+        <div style={{background:"#0f1e2e",borderRight:"1px solid rgba(255,255,255,0.06)",padding:"12px 11px",overflowY:"auto",display:"flex",flexDirection:"column"}}>
           <div style={{fontSize:13,letterSpacing:3,color:C,textTransform:"uppercase",marginBottom:9,flexShrink:0}}>Conversation Guide</div>
-          <div style={{flex:1,overflow:"auto",display:"flex",flexDirection:"column",gap:3}}>
+          <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:3}}>
             {SCRIPT.map(function(s, i) {
               var isActive = i === step;
               var isDone = i < step;
