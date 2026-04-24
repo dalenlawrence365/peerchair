@@ -315,56 +315,110 @@ function Tags({items,color}){
 }
 
 function CircleJourney({data, onNodeClick}){
-  // Primary: use pipeline_stage to determine current position
   var currentIdx = STAGE_TO_NODE[data.pipelineStage];
   if(currentIdx === undefined) currentIdx = -1;
 
-  // Secondary: supplement with dates for display
-  function getDate(m){if(m.date&&data[m.date])return data[m.date].split(" · ")[0];return "";}
+  // Determine if this contact is lost/disqualified
+  var isLost = data.pipelineStage === "Lost — Not a Fit" || 
+               data.pipelineStage === "Lost — Bad Timing" ||
+               data.memberStatus === "Not a Fit";
+  var isBadTiming = data.pipelineStage === "Lost — Bad Timing" || 
+                    data.pipelineStage === "Reserve Pool" ||
+                    data.pipelineStage === "Bad Timing";
 
-  var pct = currentIdx >= 0 ? ((currentIdx/(JOURNEY.length-1))*100) : 0;
+  // For lost contacts, show where they stopped based on fit_call_outcome or last meaningful stage
+  var stoppedIdx = currentIdx;
+  if(isLost && stoppedIdx < 0) stoppedIdx = 1; // at least made it to fit call
+  
+  function getDate(m){if(m.date&&data[m.date])return data[m.date].split(" · ")[0];return "";}
+  var pct = stoppedIdx >= 0 ? ((stoppedIdx/(JOURNEY.length-1))*100) : 0;
+
+  var lostColor = isLost ? T.red : isBadTiming ? T.orange : null;
 
   return (
     <div style={{padding:"8px 0 16px",overflowX:"auto"}}>
+      {/* Lost/Bad Timing banner */}
+      {(isLost||isBadTiming)?<div style={{
+        display:"flex",alignItems:"center",gap:8,padding:"7px 12px",
+        background:isLost?"rgba(231,76,60,0.08)":"rgba(230,126,34,0.08)",
+        border:"1px solid "+(isLost?"rgba(231,76,60,0.25)":"rgba(230,126,34,0.25)"),
+        borderRadius:6,marginBottom:12,fontSize:12,
+        color:isLost?T.red:T.orange
+      }}>
+        <span>{isLost?"✕":"⏸"}</span>
+        <span style={{fontWeight:600}}>{isLost?"Not a Fit":"Bad Timing / Reserve"}</span>
+        {data.fitCallOutcome?<span style={{color:T.muted,fontSize:11}}>· {data.fitCallOutcome}</span>:null}
+        <span style={{marginLeft:"auto",fontSize:11,color:T.dim}}>
+          {isLost?"Exited at:":"Paused at:"} {stoppedIdx>=0?JOURNEY[stoppedIdx].label:"Connected"}
+        </span>
+      </div>:null}
+
       <div style={{position:"relative",display:"flex",alignItems:"flex-start",minWidth:500,paddingTop:4}}>
         {/* Track line */}
         <div style={{position:"absolute",top:14,left:14,right:14,height:2,background:"rgba(255,255,255,0.06)",zIndex:0}}/>
         {/* Progress line */}
-        {currentIdx>=0?<div style={{position:"absolute",top:14,left:14,width:"calc("+pct+"% - 14px)",height:2,background:"linear-gradient(90deg,"+G+","+G+"80)",zIndex:1}}/>:null}
+        {stoppedIdx>=0?<div style={{position:"absolute",top:14,left:14,width:"calc("+pct+"% - 14px)",height:2,
+          background:isLost?"linear-gradient(90deg,"+T.red+","+T.red+"80)":
+                     isBadTiming?"linear-gradient(90deg,"+T.orange+","+T.orange+"80)":
+                     "linear-gradient(90deg,"+G+","+G+"80)",
+          zIndex:1}}/>:null}
+
         {/* Nodes */}
         {JOURNEY.map(function(m,idx){
-          var isDone = idx <= currentIdx;
-          var isCurrent = idx === currentIdx;
-          var isNext = idx === currentIdx + 1;
+          var isPast    = idx < stoppedIdx;
+          var isStopped = idx === stoppedIdx && (isLost||isBadTiming);
+          var isCurrent = idx === currentIdx && !isLost && !isBadTiming;
+          var isDone    = idx <= currentIdx && !isLost && !isBadTiming;
+          var isNext    = !isLost && !isBadTiming && idx === currentIdx + 1;
+          var isFuture  = idx > stoppedIdx;
           var d = getDate(m);
+
+          var nodeBg, nodeBorder, nodeColor, nodeText;
+          if(isStopped && isLost){
+            nodeBg="#e74c3c30"; nodeBorder=T.red; nodeColor=T.red; nodeText="✕";
+          } else if(isStopped && isBadTiming){
+            nodeBg="#e67e2230"; nodeBorder=T.orange; nodeColor=T.orange; nodeText="⏸";
+          } else if(isPast){
+            nodeBg=G+"20"; nodeBorder=G+"50"; nodeColor=G; nodeText="✓";
+          } else if(isCurrent){
+            nodeBg=G; nodeBorder=G; nodeColor=BG; nodeText="✓";
+          } else if(isDone){
+            nodeBg=G+"30"; nodeBorder=G+"60"; nodeColor=G; nodeText="✓";
+          } else if(isNext){
+            nodeBg="rgba(240,200,74,0.06)"; nodeBorder="rgba(240,200,74,0.2)"; nodeColor=G+"60"; nodeText=String(idx+1);
+          } else {
+            nodeBg="rgba(255,255,255,0.04)"; nodeBorder="rgba(255,255,255,0.08)"; nodeColor=T.dim; nodeText=String(idx+1);
+          }
+
+          var labelColor = isStopped?(isLost?T.red:T.orange):isPast?"#c0dcf0":isCurrent?G:isFuture?T.dim:T.dim;
+
           return (
             <div key={m.id}
-              onClick={function(){ if(onNodeClick) onNodeClick(m.stage, idx); }}
-              title={"Move to: "+m.stage}
-              style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5,position:"relative",zIndex:2,cursor:"pointer"}}>
+              onClick={function(){ if(onNodeClick && !isLost && !isBadTiming) onNodeClick(m.stage, idx); }}
+              title={isLost||isBadTiming?"":"Move to: "+m.stage}
+              style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5,position:"relative",zIndex:2,cursor:isLost||isBadTiming?"default":"pointer"}}>
               <div style={{
                 width:28,height:28,borderRadius:"50%",
-                background:isCurrent?G:(isDone?G+"30":(isNext?"rgba(240,200,74,0.06)":"rgba(255,255,255,0.04)")),
-                border:"2px solid "+(isCurrent?G:(isDone?G+"60":(isNext?"rgba(240,200,74,0.2)":"rgba(255,255,255,0.1)"))),
+                background:nodeBg, border:"2px solid "+nodeBorder,
                 display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:10,color:isCurrent?BG:(isDone?G:(isNext?G+"60":T.dim)),
-                fontWeight:"bold",
-                boxShadow:isCurrent?"0 0 10px "+G+"60":isNext?"0 0 4px "+G+"20":"none",
+                fontSize:isStopped?12:10, color:nodeColor, fontWeight:"bold",
+                boxShadow:isCurrent?"0 0 10px "+G+"60":isStopped&&isLost?"0 0 8px "+T.red+"40":isNext?"0 0 4px "+G+"20":"none",
+                opacity:isFuture&&(isLost||isBadTiming)?0.3:1,
                 transition:"all 0.2s",
-              }}>
-                {isDone?"✓":String(idx+1)}
-              </div>
-              <div style={{fontSize:9,color:isCurrent?G:(isDone?"#c0dcf0":(isNext?G+"80":T.dim)),textAlign:"center",lineHeight:1.4,maxWidth:58,fontWeight:isCurrent?600:400}}>
+              }}>{nodeText}</div>
+              <div style={{fontSize:9,color:labelColor,textAlign:"center",lineHeight:1.4,maxWidth:58,
+                fontWeight:isCurrent||isStopped?600:400,
+                opacity:isFuture&&(isLost||isBadTiming)?0.3:1}}>
                 {m.label}
               </div>
-              {d?<div style={{fontSize:8,color:isDone?G:T.dim,textAlign:"center",fontStyle:"italic"}}>{d}</div>:null}
+              {d&&!isFuture?<div style={{fontSize:8,color:isPast||isDone?G:T.dim,textAlign:"center",fontStyle:"italic"}}>{d}</div>:null}
             </div>
           );
         })}
       </div>
-      <div style={{marginTop:10,fontSize:10,color:T.dim,textAlign:"center",letterSpacing:0.5}}>
+      {!isLost&&!isBadTiming?<div style={{marginTop:10,fontSize:10,color:T.dim,textAlign:"center",letterSpacing:0.5}}>
         Click any node to move {data.firstName} to that stage
-      </div>
+      </div>:null}
     </div>
   );
 }
@@ -474,7 +528,7 @@ function ContactProfile({contactId,onBack,onStartFitCall}) {
             <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:3}}>
               <h2 style={{fontSize:20,fontWeight:600,color:"#fff",margin:0}}>{data.firstName} {data.lastName}</h2>
               <Pill label={data.pipelineStage} color={sc}/>
-              <Pill label={data.memberStatus} color={data.memberStatus==="Active"?T.green:T.blue}/>
+              <Pill label={data.memberStatus} color={data.memberStatus==="Active"?T.green:data.memberStatus==="Not a Fit"?T.red:data.memberStatus==="Inactive / Churned"?T.orange:T.blue}/>
               {data.fitCallOutcome?<Pill label={data.fitCallOutcome} color={data.fitCallOutcome==="Strong Fit"?T.green:data.fitCallOutcome==="Not a Fit"?T.red:G}/>:null}
             </div>
             <div style={{fontSize:12,color:"#9ac4dc",marginBottom:4}}>{data.title} · {data.company}</div>
