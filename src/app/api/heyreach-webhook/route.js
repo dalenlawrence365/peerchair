@@ -1,67 +1,65 @@
-// PeerChair SMS Notification Service
-// Sends texts to Dalen via Twilio for key pipeline events
+import { createClient } from '@supabase/supabase-js'
+import { alertNewConnection } from '@/lib/notify'
 
-const TWILIO_SID   = process.env.TWILIO_ACCOUNT_SID
-const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN
-const FROM         = process.env.TWILIO_FROM
-const TO           = process.env.ALERT_PHONE
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)
 
-export async function sendSMS(message) {
-  if (!TWILIO_SID || !TWILIO_TOKEN || !FROM || !TO) {
-    console.error('Twilio not configured')
-    return false
-  }
-  try {
-    const body = new URLSearchParams({ To: TO, From: FROM, Body: message })
-    const res = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Basic ' + Buffer.from(TWILIO_SID + ':' + TWILIO_TOKEN).toString('base64'),
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: body.toString()
-      }
-    )
-    const data = await res.json()
-    if (data.sid) {
-      console.log('SMS sent:', data.sid)
-      return true
-    } else {
-      console.error('SMS failed:', data)
-      return false
-    }
-  } catch (err) {
-    console.error('SMS error:', err)
-    return false
-  }
+function extractSlug(url) {
+  if (!url) return ''
+  return url.replace(/\/$/, '').split('/in/').pop().toLowerCase()
 }
 
-// Test endpoint — hit this URL to send a test text
-export async function GET() {
-  const ok = await sendSMS('PeerChair is live. SMS notifications are working.')
-  return Response.json({ sent: ok, to: TO, from: FROM })
-}
-
-// Event endpoint — POST with { event, name, company, detail }
 export async function POST(request) {
   try {
-    const { event, name, company, detail } = await request.json()
+    const body = await request.json()
+    const profile = body.lead?.linkedInUserProfile || body.correspondentProfile || body.leadProfile || {}
+    const firstName   = profile.firstName || ''
+    const lastName    = profile.lastName  || ''
+    const title       = profile.position  || profile.headline || ''
+    const company     = profile.companyName || ''
+    const email       = profile.emailAddress || profile.enrichedEmailAddress || ''
+    const linkedinUrl = profile.profileUrl || ''
+    const location    = profile.location || ''
 
-    const messages = {
-      new_connection:  `PeerChair: New connection — ${name}${company ? ' at ' + company : ''}. Check pipeline.`,
-      linkedin_reply:  `PeerChair: ${name} replied on LinkedIn${company ? ' (' + company + ')' : ''}. Respond now.`,
-      fit_call_booked: `PeerChair: Fit call booked — ${name}${company ? ' at ' + company : ''}${detail ? ' · ' + detail : ''}.`,
-      fit_call_cancel: `PeerChair: Fit call CANCELED — ${name}. Reschedule needed.`,
-      campaign_stopped:`PeerChair: ⚠️ HeyReach campaign stopped. Check your LinkedIn connection.`,
-      engagement_expired: `PeerChair: ${name} hit 14-day window with no reply. Move to reserve or re-engage.`,
-    }
+    if (!linkedinUrl && !firstName) return Response.json({ status: 'skipped' })
 
-    const msg = messages[event] || `PeerChair alert: ${event} — ${name}`
-    const ok = await sendSMS(msg)
-    return Response.json({ sent: ok, message: msg })
+    const slug = extractSlug(linkedinUrl)
+    const { data: existing } = await supabase
+      .from('contacts').select('id,first_name,last_name')
+      .ilike('linkedin_url', '%' + slug + '%').limit(1)
+
+    if (existing && existing.length > 0) return Response.json({ status: 'exists' })
+
+    const iso = new Date().toISOString()
+    const { data: newContact, error } = await supabase.from('contacts').insert({
+      first_name: firstName, last_name: lastName, title, company_name: company,
+      email: email || null, email_type: email ? 'Company' : null,
+      linkedin_url: linkedinUrl, linkedin_location: location,
+      chapter_interest: 'Los Angeles', lead_source: 'LinkedIn / HeyReach',
+      heyreach_campaign: 'CFO Circle - CFO', pipeline_stage: 'Connected',
+      member_status: 'Prospect', linkedin_connected_date: iso,
+    }).select().single()
+
+    if (error) throw error
+
+    await supabase.from('communications').insert({
+      contact_id: newContact.id, occurred_at: iso, channel: 'LinkedIn',
+      direction: 'IN', step_label: 'Connection Accepted',
+      body: firstName + ' ' + lastName + ' accepted your connection request on LinkedIn.',
+      source: 'HeyReach', logged_by: 'system',
+    })
+
+    await alertNewConnection(firstName, lastName, company)
+
+    return Response.json({ status: 'created', contact: newContact })
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 })
+    console.error('Webhook error:', err)
+    return Response.json({ status: 'error', message: err.message }, { status: 500 })
   }
+}
+
+export async function GET() {
+  return Response.json({ status: 'PeerChair HeyReach webhook active' })
 }
