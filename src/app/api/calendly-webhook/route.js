@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { sendSMS } from '@/lib/notify'
+import { alertFitCallBooked, alertFitCallCanceled } from '@/lib/notify'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -29,19 +29,20 @@ export async function POST(request) {
       const { data } = await supabase.from('contacts').select('id,first_name,last_name,pipeline_stage').ilike('first_name', parts[0]).ilike('last_name', parts.slice(1).join(' ')).limit(1)
       if (data && data.length > 0) contact = data[0]
     }
-    if (!contact) return Response.json({ status: 'no_match', name, email })
+    if (!contact) return Response.json({ status: 'no_match' })
 
     const iso = new Date().toISOString()
+    const dateStr = startTime ? new Date(startTime).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : ''
 
     if (event === 'invitee.created') {
       await supabase.from('contacts').update({ pipeline_stage: 'Fit Call Scheduled', fit_call_date: startTime || iso }).eq('id', contact.id)
       await supabase.from('communications').insert({
         contact_id: contact.id, occurred_at: iso, channel: 'Calendly', direction: 'IN',
         step_label: 'Fit Call Booked',
-        body: name + ' booked a ' + eventName + (startTime ? ' for ' + new Date(startTime).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '') + ' via Calendly.',
+        body: name + ' booked a ' + eventName + (dateStr ? ' for ' + dateStr : '') + ' via Calendly.',
         source: 'Calendly', logged_by: 'system',
       })
-      await sendSMS('PeerChair: Fit call booked — ' + name + (startTime ? ' · ' + new Date(startTime).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '') + '. Check calendar.')
+      await alertFitCallBooked(name, dateStr)
       return Response.json({ status: 'updated', stage: 'Fit Call Scheduled' })
     }
 
@@ -52,7 +53,7 @@ export async function POST(request) {
         step_label: 'Fit Call Canceled', body: name + ' canceled their ' + eventName + ' via Calendly.',
         source: 'Calendly', logged_by: 'system',
       })
-      await sendSMS('PeerChair: ⚠️ Fit call CANCELED — ' + name + '. Reschedule needed.')
+      await alertFitCallCanceled(name)
       return Response.json({ status: 'updated', stage: 'Engaged' })
     }
 
