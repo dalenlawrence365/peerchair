@@ -96,7 +96,7 @@ function getStalliantSignal(rev,finTeam,own,pressureList) {
 // ── MICRO COMPONENTS ─────────────────────────────────────────────────────────
 function Chip({on,label,color,onClick}) {
   return (
-    <div onClick={onClick} style={{display:"flex",alignItems:"flex-start",gap:5,padding:"5px 7px",borderRadius:4,cursor:"pointer",transition:"all 0.1s",background:on?(color)+"12":"rgba(255,255,255,0.02)",border:"1px solid ${on?"${color}40":\"rgba(255,255,255,0.05)\"}",fontSize:13,color:on?"#dce8f5":"#9ac4dc",lineHeight:1.3}}>
+    <div onClick={onClick} style={{display:"flex",alignItems:"flex-start",gap:5,padding:"5px 7px",borderRadius:4,cursor:"pointer",transition:"all 0.1s",background:on?color+"12":"rgba(255,255,255,0.02)",border:"1px solid "+(on?color+"40":"rgba(255,255,255,0.05)"),fontSize:13,color:on?"#dce8f5":"#9ac4dc",lineHeight:1.3}}>
       <div style={{width:11,height:11,borderRadius:2,flexShrink:0,marginTop:1,border:"1px solid "+(on?color:"rgba(255,255,255,0.12)"),background:on?color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"#0c1520",fontWeight:"bold"}}>{on?"✓":""}</div>
       {label}
     </div>
@@ -106,7 +106,7 @@ function Sel({label,val,set,opts,highlight}) {
   return (
     <div>
       <div style={{fontSize:13,letterSpacing:2,color:highlight?C:"#7aaac8",textTransform:"uppercase",marginBottom:3}}>{label}</div>
-      <select value={val} onChange={function(e){set(e.target.value);}} style={{width:"100%",background:"#0f1e2e",border:"1px solid ${val&&highlight?"${C}45":\"rgba(255,255,255,0.08)\"}",color:val?"#e0ecf8":"#7aaac8",padding:"5px 7px",borderRadius:4,fontSize:14,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
+      <select value={val} onChange={function(e){set(e.target.value);}} style={{width:"100%",background:"#0f1e2e",border:"1px solid "+(val&&highlight?C+"45":"rgba(255,255,255,0.08)"),color:val?"#e0ecf8":"#7aaac8",padding:"5px 7px",borderRadius:4,fontSize:14,outline:"none",cursor:"pointer",boxSizing:"border-box"}}>
         <option value="">—</option>
         {opts.map(function(o){return <option key={o}>{o}</option>;})}
       </select>
