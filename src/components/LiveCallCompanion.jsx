@@ -279,10 +279,9 @@ export default function LiveCallCompanion(props) {
       <div style={{height:"100%",display:"flex",flexDirection:"column",gap:12}}>
         <STitle label="Monthly Commitment — Get a Clear Answer"/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
-          {[{v:true,l:"✓ Yes — can commit",c:"#2ecc71"},{v:false,l:"✗ Uncertain / No",c:"#e74c3c"}].map(function(item){ var v=item.v; var l=item.l; var c=item.c; return (
-            <button key={String(v)} onClick={function(){setCommit(v);}} style={{padding:"16px 10px",borderRadius:7,cursor:"pointer",transition:"all 0.15s",border:"1px solid "+(commit===v?c:"rgba(255,255,255,0.08)"),background:commit===v?(c)+"14":"rgba(255,255,255,0.02)",color:commit===v?c:"#cce4f8",fontSize:13}}>{l}</button>
-          
-        </div>
+          {[{v:true,l:"Yes - can commit",c:"#2ecc71"},{v:false,l:"Uncertain / No",c:"#e74c3c"}].map(function(item){ var v=item.v; var l=item.l; var c=item.c; return (
+            <button key={String(v)} onClick={function(){setCommit(v);}} style={{padding:"16px 10px",borderRadius:7,cursor:"pointer",transition:"all 0.15s",border:"1px solid "+(commit===v?c:"rgba(255,255,255,0.08)"),background:commit===v?c+"14":"rgba(255,255,255,0.02)",color:commit===v?c:"#cce4f8",fontSize:13}}>{l}</button>
+          );})}</div>
       </div>
     );
 
