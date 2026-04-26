@@ -869,8 +869,19 @@ function Dashboard({onNavigate,totalContacts,stageCounts,pipelineTotal,fitCallCo
   var [bucketContacts,setBucketContacts] = useState([]);
   var [bucketLoading,setBucketLoading] = useState(false);
   var [snapshots,setSnapshots] = useState([]);
+  var [hrStats,setHrStats] = useState({sent:187,accepted:63,msgSent:65,replies:22,acceptRate:34,replyRate:34});
 
-  useEffect(function(){ loadSnapshots(); },[]);
+  useEffect(function(){ loadSnapshots(); loadHeyReach(); },[]);
+
+  async function loadHeyReach(){
+    try{
+      var res=await fetch("/api/heyreach-stats");
+      if(res.ok){var d=await res.json();setHrStats(d);}
+    }catch(e){
+      // Fall back to cached values
+      setHrStats({sent:187,accepted:63,msgSent:65,replies:22,acceptRate:34,replyRate:34});
+    }
+  }
 
   async function loadSnapshots(){
     try{
@@ -909,8 +920,8 @@ function Dashboard({onNavigate,totalContacts,stageCounts,pipelineTotal,fitCallCo
         <h1 style={{fontSize:26,fontWeight:600,color:T.text,margin:0}}>Good morning, Dalen.</h1>
         <div style={{fontSize:14,color:T.muted,marginTop:4}}>Here's where things stand with your Los Angeles chapter.</div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
-        {[{label:"Active Prospects",val:String(totalContacts),sub:"in pipeline",color:T.blue,icon:"◎",action:function(){navigate("pipeline");}},{label:"Fit Calls Scheduled",val:String(fitCallContacts.length),sub:"this week",color:T.gold,icon:"☎",action:function(){setShowFitCallList(function(v){return !v;});}},{label:"Days to Next Event",val:"—",sub:"no event scheduled",color:T.purple,icon:"✦",action:null},{label:"Active Members",val:String(getCount("Active Member")||0),sub:"in chapter",color:T.green,icon:"★",action:function(){navigate("pipeline");}}].map(function(k){
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:16}}>
+        {[{label:"Fit Calls Scheduled",val:String(fitCallContacts.length),sub:"this week",color:T.gold,icon:"☎",action:function(){setShowFitCallList(function(v){return !v;});}},{label:"Days to Next Event",val:"—",sub:"no event scheduled",color:T.purple,icon:"✦",action:null},{label:"Active Members",val:String(getCount("Active Member")||0),sub:"in chapter",color:T.green,icon:"★",action:function(){navigate("pipeline");}}].map(function(k){
           return <div key={k.label} onClick={k.action||undefined} style={{background:BG3,border:"1px solid "+T.border,borderTop:"2px solid "+k.color+"40",borderRadius:8,padding:"18px 20px",cursor:k.action?"pointer":"default",transition:"all 0.15s"}}
             onMouseOver={function(e){if(k.action)e.currentTarget.style.borderColor=k.color+"40";}}
             onMouseOut={function(e){if(k.action)e.currentTarget.style.borderColor=T.border;}}>
@@ -923,6 +934,47 @@ function Dashboard({onNavigate,totalContacts,stageCounts,pipelineTotal,fitCallCo
           </div>;
         })}
       </div>
+
+        {/* HEYREACH OUTREACH FUNNEL */}
+        <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:8,padding:"14px 18px",marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",fontWeight:600}}>LinkedIn Outreach Funnel</div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <div style={{width:6,height:6,borderRadius:"50%",background:T.green}}/>
+                <span style={{fontSize:10,color:T.green}}>CFO Circle — Active</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <div style={{width:6,height:6,borderRadius:"50%",background:T.orange}}/>
+                <span style={{fontSize:10,color:T.orange}}>LA CFOs — Paused</span>
+              </div>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
+            {[
+              {label:"Requests Sent",val:hrStats.sent,color:T.muted,sub:null},
+              {label:"Connected",val:hrStats.accepted,color:T.blue,sub:hrStats.sent>0?Math.round((hrStats.accepted/hrStats.sent)*100)+"%":"-"},
+              {label:"Messages Sent",val:hrStats.msgSent,color:T.purple,sub:"Step 2"},
+              {label:"Replies",val:hrStats.replies,color:G,sub:hrStats.msgSent>0?Math.round((hrStats.replies/hrStats.msgSent)*100)+"%":"-"},
+              {label:"Fit Calls",val:fitCallContacts.length,color:T.green,sub:"scheduled"},
+            ].map(function(item){
+              return (
+                <div key={item.label} style={{textAlign:"center",padding:"10px 6px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:6}}>
+                  <div style={{fontSize:24,fontWeight:700,color:item.color,lineHeight:1,marginBottom:4}}>{item.val}</div>
+                  {item.sub&&<div style={{fontSize:11,color:item.color,marginBottom:4,fontWeight:600}}>{item.sub}</div>}
+                  <div style={{fontSize:9,color:T.dim,letterSpacing:1,textTransform:"uppercase"}}>{item.label}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{display:"flex",gap:8,marginTop:10,alignItems:"center"}}>
+            <div style={{height:4,flex:hrStats.sent,background:T.muted+"60",borderRadius:2}}/>
+            <div style={{height:4,flex:hrStats.accepted,background:T.blue+"80",borderRadius:2}}/>
+            <div style={{height:4,flex:hrStats.msgSent,background:T.purple+"80",borderRadius:2}}/>
+            <div style={{height:4,flex:hrStats.replies,background:G+"80",borderRadius:2}}/>
+            <div style={{height:4,flex:Math.max(fitCallContacts.length,1),background:T.green+"80",borderRadius:2}}/>
+          </div>
+        </div>
 
         {/* PIPELINE HEALTH ROW */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10,marginBottom:16}}>
