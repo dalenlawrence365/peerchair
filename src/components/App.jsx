@@ -1118,13 +1118,25 @@ function AskClaude() {
 export default function CFOCircleApp() {
   var [screen,setScreen]             = useState("dashboard");
   var [fitCallContact,setFitCallContact] = useState(null);
+  var [fitCallContacts,setFitCallContacts] = useState([]);
 
   var [selectedContact,setContact]   = useState(null);
   var [totalContacts,setTotal]       = useState(0);
   var [stageCounts,setStageCounts]   = useState({});
   var [statsLoading,setStatsLoading] = useState(true);
 
-  useEffect(function(){loadStats();},[]);
+  useEffect(function(){loadStats();loadFitCalls();},[]);
+
+  async function loadFitCalls(){
+    try{
+      var SBU=process.env.NEXT_PUBLIC_SUPABASE_URL;
+      var SBK=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      var h={"apikey":SBK,"Authorization":"Bearer "+SBK};
+      var res=await fetch(SBU+"/rest/v1/contacts?pipeline_stage=eq.Fit Call Scheduled&select=id,first_name,last_name,title,company_name,email,linkedin_url,fit_call_date,pipeline_stage",{headers:h});
+      var data=await res.json();
+      setFitCallContacts(Array.isArray(data)?data:[]);
+    }catch(e){console.error("loadFitCalls error:",e);}
+  }
 
 
 
@@ -1183,7 +1195,7 @@ export default function CFOCircleApp() {
           </div>
         </div>
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-          {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts} fitCallContacts={contacts?contacts.filter(function(ct){return ct.pipeline_stage==="Fit Call Scheduled";}):[]} onStartFitCall={function(contact){setFitCallContact(contact);setScreen("fitcall");}}/>}
+          {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts} fitCallContacts={fitCallContacts} onStartFitCall={function(ct){setFitCallContact({id:ct.id,firstName:ct.first_name,lastName:ct.last_name,title:ct.title,company:ct.company_name,email:ct.email,linkedinUrl:ct.linkedin_url,fit_call_date:ct.fit_call_date});setScreen("fitcall");}}/>}
           {screen==="pipeline"  && <Pipeline  onNavigate={navigate}/>}
           {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} onBack={function(){navigate("pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
           {screen==="events"    && <Placeholder icon="✦" title="Events" description="Manage your Experience Events — attendee lists, confirmations, and post-event follow-up."/>}
