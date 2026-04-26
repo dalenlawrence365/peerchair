@@ -869,7 +869,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,pipelineTotal,fitCallCo
   var [bucketContacts,setBucketContacts] = useState([]);
   var [bucketLoading,setBucketLoading] = useState(false);
   var [snapshots,setSnapshots] = useState([]);
-  var [hrStats,setHrStats] = useState({sent:187,accepted:63,msgSent:65,replies:22,acceptRate:34,replyRate:34});
+  var [hrStats,setHrStats] = useState({sent:187,accepted:63,msgSent:65,replies:22,acceptRate:34,replyRate:34,campaigns:[]});
 
   useEffect(function(){ loadSnapshots(); loadHeyReach(); },[]);
 
@@ -939,15 +939,21 @@ function Dashboard({onNavigate,totalContacts,stageCounts,pipelineTotal,fitCallCo
         <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:8,padding:"14px 18px",marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
             <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",fontWeight:600}}>LinkedIn Outreach Funnel</div>
-            <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <div style={{display:"flex",alignItems:"center",gap:4}}>
-                <div style={{width:6,height:6,borderRadius:"50%",background:T.green}}/>
-                <span style={{fontSize:10,color:T.green}}>CFO Circle — Active</span>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:4}}>
-                <div style={{width:6,height:6,borderRadius:"50%",background:T.orange}}/>
-                <span style={{fontSize:10,color:T.orange}}>LA CFOs — Paused</span>
-              </div>
+            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+              {hrStats.campaigns && hrStats.campaigns.map(function(camp){
+                var isActive = camp.status === "IN_PROGRESS";
+                var isPaused = camp.status === "PAUSED";
+                var color = isActive ? T.green : isPaused ? T.orange : T.dim;
+                var statusLabel = isActive ? "Active" : isPaused ? "Paused" : camp.status;
+                var shortName = camp.name.replace("CFO Circle - ","").replace("Los Angeles ","LA ");
+                return (
+                  <div key={camp.id} style={{display:"flex",alignItems:"center",gap:4}}>
+                    <div style={{width:6,height:6,borderRadius:"50%",background:color,boxShadow:isActive?"0 0 4px "+color:"none"}}/>
+                    <span style={{fontSize:10,color:color}}>{shortName} — {statusLabel}</span>
+                    <span style={{fontSize:9,color:T.dim}}>({camp.inProgress} active)</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
