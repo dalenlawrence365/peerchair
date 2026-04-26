@@ -1,4 +1,5 @@
 "use client"
+import Sponsors from "@/components/Sponsors";
 import LiveCallCompanion from "@/components/LiveCallCompanion";
 import { useState, useEffect } from "react";
 
@@ -1201,7 +1202,7 @@ export default function CFOCircleApp() {
         <div style={{flex:1,display:"flex",flexDirection:"column",gap:2}}>
           {NAV.map(function(n){return <NavItem key={n.id} icon={n.icon} label={n.label} badge={n.badge} active={screen===n.id} onClick={function(){navigate(n.id);}}/>;  })}
           <div style={{margin:"14px 6px 8px",fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase"}}>Stalliant</div>
-          <NavItem icon="★" label="Prospects" badge="12" active={screen==="stalliant"} onClick={function(){navigate("stalliant");}}/>
+          <NavItem icon="$" label="Sponsors" badge="" active={screen==="sponsors"} onClick={function(){navigate("sponsors");}}/>
         </div>
         <div style={{borderTop:"1px solid "+T.border,padding:"14px 6px",display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:30,height:30,borderRadius:"50%",background:"linear-gradient(135deg,#1a3a5c,#0f2235)",border:"1px solid "+G+"30",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:G,flexShrink:0}}>DL</div>
@@ -1227,7 +1228,7 @@ export default function CFOCircleApp() {
           {screen==="events"    && <Placeholder icon="✦" title="Events" description="Manage your Experience Events — attendee lists, confirmations, and post-event follow-up."/>}
           {screen==="templates" && <Placeholder icon="✉" title="Templates" description="Your LinkedIn and email message library, organized by pipeline stage."/>}
           {screen==="claude"    && <AskClaude/>}
-          {screen==="stalliant" && <Placeholder icon="★" title="Stalliant Prospects" description="CFO Circle contacts flagged as Stalliant prospects with signal type and revenue range."/>}
+          {screen==="sponsors"  && <Sponsors/>}
           {screen==="fitcall" && fitCallContact && <LiveCallCompanion contact={fitCallContact} onEnd={function(){ setScreen("profile"); }} onBack={function(){ setScreen("profile"); }}/>}
         </div>
       </div>
