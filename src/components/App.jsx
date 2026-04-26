@@ -864,7 +864,39 @@ function ContactProfile({contactId,onBack,onStartFitCall}) {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
-function Dashboard({onNavigate,totalContacts,stageCounts,fitCallContacts,onStartFitCall}) {
+function Dashboard({onNavigate,totalContacts,stageCounts,pipelineTotal,fitCallContacts,onStartFitCall,onNavigateToBucket}) {
+  var [openBucket,setOpenBucket] = useState(null);
+  var [bucketContacts,setBucketContacts] = useState([]);
+  var [bucketLoading,setBucketLoading] = useState(false);
+  var [snapshots,setSnapshots] = useState([]);
+
+  useEffect(function(){ loadSnapshots(); },[]);
+
+  async function loadSnapshots(){
+    try{
+      var SBU=process.env.NEXT_PUBLIC_SUPABASE_URL;
+      var SBK=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      var h={"apikey":SBK,"Authorization":"Bearer "+SBK};
+      var res=await fetch(SBU+"/rest/v1/pipeline_snapshots?order=snapshot_date.asc&limit=12",{headers:h});
+      var data=await res.json();
+      setSnapshots(Array.isArray(data)?data:[]);
+    }catch(e){console.error(e);}
+  }
+
+  async function loadBucket(stages,label){
+    if(openBucket===label){setOpenBucket(null);setBucketContacts([]);return;}
+    setOpenBucket(label);setBucketLoading(true);
+    try{
+      var SBU=process.env.NEXT_PUBLIC_SUPABASE_URL;
+      var SBK=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      var h={"apikey":SBK,"Authorization":"Bearer "+SBK};
+      var stageList=stages.map(function(s){return encodeURIComponent(s);}).join(",");
+      var res=await fetch(SBU+"/rest/v1/contacts?pipeline_stage=in.("+stageList+")&select=id,first_name,last_name,title,company_name,pipeline_stage&order=last_name.asc&limit=100",{headers:h});
+      var data=await res.json();
+      setBucketContacts(Array.isArray(data)?data:[]);
+    }catch(e){console.error(e);}
+    setBucketLoading(false);
+  }
   var [showFitCallList,setShowFitCallList] = useState(false);
   var today=new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
   var ACTIONS=[{label:"Paolo Casarella — fit call yesterday, follow-up not sent",type:"warning",action:"Send Follow-Up"},{label:"Event needs scheduling — 0 of 8 minimum CFOs registered",type:"alert",action:"Set Event Date"},{label:"6 contacts connected 30+ days with no reply",type:"info",action:"Move to Reserve"},{label:"Eric Stoneburner — replied on LinkedIn yesterday",type:"good",action:"View Thread"}];
@@ -891,6 +923,71 @@ function Dashboard({onNavigate,totalContacts,stageCounts,fitCallContacts,onStart
           </div>;
         })}
       </div>
+
+        {/* PIPELINE HEALTH ROW */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10,marginBottom:16}}>
+          {/* Active Pipeline — hero metric */}
+          <div style={{background:BG3,border:"1px solid "+G+"30",borderTop:"2px solid "+G,borderRadius:7,padding:"12px 14px",gridColumn:"span 1"}}>
+            <div style={{fontSize:10,color:G,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4,fontWeight:600}}>Active Pipeline</div>
+            <div style={{fontSize:32,fontWeight:700,color:G,lineHeight:1,marginBottom:4}}>{pipelineTotal}</div>
+            {snapshots.length>=2&&<div style={{fontSize:10,color:snapshots[snapshots.length-1].active_pipeline_count>snapshots[snapshots.length-2].active_pipeline_count?T.green:T.red}}>{snapshots[snapshots.length-1].active_pipeline_count>snapshots[snapshots.length-2].active_pipeline_count?"▲":"▼"} {Math.abs(snapshots[snapshots.length-1].active_pipeline_count-(snapshots[snapshots.length-2]?snapshots[snapshots.length-2].active_pipeline_count:0))} vs last snapshot</div>}
+          </div>
+          {/* Sparkline */}
+          <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:7,padding:"12px 14px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>Pipeline Trend</div>
+            <div style={{display:"flex",alignItems:"flex-end",gap:3,height:32}}>
+              {snapshots.length===0&&<div style={{fontSize:11,color:T.dim}}>Tracking started today</div>}
+              {snapshots.map(function(snap,i){
+                var maxVal=Math.max.apply(null,snapshots.map(function(s){return s.active_pipeline_count;}));
+                var h=maxVal>0?Math.round((snap.active_pipeline_count/maxVal)*32):4;
+                var isLast=i===snapshots.length-1;
+                return <div key={snap.snapshot_date} title={snap.snapshot_date+": "+snap.active_pipeline_count} style={{flex:1,height:h+"px",background:isLast?G:G+"50",borderRadius:2,minHeight:3}}/>;
+              })}
+            </div>
+            {snapshots.length>0&&<div style={{fontSize:9,color:T.dim,marginTop:4}}>{snapshots[0].snapshot_date} — today</div>}
+          </div>
+          {/* Off-pipeline buckets */}
+          {[
+            {label:"No Reply / Reserve",stages:["Reserve Pool","No Reply/Reserve"],color:T.orange},
+            {label:"Not a Fit",stages:["Not a Fit","Lost — Not a Fit"],color:T.red},
+            {label:"Total Contacts",stages:null,color:T.blue},
+          ].map(function(bucket){
+            var count=bucket.stages?bucket.stages.reduce(function(sum,s){return sum+(stageCounts[s]||0);},0):totalContacts;
+            var isOpen=openBucket===bucket.label;
+            return (
+              <div key={bucket.label} onClick={function(){if(bucket.stages)loadBucket(bucket.stages,bucket.label);}}
+                style={{background:isOpen?bucket.color+"12":BG3,border:"1px solid "+(isOpen?bucket.color+"50":bucket.color+"25"),borderTop:"2px solid "+bucket.color+(isOpen?"":"80"),borderRadius:7,padding:"12px 14px",cursor:bucket.stages?"pointer":"default",transition:"all 0.15s"}}>
+                <div style={{fontSize:10,color:bucket.color,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4,fontWeight:600}}>{bucket.label}</div>
+                <div style={{fontSize:28,fontWeight:700,color:bucket.color,lineHeight:1}}>{count}</div>
+                {bucket.stages&&<div style={{fontSize:9,color:T.dim,marginTop:4}}>{isOpen?"click to close":"click for list"}</div>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Bucket drill-down list */}
+        {openBucket&&<div style={{background:BG3,border:"1px solid "+T.border,borderRadius:7,padding:"14px 18px",marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{fontSize:12,fontWeight:600,color:T.text}}>{openBucket}</div>
+            <div onClick={function(){setOpenBucket(null);setBucketContacts([]);}} style={{cursor:"pointer",color:T.dim,fontSize:16}}>✕</div>
+          </div>
+          {bucketLoading&&<div style={{fontSize:12,color:T.dim}}>Loading...</div>}
+          {!bucketLoading&&bucketContacts.length===0&&<div style={{fontSize:12,color:T.dim}}>No contacts in this bucket.</div>}
+          {!bucketLoading&&bucketContacts.map(function(ct){
+            return (
+              <div key={ct.id} onClick={function(){onNavigate("profile",ct);}} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 10px",borderBottom:"1px solid "+T.border,cursor:"pointer"}}
+                onMouseOver={function(e){e.currentTarget.style.background="rgba(255,255,255,0.03)";}}
+                onMouseOut={function(e){e.currentTarget.style.background="transparent";}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:G}}>{ct.first_name} {ct.last_name}</div>
+                  <div style={{fontSize:11,color:T.muted}}>{ct.title}{ct.company_name?" · "+ct.company_name:""}</div>
+                </div>
+                <div style={{fontSize:10,color:T.dim}}>{ct.pipeline_stage}</div>
+                <div style={{fontSize:11,color:T.dim}}>→</div>
+              </div>
+            );
+          })}
+        </div>}
 
         {showFitCallList&&<div style={{background:BG3,border:"1px solid "+T.gold+"40",borderRadius:8,padding:"16px 20px",marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
@@ -974,12 +1071,12 @@ function Dashboard({onNavigate,totalContacts,stageCounts,fitCallContacts,onStart
 function Pipeline({onNavigate}) {
   var [contacts,setContacts]=useState([]);var [loading,setLoading]=useState(true);var [error,setError]=useState(null);var [search,setSearch]=useState("");var [stageFilter,setStageFilter]=useState("All");var [total,setTotal]=useState(0);
   useEffect(function(){loadContacts();},[stageFilter]);
+  var ACTIVE_PIPELINE=["Connected","Engaged","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"];
   async function loadContacts(){
     setLoading(true);setError(null);
     try{
-      var where=stageFilter!=="All"?"WHERE pipeline_stage='"+stageFilter.replace(/'/g,"''")+"' ":"";
       var qs="?select=id,first_name,last_name,title,company_name,email,email_type,pipeline_stage,member_status,lead_source,annual_revenue,industry,linkedin_location,linkedin_url,created_at&order=created_at.desc&limit=200";
-      if(stageFilter!=="All")qs+="&pipeline_stage=eq."+encodeURIComponent(stageFilter);
+      if(stageFilter!=="All"){qs+="&pipeline_stage=eq."+encodeURIComponent(stageFilter);}else{qs+="&pipeline_stage=in.("+ACTIVE_PIPELINE.map(function(s){return encodeURIComponent(s);}).join(",")+")";}
       var data=await sbFetch("/contacts"+qs);
       setContacts(Array.isArray(data)?data:[]);setTotal(Array.isArray(data)?data.length:0);
     }catch(e){setError(e.message);}
@@ -998,33 +1095,35 @@ function Pipeline({onNavigate}) {
             <button onClick={loadContacts} style={{padding:"7px 10px",background:"rgba(255,255,255,0.03)",border:"1px solid "+T.border,color:T.muted,borderRadius:5,cursor:"pointer",fontSize:11}}>↺</button>
           </div>
         </div>
-        {/* Stage bucket filters — matching CFO Journey */}
-        <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap"}}>
+        {/* Active Pipeline stage buckets — Connected through Active Member */}
+        <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap",alignItems:"stretch"}}>
           {[
-            {s:"All",           c:T.muted,    label:"All"},
             {s:"Connected",     c:T.blue,     label:"Connected"},
             {s:"Engaged",       c:T.orange,   label:"Engaged"},
-            {s:"Fit Call Scheduled",  c:G,         label:"Fit Sched."},
-            {s:"Fit Call Completed",  c:T.purple,  label:"Fit Done"},
+            {s:"Fit Call Scheduled",  c:G,          label:"Fit Sched."},
+            {s:"Fit Call Completed",  c:T.purple,   label:"Fit Done"},
             {s:"Event Invited",       c:"#1abc9c",  label:"Invited"},
-            {s:"Event Confirmed",     c:T.green,   label:"Confirmed"},
-            {s:"Event Attended",      c:T.green,   label:"Attended"},
+            {s:"Event Confirmed",     c:T.green,    label:"Confirmed"},
+            {s:"Event Attended",      c:T.green,    label:"Attended"},
             {s:"Membership Conversation Scheduled", c:T.blue, label:"Memb. Convo"},
-            {s:"Verbal Commitment",   c:G,         label:"Verbal"},
-            {s:"Active Member",       c:T.green,   label:"Active"},
-            {s:"Reserve Pool",        c:T.orange,  label:"Reserve"},
-            {s:"Lost — Not a Fit",    c:T.red,     label:"Lost"},
+            {s:"Verbal Commitment",   c:G,          label:"Verbal"},
+            {s:"Active Member",       c:T.green,    label:"Active"},
           ].map(function(item){
             var isSelected = stageFilter === item.s;
-            var count = item.s === "All" ? total : contacts.filter(function(ct){ return ct.pipeline_stage === item.s; }).length;
+            var count = contacts.filter(function(ct){ return ct.pipeline_stage === item.s; }).length;
             return (
-              <div key={item.s} onClick={function(){setStageFilter(item.s);}}
-                style={{background:isSelected?item.c+"18":BG3,border:"1px solid "+(isSelected?item.c+"60":item.c+"20"),borderTop:"2px solid "+(isSelected?item.c:item.c+"60"),borderRadius:5,padding:"7px 10px",cursor:"pointer",transition:"all 0.15s",textAlign:"center",minWidth:52}}>
+              <div key={item.s} onClick={function(){setStageFilter(function(prev){return prev===item.s?"All":item.s;});}}
+                style={{background:isSelected?item.c+"18":BG3,border:"1px solid "+(isSelected?item.c+"60":item.c+"20"),borderTop:"2px solid "+(isSelected?item.c:item.c+"60"),borderRadius:5,padding:"7px 10px",cursor:"pointer",transition:"all 0.15s",textAlign:"center",minWidth:50}}>
                 <div style={{fontSize:18,fontWeight:700,color:item.c,lineHeight:1,marginBottom:3}}>{count}</div>
                 <div style={{fontSize:8,color:isSelected?item.c:"#8ab4cc",letterSpacing:0.5,textTransform:"uppercase",lineHeight:1.3,whiteSpace:"nowrap"}}>{item.label}</div>
               </div>
             );
           })}
+          {/* Total at end */}
+          <div style={{background:BG3,border:"1px solid rgba(255,255,255,0.1)",borderTop:"2px solid rgba(255,255,255,0.25)",borderRadius:5,padding:"7px 10px",textAlign:"center",minWidth:50,marginLeft:4}}>
+            <div style={{fontSize:18,fontWeight:700,color:T.text,lineHeight:1,marginBottom:3}}>{contacts.filter(function(ct){return ["Connected","Engaged","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"].indexOf(ct.pipeline_stage)>-1;}).length}</div>
+            <div style={{fontSize:8,color:"#8ab4cc",letterSpacing:0.5,textTransform:"uppercase",lineHeight:1.3}}>Total</div>
+          </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"200px 1fr 160px 90px 110px 70px",gap:10,padding:"7px 14px",borderRadius:"6px 6px 0 0",background:"rgba(255,255,255,0.02)",borderBottom:"1px solid "+T.border}}>
           {["Contact","Company / Title","Stage","Source","Revenue",""].map(function(h){return <div key={h} style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase"}}>{h}</div>;})}
@@ -1174,6 +1273,7 @@ export default function CFOCircleApp() {
   var [selectedContact,setContact]   = useState(null);
   var [totalContacts,setTotal]       = useState(0);
   var [stageCounts,setStageCounts]   = useState({});
+  var [pipelineTotal,setPipelineTotal] = useState(0);
   var [statsLoading,setStatsLoading] = useState(true);
 
   useEffect(function(){loadStats();loadFitCalls();},[]);
@@ -1195,16 +1295,16 @@ export default function CFOCircleApp() {
     setStatsLoading(true);
     try{
       var rows=await sbFetch("/contacts?select=pipeline_stage");
-      var counts={};var tot=0;
-      (Array.isArray(rows)?rows:[]).forEach(function(r){var s=r.pipeline_stage||"Unknown";counts[s]=(counts[s]||0)+1;tot++;});
-      setStageCounts(counts);setTotal(tot);
+      var counts={};var tot=0;var activePipelineStages=["Connected","Engaged","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"];var pipelineTot=0;
+      (Array.isArray(rows)?rows:[]).forEach(function(r){var s=r.pipeline_stage||"Unknown";counts[s]=(counts[s]||0)+1;tot++;if(activePipelineStages.indexOf(s)>-1)pipelineTot++;});
+      setStageCounts(counts);setTotal(tot);setPipelineTotal(pipelineTot);
     }catch(e){console.error("Stats error:",e);}
     setStatsLoading(false);
   }
 
   function navigate(s,contact){setScreen(s);if(contact)setContact(contact);}
 
-  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(totalContacts)},{id:"sponsors",icon:"$",label:"Sponsors"},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
+  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors"},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
 
   var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",sponsors:"Sponsors",stalliant:"Sponsors"}[screen]||screen;
 
@@ -1245,7 +1345,7 @@ export default function CFOCircleApp() {
           </div>
         </div>
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-          {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts} fitCallContacts={fitCallContacts} onStartFitCall={function(ct){setFitCallContact({id:ct.id,firstName:ct.first_name,lastName:ct.last_name,title:ct.title,company:ct.company_name,email:ct.email,linkedinUrl:ct.linkedin_url,fit_call_date:ct.fit_call_date});setScreen("fitcall");}}/>}
+          {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts} pipelineTotal={pipelineTotal} fitCallContacts={fitCallContacts} onStartFitCall={function(ct){setFitCallContact({id:ct.id,firstName:ct.first_name,lastName:ct.last_name,title:ct.title,company:ct.company_name,email:ct.email,linkedinUrl:ct.linkedin_url,fit_call_date:ct.fit_call_date});setScreen("fitcall");}} onNavigateToBucket={function(stage){navigate("pipeline");}}/>}
           {screen==="pipeline"  && <Pipeline  onNavigate={navigate}/>}
           {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} onBack={function(){navigate("pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
           {screen==="events"    && <Placeholder icon="✦" title="Events" description="Manage your Experience Events — attendee lists, confirmations, and post-event follow-up."/>}
