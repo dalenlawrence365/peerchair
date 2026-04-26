@@ -525,7 +525,7 @@ function ContactProfile({contactId,onBack,onStartFitCall}) {
       <div style={{background:"linear-gradient(135deg,#0f1e30 0%,#132840 60%,#0f1a28 100%)",borderBottom:"1px solid "+G+"18",padding:"16px 24px",flexShrink:0,position:"relative"}}>
         {saveMsg?<div style={{position:"absolute",top:12,right:20,fontSize:11,color:saveMsg==="Saved"?T.green:T.red,letterSpacing:1}}>{saveMsg}</div>:null}
         <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
-          <Avatar first={data.firstName} last={data.lastName} size={52}/>
+          <Avatar first={data.firstName} last={data.lastName} size={52} imageUrl={data.linkedinImageUrl}/>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:3}}>
               <h2 style={{fontSize:20,fontWeight:600,color:"#fff",margin:0}}>{data.firstName} {data.lastName}</h2>
@@ -1134,7 +1134,7 @@ function Pipeline({onNavigate}) {
   async function loadContacts(){
     setLoading(true);setError(null);
     try{
-      var qs="?select=id,first_name,last_name,title,company_name,email,email_type,pipeline_stage,member_status,lead_source,annual_revenue,industry,linkedin_location,linkedin_url,created_at&order=created_at.desc&limit=200";
+      var qs="?select=id,first_name,last_name,title,company_name,email,email_type,pipeline_stage,member_status,lead_source,annual_revenue,industry,linkedin_location,linkedin_url,linkedin_image_url,created_at&order=created_at.desc&limit=200";
       if(stageFilter!=="All"){qs+="&pipeline_stage=eq."+encodeURIComponent(stageFilter);}else{qs+="&pipeline_stage=in.("+ACTIVE_PIPELINE.map(function(s){return encodeURIComponent(s);}).join(",")+")";}
       var data=await sbFetch("/contacts"+qs);
       setContacts(Array.isArray(data)?data:[]);setTotal(Array.isArray(data)?data.length:0);
