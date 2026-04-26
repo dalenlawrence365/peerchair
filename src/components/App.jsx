@@ -1182,7 +1182,7 @@ export default function CFOCircleApp() {
 
   var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(totalContacts)},{id:"sponsors",icon:"$",label:"Sponsors"},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
 
-  var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",stalliant:"Stalliant Prospects"}[screen]||screen;
+  var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",sponsors:"Sponsors",stalliant:"Sponsors"}[screen]||screen;
 
   return (
     <div style={{display:"flex",height:"100vh",width:"100%",overflow:"hidden",background:BG,fontFamily:"'Palatino Linotype','Book Antiqua',Palatino,serif",color:T.text}}>
@@ -1201,8 +1201,7 @@ export default function CFOCircleApp() {
         </div>
         <div style={{flex:1,display:"flex",flexDirection:"column",gap:2}}>
           {NAV.map(function(n){return <NavItem key={n.id} icon={n.icon} label={n.label} badge={n.badge} active={screen===n.id} onClick={function(){navigate(n.id);}}/>;  })}
-          <div style={{margin:"14px 6px 8px",fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase"}}>Stalliant</div>
-          <NavItem icon="$" label="Sponsors" badge="" active={screen==="sponsors"} onClick={function(){navigate("sponsors");}}/>
+
         </div>
         <div style={{borderTop:"1px solid "+T.border,padding:"14px 6px",display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:30,height:30,borderRadius:"50%",background:"linear-gradient(135deg,#1a3a5c,#0f2235)",border:"1px solid "+G+"30",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:G,flexShrink:0}}>DL</div>
