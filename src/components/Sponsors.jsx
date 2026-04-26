@@ -184,7 +184,7 @@ function StageBuckets(props) {
           return d.stage === item.stage && matchGroup;
         });
         var count = relevantDeals.length;
-        var isSelected = selectedStage === item.stage;
+        var isSelected = props.stageFilter === item.stage;
         return (
           <div key={item.stage} onClick={function(){ onSelectStage(isSelected ? null : item.stage); }}
             style={{
@@ -195,7 +195,7 @@ function StageBuckets(props) {
               transition:"all 0.15s", textAlign:"center"
             }}>
             <div style={{fontSize:22,fontWeight:700,color:item.color,lineHeight:1,marginBottom:4}}>{count}</div>
-            <div style={{fontSize:9,color:isSelected?item.color:T.dim,letterSpacing:1,textTransform:"uppercase",lineHeight:1.3}}>{item.stage}</div>
+            <div style={{fontSize:9,color:isSelected?item.color:"#8ab4cc",letterSpacing:1,textTransform:"uppercase",lineHeight:1.3}}>{item.stage}</div>
           </div>
         );
       })}
@@ -203,49 +203,6 @@ function StageBuckets(props) {
   );
 }
 
-// Stage drill-down table
-function StageDrillDown(props) {
-  var stage = props.stage;
-  var deals = props.deals;
-  var companies = props.companies;
-  var groupFilter = props.groupFilter;
-  var onSelectCompany = props.onSelectCompany;
-
-  if (!stage) return null;
-
-  var relevantDeals = deals.filter(function(d){
-    var matchGroup = groupFilter === "All" || d.group_name === groupFilter;
-    return d.stage === stage && matchGroup;
-  });
-
-  return (
-    <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:6,overflow:"hidden",marginBottom:4}}>
-      <div style={{padding:"10px 16px",borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{fontSize:12,fontWeight:600,color:StageColor(stage)}}>{stage} — {relevantDeals.length} companies</div>
-        <div onClick={function(){props.onClose();}} style={{cursor:"pointer",color:T.dim,fontSize:16,lineHeight:1}}>✕</div>
-      </div>
-      {relevantDeals.length === 0 && <div style={{padding:"16px",fontSize:12,color:T.dim,textAlign:"center"}}>No companies in this stage.</div>}
-      {relevantDeals.map(function(deal) {
-        var co = companies.find(function(c){ return c.id === deal.company_id; });
-        if (!co) return null;
-        return (
-          <div key={deal.id} onClick={function(){ onSelectCompany(co.id); props.onClose(); }}
-            style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:"1px solid "+T.border,cursor:"pointer",transition:"background 0.1s"}}
-            onMouseOver={function(e){e.currentTarget.style.background="rgba(255,255,255,0.03)";}}
-            onMouseOut={function(e){e.currentTarget.style.background="transparent";}}>
-            <div style={{flex:1}}>
-              <div style={{fontSize:13,fontWeight:600,color:G}}>{co.name}</div>
-              <div style={{fontSize:11,color:CategoryColor(co.category)}}>{co.category}</div>
-            </div>
-            <div style={{fontSize:11,color:T.dim}}>{deal.group_name}</div>
-            <HostBadge tier={co.host_tier} viable={co.host_viable}/>
-            <div style={{fontSize:11,color:T.dim}}>→</div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 function CompanyCard(props) {
   var co = props.company;
@@ -327,34 +284,24 @@ function CompanyDetail(props) {
         </div>
         {journeyOpen && (
           <div style={{padding:"14px 20px 16px",background:BG2}}>
-            <div style={{display:"flex",gap:12}}>
-              {/* LA */}
-              <div style={{flex:1,padding:"12px 14px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:6}}>
-                {laDeals.length > 0 ? (
-                  <div>
-                    <SponsorJourneyTrack deal={laDeals[0]} groupName="Los Angeles" onStageChange={saveStage}/>
-                    <div onClick={function(){ if(!saving) removeGroup(laDeals[0].id); }} style={{marginTop:6,fontSize:10,color:T.dim,cursor:"pointer",textAlign:"right"}}>Remove LA</div>
-                  </div>
-                ) : (
-                  <div style={{textAlign:"center",padding:"8px 0"}}>
-                    <div style={{fontSize:11,color:T.dim,marginBottom:8}}>Not pursuing LA</div>
-                    <button onClick={function(){ if(!saving) addGroup("Los Angeles"); }} style={{padding:"5px 14px",background:"rgba(240,200,74,0.1)",border:"1px solid "+G+"40",color:G,borderRadius:4,cursor:"pointer",fontSize:11}}>+ Add Los Angeles</button>
-                  </div>
-                )}
-              </div>
-              {/* SFV */}
-              <div style={{flex:1,padding:"12px 14px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:6}}>
-                {sfvDeals.length > 0 ? (
-                  <div>
-                    <SponsorJourneyTrack deal={sfvDeals[0]} groupName="San Fernando Valley" onStageChange={saveStage}/>
-                    <div onClick={function(){ if(!saving) removeGroup(sfvDeals[0].id); }} style={{marginTop:6,fontSize:10,color:T.dim,cursor:"pointer",textAlign:"right"}}>Remove SFV</div>
-                  </div>
-                ) : (
-                  <div style={{textAlign:"center",padding:"8px 0"}}>
-                    <div style={{fontSize:11,color:T.dim,marginBottom:8}}>Not pursuing SFV</div>
-                    <button onClick={function(){ if(!saving) addGroup("San Fernando Valley"); }} style={{padding:"5px 14px",background:"rgba(255,255,255,0.04)",border:"1px solid "+T.border,color:T.muted,borderRadius:4,cursor:"pointer",fontSize:11}}>+ Add SFV</button>
-                  </div>
-                )}
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {/* Only show groups being pursued */}
+              {laDeals.length > 0 && (
+                <div style={{padding:"12px 14px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:6}}>
+                  <SponsorJourneyTrack deal={laDeals[0]} groupName="Los Angeles" onStageChange={saveStage}/>
+                  <div onClick={function(){ if(!saving) removeGroup(laDeals[0].id); }} style={{marginTop:4,fontSize:10,color:T.dim,cursor:"pointer",textAlign:"right"}}>Remove</div>
+                </div>
+              )}
+              {sfvDeals.length > 0 && (
+                <div style={{padding:"12px 14px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:6}}>
+                  <SponsorJourneyTrack deal={sfvDeals[0]} groupName="San Fernando Valley" onStageChange={saveStage}/>
+                  <div onClick={function(){ if(!saving) removeGroup(sfvDeals[0].id); }} style={{marginTop:4,fontSize:10,color:T.dim,cursor:"pointer",textAlign:"right"}}>Remove</div>
+                </div>
+              )}
+              {/* Add group buttons - compact */}
+              <div style={{display:"flex",gap:8}}>
+                {laDeals.length === 0 && <button onClick={function(){ if(!saving) addGroup("Los Angeles"); }} style={{padding:"4px 12px",background:"rgba(240,200,74,0.08)",border:"1px solid "+G+"30",color:G+"80",borderRadius:4,cursor:"pointer",fontSize:11}}>+ Los Angeles</button>}
+                {sfvDeals.length === 0 && <button onClick={function(){ if(!saving) addGroup("San Fernando Valley"); }} style={{padding:"4px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid "+T.border,color:T.dim,borderRadius:4,cursor:"pointer",fontSize:11}}>+ San Fernando Valley</button>}
               </div>
             </div>
           </div>
@@ -411,7 +358,6 @@ export default function Sponsors() {
   var [groupFilter, setGroupFilter] = useState("Los Angeles");
   var [hostOnly, setHostOnly] = useState(false);
   var [search, setSearch] = useState("");
-  var [selectedStage, setSelectedStage] = useState(null);
 
   useEffect(function(){ load(); }, []);
 
@@ -460,16 +406,9 @@ export default function Sponsors() {
         </div>
 
         {/* Stage buckets */}
-        <StageBuckets deals={deals} companies={companies} groupFilter={groupFilter} selectedStage={selectedStage} onSelectStage={function(s){ setSelectedStage(s); }}/>
+        <StageBuckets deals={deals} companies={companies} groupFilter={groupFilter} stageFilter={stageFilter} onSelectStage={function(s){ setStageFilter(function(prev){ return prev === s ? "All" : s; }); }}/>
 
-        {/* Drill-down table */}
-        {selectedStage && (
-          <div style={{marginTop:10}}>
-            <StageDrillDown stage={selectedStage} deals={deals} companies={companies} groupFilter={groupFilter}
-              onSelectCompany={function(id){ setSelected(id); setSelectedStage(null); }}
-              onClose={function(){ setSelectedStage(null); }}/>
-          </div>
-        )}
+
 
         {/* Filters */}
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginTop:10}}>
