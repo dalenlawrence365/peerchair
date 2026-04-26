@@ -11,14 +11,12 @@ export async function GET() {
     var key = process.env.HEYREACH_API_KEY;
     if (!key) return Response.json(fallback);
 
-    // Fetch stats
     var statsRes = await fetch("https://api.heyreach.io/api/public/v2/analytics/overall-stats", {
       method: "POST",
       headers: {"Content-Type":"application/json","X-API-KEY": key},
-      body: JSON.stringify({accountIds:[185228]})
+      body: JSON.stringify({accountIds:[185228], campaignIds:[395760, 387604]})
     });
 
-    // Fetch campaigns
     var campRes = await fetch("https://api.heyreach.io/api/public/v2/campaign/GetAllCampaigns", {
       method: "POST",
       headers: {"Content-Type":"application/json","X-API-KEY": key},
@@ -28,21 +26,25 @@ export async function GET() {
     var result = Object.assign({}, fallback);
 
     if (statsRes.ok) {
-      var statsData = await statsRes.json();
-      var o = statsData.overallStats || {};
-      var sent = o.connectionsSent || 0;
-      var accepted = o.connectionsAccepted || 0;
-      var msgSent = o.totalMessageStarted || 0;
-      var replies = o.totalMessageReplies || 0;
-      // Only use live data if it has values, otherwise keep fallback
-      if (sent > 0 || accepted > 0) {
-        result.sent = sent;
-        result.accepted = accepted;
-        result.msgSent = msgSent;
-        result.replies = replies;
-        result.acceptRate = sent > 0 ? Math.round((accepted/sent)*100) : 0;
-        result.replyRate = msgSent > 0 ? Math.round((replies/msgSent)*100) : 0;
-      }
+      var statsText = await statsRes.text();
+      try {
+        var statsData = JSON.parse(statsText);
+        var o = statsData.overallStats || {};
+        var sent = o.connectionsSent || 0;
+        var accepted = o.connectionsAccepted || 0;
+        var msgSent = o.totalMessageStarted || 0;
+        var replies = o.totalMessageReplies || 0;
+        if (sent > 0 || accepted > 0) {
+          result.sent = sent;
+          result.accepted = accepted;
+          result.msgSent = msgSent;
+          result.replies = replies;
+          result.acceptRate = sent > 0 ? Math.round((accepted/sent)*100) : 0;
+          result.replyRate = msgSent > 0 ? Math.round((replies/msgSent)*100) : 0;
+        }
+      } catch(e) { console.error("Stats parse error:", e); }
+    } else {
+      console.error("Stats API error:", statsRes.status, await statsRes.text());
     }
 
     if (campRes.ok) {
@@ -51,9 +53,7 @@ export async function GET() {
       if (camps.length > 0) {
         result.campaigns = camps.map(function(c) {
           return {
-            id: c.id,
-            name: c.name,
-            status: c.status,
+            id: c.id, name: c.name, status: c.status,
             inProgress: c.progressStats ? c.progressStats.totalUsersInProgress : 0,
             pending: c.progressStats ? c.progressStats.totalUsersPending : 0,
             finished: c.progressStats ? c.progressStats.totalUsersFinished : 0,
