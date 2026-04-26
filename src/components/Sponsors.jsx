@@ -12,7 +12,23 @@ var T = {
   blue:"#4a9eba", purple:"#9b59b6"
 };
 
-var STAGES = ["All","Prospect","Discovery Scheduled","Proposal Sent","Verbal Commitment","Active","Renewal"];
+
+var SPONSOR_JOURNEY = [
+  {id:"prospect",    label:"Prospect",     short:"Prospect"},
+  {id:"engaged",     label:"Engaged",      short:"Engaged"},
+  {id:"discovery",   label:"Discovery",    short:"Discovery"},
+  {id:"proposal",    label:"Proposal",     short:"Proposal"},
+  {id:"commitment",  label:"Committed",    short:"Committed"},
+  {id:"active",      label:"Active",       short:"Active"},
+  {id:"renewal",     label:"Renewal",      short:"Renewal"},
+];
+
+var STAGE_TO_IDX = {
+  "Prospect":0, "Engaged":1, "Discovery Scheduled":2,
+  "Proposal Sent":3, "Verbal Commitment":4, "Active":5, "Renewal":6
+};
+
+var STAGES = ["All","Prospect","Engaged","Discovery Scheduled","Proposal Sent","Verbal Commitment","Active","Renewal"];
 var CATEGORIES = ["All","Accounting/Advisory","Commercial Banking","Law Firm","Executive Search","HR/Payroll","Insurance","Technology","Commercial Real Estate","Other"];
 var GROUPS = ["All","Los Angeles","San Fernando Valley"];
 
@@ -22,6 +38,25 @@ function SBfetch(path) {
   return fetch(SBU + "/rest/v1/" + path, {
     headers: {"apikey": SBK, "Authorization": "Bearer " + SBK}
   }).then(function(r){ return r.json(); });
+}
+
+function SBpost(table, data) {
+  var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return fetch(SBU + "/rest/v1/" + table, {
+    method: "POST",
+    headers: {"apikey": SBK, "Authorization": "Bearer " + SBK, "Content-Type": "application/json", "Prefer": "return=representation"},
+    body: JSON.stringify(data)
+  }).then(function(r){ return r.json(); });
+}
+
+function SBdelete(table, id) {
+  var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return fetch(SBU + "/rest/v1/" + table + "?id=eq." + id, {
+    method: "DELETE",
+    headers: {"apikey": SBK, "Authorization": "Bearer " + SBK}
+  });
 }
 
 function SBpatch(table, id, data) {
@@ -118,14 +153,62 @@ function CompanyCard(props) {
   );
 }
 
+function SponsorJourneyTrack(props) {
+  var deal = props.deal;
+  var groupName = props.groupName;
+  var onStageChange = props.onStageChange;
+
+  if (!deal) return null;
+
+  var currentIdx = STAGE_TO_IDX[deal.stage] || 0;
+  var pct = (currentIdx / (SPONSOR_JOURNEY.length - 1)) * 100;
+  var stageColor = StageColor(deal.stage);
+
+  return (
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <div style={{fontSize:11,fontWeight:600,color:T.muted,letterSpacing:1,textTransform:"uppercase"}}>{groupName}</div>
+        {deal.host_assignment && <Badge label="HOST" color={T.green} small={true}/>}
+      </div>
+      <div style={{position:"relative",paddingTop:4,paddingBottom:16}}>
+        <div style={{position:"absolute",top:18,left:10,right:10,height:2,background:"rgba(255,255,255,0.06)",zIndex:0}}/>
+        <div style={{position:"absolute",top:18,left:10,width:"calc("+pct+"% - 10px)",height:2,background:"linear-gradient(90deg,"+stageColor+","+stageColor+"80)",zIndex:1}}/>
+        <div style={{display:"flex",position:"relative",zIndex:2}}>
+          {SPONSOR_JOURNEY.map(function(step, idx) {
+            var isDone = idx < currentIdx;
+            var isCurrent = idx === currentIdx;
+            var isNext = idx === currentIdx + 1;
+            return (
+              <div key={step.id} onClick={function(){ onStageChange(deal.id, Object.keys(STAGE_TO_IDX)[idx]); }}
+                style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,cursor:"pointer"}}>
+                <div style={{
+                  width:24,height:24,borderRadius:"50%",
+                  background:isCurrent?stageColor:isDone?stageColor+"30":"rgba(255,255,255,0.04)",
+                  border:"2px solid "+(isCurrent?stageColor:isDone?stageColor+"60":isNext?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.08)"),
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:9,color:isCurrent?"#0c1520":isDone?stageColor:T.dim,
+                  fontWeight:"bold",
+                  boxShadow:isCurrent?"0 0 8px "+stageColor+"60":"none",
+                  transition:"all 0.2s"
+                }}>{isDone?"v":idx+1}</div>
+                <div style={{fontSize:8,color:isCurrent?stageColor:isDone?T.muted:T.dim,textAlign:"center",lineHeight:1.3,maxWidth:44}}>{step.short}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CompanyDetail(props) {
   var co = props.company;
   var deals = props.deals || [];
   var contacts = props.contacts || [];
   var onUpdate = props.onUpdate;
+  var allCompanies = props.allCompanies || [];
 
-  var [editingDeal, setEditingDeal] = useState(null);
-  var [savingDeal, setSavingDeal] = useState(false);
+  var [saving, setSaving] = useState(false);
 
   if (!co) return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",flex:1,color:T.dim,fontSize:13,flexDirection:"column",gap:8}}>
@@ -135,23 +218,46 @@ function CompanyDetail(props) {
   );
 
   async function saveStage(dealId, newStage) {
-    setSavingDeal(true);
+    setSaving(true);
     await SBpatch("sponsor_deals", dealId, {stage: newStage});
     if (onUpdate) onUpdate();
-    setSavingDeal(false);
+    setSaving(false);
+  }
+
+  async function addGroup(groupName) {
+    setSaving(true);
+    await SBpost("sponsor_deals", {
+      company_id: co.id,
+      group_name: groupName,
+      stage: "Prospect",
+      category_seat: co.category,
+      annual_fee: 5000,
+      host_assignment: co.host_tier === "Meeting Host"
+    });
+    if (onUpdate) onUpdate();
+    setSaving(false);
+  }
+
+  async function removeGroup(dealId) {
+    setSaving(true);
+    await SBdelete("sponsor_deals", dealId);
+    if (onUpdate) onUpdate();
+    setSaving(false);
   }
 
   var laDeals = deals.filter(function(d){ return d.group_name === "Los Angeles"; });
   var sfvDeals = deals.filter(function(d){ return d.group_name === "San Fernando Valley"; });
+  var hasLA = laDeals.length > 0;
+  var hasSFV = sfvDeals.length > 0;
 
   return (
-    <div style={{flex:1,overflowY:"auto",padding:"20px 24px",display:"flex",flexDirection:"column",gap:18}}>
+    <div style={{flex:1,overflowY:"auto",padding:"20px 24px",display:"flex",flexDirection:"column",gap:16}}>
 
       {/* Header */}
-      <div style={{borderBottom:"1px solid "+T.border,paddingBottom:16}}>
+      <div style={{borderBottom:"1px solid "+T.border,paddingBottom:14}}>
         <div style={{display:"flex",alignItems:"flex-start",gap:12,marginBottom:10}}>
           <div style={{flex:1}}>
-            <div style={{fontSize:20,fontWeight:700,color:T.text,marginBottom:4}}>{co.name}</div>
+            <div style={{fontSize:20,fontWeight:700,color:T.text,marginBottom:6}}>{co.name}</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
               <Badge label={co.category||"Uncategorized"} color={CategoryColor(co.category)}/>
               <HostBadge tier={co.host_tier} viable={co.host_viable}/>
@@ -163,57 +269,59 @@ function CompanyDetail(props) {
             <div>
               <div style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>LA Address</div>
               <div style={{fontSize:12,color:T.muted,lineHeight:1.5}}>{co.address_la}</div>
-              {co.viability_la && <div style={{fontSize:10,color:co.viability_la==="Viable"?T.green:T.orange,marginTop:2}}>{co.viability_la}</div>}
+              {co.area_la && <div style={{fontSize:10,color:T.dim,marginTop:2}}>{co.area_la}</div>}
             </div>
           )}
           {co.address_sfv && (
             <div>
               <div style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>SFV Address</div>
               <div style={{fontSize:12,color:T.muted,lineHeight:1.5}}>{co.address_sfv}</div>
-              {co.viability_sfv && <div style={{fontSize:10,color:co.viability_sfv==="Viable"?T.green:co.viability_sfv==="Adjacent"?T.orange:T.dim,marginTop:2}}>{co.viability_sfv}</div>}
+              {co.area_sfv && <div style={{fontSize:10,color:T.dim,marginTop:2}}>{co.area_sfv}</div>}
             </div>
           )}
         </div>
         {co.notes && <div style={{marginTop:10,fontSize:12,color:T.muted,lineHeight:1.6,padding:"8px 12px",background:"rgba(255,255,255,0.02)",borderRadius:5,borderLeft:"2px solid "+T.gold+"40"}}>{co.notes}</div>}
       </div>
 
-      {/* Deals by Group */}
+      {/* Group Journey — side by side */}
       <div>
-        <div style={{fontSize:10,color:G,letterSpacing:3,textTransform:"uppercase",marginBottom:10,fontWeight:600}}>Pipeline — By Group</div>
-        {[{label:"Los Angeles",deals:laDeals},{label:"San Fernando Valley",deals:sfvDeals}].map(function(group){
-          if (group.deals.length === 0) return null;
-          return (
-            <div key={group.label} style={{marginBottom:12,padding:"12px 14px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:6}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-                <div style={{fontSize:12,fontWeight:600,color:T.text}}>{group.label}</div>
-                {group.deals[0] && group.deals[0].host_assignment && <Badge label="HOST" color={T.green} small={true}/>}
+        <div style={{fontSize:10,color:G,letterSpacing:3,textTransform:"uppercase",marginBottom:12,fontWeight:600}}>Sponsor Journey</div>
+        <div style={{display:"flex",gap:16}}>
+          {/* LA */}
+          <div style={{flex:1,padding:"12px 14px",background:"rgba(255,255,255,0.02)",border:"1px solid "+(hasLA?T.border+"80":T.border),borderRadius:6}}>
+            {hasLA ? (
+              <div>
+                <SponsorJourneyTrack deal={laDeals[0]} groupName="Los Angeles" onStageChange={saveStage}/>
+                <div onClick={function(){ if(!saving) removeGroup(laDeals[0].id); }} style={{marginTop:4,fontSize:10,color:T.dim,cursor:"pointer",textAlign:"right"}}>Remove LA</div>
               </div>
-              {group.deals.map(function(deal){
-                return (
-                  <div key={deal.id}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                      <div style={{fontSize:11,color:T.muted}}>Stage:</div>
-                      <select value={deal.stage} onChange={function(e){ saveStage(deal.id, e.target.value); }} disabled={savingDeal}
-                        style={{background:BG2,border:"1px solid "+StageColor(deal.stage)+"50",color:StageColor(deal.stage),padding:"3px 8px",borderRadius:4,fontSize:12,outline:"none",cursor:"pointer"}}>
-                        {["Prospect","Discovery Scheduled","Proposal Sent","Verbal Commitment","Active","Renewal"].map(function(s){
-                          return <option key={s}>{s}</option>;
-                        })}
-                      </select>
-                      <div style={{fontSize:11,color:T.dim}}>${(deal.annual_fee||5000).toLocaleString()}/yr</div>
-                    </div>
-                    {deal.notes && <div style={{fontSize:11,color:T.muted,lineHeight:1.5}}>{deal.notes}</div>}
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })}
+            ) : (
+              <div style={{textAlign:"center",padding:"10px 0"}}>
+                <div style={{fontSize:11,color:T.dim,marginBottom:8}}>Not pursuing LA</div>
+                <button onClick={function(){ if(!saving) addGroup("Los Angeles"); }} style={{padding:"5px 14px",background:"rgba(240,200,74,0.1)",border:"1px solid "+G+"40",color:G,borderRadius:4,cursor:"pointer",fontSize:11}}>+ Add Los Angeles</button>
+              </div>
+            )}
+          </div>
+          {/* SFV */}
+          <div style={{flex:1,padding:"12px 14px",background:"rgba(255,255,255,0.02)",border:"1px solid "+(hasSFV?T.border+"80":T.border),borderRadius:6}}>
+            {hasSFV ? (
+              <div>
+                <SponsorJourneyTrack deal={sfvDeals[0]} groupName="San Fernando Valley" onStageChange={saveStage}/>
+                <div onClick={function(){ if(!saving) removeGroup(sfvDeals[0].id); }} style={{marginTop:4,fontSize:10,color:T.dim,cursor:"pointer",textAlign:"right"}}>Remove SFV</div>
+              </div>
+            ) : (
+              <div style={{textAlign:"center",padding:"10px 0"}}>
+                <div style={{fontSize:11,color:T.dim,marginBottom:8}}>Not pursuing SFV</div>
+                <button onClick={function(){ if(!saving) addGroup("San Fernando Valley"); }} style={{padding:"5px 14px",background:"rgba(255,255,255,0.04)",border:"1px solid "+T.border,color:T.muted,borderRadius:4,cursor:"pointer",fontSize:11}}>+ Add SFV</button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Contacts */}
       <div>
         <div style={{fontSize:10,color:G,letterSpacing:3,textTransform:"uppercase",marginBottom:10,fontWeight:600}}>Contacts — {contacts.length}</div>
-        {contacts.length === 0 && <div style={{fontSize:12,color:T.dim,padding:"12px 0"}}>No contacts loaded yet.</div>}
+        {contacts.length === 0 && <div style={{fontSize:12,color:T.dim,padding:"8px 0"}}>No contacts loaded yet.</div>}
         {contacts.map(function(c){
           return (
             <div key={c.id} style={{padding:"10px 12px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:5,marginBottom:6}}>
@@ -222,7 +330,7 @@ function CompanyDetail(props) {
                 {c.warmth === "Met in person" && <Badge label="Met in person" color={T.green} small={true}/>}
                 {c.warmth === "Warm" && <Badge label="Warm" color={T.gold} small={true}/>}
               </div>
-              <div style={{fontSize:12,color:T.muted,marginBottom:c.email?4:0}}>{c.title}</div>
+              <div style={{fontSize:12,color:T.muted,marginBottom:c.email?3:0}}>{c.title}</div>
               {c.email && <div style={{fontSize:11,color:T.dim}}>{c.email}</div>}
               {c.city && <div style={{fontSize:11,color:T.dim}}>{c.city}{c.state?", "+c.state:""}</div>}
             </div>
@@ -232,6 +340,7 @@ function CompanyDetail(props) {
     </div>
   );
 }
+
 
 export default function Sponsors() {
   var [companies, setCompanies] = useState([]);
@@ -296,7 +405,7 @@ export default function Sponsors() {
   var selectedCo = selected ? companies.find(function(c){ return c.id === selected; }) : null;
 
   return (
-    <div style={{display:"flex",flexDirection:"column",flex:1,overflow:"hidden",fontFamily:"'Palatino Linotype','Book Antiqua',Palatino,serif"}}>
+    <div style={{display:"flex",flexDirection:"column",flex:1,overflow:"hidden",background:BG,fontFamily:"'Palatino Linotype','Book Antiqua',Palatino,serif"}}>
 
       {/* Header */}
       <div style={{padding:"16px 24px 12px",borderBottom:"1px solid "+T.border,flexShrink:0}}>
@@ -346,7 +455,7 @@ export default function Sponsors() {
       <div style={{display:"grid",gridTemplateColumns:"320px 1fr",flex:1,overflow:"hidden",minHeight:0}}>
 
         {/* Company list */}
-        <div style={{borderRight:"1px solid "+T.border,overflowY:"auto",padding:"12px"}}>
+        <div style={{borderRight:"1px solid "+T.border,overflowY:"auto",padding:"12px",background:BG}}>
           {loading && <div style={{textAlign:"center",color:T.dim,padding:40,fontSize:13}}>Loading...</div>}
           {!loading && filtered.length === 0 && <div style={{textAlign:"center",color:T.dim,padding:40,fontSize:13}}>No companies match your filters.</div>}
           {filtered.map(function(co){
@@ -369,6 +478,7 @@ export default function Sponsors() {
           company={selectedCo}
           deals={selectedCo ? getDeals(selectedCo.id) : []}
           contacts={selectedCo ? getContacts(selectedCo.id) : []}
+          allCompanies={companies}
           onUpdate={load}
         />
       </div>
