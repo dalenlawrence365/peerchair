@@ -235,8 +235,8 @@ export default function FollowUp(props) {
       return;
     }
     // Extract slug from LinkedIn URL for matching
-    var slug = item.profileUrl.split("/in/").pop().replace(/\/+$/,"");
-    fetch(SBU+"/rest/v1/contacts?linkedin_url=ilike.*"+encodeURIComponent(slug)+"*&select=id,first_name,last_name,title,company_name,linkedin_url,pipeline_stage&limit=1", {
+    var slug = item.profileUrl.split("/in/").pop().replace(/\/+$/,"").toLowerCase();
+    fetch(SBU+"/rest/v1/contacts?linkedin_url=ilike.*"+slug+"*&select=id,first_name,last_name,title,company_name,linkedin_url,pipeline_stage,linkedin_image_url&limit=1", {
       headers:{"apikey":SBK,"Authorization":"Bearer "+SBK}
     })
     .then(function(r){return r.json();})
