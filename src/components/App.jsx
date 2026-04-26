@@ -875,8 +875,10 @@ function Dashboard({onNavigate,totalContacts,stageCounts}) {
         <div style={{fontSize:14,color:T.muted,marginTop:4}}>Here's where things stand with your Los Angeles chapter.</div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
-        {[{label:"Active Prospects",val:String(totalContacts),sub:"in pipeline",color:T.blue,icon:"◎"},{label:"Fit Calls Scheduled",val:String(getCount("Fit Scheduled")||0),sub:"this week",color:T.gold,icon:"☎"},{label:"Days to Next Event",val:"—",sub:"no event scheduled",color:T.purple,icon:"✦"},{label:"Active Members",val:String(getCount("Active Member")||0),sub:"in chapter",color:T.green,icon:"★"}].map(function(k){
-          return <div key={k.label} style={{background:BG3,border:"1px solid "+T.border,borderTop:"2px solid "+k.color+"40",borderRadius:8,padding:"18px 20px"}}>
+        {[{label:"Active Prospects",val:String(totalContacts),sub:"in pipeline",color:T.blue,icon:"◎",action:function(){navigate("pipeline");}},{label:"Fit Calls Scheduled",val:String(fitCallContacts.length),sub:"this week",color:T.gold,icon:"☎",action:function(){setShowFitCallList(function(v){return !v;});}},{label:"Days to Next Event",val:"—",sub:"no event scheduled",color:T.purple,icon:"✦",action:null},{label:"Active Members",val:String(getCount("Active Member")||0),sub:"in chapter",color:T.green,icon:"★",action:function(){navigate("pipeline");}}].map(function(k){
+          return <div key={k.label} onClick={k.action||undefined} style={{background:BG3,border:"1px solid "+T.border,borderTop:"2px solid "+k.color+"40",borderRadius:8,padding:"18px 20px",cursor:k.action?"pointer":"default",transition:"all 0.15s"}}
+            onMouseOver={function(e){if(k.action)e.currentTarget.style.borderColor=k.color+"40";}}
+            onMouseOut={function(e){if(k.action)e.currentTarget.style.borderColor=T.border;}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
               <div style={{fontSize:11,color:T.muted,letterSpacing:1.5,textTransform:"uppercase"}}>{k.label}</div>
               <span style={{fontSize:16,color:k.color+"60"}}>{k.icon}</span>
@@ -1115,6 +1117,8 @@ function AskClaude() {
 export default function CFOCircleApp() {
   var [screen,setScreen]             = useState("dashboard");
   var [fitCallContact,setFitCallContact] = useState(null);
+  var [showFitCallList,setShowFitCallList] = useState(false);
+  var fitCallContacts = contacts ? contacts.filter(function(c){ return c.pipeline_stage === "Fit Call Scheduled"; }) : [];
   var [selectedContact,setContact]   = useState(null);
   var [totalContacts,setTotal]       = useState(0);
   var [stageCounts,setStageCounts]   = useState({});
