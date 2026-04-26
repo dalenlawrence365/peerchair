@@ -1,5 +1,6 @@
 "use client"
 import Sponsors from "@/components/Sponsors";
+import FollowUp from "@/components/FollowUp";
 import LiveCallCompanion from "@/components/LiveCallCompanion";
 import { useState, useEffect } from "react";
 
@@ -1327,6 +1328,7 @@ export default function CFOCircleApp() {
   var [screen,setScreen]             = useState("dashboard");
   var [fitCallContact,setFitCallContact] = useState(null);
   var [fitCallContacts,setFitCallContacts] = useState([]);
+  var [followUpCount,setFollowUpCount] = useState(0);
 
   var [selectedContact,setContact]   = useState(null);
   var [totalContacts,setTotal]       = useState(0);
@@ -1334,7 +1336,15 @@ export default function CFOCircleApp() {
   var [pipelineTotal,setPipelineTotal] = useState(0);
   var [statsLoading,setStatsLoading] = useState(true);
 
-  useEffect(function(){loadStats();loadFitCalls();},[]);
+  useEffect(function(){loadStats();loadFitCalls();loadFollowUpCount();},[]);
+
+  async function loadFollowUpCount(){
+    try{
+      var res=await fetch("/api/follow-up-queue");
+      var data=await res.json();
+      setFollowUpCount((data.queue||[]).filter(function(i){return i.category!=="not_interested";}).length);
+    }catch(e){}
+  }
 
   async function loadFitCalls(){
     try{
@@ -1362,9 +1372,9 @@ export default function CFOCircleApp() {
 
   function navigate(s,contact){setScreen(s);if(contact)setContact(contact);}
 
-  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors"},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
+  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:followUpCount>0?String(followUpCount):""},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors"},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
 
-  var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",sponsors:"Sponsors",stalliant:"Sponsors"}[screen]||screen;
+  var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",sponsors:"Sponsors",followup:"Follow-Up Queue",stalliant:"Sponsors"}[screen]||screen;
 
   return (
     <div style={{display:"flex",height:"100vh",width:"100%",overflow:"hidden",background:BG,fontFamily:"'Palatino Linotype','Book Antiqua',Palatino,serif",color:T.text}}>
@@ -1410,6 +1420,7 @@ export default function CFOCircleApp() {
           {screen==="templates" && <Placeholder icon="✉" title="Templates" description="Your LinkedIn and email message library, organized by pipeline stage."/>}
           {screen==="claude"    && <AskClaude/>}
           {screen==="sponsors"  && <Sponsors/>}
+        {screen==="followup"  && <FollowUp onNavigate={navigate}/>}
           {screen==="fitcall" && fitCallContact && <LiveCallCompanion contact={fitCallContact} onEnd={function(){ setScreen("profile"); }} onBack={function(){ setScreen("profile"); }}/>}
         </div>
       </div>
