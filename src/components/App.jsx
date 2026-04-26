@@ -989,18 +989,38 @@ function Pipeline({onNavigate}) {
   var stageOptions=["All","Connected","Fit Call Scheduled","Fit Call Completed","Strong Fit","Event Invited","Event Confirmed","Active Member","Reserve Pool","Lost — Not a Fit"];
   return (
     <div style={{display:"flex",flexDirection:"column",flex:1,overflow:"hidden"}}>
-      <div style={{padding:"20px 28px 0",flexShrink:0}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <div><h2 style={{fontSize:22,fontWeight:600,color:T.text,margin:0}}>Pipeline</h2>
+      <div style={{padding:"16px 28px 0",flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+          <div><h2 style={{fontSize:22,fontWeight:600,color:T.text,margin:0}}>CFO Pipeline</h2>
             <div style={{fontSize:13,color:T.muted,marginTop:3}}>{loading?"Loading…":(filtered.length+" of "+total+" contacts")}{!loading&&<span style={{fontSize:11,color:T.green,marginLeft:10}}>● live</span>}</div></div>
-          <button style={{padding:"8px 16px",background:T.goldDim,border:"1px solid "+G+"40",color:G,borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600}}>+ Add Contact</button>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Search…" style={{background:BG3,border:"1px solid "+T.border,color:T.text,padding:"7px 12px",borderRadius:6,fontSize:12,outline:"none",fontFamily:"inherit",width:200}}/>
+            <button onClick={loadContacts} style={{padding:"7px 10px",background:"rgba(255,255,255,0.03)",border:"1px solid "+T.border,color:T.muted,borderRadius:5,cursor:"pointer",fontSize:11}}>↺</button>
+          </div>
         </div>
-        <div style={{display:"flex",gap:10,marginBottom:12,alignItems:"center"}}>
-          <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Search name or company…" style={{background:BG3,border:"1px solid "+T.border,color:T.text,padding:"8px 13px",borderRadius:6,fontSize:13,outline:"none",fontFamily:"inherit",width:240}}/>
-          <button onClick={loadContacts} style={{padding:"8px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid "+T.border,color:T.muted,borderRadius:5,cursor:"pointer",fontSize:11}}>↺ Refresh</button>
-        </div>
-        <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap"}}>
-          {stageOptions.map(function(s){return <button key={s} onClick={function(){setStageFilter(s);}} style={{padding:"4px 10px",borderRadius:12,cursor:"pointer",fontSize:11,fontWeight:stageFilter===s?600:400,background:stageFilter===s?T.goldDim:"rgba(255,255,255,0.02)",border:"1px solid "+(stageFilter===s?G+"50":T.border),color:stageFilter===s?G:T.muted,whiteSpace:"nowrap"}}>{s}</button>;})}
+        {/* Stage bucket filters */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(9,1fr)",gap:6,marginBottom:14}}>
+          {[
+            {s:"All",c:T.muted},
+            {s:"Connected",c:T.blue},
+            {s:"Fit Call Scheduled",c:G},
+            {s:"Fit Call Completed",c:T.purple},
+            {s:"Strong Fit",c:T.green},
+            {s:"Event Invited",c:"#1abc9c"},
+            {s:"Active Member",c:T.green},
+            {s:"Reserve Pool",c:T.orange},
+            {s:"Lost — Not a Fit",c:T.red},
+          ].map(function(item){
+            var isSelected = stageFilter === item.s;
+            var count = item.s === "All" ? total : contacts.filter(function(ct){ return ct.pipeline_stage === item.s; }).length;
+            return (
+              <div key={item.s} onClick={function(){setStageFilter(item.s);}}
+                style={{background:isSelected?item.c+"18":BG3,border:"1px solid "+(isSelected?item.c+"60":item.c+"20"),borderTop:"2px solid "+item.c+(isSelected?"":"60"),borderRadius:5,padding:"7px 5px",cursor:"pointer",transition:"all 0.15s",textAlign:"center"}}>
+                <div style={{fontSize:18,fontWeight:700,color:item.c,lineHeight:1,marginBottom:3}}>{count}</div>
+                <div style={{fontSize:8,color:isSelected?item.c:"#8ab4cc",letterSpacing:0.5,textTransform:"uppercase",lineHeight:1.3}}>{item.s==="Lost — Not a Fit"?"Not a Fit":item.s==="Fit Call Scheduled"?"Fit Sched.":item.s==="Fit Call Completed"?"Fit Done":item.s==="Event Invited"?"Invited":item.s==="Active Member"?"Active":item.s==="Reserve Pool"?"Reserve":item.s}</div>
+              </div>
+            );
+          })}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"200px 1fr 160px 90px 110px 70px",gap:10,padding:"7px 14px",borderRadius:"6px 6px 0 0",background:"rgba(255,255,255,0.02)",borderBottom:"1px solid "+T.border}}>
           {["Contact","Company / Title","Stage","Source","Revenue",""].map(function(h){return <div key={h} style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase"}}>{h}</div>;})}
