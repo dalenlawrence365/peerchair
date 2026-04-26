@@ -889,6 +889,31 @@ function Dashboard({onNavigate,totalContacts,stageCounts,fitCallContacts,onStart
           </div>;
         })}
       </div>
+
+        {showFitCallList&&<div style={{background:BG3,border:"1px solid "+T.gold+"40",borderRadius:8,padding:"16px 20px",marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+            <div style={{fontSize:12,color:T.gold,letterSpacing:2,textTransform:"uppercase",fontWeight:600}}>Fit Calls Scheduled</div>
+            <div onClick={function(){setShowFitCallList(false);}} style={{cursor:"pointer",color:T.muted,fontSize:18,lineHeight:1}}>x</div>
+          </div>
+          {fitCallContacts.length===0&&<div style={{fontSize:13,color:T.dim,padding:"8px 0"}}>No fit calls currently scheduled.</div>}
+          {fitCallContacts.map(function(ct){
+            var timeStr=ct.fit_call_date?new Date(ct.fit_call_date).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",timeZone:"America/Los_Angeles"}):"Time TBD";
+            var dateStr=ct.fit_call_date?new Date(ct.fit_call_date).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
+            return (
+              <div key={ct.id} style={{display:"flex",alignItems:"center",gap:14,padding:"10px 14px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:6,marginBottom:8}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:14,fontWeight:600,color:T.text}}>{ct.first_name} {ct.last_name}</div>
+                  <div style={{fontSize:12,color:T.muted}}>{ct.company_name||""}</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:14,fontWeight:700,color:T.gold}}>{timeStr}</div>
+                  <div style={{fontSize:11,color:T.dim}}>{dateStr}</div>
+                </div>
+                <button onClick={function(){if(onStartFitCall)onStartFitCall(ct);setShowFitCallList(false);}} style={{padding:"6px 14px",background:"rgba(240,200,74,0.12)",border:"1px solid rgba(240,200,74,0.3)",borderRadius:5,fontSize:12,color:T.gold,fontWeight:600,cursor:"pointer",flexShrink:0}}>Start Call</button>
+              </div>
+            );
+          })}
+        </div>}
       <div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:20}}>
         <div style={{display:"flex",flexDirection:"column",gap:20}}>
           <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:8,overflow:"hidden"}}>
@@ -1132,7 +1157,7 @@ export default function CFOCircleApp() {
       var SBU=process.env.NEXT_PUBLIC_SUPABASE_URL;
       var SBK=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
       var h={"apikey":SBK,"Authorization":"Bearer "+SBK};
-      var res=await fetch(SBU+"/rest/v1/contacts?pipeline_stage=eq.Fit Call Scheduled&select=id,first_name,last_name,title,company_name,email,linkedin_url,fit_call_date,pipeline_stage",{headers:h});
+      var res=await fetch(SBU+"/rest/v1/contacts?pipeline_stage=eq.Fit%20Call%20Scheduled&select=id,first_name,last_name,title,company_name,email,linkedin_url,fit_call_date,pipeline_stage",{headers:h});
       var data=await res.json();
       setFitCallContacts(Array.isArray(data)?data:[]);
     }catch(e){console.error("loadFitCalls error:",e);}
