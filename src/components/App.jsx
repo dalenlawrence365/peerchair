@@ -862,7 +862,8 @@ function ContactProfile({contactId,onBack,onStartFitCall}) {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
-function Dashboard({onNavigate,totalContacts,stageCounts}) {
+function Dashboard({onNavigate,totalContacts,stageCounts,fitCallContacts,onStartFitCall}) {
+  var [showFitCallList,setShowFitCallList] = useState(false);
   var today=new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
   var ACTIONS=[{label:"Paolo Casarella — fit call yesterday, follow-up not sent",type:"warning",action:"Send Follow-Up"},{label:"Event needs scheduling — 0 of 8 minimum CFOs registered",type:"alert",action:"Set Event Date"},{label:"6 contacts connected 30+ days with no reply",type:"info",action:"Move to Reserve"},{label:"Eric Stoneburner — replied on LinkedIn yesterday",type:"good",action:"View Thread"}];
   var pStages=[{label:"Target",color:T.dim},{label:"Connected",color:T.blue},{label:"Fit Scheduled",color:T.gold},{label:"Fit Completed",color:T.gold},{label:"Strong Fit",color:T.green},{label:"Event Invited",color:T.purple},{label:"Active Member",color:T.green},{label:"Reserve Pool",color:T.dim}];
@@ -1117,8 +1118,7 @@ function AskClaude() {
 export default function CFOCircleApp() {
   var [screen,setScreen]             = useState("dashboard");
   var [fitCallContact,setFitCallContact] = useState(null);
-  var [showFitCallList,setShowFitCallList] = useState(false);
-  var fitCallContacts = contacts ? contacts.filter(function(c){ return c.pipeline_stage === "Fit Call Scheduled"; }) : [];
+
   var [selectedContact,setContact]   = useState(null);
   var [totalContacts,setTotal]       = useState(0);
   var [stageCounts,setStageCounts]   = useState({});
@@ -1183,7 +1183,7 @@ export default function CFOCircleApp() {
           </div>
         </div>
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-          {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts}/>}
+          {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts} fitCallContacts={contacts?contacts.filter(function(ct){return ct.pipeline_stage==="Fit Call Scheduled";}):[]} onStartFitCall={function(contact){setFitCallContact(contact);setScreen("fitcall");}}/>}
           {screen==="pipeline"  && <Pipeline  onNavigate={navigate}/>}
           {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} onBack={function(){navigate("pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
           {screen==="events"    && <Placeholder icon="✦" title="Events" description="Manage your Experience Events — attendee lists, confirmations, and post-event follow-up."/>}
