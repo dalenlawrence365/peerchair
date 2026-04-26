@@ -226,16 +226,31 @@ export default function FollowUp(props) {
   }
 
   function handleProfile(item) {
-    if (onNavigate) {
-      onNavigate("profile", {
-        id: item.linkedInContactId || null,
-        first_name: item.firstName,
-        last_name: item.lastName,
-        title: item.title,
-        company_name: item.company,
-        linkedin_url: item.profileUrl,
-      });
+    if (!onNavigate) return;
+    // Look up real Supabase contact by LinkedIn URL
+    var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!SBU || !SBK || !item.profileUrl) {
+      onNavigate("profile", {id:null,first_name:item.firstName,last_name:item.lastName,title:item.title,company_name:item.company,linkedin_url:item.profileUrl});
+      return;
     }
+    // Extract slug from LinkedIn URL for matching
+    var slug = item.profileUrl.split("/in/").pop().replace(/\/+$/,"");
+    fetch(SBU+"/rest/v1/contacts?linkedin_url=ilike.*"+encodeURIComponent(slug)+"*&select=id,first_name,last_name,title,company_name,linkedin_url,pipeline_stage&limit=1", {
+      headers:{"apikey":SBK,"Authorization":"Bearer "+SBK}
+    })
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(Array.isArray(data) && data.length > 0) {
+        onNavigate("profile", data[0]);
+      } else {
+        // Contact not in Supabase yet - navigate with what we have
+        onNavigate("profile", {id:null,first_name:item.firstName,last_name:item.lastName,title:item.title,company_name:item.company,linkedin_url:item.profileUrl});
+      }
+    })
+    .catch(function() {
+      onNavigate("profile", {id:null,first_name:item.firstName,last_name:item.lastName,title:item.title,company_name:item.company,linkedin_url:item.profileUrl});
+    });
   }
 
   var visible = queue.filter(function(i) { return !dismissed[i.id]; });
