@@ -998,26 +998,30 @@ function Pipeline({onNavigate}) {
             <button onClick={loadContacts} style={{padding:"7px 10px",background:"rgba(255,255,255,0.03)",border:"1px solid "+T.border,color:T.muted,borderRadius:5,cursor:"pointer",fontSize:11}}>↺</button>
           </div>
         </div>
-        {/* Stage bucket filters */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(9,1fr)",gap:6,marginBottom:14}}>
+        {/* Stage bucket filters — matching CFO Journey */}
+        <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap"}}>
           {[
-            {s:"All",c:T.muted},
-            {s:"Connected",c:T.blue},
-            {s:"Fit Call Scheduled",c:G},
-            {s:"Fit Call Completed",c:T.purple},
-            {s:"Strong Fit",c:T.green},
-            {s:"Event Invited",c:"#1abc9c"},
-            {s:"Active Member",c:T.green},
-            {s:"Reserve Pool",c:T.orange},
-            {s:"Lost — Not a Fit",c:T.red},
+            {s:"All",           c:T.muted,    label:"All"},
+            {s:"Connected",     c:T.blue,     label:"Connected"},
+            {s:"Engaged",       c:T.orange,   label:"Engaged"},
+            {s:"Fit Call Scheduled",  c:G,         label:"Fit Sched."},
+            {s:"Fit Call Completed",  c:T.purple,  label:"Fit Done"},
+            {s:"Event Invited",       c:"#1abc9c",  label:"Invited"},
+            {s:"Event Confirmed",     c:T.green,   label:"Confirmed"},
+            {s:"Event Attended",      c:T.green,   label:"Attended"},
+            {s:"Membership Conversation Scheduled", c:T.blue, label:"Memb. Convo"},
+            {s:"Verbal Commitment",   c:G,         label:"Verbal"},
+            {s:"Active Member",       c:T.green,   label:"Active"},
+            {s:"Reserve Pool",        c:T.orange,  label:"Reserve"},
+            {s:"Lost — Not a Fit",    c:T.red,     label:"Lost"},
           ].map(function(item){
             var isSelected = stageFilter === item.s;
             var count = item.s === "All" ? total : contacts.filter(function(ct){ return ct.pipeline_stage === item.s; }).length;
             return (
               <div key={item.s} onClick={function(){setStageFilter(item.s);}}
-                style={{background:isSelected?item.c+"18":BG3,border:"1px solid "+(isSelected?item.c+"60":item.c+"20"),borderTop:"2px solid "+item.c+(isSelected?"":"60"),borderRadius:5,padding:"7px 5px",cursor:"pointer",transition:"all 0.15s",textAlign:"center"}}>
+                style={{background:isSelected?item.c+"18":BG3,border:"1px solid "+(isSelected?item.c+"60":item.c+"20"),borderTop:"2px solid "+(isSelected?item.c:item.c+"60"),borderRadius:5,padding:"7px 10px",cursor:"pointer",transition:"all 0.15s",textAlign:"center",minWidth:52}}>
                 <div style={{fontSize:18,fontWeight:700,color:item.c,lineHeight:1,marginBottom:3}}>{count}</div>
-                <div style={{fontSize:8,color:isSelected?item.c:"#8ab4cc",letterSpacing:0.5,textTransform:"uppercase",lineHeight:1.3}}>{item.s==="Lost — Not a Fit"?"Not a Fit":item.s==="Fit Call Scheduled"?"Fit Sched.":item.s==="Fit Call Completed"?"Fit Done":item.s==="Event Invited"?"Invited":item.s==="Active Member"?"Active":item.s==="Reserve Pool"?"Reserve":item.s}</div>
+                <div style={{fontSize:8,color:isSelected?item.c:"#8ab4cc",letterSpacing:0.5,textTransform:"uppercase",lineHeight:1.3,whiteSpace:"nowrap"}}>{item.label}</div>
               </div>
             );
           })}
