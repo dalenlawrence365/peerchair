@@ -1180,7 +1180,7 @@ export default function CFOCircleApp() {
 
   function navigate(s,contact){setScreen(s);if(contact)setContact(contact);}
 
-  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"pipeline",icon:"◎",label:"Pipeline",badge:statsLoading?"…":String(totalContacts)},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
+  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(totalContacts)},{id:"sponsors",icon:"$",label:"Sponsors"},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
 
   var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",stalliant:"Stalliant Prospects"}[screen]||screen;
 
