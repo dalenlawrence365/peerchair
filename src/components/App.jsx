@@ -336,7 +336,7 @@ function CircleJourney({data, onNodeClick}){
   var lostColor = isLost ? T.red : isBadTiming ? T.orange : null;
 
   return (
-    <div style={{padding:"8px 0 16px",overflowX:"auto"}}>
+    <div style={{padding:"8px 0 16px",overflowX:"auto",overflowY:"hidden"}}>
       {/* Lost/Bad Timing banner */}
       {(isLost||isBadTiming)?<div style={{
         display:"flex",alignItems:"center",gap:8,padding:"7px 12px",
@@ -353,7 +353,7 @@ function CircleJourney({data, onNodeClick}){
         </span>
       </div>:null}
 
-      <div style={{position:"relative",display:"flex",alignItems:"flex-start",minWidth:500,paddingTop:4}}>
+      <div style={{position:"relative",display:"flex",alignItems:"flex-start",minWidth:500,paddingTop:4,paddingBottom:4}}>
         {/* Track line */}
         <div style={{position:"absolute",top:14,left:14,right:14,height:2,background:"rgba(255,255,255,0.06)",zIndex:0}}/>
         {/* Progress line */}
