@@ -596,8 +596,9 @@ function ContactProfile({contactId,onBack,onStartFitCall}) {
           {/* Quick Actions */}
           <div style={{borderTop:"1px solid "+T.border,paddingTop:12,marginBottom:12}}>
             <div style={{fontSize:9,letterSpacing:2,color:T.dim,textTransform:"uppercase",marginBottom:8}}>Quick Actions</div>
-            {[["📅 Schedule Fit Call",G],["✉ Send Assessment",T.blue],["📨 Event Invite",T.purple],["✎ Add Note",T.green],["📋 Reserve Pool",T.orange]].map(function(item){
-              return <button key={item[0]} onClick={function(){if(item[0].indexOf("Note")>-1){setAddingNote(true);setTab("timeline");} else if(item[0].indexOf("Fit Call")>-1 && onStartFitCall){onStartFitCall(data);}}} style={{display:"block",width:"100%",marginBottom:5,padding:"7px 10px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,color:item[1],borderRadius:5,cursor:"pointer",fontSize:11,textAlign:"left"}}>{item[0]}</button>;
+            {[["🔴 Start Fit Call",T.gold],["📅 Schedule Fit Call",G],["✉ Send Assessment",T.blue],["📨 Event Invite",T.purple],["✎ Add Note",T.green],["📋 Reserve Pool",T.orange]].map(function(item){
+              return <button key={item[0]} onClick={function(){if(item[0].indexOf("Note")>-1){setAddingNote(true);setTab("timeline");}
+                    else if(item[0].indexOf("Start Fit Call")>-1 && onStartFitCall){onStartFitCall({id:data.id,firstName:data.firstName,lastName:data.lastName,title:data.title,company:data.company,email:data.email,linkedinUrl:data.linkedinUrl,fit_call_date:data.fitCallDate});}}} style={{display:"block",width:"100%",marginBottom:5,padding:"7px 10px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,color:item[1],borderRadius:5,cursor:"pointer",fontSize:11,textAlign:"left"}}>{item[0]}</button>;
             })}
           </div>
 
@@ -901,8 +902,8 @@ function Dashboard({onNavigate,totalContacts,stageCounts,fitCallContacts,onStart
             var dateStr=ct.fit_call_date?new Date(ct.fit_call_date).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
             return (
               <div key={ct.id} style={{display:"flex",alignItems:"center",gap:14,padding:"10px 14px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:6,marginBottom:8}}>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:14,fontWeight:600,color:T.text}}>{ct.first_name} {ct.last_name}</div>
+                <div style={{flex:1,cursor:"pointer"}} onClick={function(){if(onNavigate){onNavigate("profile",ct);}setShowFitCallList(false);}}>
+                  <div style={{fontSize:14,fontWeight:600,color:T.gold}}>{ct.first_name} {ct.last_name}</div>
                   <div style={{fontSize:12,color:T.muted}}>{ct.company_name||""}</div>
                 </div>
                 <div style={{textAlign:"right",flexShrink:0}}>
