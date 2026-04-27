@@ -248,11 +248,11 @@ export default function LiveCallCompanion(props) {
           );  })}
         </div>
         {outcome&&<div style={{padding:"9px 12px",borderRadius:5,fontSize:14,lineHeight:1.75,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:"#c0dcf0"}}>
-          {outcome==="strong_fit"&&"Move to Event Path - send formal invitation within 24 hours."}
+          {outcome==="strong_fit"&&"Moving to Event Waitlist. They get a formal invitation the moment you set an event date."}
           {outcome==="possible_fit"&&"Follow up within 24 hrs. One more touch before deciding on event invitation."}
           {outcome==="bad_timing"&&"Warm close. Add to nurture sequence. Re-engage when event is scheduled."}
           {outcome==="not_a_fit"&&"Gracious close. Maintain goodwill."}
-          {outcome==="no_show"&&"Send reschedule message within 1 hour. Offer 2 alternative times."}
+          {outcome==="no_show"&&"Flagged as No Show. Re-engagement sequence starts automatically — 3 touches over 7 days. No reply → No Reply / Reserve."}
         </div>}
         <STitle label="Notes" color="#4a9eba"/>
         <textarea value={notes} onChange={function(e){setNotes(e.target.value);}} placeholder="Anything else..." style={{flex:1,background:"#0f1e2e",border:"1px solid rgba(255,255,255,0.05)",color:"#e0ecf8",padding:"5px 7px",borderRadius:4,fontSize:14,lineHeight:1.65,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
@@ -270,16 +270,82 @@ export default function LiveCallCompanion(props) {
         var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
         var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         var h = {"apikey":SBK,"Authorization":"Bearer "+SBK,"Content-Type":"application/json","Prefer":"return=representation"};
-        var newStage = outcome==="not_a_fit"?"Lost - Not a Fit":"Fit Call Completed";
-        var newStatus = outcome==="not_a_fit"?"Not a Fit":"Prospect";
-        await fetch(SBU+"/rest/v1/contacts?id=eq."+contact.id, {
-          method:"PATCH", headers:h,
-          body:JSON.stringify({pipeline_stage:newStage,member_status:newStatus,fit_call_outcome:outcome,primary_challenge:challenge,pressure_categories:pressure,high_fit_cues:cues,red_flags:flags,fit_call_notes:notes,commitment_confirmed:String(commit),annual_revenue:rev,employee_count:emp,finance_team_size:finTeam,ownership_type:own,reports_to:rpt,industry:ind})
+        var now = new Date().toISOString();
+
+        // Determine new stage by outcome
+        var newStage, newStatus, stepLabel, contactUpdate;
+
+        if (outcome === "strong_fit") {
+          newStage = "Event Waitlist";
+          newStatus = "Prospect";
+          stepLabel = "Fit Call Completed — Strong Fit → Event Waitlist";
+          contactUpdate = {pipeline_stage:newStage,member_status:newStatus,fit_call_outcome:outcome};
+        } else if (outcome === "not_a_fit") {
+          newStage = "Lost — Not a Fit";
+          newStatus = "Not a Fit";
+          stepLabel = "Fit Call Completed — Not a Fit";
+          contactUpdate = {pipeline_stage:newStage,member_status:newStatus,fit_call_outcome:outcome};
+        } else if (outcome === "no_show") {
+          // No Show: flag it, keep stage at Fit Call Scheduled, trigger re-engagement sequence
+          newStage = "Fit Call Scheduled";
+          newStatus = "Prospect";
+          stepLabel = "No Show — Re-engagement Sequence Started";
+          var seqExpiry = new Date(Date.now() + 7*24*60*60*1000).toISOString(); // 7 days
+          contactUpdate = {
+            pipeline_stage: newStage,
+            member_status: newStatus,
+            fit_call_outcome: "no_show",
+            no_show_flagged_at: now,
+            no_show_sequence_expires_at: seqExpiry,
+          };
+          // Create no-show sequence record
+          await fetch(SBU+"/rest/v1/no_show_sequences", {
+            method:"POST", headers:h,
+            body:JSON.stringify({
+              contact_id: contact.id,
+              conversation_id: contact.conversationId || null,
+              touch_2_send_at: new Date(Date.now() + 3*24*60*60*1000).toISOString(),
+              touch_3_send_at: new Date(Date.now() + 7*24*60*60*1000).toISOString(),
+              expires_at: seqExpiry,
+              status: "active",
+            })
+          });
+        } else if (outcome === "bad_timing") {
+          newStage = "Fit Call Completed";
+          newStatus = "Prospect";
+          stepLabel = "Fit Call Completed — Bad Timing";
+          contactUpdate = {pipeline_stage:newStage,member_status:newStatus,fit_call_outcome:outcome};
+        } else {
+          // possible_fit, etc → Fit Call Completed, needs follow-up
+          newStage = "Fit Call Completed";
+          newStatus = "Prospect";
+          stepLabel = "Fit Call Completed — "+outcome;
+          contactUpdate = {pipeline_stage:newStage,member_status:newStatus,fit_call_outcome:outcome};
+        }
+
+        // Add call data to the update
+        Object.assign(contactUpdate, {
+          primary_challenge:challenge,pressure_categories:pressure,high_fit_cues:cues,
+          red_flags:flags,fit_call_notes:notes,commitment_confirmed:String(commit),
+          annual_revenue:rev,employee_count:emp,finance_team_size:finTeam,
+          ownership_type:own,reports_to:rpt,industry:ind,
+          last_activity_date:now,
         });
+
+        await fetch(SBU+"/rest/v1/contacts?id=eq."+contact.id, {
+          method:"PATCH", headers:h, body:JSON.stringify(contactUpdate)
+        });
+
         await fetch(SBU+"/rest/v1/communications", {
           method:"POST", headers:h,
-          body:JSON.stringify({contact_id:contact.id,occurred_at:new Date().toISOString(),channel:"Phone",direction:"IN",step_label:"Fit Call Completed",body:"Fit call completed. Outcome: "+outcome+". Challenge: "+challenge+". Notes: "+notes,source:"PeerChair",logged_by:"Dalen Lawrence"})
+          body:JSON.stringify({
+            contact_id:contact.id, occurred_at:now, channel:"Phone",
+            direction:"IN", step_label:stepLabel,
+            body:"Fit call. Outcome: "+outcome+". Challenge: "+challenge+". Notes: "+notes,
+            source:"PeerChair", logged_by:"Dalen Lawrence"
+          })
         });
+
         if (onEnd) onEnd(outcome);
       }
       setSaved(true);

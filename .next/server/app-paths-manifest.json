@@ -1,0 +1,16 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/calendly-webhook/route": "app/api/calendly-webhook/route.js",
+  "/api/ask-claude/route": "app/api/ask-claude/route.js",
+  "/api/contact-by-linkedin/route": "app/api/contact-by-linkedin/route.js",
+  "/api/generate-reply/route": "app/api/generate-reply/route.js",
+  "/api/heyreach-webhook/route": "app/api/heyreach-webhook/route.js",
+  "/api/no-show-sequence/route": "app/api/no-show-sequence/route.js",
+  "/api/follow-up-queue/send/route": "app/api/follow-up-queue/send/route.js",
+  "/api/follow-up-queue/route": "app/api/follow-up-queue/route.js",
+  "/api/setup-calendly/route": "app/api/setup-calendly/route.js",
+  "/api/notify/route": "app/api/notify/route.js",
+  "/api/outreach-sequence/route": "app/api/outreach-sequence/route.js",
+  "/api/heyreach-stats/route": "app/api/heyreach-stats/route.js",
+  "/page": "app/page.js"
+}
