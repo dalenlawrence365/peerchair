@@ -463,6 +463,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
         });
       }
       setLoading(false);
+      setCommsLoading(false);
       return;
     }
     loadContact();
