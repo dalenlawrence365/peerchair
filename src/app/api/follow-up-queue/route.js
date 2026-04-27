@@ -24,16 +24,17 @@ export async function GET() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-API-KEY": hrKey },
-          body: JSON.stringify({ linkedInAccountIds: [185228], seen: false, limit: 50, offset: 0 })
+          body: JSON.stringify({ linkedInAccountIds: [185228], limit: 100, offset: 0 })
         }
       );
       if (convRes.ok) convData = await convRes.json();
       else console.error("HeyReach GET failed:", convRes.status, await convRes.text());
     } catch(e) { console.error("HeyReach fetch error:", e.message); }
 
-    // Fallback — current real data as of 2026-04-27 (Anna removed, R. Urban added)
+    // Fallback — current real data as of 2026-04-27
     if (!convData || !convData.items) {
       convData = { items: [
+        { id:"2-MjM0MWY1ZjEtYTk5Zi00MWUwLWJmNWQtMTQ5NjZkYmY5NDA1XzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"Hi Dalen, Thanks for reaching out. I'd like to learn more.", lastMessageAt:"2026-04-27T22:59:21.017Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"Amy", lastName:"Muradyan", position:"Chief Financial Officer", companyName:"4medica", profileUrl:"https://www.linkedin.com/in/amy-muradyan-882533171", imageUrl:"https://media.licdn.com/dms/image/v2/C5603AQEzl_cVjbVVtw/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1621222024218?e=1778716800&v=beta&t=O-Xc0yK1Pu6wAKhbIxwEDdaL3b1xP7r-6i5kEs2K8Tk", location:"Marina del Rey, California, United States" }},
         { id:"2-MTA4NWEzNmItMzQ0YS00MzkxLWIxNGMtMDBjMWZlZDA2ODhhXzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"Sounds fun! Thanks for reaching out Dalen, happy to participate", lastMessageAt:"2026-04-25T04:02:48.382Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"Roger", lastName:"Sweis", position:"Chief Financial Officer", companyName:"Essential Access Health", profileUrl:"https://www.linkedin.com/in/rogersweis", imageUrl:"https://media.licdn.com/dms/image/v2/C5603AQF5mIT3Bp26rg/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1652393284769?e=1778716800&v=beta&t=lcJcQKUOYVN_q_GHpACMwQ4O-Penn-MztLzXj5Wu_DM", location:"Los Angeles, California" }},
         { id:"2-NDAyZGVlNmQtNTYxYi00NDBjLWI3Y2MtYTRiNWMwMGI4NDdlXzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"I'm happy to chat", lastMessageAt:"2026-04-23T02:12:41.985Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"Josh", lastName:"Farris", position:"Chief Financial Officer", companyName:"Electronic Source Company", profileUrl:"https://www.linkedin.com/in/joshfarrisdfw", imageUrl:"https://media.licdn.com/dms/image/v2/C4E03AQENclNjxgha7w/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1554959981318?e=1778716800&v=beta&t=xVGYeGKXpWu6skJz1JSzo88voenvQsYNJIxLiiAPpVk", location:"Los Angeles, California" }},
         { id:"2-OGU1NmQ1NGUtODhhMC00M2Q3LWJhMDAtODg3NGIwN2Y2YWI1XzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"Thanks", lastMessageAt:"2026-04-21T21:21:12.969Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"R.", lastName:"Urban", position:"Member of the Board of Directors", companyName:"GenRocket", profileUrl:"https://www.linkedin.com/in/r-allen-urban-680a423", imageUrl:"https://media.licdn.com/dms/image/v2/C4D03AQGkBLXltC7QEA/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1516306915584?e=1778716800&v=beta&t=OD4bcbmvZFXEKmhkJOQntty-X8VFHjy8HTJrkDejQe0", location:"Ventura, California" }},
