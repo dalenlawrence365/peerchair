@@ -1206,7 +1206,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
             </div>
             <div style={{padding:"14px 16px"}}>
               {["How many new people connected to me this week?","Who in my pipeline is closest to booking a fit call?","Which CFOs haven't heard from me in 14+ days?"].map(function(q){
-                return <button key={q} onClick={function(){onNavigate("claude");}} style={{display:"block",width:"100%",marginBottom:6,padding:"8px 12px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,color:T.muted,borderRadius:5,cursor:"pointer",fontSize:12,textAlign:"left"}}>{q}</button>;
+                return <button key={q} onClick={function(){onNavigate("claude",null,q);}} style={{display:"block",width:"100%",marginBottom:6,padding:"8px 12px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,color:T.muted,borderRadius:5,cursor:"pointer",fontSize:12,textAlign:"left"}}>{q}</button>;
               })}
               <div style={{display:"flex",gap:6,marginTop:4}}>
                 <input placeholder="Ask anything about your pipeline…" style={{flex:1,background:BG2,border:"1px solid "+T.border,color:T.text,padding:"8px 11px",borderRadius:5,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
@@ -1330,7 +1330,9 @@ function Placeholder({icon,title,description}){
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 
 // ─── ASK CLAUDE SCREEN ────────────────────────────────────────────────────────
-function AskClaude() {
+function AskClaude(props) {
+  var initialQ = props.initialQ || "";
+  var onQuestionConsumed = props.onQuestionConsumed;
   var QUICK = [
     "Who should I call today?",
     "Who has been stuck in Connected the longest?",
@@ -1347,6 +1349,10 @@ function AskClaude() {
   var [messages, setMessages] = useState([
     {role:"assistant", text:"Good morning, Dalen. I have your full pipeline loaded — 73 contacts across all stages. Ask me anything about who to call, what to say, or what needs attention today."}
   ]);
+
+  useEffect(function(){
+    if (initialQ) { ask(initialQ); if (onQuestionConsumed) onQuestionConsumed(); }
+  }, [initialQ]);
 
   async function ask(q) {
     var question = q || input.trim();
@@ -1445,6 +1451,7 @@ export default function CFOCircleApp() {
   var [sponsorDeal,setSponsorDeal] = useState(null);
 
   var [selectedContact,setContact]   = useState(null);
+  var [claudeQ,setClaudeQ]           = useState("");
   var [totalContacts,setTotal]       = useState(0);
   var [stageCounts,setStageCounts]   = useState({});
   var [pipelineTotal,setPipelineTotal] = useState(0);
@@ -1495,7 +1502,7 @@ export default function CFOCircleApp() {
     setStatsLoading(false);
   }
 
-  function navigate(s,contact){setScreen(s);if(contact)setContact(contact);}
+  function navigate(s,contact,q){setScreen(s);if(contact)setContact(contact);if(q)setClaudeQ(q);}
 
   var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:followUpCount>0?String(followUpCount):""},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors"},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
 
@@ -1543,7 +1550,7 @@ export default function CFOCircleApp() {
           {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} contactData={selectedContact} onBack={function(){navigate("pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
           {screen==="events"    && <Placeholder icon="✦" title="Events" description="Manage your Experience Events — attendee lists, confirmations, and post-event follow-up."/>}
           {screen==="templates" && <Templates/>}
-          {screen==="claude"    && <AskClaude/>}
+          {screen==="claude"    && <AskClaude initialQ={claudeQ} onQuestionConsumed={function(){setClaudeQ("");}}/>}
           {screen==="sponsors"  && <Sponsors onStartDiscovery={function(co,contact,deal){setSponsorContact(Object.assign({},contact||{},{company:co.name,company_id:co.id,category:co.category}));setSponsorDeal(deal);setScreen("sponsor_call");}}/>}
           {screen==="followup"  && <FollowUp onNavigate={navigate}/>}
           {screen==="sponsor_call" && <SponsorCompanion contact={sponsorContact||{}} deal={sponsorDeal} onBack={function(){navigate("sponsors");}} onEnd={function(){navigate("sponsors");}}/>}
