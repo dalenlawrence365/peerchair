@@ -1290,10 +1290,19 @@ function Pipeline({onNavigate}) {
               </div>
             );
           })}
-          {/* Total at end */}
-          <div style={{background:BG3,border:"1px solid rgba(255,255,255,0.1)",borderTop:"2px solid rgba(255,255,255,0.25)",borderRadius:5,padding:"7px 10px",textAlign:"center",minWidth:50,marginLeft:4}}>
-            <div style={{fontSize:18,fontWeight:700,color:T.text,lineHeight:1,marginBottom:3}}>{contacts.filter(function(ct){return ["Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"].indexOf(ct.pipeline_stage)>-1;}).length}</div>
-            <div style={{fontSize:8,color:"#8ab4cc",letterSpacing:0.5,textTransform:"uppercase",lineHeight:1.3}}>Total</div>
+          {/* Separator */}
+          <div style={{width:1,background:"rgba(255,255,255,0.08)",marginLeft:4,borderRadius:1}}/>
+          {/* Active Members — highlighted as the primary goal metric */}
+          <div onClick={function(){setStageFilter(function(prev){return prev==="Active Member"?"All":"Active Member";});}}
+            style={{background:stageFilter==="Active Member"?T.green+"18":"rgba(46,204,113,0.06)",border:"2px solid "+(stageFilter==="Active Member"?T.green:T.green+"50"),borderRadius:6,padding:"8px 14px",cursor:"pointer",textAlign:"center",minWidth:70,marginLeft:4}}>
+            <div style={{fontSize:26,fontWeight:800,color:T.green,lineHeight:1,marginBottom:3}}>{contacts.filter(function(ct){return ct.pipeline_stage==="Active Member";}).length}</div>
+            <div style={{fontSize:8,color:T.green,letterSpacing:1,textTransform:"uppercase",lineHeight:1.3,fontWeight:700}}>Active Members</div>
+          </div>
+          {/* Pipeline total vs all contacts */}
+          <div style={{background:BG3,border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"8px 10px",textAlign:"center",minWidth:60,marginLeft:2,display:"flex",flexDirection:"column",justifyContent:"center"}}>
+            <div style={{fontSize:18,fontWeight:700,color:T.text,lineHeight:1,marginBottom:1}}>{contacts.filter(function(ct){return ["Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"].indexOf(ct.pipeline_stage)>-1;}).length}</div>
+            <div style={{fontSize:8,color:"#8ab4cc",letterSpacing:0.5,textTransform:"uppercase",lineHeight:1.3}}>In Pipeline</div>
+            <div style={{fontSize:10,color:T.dim,marginTop:2}}>{total} total</div>
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"200px 1fr 160px 90px 110px 70px",gap:10,padding:"7px 14px",borderRadius:"6px 6px 0 0",background:"rgba(255,255,255,0.02)",borderBottom:"1px solid "+T.border}}>
