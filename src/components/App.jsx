@@ -1,6 +1,7 @@
 "use client"
 import Sponsors from "@/components/Sponsors";
 import FollowUp from "@/components/FollowUp";
+import Templates from "@/components/Templates";
 import LiveCallCompanion from "@/components/LiveCallCompanion";
 import { useState, useEffect } from "react";
 
@@ -1433,7 +1434,7 @@ export default function CFOCircleApp() {
           {screen==="pipeline"  && <Pipeline  onNavigate={navigate}/>}
           {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} contactData={selectedContact} onBack={function(){navigate("pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
           {screen==="events"    && <Placeholder icon="✦" title="Events" description="Manage your Experience Events — attendee lists, confirmations, and post-event follow-up."/>}
-          {screen==="templates" && <Placeholder icon="✉" title="Templates" description="Your LinkedIn and email message library, organized by pipeline stage."/>}
+          {screen==="templates" && <Templates/>}
           {screen==="claude"    && <AskClaude/>}
           {screen==="sponsors"  && <Sponsors/>}
         {screen==="followup"  && <FollowUp onNavigate={navigate}/>}
