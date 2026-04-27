@@ -1031,12 +1031,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
   }
   var [showFitCallList,setShowFitCallList] = useState(false);
   var today=new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
-  var [queueItems, setQueueItems] = useState([]);
-  useEffect(function(){
-    fetch("/api/follow-up-queue").then(function(r){return r.json();}).then(function(d){
-      setQueueItems(Array.isArray(d.queue)?d.queue:[]);
-    }).catch(function(){});
-  },[]);
+
   var pStages=[{label:"Target",color:T.dim},{label:"Connected",color:T.blue},{label:"Fit Scheduled",color:T.gold},{label:"Fit Completed",color:T.gold},{label:"Strong Fit",color:T.green},{label:"Event Invited",color:T.purple},{label:"Active Member",color:T.green},{label:"Reserve Pool",color:T.dim}];
   function getCount(label){if(label==="Fit Scheduled")return stageCounts["Fit Call Scheduled"]||0;if(label==="Fit Completed")return stageCounts["Fit Call Completed"]||0;return stageCounts[label]||0;}
   return (
