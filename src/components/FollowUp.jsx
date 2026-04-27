@@ -15,9 +15,9 @@ function timeAgo(dateStr) {
   if (!dateStr) return "";
   var diff = Date.now() - new Date(dateStr).getTime();
   var days = Math.floor(diff / 86400000);
-  var hrs = Math.floor(diff / 3600000);
+  var hrs  = Math.floor(diff / 3600000);
   if (days > 0) return days + "d ago";
-  if (hrs > 0) return hrs + "h ago";
+  if (hrs  > 0) return hrs  + "h ago";
   return "just now";
 }
 
@@ -25,54 +25,60 @@ function SendButton(props) {
   var onSend = props.onSend;
   var [state, setState] = useState("idle");
   var [count, setCount] = useState(5);
+  var [err,   setErr]   = useState("");
   var timer = useRef(null);
 
   useEffect(function() {
     if (state !== "counting") return;
     if (count <= 0) {
       setState("sending");
-      onSend().then(function() {
-        setState("sent");
-      }).catch(function() {
-        setState("idle");
-        setCount(5);
-      });
+      onSend()
+        .then(function(result) {
+          setState("sent");
+          if (result && result.stepLabel) setErr(result.stepLabel);
+        })
+        .catch(function(e) {
+          setState("error");
+          setErr(e.message || "Send failed");
+          setTimeout(function() { setState("idle"); setCount(5); setErr(""); }, 4000);
+        });
       return;
     }
-    timer.current = setTimeout(function() {
-      setCount(function(c) { return c - 1; });
-    }, 1000);
+    timer.current = setTimeout(function() { setCount(function(c) { return c - 1; }); }, 1000);
     return function() { clearTimeout(timer.current); };
   }, [state, count]);
 
-  if (state === "sent") {
-    return <span style={{padding:"6px 14px",background:"rgba(46,204,113,0.1)",border:"1px solid rgba(46,204,113,0.3)",color:T.green,borderRadius:5,fontSize:12,fontWeight:600}}>Sent</span>;
-  }
-  if (state === "sending") {
-    return <span style={{padding:"6px 14px",color:T.blue,fontSize:12}}>Sending...</span>;
-  }
-  if (state === "counting") {
-    return (
-      <span style={{display:"flex",gap:6,alignItems:"center"}}>
-        <span style={{padding:"6px 14px",background:"rgba(240,200,74,0.1)",border:"1px solid rgba(240,200,74,0.3)",color:G,borderRadius:5,fontSize:12}}>Sending in {count}s</span>
-        <button onClick={function(){ clearTimeout(timer.current); setState("idle"); setCount(5); }} style={{padding:"6px 12px",background:"rgba(231,76,60,0.1)",border:"1px solid rgba(231,76,60,0.3)",color:T.red,borderRadius:5,cursor:"pointer",fontSize:12}}>Undo</button>
-      </span>
-    );
-  }
+  if (state === "sent") return (
+    <span style={{padding:"6px 14px",background:"rgba(46,204,113,0.1)",border:"1px solid rgba(46,204,113,0.3)",color:T.green,borderRadius:5,fontSize:12,fontWeight:600}}>
+      ✓ Sent {err ? "· " + err : ""}
+    </span>
+  );
+  if (state === "sending") return <span style={{padding:"6px 14px",color:T.blue,fontSize:12}}>Sending...</span>;
+  if (state === "error")   return <span style={{padding:"6px 14px",background:"rgba(231,76,60,0.1)",border:"1px solid rgba(231,76,60,0.3)",color:T.red,borderRadius:5,fontSize:12}}>{err}</span>;
+  if (state === "counting") return (
+    <span style={{display:"flex",gap:6,alignItems:"center"}}>
+      <span style={{padding:"6px 14px",background:"rgba(240,200,74,0.1)",border:"1px solid rgba(240,200,74,0.3)",color:G,borderRadius:5,fontSize:12}}>Sending in {count}s</span>
+      <button onClick={function(){ clearTimeout(timer.current); setState("idle"); setCount(5); }}
+        style={{padding:"6px 12px",background:"rgba(231,76,60,0.1)",border:"1px solid rgba(231,76,60,0.3)",color:T.red,borderRadius:5,cursor:"pointer",fontSize:12}}>Undo</button>
+    </span>
+  );
   return (
-    <button onClick={function(){ setState("counting"); setCount(5); }} style={{padding:"6px 14px",background:"rgba(46,204,113,0.12)",border:"1px solid rgba(46,204,113,0.3)",color:T.green,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600}}>Send via LinkedIn</button>
+    <button onClick={function(){ setState("counting"); setCount(5); }}
+      style={{padding:"6px 14px",background:"rgba(46,204,113,0.12)",border:"1px solid rgba(46,204,113,0.3)",color:T.green,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600}}>
+      Send via LinkedIn
+    </button>
   );
 }
 
 function QueueCard(props) {
-  var item = props.item;
-  var onProfile = props.onProfile;
-  var onDismiss = props.onDismiss;
-  var onNotAFit = props.onNotAFit;
-  var onOptOut = props.onOptOut;
-  var [reply, setReply] = useState("");
+  var item       = props.item;
+  var onProfile  = props.onProfile;
+  var onDone     = props.onDone;
+  var onNotAFit  = props.onNotAFit;
+  var onOptOut   = props.onOptOut;
+  var [reply, setReply]   = useState("");
   var [editing, setEditing] = useState(false);
-  var [gone, setGone] = useState(false);
+  var [gone, setGone]     = useState(false);
   var [loadingTemplate, setLoadingTemplate] = useState(false);
 
   useEffect(function() {
@@ -83,118 +89,161 @@ function QueueCard(props) {
     setLoadingTemplate(true);
     var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
     var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    fetch(SBU+"/rest/v1/template_groups?name=eq."+encodeURIComponent(templateName)+"&select=id,active_variant&limit=1", {
-      headers:{"apikey":SBK,"Authorization":"Bearer "+SBK}
+    fetch(SBU + "/rest/v1/template_groups?name=eq." + encodeURIComponent(templateName) + "&select=id,active_variant&limit=1", {
+      headers: {"apikey":SBK,"Authorization":"Bearer "+SBK}
     })
-    .then(function(r){return r.json();})
+    .then(function(r){ return r.json(); })
     .then(function(groups){
       if (!groups || !groups[0]) return;
       var group = groups[0];
-      return fetch(SBU+"/rest/v1/template_variants?group_id=eq."+group.id+"&variant=eq."+group.active_variant+"&limit=1", {
-        headers:{"apikey":SBK,"Authorization":"Bearer "+SBK}
-      }).then(function(r){return r.json();});
+      return fetch(SBU + "/rest/v1/template_variants?group_id=eq." + group.id + "&variant=eq." + group.active_variant + "&limit=1", {
+        headers: {"apikey":SBK,"Authorization":"Bearer "+SBK}
+      }).then(function(r){ return r.json(); });
     })
     .then(function(variants){
       if (variants && variants[0] && variants[0].body) {
         var body = variants[0].body
-          .replace(/\{\{first_name\}\}/g, item.firstName||"")
+          .replace(/\{\{first_name\}\}/g, item.firstName || "")
           .replace(/\{\{calendly_link\}\}/g, "https://calendly.com/dalen-lawrence/cfo-circle-fit-chat");
         setReply(body);
         setEditing(false);
       }
     })
-    .catch(function(e){console.error(e);})
-    .finally(function(){setLoadingTemplate(false);});
+    .catch(function(e){ console.error(e); })
+    .finally(function(){ setLoadingTemplate(false); });
   }
 
   if (gone) return null;
 
-  var isNeg = item.category === "not_interested";
+  var isNeg  = item.category === "not_interested";
   var isWarm = item.category === "warm";
   var borderColor = isWarm ? T.green : isNeg ? T.red : T.blue;
 
   async function sendReply() {
     var res = await fetch("/api/follow-up-queue", {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({conversationId:item.conversationId,linkedInAccountId:item.linkedInAccountId,message:reply})
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        conversationId:   item.conversationId,
+        linkedInAccountId: item.linkedInAccountId,
+        message:          reply,
+        profileUrl:       item.profileUrl,
+        contactId:        item.supabaseId || null,
+        firstName:        item.firstName,
+      })
     });
     var data = await res.json();
-    if (!data.success) throw new Error("Send failed");
-    // Register Touch 2 sequence — auto-follow-up in 5 business days
+    if (!data.success) throw new Error(data.error || "Send failed");
+
+    // Register Touch 2 sequence
     fetch("/api/outreach-sequence", {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        conversationId: item.conversationId,
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        conversationId:   item.conversationId,
         linkedInAccountId: item.linkedInAccountId,
-        contactId: item.supabaseId||null,
-        firstName: item.firstName,
-        lastName: item.lastName,
-        title: item.title,
-        company: item.company,
-        profileUrl: item.profileUrl
+        contactId:        item.supabaseId || null,
+        firstName:        item.firstName,
+        lastName:         item.lastName,
+        title:            item.title,
+        company:          item.company,
+        profileUrl:       item.profileUrl,
       })
-    }).catch(function(e){console.error("Sequence register:",e);});
+    }).catch(function(e){ console.error("Sequence register:", e); });
+
     setGone(true);
-    if (onDismiss) onDismiss(item.id);
+    if (onDone) onDone(item, "sent", reply);
+    return data;
   }
 
-  function dismiss() { setGone(true); if (onDismiss) onDismiss(item.id); }
+  function markDone(label) {
+    setGone(true);
+    // Log the "done" action to Supabase
+    fetch("/api/follow-up-queue", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        action:    "mark_done",
+        profileUrl: item.profileUrl,
+        contactId: item.supabaseId || null,
+        firstName: item.firstName,
+        message:   label + " — cleared from Follow-Up Queue",
+        stepLabel: label,
+      })
+    }).catch(function(e){ console.error("markDone log error:", e); });
+    if (onDone) onDone(item, label, null);
+  }
 
   return (
     <div style={{background:BG3,border:"1px solid "+borderColor+"30",borderLeft:"3px solid "+borderColor,borderRadius:7,padding:"14px 16px",marginBottom:10}}>
       <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:8}}>
         <div style={{width:38,height:38,borderRadius:"50%",background:"rgba(255,255,255,0.06)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:600,color:G,flexShrink:0,overflow:"hidden"}}>
-          {item.imageUrl ? <img src={item.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/> : ((item.firstName||"?")[0]+(item.lastName||"?")[0])}
+          {item.imageUrl
+            ? <img src={item.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>
+            : ((item.firstName||"?")[0]+(item.lastName||"?")[0])}
         </div>
         <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:2}}>
-            <span onClick={function(){ if(onProfile) onProfile(item); }} style={{fontSize:13,fontWeight:600,color:G,cursor:"pointer"}}>{item.firstName} {item.lastName}</span>
-            <span style={{fontSize:9,padding:"1px 6px",borderRadius:8,background:borderColor+"14",color:borderColor,border:"1px solid "+borderColor+"30"}}>{isWarm?"Warm":isNeg?"Not Interested":"Neutral"}</span>
+            <span onClick={function(){ if(onProfile) onProfile(item); }}
+              style={{fontSize:13,fontWeight:600,color:G,cursor:"pointer"}}>{item.firstName} {item.lastName}</span>
+            <span style={{fontSize:9,padding:"1px 6px",borderRadius:8,background:borderColor+"14",color:borderColor,border:"1px solid "+borderColor+"30"}}>
+              {isWarm?"Warm":isNeg?"Not Interested":"Neutral"}
+            </span>
             <span style={{fontSize:10,color:T.dim,marginLeft:"auto"}}>{timeAgo(item.lastMessageAt)}</span>
           </div>
-          <div style={{fontSize:11,color:T.muted}}>{item.title}{item.company ? " · "+item.company : ""}</div>
+          <div style={{fontSize:11,color:T.muted}}>{item.title}{item.company?" · "+item.company:""}</div>
         </div>
       </div>
 
-      <div style={{padding:"8px 11px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:5,marginBottom:item.sequenceStatus?6:10,fontSize:13,color:T.muted,lineHeight:1.6,fontStyle:"italic"}}>
+      <div style={{padding:"8px 11px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:5,marginBottom:10,fontSize:13,color:T.muted,lineHeight:1.6,fontStyle:"italic"}}>
         "{item.lastMessage}"
       </div>
-      {item.sequenceStatus&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,fontSize:10,color:T.blue,padding:"4px 8px",background:"rgba(74,158,186,0.06)",borderRadius:4,border:"1px solid rgba(74,158,186,0.15)"}}>
-        <span>⏱</span><span>{item.sequenceStatus}</span>
-      </div>}
 
       {isNeg ? (
         <div style={{display:"flex",gap:8}}>
-          <button onClick={function(){if(onOptOut)onOptOut(item);else dismiss();}} style={{padding:"5px 12px",background:"rgba(231,76,60,0.1)",border:"1px solid rgba(231,76,60,0.3)",color:T.red,borderRadius:5,cursor:"pointer",fontSize:12}}>Mark Opted Out</button>
-          <button onClick={dismiss} style={{padding:"5px 12px",background:"transparent",border:"1px solid "+T.border,color:T.dim,borderRadius:5,cursor:"pointer",fontSize:12}}>Dismiss</button>
+          <button onClick={function(){if(onOptOut)onOptOut(item);else markDone("Opted Out");}}
+            style={{padding:"5px 12px",background:"rgba(231,76,60,0.1)",border:"1px solid rgba(231,76,60,0.3)",color:T.red,borderRadius:5,cursor:"pointer",fontSize:12}}>Mark Opted Out</button>
+          <button onClick={function(){markDone("Dismissed");}}
+            style={{padding:"5px 12px",background:"transparent",border:"1px solid "+T.border,color:T.dim,borderRadius:5,cursor:"pointer",fontSize:12}}>Dismiss</button>
         </div>
       ) : (
         <div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
             <span style={{fontSize:10,color:G,letterSpacing:2,textTransform:"uppercase",fontWeight:600}}>Suggested Reply</span>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <button onClick={function(){loadTemplate("Post-Accept Welcome");}} disabled={loadingTemplate} style={{background:"transparent",border:"1px solid "+T.border,color:T.dim,cursor:"pointer",fontSize:10,padding:"2px 8px",borderRadius:4}}>
+              <button onClick={function(){loadTemplate("Post-Accept Welcome");}} disabled={loadingTemplate}
+                style={{background:"transparent",border:"1px solid "+T.border,color:T.dim,cursor:"pointer",fontSize:10,padding:"2px 8px",borderRadius:4}}>
                 {loadingTemplate?"Loading...":"Use Template"}
               </button>
-              <button onClick={function(){ setEditing(function(e){ return !e; }); }} style={{background:"transparent",border:"none",color:T.muted,cursor:"pointer",fontSize:11}}>
+              <button onClick={function(){ setEditing(function(e){ return !e; }); }}
+                style={{background:"transparent",border:"none",color:T.muted,cursor:"pointer",fontSize:11}}>
                 {editing?"Done":"Edit"}
               </button>
             </div>
           </div>
+
           {!item.suggestedReply && !editing ? (
             <div style={{padding:"10px 12px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:5,fontSize:12,color:T.dim}}>Generating reply...</div>
           ) : editing ? (
-            <textarea value={reply} onChange={function(e){ setReply(e.target.value); }} style={{width:"100%",background:BG2,border:"1px solid rgba(240,200,74,0.3)",color:T.text,padding:"10px 12px",borderRadius:5,fontSize:13,lineHeight:1.7,resize:"vertical",outline:"none",fontFamily:"inherit",boxSizing:"border-box",minHeight:90}}/>
+            <textarea value={reply} onChange={function(e){ setReply(e.target.value); }}
+              style={{width:"100%",background:BG2,border:"1px solid rgba(240,200,74,0.3)",color:T.text,padding:"10px 12px",borderRadius:5,fontSize:13,lineHeight:1.7,resize:"vertical",outline:"none",fontFamily:"inherit",boxSizing:"border-box",minHeight:90}}/>
           ) : (
-            <div onClick={function(){ setEditing(true); }} style={{padding:"10px 12px",background:"rgba(240,200,74,0.03)",border:"1px solid rgba(240,200,74,0.15)",borderRadius:5,fontSize:13,color:T.text,lineHeight:1.7,cursor:"text",whiteSpace:"pre-wrap"}}>{reply || "Click to add a reply..."}</div>
+            <div onClick={function(){ setEditing(true); }}
+              style={{padding:"10px 12px",background:"rgba(240,200,74,0.03)",border:"1px solid rgba(240,200,74,0.15)",borderRadius:5,fontSize:13,color:T.text,lineHeight:1.7,cursor:"text",whiteSpace:"pre-wrap"}}>
+              {reply || "Click to add a reply..."}
+            </div>
           )}
-          <div style={{display:"flex",gap:8,marginTop:10,alignItems:"center"}}>
+
+          <div style={{display:"flex",gap:8,marginTop:10,alignItems:"center",flexWrap:"wrap"}}>
             <SendButton onSend={sendReply}/>
-            <button onClick={dismiss} style={{padding:"6px 12px",background:"transparent",border:"1px solid "+T.border,color:T.dim,borderRadius:5,cursor:"pointer",fontSize:12}}>Snooze</button>
-            <button onClick={function(){if(onNotAFit)onNotAFit(item);else dismiss();}} style={{padding:"6px 12px",background:"transparent",border:"1px solid rgba(231,76,60,0.3)",color:T.red,borderRadius:5,cursor:"pointer",fontSize:12}}>Not a Fit</button>
-            {item.profileUrl && <a href={item.profileUrl} target="_blank" rel="noreferrer" style={{marginLeft:"auto",fontSize:11,color:T.dim,textDecoration:"none"}}>LinkedIn →</a>}
+            <button onClick={function(){markDone("Snoozed");}}
+              style={{padding:"6px 12px",background:"transparent",border:"1px solid "+T.border,color:T.dim,borderRadius:5,cursor:"pointer",fontSize:12}}>Snooze</button>
+            <button onClick={function(){if(onNotAFit)onNotAFit(item);else markDone("Not a Fit");}}
+              style={{padding:"6px 12px",background:"transparent",border:"1px solid rgba(231,76,60,0.3)",color:T.red,borderRadius:5,cursor:"pointer",fontSize:12}}>Not a Fit</button>
+            <button onClick={function(){markDone("Called / Handled");}}
+              style={{padding:"6px 12px",background:"rgba(46,204,113,0.08)",border:"1px solid rgba(46,204,113,0.25)",color:T.green,borderRadius:5,cursor:"pointer",fontSize:12}}>✓ Mark Done</button>
+            {item.profileUrl && <a href={item.profileUrl} target="_blank" rel="noreferrer"
+              style={{marginLeft:"auto",fontSize:11,color:T.dim,textDecoration:"none"}}>LinkedIn →</a>}
           </div>
         </div>
       )}
@@ -202,11 +251,27 @@ function QueueCard(props) {
   );
 }
 
+function DoneCard(props) {
+  var item = props.item;
+  return (
+    <div style={{display:"flex",gap:10,alignItems:"center",padding:"8px 12px",background:"rgba(255,255,255,0.01)",border:"1px solid rgba(255,255,255,0.04)",borderRadius:5,marginBottom:5,opacity:0.7}}>
+      <div style={{width:7,height:7,borderRadius:"50%",background:T.green,flexShrink:0}}/>
+      <div style={{flex:1,minWidth:0}}>
+        <span style={{fontSize:12,color:T.muted,fontWeight:500}}>{item.firstName} {item.lastName}</span>
+        <span style={{fontSize:11,color:T.dim}}> · {item.company}</span>
+      </div>
+      <span style={{fontSize:10,padding:"1px 7px",borderRadius:8,background:"rgba(46,204,113,0.08)",border:"1px solid rgba(46,204,113,0.2)",color:T.green}}>{item.doneLabel}</span>
+      <span style={{fontSize:10,color:T.dim}}>{timeAgo(item.doneAt)}</span>
+    </div>
+  );
+}
+
 export default function FollowUp(props) {
   var onNavigate = props.onNavigate;
-  var [queue, setQueue] = useState([]);
-  var [loading, setLoading] = useState(true);
-  var [dismissed, setDismissed] = useState({});
+  var [queue,     setQueue]     = useState([]);
+  var [done,      setDone]      = useState([]);
+  var [loading,   setLoading]   = useState(true);
+  var [showDone,  setShowDone]  = useState(false);
   var mountedRef = useRef(true);
 
   useEffect(function() {
@@ -238,76 +303,58 @@ export default function FollowUp(props) {
     var idx = 0;
     function next() {
       if (idx >= actionable.length || !mountedRef.current) return;
-      var item = actionable[idx];
-      idx++;
+      var item = actionable[idx++];
       fetch("/api/generate-reply", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({firstName:item.firstName,title:item.title,company:item.company,lastMessage:item.lastMessage})
       })
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
+      .then(function(r){ return r.json(); })
+      .then(function(d){
         if (!mountedRef.current) return;
         if (d.reply) {
-          var id = item.id;
-          var rep = d.reply;
-          setQueue(function(prev) {
-            return prev.map(function(q) {
-              if (q.id === id) {
-                var updated = {};
-                for (var k in q) updated[k] = q[k];
-                updated.suggestedReply = rep;
-                return updated;
-              }
-              return q;
+          var id = item.id; var rep = d.reply;
+          setQueue(function(prev){
+            return prev.map(function(q){
+              if (q.id !== id) return q;
+              var u = {}; for (var k in q) u[k]=q[k]; u.suggestedReply=rep; return u;
             });
           });
         }
         next();
       })
-      .catch(function() { next(); });
+      .catch(function(){ next(); });
     }
     next();
   }
 
-  function handleDismiss(id) {
-    setDismissed(function(prev) {
-      var next = {};
-      for (var k in prev) next[k] = prev[k];
-      next[id] = true;
-      return next;
-    });
+  function handleDone(item, label, sentMessage) {
+    setQueue(function(prev){ return prev.filter(function(q){ return q.id !== item.id; }); });
+    setDone(function(prev){ return [{ id:item.id, firstName:item.firstName, lastName:item.lastName, company:item.company, profileUrl:item.profileUrl, doneLabel:label, doneAt:new Date().toISOString(), sentMessage:sentMessage }].concat(prev); });
   }
 
   function updateContactStage(item, stage, extra) {
-    handleDismiss(item.id);
+    handleDone(item, stage, null);
     if (!item.profileUrl) return;
     fetch("/api/contact-by-linkedin?url=" + encodeURIComponent(item.profileUrl))
       .then(function(r){ return r.json(); })
       .then(function(data){
         if (!data.contact || !data.contact.id) return;
-        var contactId = data.contact.id;
+        var cid = data.contact.id;
         var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
         var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         var h = {"apikey":SBK,"Authorization":"Bearer "+SBK,"Content-Type":"application/json"};
-        var update = Object.assign({pipeline_stage:stage}, extra||{});
-        fetch(SBU+"/rest/v1/contacts?id=eq."+contactId, {method:"PATCH",headers:h,body:JSON.stringify(update)});
+        fetch(SBU+"/rest/v1/contacts?id=eq."+cid, {method:"PATCH",headers:h,body:JSON.stringify(Object.assign({pipeline_stage:stage},extra||{}))});
         fetch(SBU+"/rest/v1/communications", {
           method:"POST", headers:Object.assign({},h,{"Prefer":"return=representation"}),
-          body:JSON.stringify({contact_id:contactId, occurred_at:new Date().toISOString(), channel:"LinkedIn", direction:"IN", step_label:"Stage: "+stage, body:"Moved to "+stage+" from Follow-Up Queue. Message: "+item.lastMessage, source:"PeerChair", logged_by:"Dalen Lawrence"})
+          body:JSON.stringify({contact_id:cid,occurred_at:new Date().toISOString(),channel:"LinkedIn",direction:"IN",step_label:"Stage: "+stage,body:"Moved to "+stage+" from Follow-Up Queue. Message: "+item.lastMessage,source:"PeerChair",logged_by:"Dalen Lawrence"})
         });
       })
-      .catch(function(e){console.error("Stage update error:",e);});
+      .catch(function(e){ console.error("Stage update error:",e); });
   }
 
-  function handleOptOut(item) {
-    updateContactStage(item, "Opted Out", {do_not_contact:true, opted_out_at:new Date().toISOString(), member_status:"Opted Out"});
-  }
-
-  function handleNotAFit(item) {
-    updateContactStage(item, "Lost — Not a Fit", {member_status:"Not a Fit"});
-  }
-
+  function handleOptOut(item)  { updateContactStage(item,"Opted Out",{do_not_contact:true,member_status:"Opted Out"}); }
+  function handleNotAFit(item) { updateContactStage(item,"Lost — Not a Fit",{member_status:"Not a Fit"}); }
   function handleProfile(item) {
     if (!onNavigate || !item.profileUrl) return;
     fetch("/api/contact-by-linkedin?url=" + encodeURIComponent(item.profileUrl))
@@ -324,10 +371,9 @@ export default function FollowUp(props) {
       });
   }
 
-  var visible = queue.filter(function(i) { return !dismissed[i.id]; });
-  var warmItems = visible.filter(function(i){ return i.category === "warm"; });
-  var neutralItems = visible.filter(function(i){ return i.category === "neutral"; });
-  var negItems = visible.filter(function(i){ return i.category === "not_interested"; });
+  var warmItems    = queue.filter(function(i){ return i.category === "warm"; });
+  var neutralItems = queue.filter(function(i){ return i.category === "neutral"; });
+  var negItems     = queue.filter(function(i){ return i.category === "not_interested"; });
 
   return (
     <div style={{display:"flex",flexDirection:"column",flex:1,overflow:"hidden",background:BG,fontFamily:"'Palatino Linotype','Book Antiqua',Palatino,serif"}}>
@@ -340,8 +386,13 @@ export default function FollowUp(props) {
           <button onClick={loadQueue} style={{padding:"6px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid "+T.border,color:T.muted,borderRadius:5,cursor:"pointer",fontSize:11}}>Refresh</button>
         </div>
         {!loading && (
-          <div style={{display:"flex",gap:8}}>
-            {[{l:"Warm",c:warmItems.length,col:T.green},{l:"Neutral",c:neutralItems.length,col:T.blue},{l:"Not Interested",c:negItems.length,col:T.red},{l:"Total",c:visible.length,col:T.muted}].map(function(s){
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {[
+              {l:"Warm",         c:warmItems.length,    col:T.green},
+              {l:"Neutral",      c:neutralItems.length, col:T.blue},
+              {l:"Not Interested",c:negItems.length,    col:T.red},
+              {l:"Done Today",   c:done.length,         col:T.muted},
+            ].map(function(s){
               return <div key={s.l} style={{padding:"4px 12px",background:s.col+"10",border:"1px solid "+s.col+"30",borderRadius:5,fontSize:11,color:s.col}}><strong>{s.c}</strong> {s.l}</div>;
             })}
           </div>
@@ -350,29 +401,42 @@ export default function FollowUp(props) {
 
       <div style={{flex:1,overflowY:"auto",padding:"16px 24px"}}>
         {loading && <div style={{textAlign:"center",padding:60,color:T.dim,fontSize:13}}>Loading queue...</div>}
-        {!loading && visible.length === 0 && (
+
+        {!loading && queue.length === 0 && done.length === 0 && (
           <div style={{textAlign:"center",padding:60,color:T.dim}}>
             <div style={{fontSize:32,marginBottom:12,opacity:0.2}}>✓</div>
             <div style={{fontSize:15,fontWeight:600,color:T.muted,marginBottom:6}}>Queue is empty</div>
             <div style={{fontSize:13}}>No open conversations waiting for a reply.</div>
           </div>
         )}
+
         {warmItems.length > 0 && (
           <div style={{marginBottom:20}}>
             <div style={{fontSize:10,color:T.green,letterSpacing:2,textTransform:"uppercase",fontWeight:600,marginBottom:10}}>Warm Replies</div>
-            {warmItems.map(function(item){ return <QueueCard key={item.id} item={item} onProfile={handleProfile} onDismiss={handleDismiss} onNotAFit={handleNotAFit} onOptOut={handleOptOut}/>; })}
+            {warmItems.map(function(item){ return <QueueCard key={item.id} item={item} onProfile={handleProfile} onDone={handleDone} onNotAFit={handleNotAFit} onOptOut={handleOptOut}/>; })}
           </div>
         )}
         {neutralItems.length > 0 && (
           <div style={{marginBottom:20}}>
             <div style={{fontSize:10,color:T.blue,letterSpacing:2,textTransform:"uppercase",fontWeight:600,marginBottom:10}}>Neutral Replies</div>
-            {neutralItems.map(function(item){ return <QueueCard key={item.id} item={item} onProfile={handleProfile} onDismiss={handleDismiss} onNotAFit={handleNotAFit} onOptOut={handleOptOut}/>; })}
+            {neutralItems.map(function(item){ return <QueueCard key={item.id} item={item} onProfile={handleProfile} onDone={handleDone} onNotAFit={handleNotAFit} onOptOut={handleOptOut}/>; })}
           </div>
         )}
         {negItems.length > 0 && (
           <div style={{marginBottom:20}}>
             <div style={{fontSize:10,color:T.red,letterSpacing:2,textTransform:"uppercase",fontWeight:600,marginBottom:10}}>Not Interested</div>
-            {negItems.map(function(item){ return <QueueCard key={item.id} item={item} onProfile={handleProfile} onDismiss={handleDismiss} onNotAFit={handleNotAFit} onOptOut={handleOptOut}/>; })}
+            {negItems.map(function(item){ return <QueueCard key={item.id} item={item} onProfile={handleProfile} onDone={handleDone} onNotAFit={handleNotAFit} onOptOut={handleOptOut}/>; })}
+          </div>
+        )}
+
+        {done.length > 0 && (
+          <div style={{marginTop:20,borderTop:"1px solid "+T.border,paddingTop:16}}>
+            <div onClick={function(){ setShowDone(function(v){ return !v; }); }}
+              style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:10}}>
+              <div style={{fontSize:10,color:T.dim,letterSpacing:2,textTransform:"uppercase",fontWeight:600}}>Completed This Session ({done.length})</div>
+              <div style={{fontSize:10,color:T.dim}}>{showDone?"▲":"▼"}</div>
+            </div>
+            {showDone && done.map(function(item){ return <DoneCard key={item.id + item.doneAt} item={item}/>; })}
           </div>
         )}
       </div>

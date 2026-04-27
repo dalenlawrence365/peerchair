@@ -138,6 +138,7 @@ var T = { bg:BG, bg2:BG2, bg3:BG3, bg4:"#132438", rail:"#060d17", border:"rgba(2
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 var JOURNEY  = [
   {id:"connected",  label:"Connected",      date:"connectedDate",       stage:"Connected"},
+  {id:"fit_invite", label:"Fit Invite Sent",date:"",                   stage:"Fit Invite Sent"},
   {id:"fit_sched",  label:"Fit Scheduled",  date:"fitCallDate",         stage:"Fit Call Scheduled"},
   {id:"fit_done",   label:"Fit Completed",  date:"fitCallDate",         stage:"Fit Call Completed"},
   {id:"event_inv",  label:"Event Invited",  date:"eventInvitedDate",    stage:"Event Invited"},
@@ -151,18 +152,19 @@ var JOURNEY  = [
 // Stage → Journey node index (primary driver of Circle Journey display)
 var STAGE_TO_NODE = {
   "Connected":0,"Engaged":0,"Requested":0,
-  "Fit Call Scheduled":1,
-  "Fit Call Completed":2,"Strong Fit":2,"Possible Fit":2,"Bad Timing":2,
-  "Event Invited":3,
-  "Event Confirmed":4,
-  "Event Attended":5,"No Show":5,
-  "Membership Conversation Scheduled":6,"Membership Conversation Completed":6,
-  "Verbal Commitment":7,
-  "Active Member":8
+  "Fit Invite Sent":1,
+  "Fit Call Scheduled":2,
+  "Fit Call Completed":3,"Strong Fit":3,"Possible Fit":3,"Bad Timing":3,
+  "Event Invited":4,
+  "Event Confirmed":5,
+  "Event Attended":6,"No Show":6,
+  "Membership Conversation Scheduled":7,"Membership Conversation Completed":7,
+  "Verbal Commitment":8,
+  "Active Member":9
 };
 var CHAPTERS = ["Los Angeles","San Fernando Valley"];
 var SOURCES  = ["LinkedIn / HeyReach","Sponsor","Networking","Referral"];
-var PIPELINE = ["Target","Requested","Connected","Engaged","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Bad Timing","Not a Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member","Lost — Bad Timing","Lost — Not a Fit","Reserve Pool"];
+var PIPELINE = ["Target","Requested","Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Bad Timing","Not a Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member","Lost — Bad Timing","Lost — Not a Fit","Reserve Pool"];
 var STATUSES = ["Prospect","Active","Inactive / Churned","No Response","Not a Fit"];
 var OUTCOMES = ["Strong Fit","Possible Fit","Bad Timing","Not a Fit","No Show"];
 var OWNERSHIP= ["Privately Held","PE-Backed","Founder-Led","Family-Owned","Public","Non-Profit"];
@@ -181,6 +183,7 @@ function stageColor(s) {
   if (s==="Active Member") return T.green;
   if (["Strong Fit","Verbal Commitment","Membership Conversation Completed"].indexOf(s)>-1) return "#27ae60";
   if (["Fit Call Completed","Fit Call Scheduled","Event Attended"].indexOf(s)>-1) return G;
+  if (s==="Fit Invite Sent") return T.orange;
   if (["Lost — Not a Fit","Not a Fit"].indexOf(s)>-1) return T.red;
   if (["Bad Timing","Lost — Bad Timing","Reserve Pool","No Show"].indexOf(s)>-1) return T.orange;
   if (s==="Possible Fit") return "#f39c12";
@@ -1250,7 +1253,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
 function Pipeline({onNavigate}) {
   var [contacts,setContacts]=useState([]);var [loading,setLoading]=useState(true);var [error,setError]=useState(null);var [search,setSearch]=useState("");var [stageFilter,setStageFilter]=useState("All");var [total,setTotal]=useState(0);
   useEffect(function(){loadContacts();},[stageFilter]);
-  var ACTIVE_PIPELINE=["Connected","Engaged","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"];
+  var ACTIVE_PIPELINE=["Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"];
   async function loadContacts(){
     setLoading(true);setError(null);
     try{
@@ -1279,6 +1282,7 @@ function Pipeline({onNavigate}) {
           {[
             {s:"Connected",     c:T.blue,     label:"Connected"},
             {s:"Engaged",       c:T.orange,   label:"Engaged"},
+            {s:"Fit Invite Sent",     c:T.orange,   label:"Invite Sent"},
             {s:"Fit Call Scheduled",  c:G,          label:"Fit Sched."},
             {s:"Fit Call Completed",  c:T.purple,   label:"Fit Done"},
             {s:"Event Invited",       c:"#1abc9c",  label:"Invited"},
@@ -1300,7 +1304,7 @@ function Pipeline({onNavigate}) {
           })}
           {/* Total at end */}
           <div style={{background:BG3,border:"1px solid rgba(255,255,255,0.1)",borderTop:"2px solid rgba(255,255,255,0.25)",borderRadius:5,padding:"7px 10px",textAlign:"center",minWidth:50,marginLeft:4}}>
-            <div style={{fontSize:18,fontWeight:700,color:T.text,lineHeight:1,marginBottom:3}}>{contacts.filter(function(ct){return ["Connected","Engaged","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"].indexOf(ct.pipeline_stage)>-1;}).length}</div>
+            <div style={{fontSize:18,fontWeight:700,color:T.text,lineHeight:1,marginBottom:3}}>{contacts.filter(function(ct){return ["Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"].indexOf(ct.pipeline_stage)>-1;}).length}</div>
             <div style={{fontSize:8,color:"#8ab4cc",letterSpacing:0.5,textTransform:"uppercase",lineHeight:1.3}}>Total</div>
           </div>
         </div>
@@ -1496,7 +1500,7 @@ export default function CFOCircleApp() {
       setSponsorStageCounts(sCounts);
 
       var rows=await sbFetch("/contacts?select=pipeline_stage");
-      var counts={};var tot=0;var activePipelineStages=["Connected","Engaged","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"];var pipelineTot=0;
+      var counts={};var tot=0;var activePipelineStages=["Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"];var pipelineTot=0;
       (Array.isArray(rows)?rows:[]).forEach(function(r){var s=r.pipeline_stage||"Unknown";counts[s]=(counts[s]||0)+1;tot++;if(activePipelineStages.indexOf(s)>-1)pipelineTot++;});
       setStageCounts(counts);setTotal(tot);setPipelineTotal(pipelineTot);
     }catch(e){console.error("Stats error:",e);}
