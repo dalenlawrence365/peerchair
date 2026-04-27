@@ -347,6 +347,133 @@ function CompanyDetail(props) {
   );
 }
 
+
+function AddCompanyModal(props) {
+  var onClose = props.onClose;
+  var onCreated = props.onCreated;
+  var CATS = ["Accounting/Advisory","Commercial Banking","Law Firm","Executive Search","HR/Payroll","Insurance","Technology","Commercial Real Estate","Advisory/M&A","Other"];
+  var [form, setForm] = useState({
+    name:"", category:"Accounting/Advisory", host_viable:"Unknown",
+    address_la:"", area_la:"", notes:"",
+    contact_name:"", contact_title:"", contact_email:"", contact_warmth:"Cold",
+    group_la:true, group_sfv:false
+  });
+  var [saving, setSaving] = useState(false);
+
+  function set(key, val) { setForm(function(p){ var n=Object.assign({},p); n[key]=val; return n; }); }
+
+  async function create() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      var companies = await SBpost("sponsor_companies", {
+        name: form.name.trim(),
+        category: form.category,
+        host_viable: form.host_viable,
+        host_tier: "TBD",
+        address_la: form.address_la,
+        area_la: form.area_la,
+        viability_la: form.address_la ? "Viable" : "Unknown",
+        notes: form.notes,
+        source: "Manual"
+      });
+      var co = Array.isArray(companies) ? companies[0] : companies;
+      if (!co || !co.id) throw new Error("Failed to create company");
+
+      // Add contact if provided
+      if (form.contact_name.trim()) {
+        var parts = form.contact_name.trim().split(" ");
+        await SBpost("sponsor_contacts", {
+          company_id: co.id,
+          first_name: parts[0]||"",
+          last_name: parts.slice(1).join(" ")||"",
+          full_name: form.contact_name.trim(),
+          title: form.contact_title,
+          email: form.contact_email,
+          warmth: form.contact_warmth,
+          event_source: "Manual"
+        });
+      }
+
+      // Create deals
+      if (form.group_la) await SBpost("sponsor_deals", {company_id:co.id,group_name:"Los Angeles",stage:"Prospect",category_seat:form.category,annual_fee:5000});
+      if (form.group_sfv) await SBpost("sponsor_deals", {company_id:co.id,group_name:"San Fernando Valley",stage:"Prospect",category_seat:form.category,annual_fee:5000});
+
+      if (onCreated) onCreated(co.id);
+    } catch(e) { console.error(e); }
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+      <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:8,padding:"24px",width:480,maxWidth:"90vw",maxHeight:"85vh",overflowY:"auto"}}>
+        <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:16}}>Add Sponsor Company</div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          <div style={{gridColumn:"span 2"}}>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Company Name *</div>
+            <input value={form.name} onChange={function(e){set("name",e.target.value);}} placeholder="e.g. Lockton Insurance" style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Category</div>
+            <select value={form.category} onChange={function(e){set("category",e.target.value);}} style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",cursor:"pointer"}}>
+              {CATS.map(function(c){return <option key={c}>{c}</option>;})}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Host Viable</div>
+            <select value={form.host_viable} onChange={function(e){set("host_viable",e.target.value);}} style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",cursor:"pointer"}}>
+              {["Unknown","Yes","No","Adjacent"].map(function(v){return <option key={v}>{v}</option>;})}
+            </select>
+          </div>
+          <div style={{gridColumn:"span 2"}}>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>LA Address</div>
+            <input value={form.address_la} onChange={function(e){set("address_la",e.target.value);}} placeholder="Street address, Suite, City, State ZIP" style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+          <div style={{gridColumn:"span 2"}}>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Notes</div>
+            <input value={form.notes} onChange={function(e){set("notes",e.target.value);}} placeholder="How you know them, source, context..." style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.muted,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+        </div>
+
+        <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",fontWeight:600,marginBottom:10,paddingTop:10,borderTop:"1px solid "+T.border}}>Primary Contact (optional)</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          <div>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Full Name</div>
+            <input value={form.contact_name} onChange={function(e){set("contact_name",e.target.value);}} placeholder="First Last" style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Title</div>
+            <input value={form.contact_title} onChange={function(e){set("contact_title",e.target.value);}} placeholder="VP, Partner, Director..." style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Email</div>
+            <input value={form.contact_email} onChange={function(e){set("contact_email",e.target.value);}} placeholder="email@company.com" style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Warmth</div>
+            <select value={form.contact_warmth} onChange={function(e){set("contact_warmth",e.target.value);}} style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",cursor:"pointer"}}>
+              {["Cold","Warm","Met in person","Referred"].map(function(v){return <option key={v}>{v}</option>;})}
+            </select>
+          </div>
+        </div>
+
+        <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",fontWeight:600,marginBottom:10,paddingTop:10,borderTop:"1px solid "+T.border}}>Add to Groups</div>
+        <div style={{display:"flex",gap:10,marginBottom:20}}>
+          <div onClick={function(){set("group_la",!form.group_la);}} style={{flex:1,padding:"9px 12px",background:form.group_la?"rgba(240,200,74,0.1)":"rgba(255,255,255,0.02)",border:"1px solid "+(form.group_la?G+"50":T.border),borderRadius:5,cursor:"pointer",textAlign:"center",fontSize:12,color:form.group_la?G:T.dim,fontWeight:form.group_la?600:400}}>Los Angeles</div>
+          <div onClick={function(){set("group_sfv",!form.group_sfv);}} style={{flex:1,padding:"9px 12px",background:form.group_sfv?"rgba(74,158,186,0.1)":"rgba(255,255,255,0.02)",border:"1px solid "+(form.group_sfv?T.blue+"50":T.border),borderRadius:5,cursor:"pointer",textAlign:"center",fontSize:12,color:form.group_sfv?T.blue:T.dim,fontWeight:form.group_sfv?600:400}}>San Fernando Valley</div>
+        </div>
+
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <button onClick={onClose} style={{padding:"7px 16px",background:"transparent",border:"1px solid "+T.border,color:T.muted,borderRadius:5,cursor:"pointer",fontSize:13}}>Cancel</button>
+          <button onClick={create} disabled={saving||!form.name.trim()} style={{padding:"7px 20px",background:"rgba(240,200,74,0.12)",border:"1px solid "+G+"40",color:G,borderRadius:5,cursor:form.name.trim()?"pointer":"default",fontSize:13,fontWeight:600,opacity:form.name.trim()?1:0.5}}>{saving?"Creating...":"Add Company"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Sponsors() {
   var [companies, setCompanies] = useState([]);
   var [deals, setDeals] = useState([]);
@@ -378,7 +505,17 @@ export default function Sponsors() {
   function getContacts(companyId) { return contacts.filter(function(c){ return c.company_id===companyId; }); }
 
   function matchesFilters(co) {
-    if (search && !co.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search) {
+      var q = search.toLowerCase();
+      var nameMatch = co.name.toLowerCase().includes(q);
+      // Also search contacts linked to this company
+      var contactMatch = getContacts(co.id).some(function(ct){
+        return (ct.full_name||"").toLowerCase().includes(q) ||
+               (ct.title||"").toLowerCase().includes(q) ||
+               (ct.email||"").toLowerCase().includes(q);
+      });
+      if (!nameMatch && !contactMatch) return false;
+    }
     if (categoryFilter !== "All" && co.category !== categoryFilter) return false;
     if (hostOnly && co.host_viable !== "Yes") return false;
     if (stageFilter !== "All") {
@@ -401,7 +538,10 @@ export default function Sponsors() {
       {/* Header */}
       <div style={{padding:"14px 20px 12px",borderBottom:"1px solid "+T.border,flexShrink:0,background:BG}}>
         <div style={{display:"flex",alignItems:"baseline",gap:12,marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
           <h2 style={{fontSize:18,fontWeight:700,color:T.text,margin:0}}>Sponsor Pipeline</h2>
+          <button onClick={function(){setShowModal(true);}} style={{padding:"5px 14px",background:"rgba(240,200,74,0.1)",border:"1px solid "+G+"40",color:G,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600}}>+ Add Company</button>
+        </div>
           <span style={{fontSize:12,color:T.dim}}>Los Angeles · San Fernando Valley</span>
         </div>
 
