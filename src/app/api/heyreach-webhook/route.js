@@ -42,9 +42,9 @@ export async function POST(request) {
     const firstName   = profile.firstName   || profile.first_name  || ''
     const lastName    = profile.lastName    || profile.last_name   || ''
     const title       = profile.position    || profile.headline    || profile.title || ''
-    const company     = profile.companyName || profile.company     || profile.company_name || ''
-    const email       = profile.emailAddress || profile.enrichedEmailAddress || profile.email || ''
-    const linkedinUrl = profile.profileUrl  || profile.linkedin_url || profile.url || ''
+    const company     = profile.companyName || profile.company_name || profile.company || ''
+    const email       = profile.emailAddress || profile.email_address || profile.enrichedEmailAddress || profile.enriched_email || profile.custom_email || profile.email || ''
+    const linkedinUrl = profile.profileUrl  || profile.profile_url || profile.linkedin_url || profile.url || ''
     const location    = profile.location    || ''
 
     console.log('Extracted profile:', { firstName, lastName, title, company, linkedinUrl })
