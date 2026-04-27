@@ -426,7 +426,7 @@ function CircleJourney({data, onNodeClick}){
 }
 
 // ─── CONTACT PROFILE ─────────────────────────────────────────────────────────
-function ContactProfile({contactId,onBack,onStartFitCall}) {
+function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
   var [data,setData]           = useState(null);
   var [loading,setLoading]     = useState(true);
   var [saving,setSaving]       = useState(false);
@@ -443,7 +443,23 @@ function ContactProfile({contactId,onBack,onStartFitCall}) {
   var [editPhone,setEditPhone] = useState(false);
 
   useEffect(function(){
-    if(!contactId) return;
+    if(!contactId) {
+      // No ID — use contactData prop if available
+      if(contactData) {
+        setData({
+          id: null,
+          firstName: contactData.first_name || contactData.firstName || "",
+          lastName: contactData.last_name || contactData.lastName || "",
+          title: contactData.title || "",
+          company: contactData.company_name || contactData.company || "",
+          linkedinUrl: contactData.linkedin_url || contactData.linkedinUrl || "",
+          pipelineStage: contactData.pipeline_stage || "Connected",
+          memberStatus: "Prospect",
+        });
+      }
+      setLoading(false);
+      return;
+    }
     loadContact();
     loadComms();
   }, [contactId]);
@@ -1415,7 +1431,7 @@ export default function CFOCircleApp() {
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
           {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts} pipelineTotal={pipelineTotal} fitCallContacts={fitCallContacts} onStartFitCall={function(ct){setFitCallContact({id:ct.id,firstName:ct.first_name,lastName:ct.last_name,title:ct.title,company:ct.company_name,email:ct.email,linkedinUrl:ct.linkedin_url,fit_call_date:ct.fit_call_date});setScreen("fitcall");}} onNavigateToBucket={function(stage){navigate("pipeline");}}/>}
           {screen==="pipeline"  && <Pipeline  onNavigate={navigate}/>}
-          {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} onBack={function(){navigate("pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
+          {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} contactData={selectedContact} onBack={function(){navigate("pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
           {screen==="events"    && <Placeholder icon="✦" title="Events" description="Manage your Experience Events — attendee lists, confirmations, and post-event follow-up."/>}
           {screen==="templates" && <Placeholder icon="✉" title="Templates" description="Your LinkedIn and email message library, organized by pipeline stage."/>}
           {screen==="claude"    && <AskClaude/>}
