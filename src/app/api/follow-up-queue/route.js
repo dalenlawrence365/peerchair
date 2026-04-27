@@ -81,9 +81,21 @@ export async function POST(request) {
     var body = await request.json();
     var { conversationId, linkedInAccountId, message, profileUrl, contactId, firstName, action } = body;
 
+    // Contact metadata for auto-creation if not in Supabase
+    var contactMeta = {
+      firstName:  body.firstName  || "",
+      lastName:   body.lastName   || "",
+      fullName:   body.fullName   || "",
+      title:      body.title      || "",
+      company:    body.company    || "",
+      location:   body.location   || "",
+      imageUrl:   body.imageUrl   || "",
+      campaign:   body.campaign   || "",
+    };
+
     // ── Handle "mark done" action (no HeyReach send needed) ──────────────────
     if (action === "mark_done") {
-      await logToSupabase(contactId, profileUrl, firstName, message, "Done / Cleared", body.stepLabel || "Cleared from Queue");
+      await logToSupabase(contactId, profileUrl, firstName, message, "Done / Cleared", body.stepLabel || "Cleared from Queue", null, contactMeta);
       return Response.json({ success: true, action: "marked_done" });
     }
 
@@ -108,8 +120,8 @@ export async function POST(request) {
     var stepLabel = isFitInvite ? "Fit Invite Sent" : "Follow-Up Sent";
     var newStage  = isFitInvite ? "Fit Invite Sent" : null;
 
-    // ── Log sent message + optional stage update to Supabase ──────────────────
-    await logToSupabase(contactId, profileUrl, firstName, message, stepLabel, stepLabel, newStage);
+    // ── Log sent message + auto-create contact if needed + update stage ────────
+    await logToSupabase(contactId, profileUrl, firstName, message, stepLabel, stepLabel, newStage, contactMeta);
 
     return Response.json({ success: true, stepLabel });
   } catch (e) {
@@ -118,28 +130,61 @@ export async function POST(request) {
   }
 }
 
-// ─── Helper: look up contact + write to communications + update stage ─────────
-async function logToSupabase(contactId, profileUrl, firstName, message, body, stepLabel, newStage) {
+// ─── Helper: look up contact (auto-create if missing) + log to Supabase ────────
+async function logToSupabase(contactId, profileUrl, firstName, message, body, stepLabel, newStage, contactMeta) {
   try {
     var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
     var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!SBU || !SBK) return;
     var h = { "apikey": SBK, "Authorization": "Bearer " + SBK, "Content-Type": "application/json", "Prefer": "return=representation" };
 
-    // Look up contact if we don't have ID but have profile URL
+    // 1. Resolve contact ID — look up by LinkedIn URL slug
     var resolvedId = contactId || null;
     if (!resolvedId && profileUrl) {
+      var slug = profileUrl.split("/in/").pop().replace(/\/+$/, "").toLowerCase();
       var lookup = await fetch(
-        SBU + "/rest/v1/contacts?linkedin_url=eq." + encodeURIComponent(profileUrl) + "&select=id&limit=1",
+        SBU + "/rest/v1/contacts?linkedin_url=ilike.*" + encodeURIComponent(slug) + "*&select=id&limit=1",
         { headers: h }
       );
       var found = await lookup.json();
       if (Array.isArray(found) && found[0]) resolvedId = found[0].id;
     }
 
-    if (!resolvedId) return; // Can't log without a contact
+    // 2. Auto-create contact if still not found — they came from HeyReach, add to pipeline
+    if (!resolvedId && profileUrl && contactMeta) {
+      var nameParts = (contactMeta.fullName || (contactMeta.firstName + " " + contactMeta.lastName) || "").trim().split(" ");
+      var newContact = {
+        first_name:       contactMeta.firstName || nameParts[0] || "",
+        last_name:        contactMeta.lastName  || nameParts.slice(1).join(" ") || "",
+        title:            contactMeta.title     || "",
+        company_name:     contactMeta.company   || "",
+        linkedin_url:     profileUrl,
+        linkedin_location: contactMeta.location || "",
+        linkedin_image_url: contactMeta.imageUrl || "",
+        pipeline_stage:   newStage || "Connected",
+        member_status:    "Prospect",
+        lead_source:      "LinkedIn / HeyReach",
+        heyreach_campaign: contactMeta.campaign || "",
+        chapter_interest: "Los Angeles",
+        created_at:       new Date().toISOString(),
+        updated_at:       new Date().toISOString(),
+      };
+      var createRes = await fetch(SBU + "/rest/v1/contacts", {
+        method: "POST", headers: h, body: JSON.stringify(newContact)
+      });
+      var created = await createRes.json();
+      if (Array.isArray(created) && created[0]) {
+        resolvedId = created[0].id;
+        console.log("Auto-created contact for", contactMeta.firstName, contactMeta.lastName, "→ id:", resolvedId);
+      }
+    }
 
-    // Log to communications
+    if (!resolvedId) {
+      console.warn("logToSupabase: could not resolve or create contact for", profileUrl);
+      return;
+    }
+
+    // 3. Log to communications
     await fetch(SBU + "/rest/v1/communications", {
       method: "POST", headers: h,
       body: JSON.stringify({
@@ -154,7 +199,7 @@ async function logToSupabase(contactId, profileUrl, firstName, message, body, st
       })
     });
 
-    // Update stage if needed
+    // 4. Update stage if needed
     if (newStage) {
       await fetch(SBU + "/rest/v1/contacts?id=eq." + resolvedId, {
         method: "PATCH", headers: h,

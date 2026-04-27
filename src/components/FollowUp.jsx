@@ -124,12 +124,20 @@ function QueueCard(props) {
       method: "POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify({
-        conversationId:   item.conversationId,
+        conversationId:    item.conversationId,
         linkedInAccountId: item.linkedInAccountId,
-        message:          reply,
-        profileUrl:       item.profileUrl,
-        contactId:        item.supabaseId || null,
-        firstName:        item.firstName,
+        message:           reply,
+        profileUrl:        item.profileUrl,
+        contactId:         item.supabaseId || null,
+        // Full metadata so the route can auto-create in Supabase if missing
+        firstName:  item.firstName,
+        lastName:   item.lastName,
+        fullName:   item.fullName   || (item.firstName + " " + item.lastName),
+        title:      item.title      || "",
+        company:    item.company    || "",
+        location:   item.location   || "",
+        imageUrl:   item.imageUrl   || "",
+        campaign:   item.campaign   || "",
       })
     });
     var data = await res.json();
