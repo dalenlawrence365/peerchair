@@ -981,7 +981,7 @@ function SponsorMetrics(props) {
   );
 }
 
-function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipelineTotal,fitCallContacts,onStartFitCall,onNavigateToBucket}) {
+function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipelineTotal,fitCallContacts,onStartFitCall,onNavigateToBucket,onStartDiscovery}) {
   var [openBucket,setOpenBucket] = useState(null);
   var [bucketContacts,setBucketContacts] = useState([]);
   var [bucketLoading,setBucketLoading] = useState(false);
@@ -1053,7 +1053,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
       </div>
 
         {/* SPONSOR DISCOVERY METRICS */}
-        <SponsorMetrics stageCounts={sponsorStageCounts} onStartDiscovery={function(co,contact,deal){setSponsorContact(contact);setSponsorDeal(deal);navigate("sponsor_call");}}/>
+        <SponsorMetrics stageCounts={sponsorStageCounts} onStartDiscovery={onStartDiscovery}/>
 
         {/* HEYREACH OUTREACH FUNNEL */}
         <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:8,padding:"14px 18px",marginBottom:16}}>
@@ -1546,7 +1546,7 @@ export default function CFOCircleApp() {
           </div>
         </div>
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-          {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts} sponsorStageCounts={sponsorStageCounts} pipelineTotal={pipelineTotal} fitCallContacts={fitCallContacts} onStartFitCall={function(ct){setFitCallContact({id:ct.id,firstName:ct.first_name,lastName:ct.last_name,title:ct.title,company:ct.company_name,email:ct.email,linkedinUrl:ct.linkedin_url,fit_call_date:ct.fit_call_date});setScreen("fitcall");}} onNavigateToBucket={function(stage){navigate("pipeline");}}/>}
+          {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts} sponsorStageCounts={sponsorStageCounts} pipelineTotal={pipelineTotal} fitCallContacts={fitCallContacts} onStartFitCall={function(ct){setFitCallContact({id:ct.id,firstName:ct.first_name,lastName:ct.last_name,title:ct.title,company:ct.company_name,email:ct.email,linkedinUrl:ct.linkedin_url,fit_call_date:ct.fit_call_date});setScreen("fitcall");}} onNavigateToBucket={function(stage){navigate("pipeline");}} onStartDiscovery={function(co,contact,deal){setSponsorContact(Object.assign({},contact||{},{company:co.name||"",company_id:co.id,category:co.category}));setSponsorDeal(deal);setScreen("sponsor_call");}}/>}
           {screen==="pipeline"  && <Pipeline  onNavigate={navigate}/>}
           {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} contactData={selectedContact} onBack={function(){navigate("pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
           {screen==="events"    && <Placeholder icon="✦" title="Events" description="Manage your Experience Events — attendee lists, confirmations, and post-event follow-up."/>}
@@ -1554,7 +1554,7 @@ export default function CFOCircleApp() {
           {screen==="claude"    && <AskClaude/>}
           {screen==="sponsors"  && <Sponsors onStartDiscovery={function(co,contact,deal){setSponsorContact(Object.assign({},contact||{},{company:co.name,company_id:co.id,category:co.category}));setSponsorDeal(deal);navigate("sponsor_call");}}/>}
         {screen==="followup"  && <FollowUp onNavigate={navigate}/>}
-        {screen==="sponsor_call" && <SponsorCompanion contact={sponsorContact} deal={sponsorDeal} onBack={function(){navigate("sponsors");}} onEnd={function(){navigate("sponsors");}}/>}
+        {screen==="sponsor_call" && <SponsorCompanion contact={sponsorContact||{}} deal={sponsorDeal} onBack={function(){navigate("sponsors");}} onEnd={function(){navigate("sponsors");}}/>}
           {screen==="fitcall" && fitCallContact && <LiveCallCompanion contact={fitCallContact} onEnd={function(){ setScreen("profile"); }} onBack={function(){ setScreen("profile"); }}/>}
         </div>
       </div>
