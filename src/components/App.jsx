@@ -1031,7 +1031,12 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
   }
   var [showFitCallList,setShowFitCallList] = useState(false);
   var today=new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
-  var ACTIONS=[{label:"Paolo Casarella — fit call yesterday, follow-up not sent",type:"warning",action:"Send Follow-Up"},{label:"Event needs scheduling — 0 of 8 minimum CFOs registered",type:"alert",action:"Set Event Date"},{label:"6 contacts connected 30+ days with no reply",type:"info",action:"Move to Reserve"},{label:"Eric Stoneburner — replied on LinkedIn yesterday",type:"good",action:"View Thread"}];
+  var [queueItems, setQueueItems] = useState([]);
+  useEffect(function(){
+    fetch("/api/follow-up-queue").then(function(r){return r.json();}).then(function(d){
+      setQueueItems(Array.isArray(d.queue)?d.queue:[]);
+    }).catch(function(){});
+  },[]);
   var pStages=[{label:"Target",color:T.dim},{label:"Connected",color:T.blue},{label:"Fit Scheduled",color:T.gold},{label:"Fit Completed",color:T.gold},{label:"Strong Fit",color:T.green},{label:"Event Invited",color:T.purple},{label:"Active Member",color:T.green},{label:"Reserve Pool",color:T.dim}];
   function getCount(label){if(label==="Fit Scheduled")return stageCounts["Fit Call Scheduled"]||0;if(label==="Fit Completed")return stageCounts["Fit Call Completed"]||0;return stageCounts[label]||0;}
   return (
@@ -1218,7 +1223,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
               <span style={{fontSize:10,color:T.dim}}>Natural language · live data</span>
             </div>
             <div style={{padding:"14px 16px"}}>
-              {["Who hasn't been touched in 30 days?","What's my strongest Stalliant prospect?","Draft follow-up for Paolo Casarella"].map(function(q){
+              {["How many new people connected to me this week?","Who in my pipeline is closest to booking a fit call?","Which CFOs haven't heard from me in 14+ days?"].map(function(q){
                 return <button key={q} onClick={function(){onNavigate("claude");}} style={{display:"block",width:"100%",marginBottom:6,padding:"8px 12px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,color:T.muted,borderRadius:5,cursor:"pointer",fontSize:12,textAlign:"left"}}>{q}</button>;
               })}
               <div style={{display:"flex",gap:6,marginTop:4}}>
@@ -1347,7 +1352,7 @@ function AskClaude() {
   var QUICK = [
     "Who should I call today?",
     "Who has been stuck in Connected the longest?",
-    "Draft a follow-up message for Paolo Casarella",
+    "Who in my pipeline needs attention today?",
     "Who are my strongest fit call candidates?",
     "Who hasn't had any activity logged?",
     "Give me a status report on Ben Chavez and Sayeed Chowdhury",
