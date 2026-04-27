@@ -1278,7 +1278,7 @@ function Pipeline({onNavigate}) {
             {s:"Event Attended",      c:T.green,    label:"Attended"},
             {s:"Membership Conversation Scheduled", c:T.blue, label:"Memb. Convo"},
             {s:"Verbal Commitment",   c:G,          label:"Verbal"},
-            {s:"Active Member",       c:T.green,    label:"Active"},
+
           ].map(function(item){
             var isSelected = stageFilter === item.s;
             var count = contacts.filter(function(ct){ return ct.pipeline_stage === item.s; }).length;
@@ -1513,7 +1513,7 @@ export default function CFOCircleApp() {
 
   function navigate(s,contact,q){setScreen(s);if(contact)setContact(contact);if(q)setClaudeQ(q);}
 
-  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:followUpCount>0?String(followUpCount):""},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors"},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
+  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:followUpCount>0?String(followUpCount):""},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(stageCounts["Active Member"]||0)+" active"},{id:"sponsors",icon:"$",label:"Sponsors"},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
 
   var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",sponsors:"Sponsors",followup:"Follow-Up Queue",stalliant:"Sponsors"}[screen]||screen;
 
