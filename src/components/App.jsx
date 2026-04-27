@@ -1241,7 +1241,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
 function Pipeline({onNavigate}) {
   var [contacts,setContacts]=useState([]);var [loading,setLoading]=useState(true);var [error,setError]=useState(null);var [search,setSearch]=useState("");var [stageFilter,setStageFilter]=useState("All");var [total,setTotal]=useState(0);
   useEffect(function(){loadContacts();},[stageFilter]);
-  var ACTIVE_PIPELINE=["Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"];
+  var ACTIVE_PIPELINE=["Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Event Invited","Event Confirmed","Event Attended","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"];
   async function loadContacts(){
     setLoading(true);setError(null);
     try{
@@ -1273,6 +1273,7 @@ function Pipeline({onNavigate}) {
             {s:"Fit Invite Sent",     c:T.orange,   label:"Invite Sent"},
             {s:"Fit Call Scheduled",  c:G,          label:"Fit Sched."},
             {s:"Fit Call Completed",  c:T.purple,   label:"Fit Done"},
+            {s:"Strong Fit",          c:T.green,    label:"Strong Fit"},
             {s:"Event Invited",       c:"#1abc9c",  label:"Invited"},
             {s:"Event Confirmed",     c:T.green,    label:"Confirmed"},
             {s:"Event Attended",      c:T.green,    label:"Attended"},
@@ -1291,18 +1292,19 @@ function Pipeline({onNavigate}) {
             );
           })}
           {/* Separator */}
-          <div style={{width:1,background:"rgba(255,255,255,0.08)",marginLeft:4,borderRadius:1}}/>
-          {/* Active Members — highlighted as the primary goal metric */}
+          <div style={{width:1,background:"rgba(255,255,255,0.12)",marginLeft:6,marginRight:2,borderRadius:1,alignSelf:"stretch"}}/>
+          {/* Active Pipeline — same prominence as Active Members */}
+          <div onClick={function(){setStageFilter("All");}}
+            style={{background:"rgba(240,200,74,0.06)",border:"2px solid rgba(240,200,74,0.4)",borderRadius:6,padding:"8px 14px",cursor:"pointer",textAlign:"center",minWidth:70}}>
+            <div style={{fontSize:26,fontWeight:800,color:G,lineHeight:1,marginBottom:3}}>{contacts.filter(function(ct){return ["Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Event Invited","Event Confirmed","Event Attended","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"].indexOf(ct.pipeline_stage)>-1;}).length}</div>
+            <div style={{fontSize:8,color:G,letterSpacing:1,textTransform:"uppercase",lineHeight:1.3,fontWeight:700}}>Active Pipeline</div>
+            <div style={{fontSize:9,color:T.dim,marginTop:2}}>{total} total</div>
+          </div>
+          {/* Active Members — far right, primary goal metric */}
           <div onClick={function(){setStageFilter(function(prev){return prev==="Active Member"?"All":"Active Member";});}}
             style={{background:stageFilter==="Active Member"?T.green+"18":"rgba(46,204,113,0.06)",border:"2px solid "+(stageFilter==="Active Member"?T.green:T.green+"50"),borderRadius:6,padding:"8px 14px",cursor:"pointer",textAlign:"center",minWidth:70,marginLeft:4}}>
             <div style={{fontSize:26,fontWeight:800,color:T.green,lineHeight:1,marginBottom:3}}>{contacts.filter(function(ct){return ct.pipeline_stage==="Active Member";}).length}</div>
             <div style={{fontSize:8,color:T.green,letterSpacing:1,textTransform:"uppercase",lineHeight:1.3,fontWeight:700}}>Active Members</div>
-          </div>
-          {/* Pipeline total vs all contacts */}
-          <div style={{background:BG3,border:"1px solid rgba(255,255,255,0.08)",borderRadius:5,padding:"8px 10px",textAlign:"center",minWidth:60,marginLeft:2,display:"flex",flexDirection:"column",justifyContent:"center"}}>
-            <div style={{fontSize:18,fontWeight:700,color:T.text,lineHeight:1,marginBottom:1}}>{contacts.filter(function(ct){return ["Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"].indexOf(ct.pipeline_stage)>-1;}).length}</div>
-            <div style={{fontSize:8,color:"#8ab4cc",letterSpacing:0.5,textTransform:"uppercase",lineHeight:1.3}}>In Pipeline</div>
-            <div style={{fontSize:10,color:T.dim,marginTop:2}}>{total} total</div>
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"200px 1fr 160px 90px 110px 70px",gap:10,padding:"7px 14px",borderRadius:"6px 6px 0 0",background:"rgba(255,255,255,0.02)",borderBottom:"1px solid "+T.border}}>
@@ -1505,7 +1507,7 @@ export default function CFOCircleApp() {
       setSponsorStageCounts(sCounts);
 
       var rows=await sbFetch("/contacts?select=pipeline_stage");
-      var counts={};var tot=0;var activePipelineStages=["Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"];var pipelineTot=0;
+      var counts={};var tot=0;var activePipelineStages=["Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Event Invited","Event Confirmed","Event Attended","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"];var pipelineTot=0;
       (Array.isArray(rows)?rows:[]).forEach(function(r){var s=r.pipeline_stage||"Unknown";counts[s]=(counts[s]||0)+1;tot++;if(activePipelineStages.indexOf(s)>-1)pipelineTot++;});
       setStageCounts(counts);setTotal(tot);setPipelineTotal(pipelineTot);
 
@@ -1518,7 +1520,7 @@ export default function CFOCircleApp() {
 
   function navigate(s,contact,q){setScreen(s);if(contact)setContact(contact);if(q)setClaudeQ(q);}
 
-  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:String(followUpCount)},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors",badge:sponsorCompanyCount>0?String(sponsorCompanyCount):""},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
+  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:String(followUpCount)},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":(stageCounts["Active Member"]||0)+" active"},{id:"sponsors",icon:"$",label:"Sponsors",badge:sponsorCompanyCount>0?String(sponsorCompanyCount):""},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
 
   var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",sponsors:"Sponsors",followup:"Follow-Up Queue",stalliant:"Sponsors"}[screen]||screen;
 
