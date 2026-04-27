@@ -1456,6 +1456,7 @@ export default function CFOCircleApp() {
   var [fitCallContact,setFitCallContact] = useState(null);
   var [fitCallContacts,setFitCallContacts] = useState([]);
   var [followUpCount,setFollowUpCount] = useState(0);
+  var [sponsorCompanyCount,setSponsorCompanyCount] = useState(0);
   var [sponsorContact,setSponsorContact] = useState(null);
   var [sponsorDeal,setSponsorDeal] = useState(null);
 
@@ -1507,13 +1508,17 @@ export default function CFOCircleApp() {
       var counts={};var tot=0;var activePipelineStages=["Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"];var pipelineTot=0;
       (Array.isArray(rows)?rows:[]).forEach(function(r){var s=r.pipeline_stage||"Unknown";counts[s]=(counts[s]||0)+1;tot++;if(activePipelineStages.indexOf(s)>-1)pipelineTot++;});
       setStageCounts(counts);setTotal(tot);setPipelineTotal(pipelineTot);
+
+      // Load sponsor company count
+      var sCompanies = await sbFetch("/sponsor_companies?select=id&limit=500");
+      setSponsorCompanyCount(Array.isArray(sCompanies)?sCompanies.length:0);
     }catch(e){console.error("Stats error:",e);}
     setStatsLoading(false);
   }
 
   function navigate(s,contact,q){setScreen(s);if(contact)setContact(contact);if(q)setClaudeQ(q);}
 
-  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:followUpCount>0?String(followUpCount):""},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(stageCounts["Active Member"]||0)+" active"},{id:"sponsors",icon:"$",label:"Sponsors"},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
+  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:String(followUpCount)},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors",badge:sponsorCompanyCount>0?String(sponsorCompanyCount):""},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
 
   var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",sponsors:"Sponsors",followup:"Follow-Up Queue",stalliant:"Sponsors"}[screen]||screen;
 
