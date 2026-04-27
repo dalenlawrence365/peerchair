@@ -446,6 +446,7 @@ function AddCompanyModal(props) {
           <div style={{gridColumn:"span 2"}}>
             <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Notes</div>
             <input value={form.notes} onChange={function(e){set("notes",e.target.value);}} placeholder="How you know them, source, context..." style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.muted,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
         </div>
 
         <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",fontWeight:600,marginBottom:10,paddingTop:10,borderTop:"1px solid "+T.border}}>Primary Contact (optional)</div>
