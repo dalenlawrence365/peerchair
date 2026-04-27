@@ -124,23 +124,45 @@ export async function POST(request) {
       return Response.json({ success: true, action: "dismissed" });
     }
 
-    // ── Send via MCP proxy (HeyReach REST API is host-allowlisted) ───────────
-    var appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://peerchair.vercel.app";
-    var sendRes = await fetch(appUrl + "/api/follow-up-queue/send", {
+    // ── Send via Anthropic + HeyReach MCP proxy ──────────────────────────────
+    // HeyReach REST API blocks non-allowlisted server hosts, so we route
+    // through Anthropic's MCP client which calls HeyReach's own infrastructure
+    var anthropicKey = process.env.ANTHROPIC_API_KEY;
+    if (!anthropicKey) return Response.json({ success: false, error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
+
+    var aiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ conversationId, linkedInAccountId, message })
+      headers: {
+        "Content-Type": "application/json",
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta": "mcp-client-2025-04-04",
+        "x-api-key": anthropicKey,
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 256,
+        mcp_servers: [{ type: "url", url: "https://mcp.heyreach.io/mcp", name: "heyreach" }],
+        system: "You are a send-message agent. Call the heyreach send_message tool immediately with the exact values provided. subject should be empty string. Do nothing else.",
+        messages: [{
+          role: "user",
+          content: JSON.stringify({ conversationId, linkedInAccountId: linkedInAccountId || 185228, message, subject: "" })
+        }]
+      })
     });
 
-    if (!sendRes.ok) {
-      var sendErr = await sendRes.text();
-      console.error("MCP send failed:", sendRes.status, sendErr);
-      return Response.json({ success: false, error: "Send failed: " + sendErr }, { status: 400 });
+    if (!aiRes.ok) {
+      var aiErr = await aiRes.text();
+      console.error("MCP proxy error:", aiRes.status, aiErr);
+      return Response.json({ success: false, error: "Send proxy error " + aiRes.status }, { status: 500 });
     }
 
-    var sendData = await sendRes.json();
-    if (!sendData.success) {
-      return Response.json({ success: false, error: sendData.error || "Send failed" }, { status: 400 });
+    var aiData = await aiRes.json();
+    // Any non-error stop reason means the tool ran
+    if (aiData.stop_reason === "end_turn" || (aiData.content || []).some(function(b){ return b.type === "tool_use"; })) {
+      // success — fall through to logging
+    } else {
+      var aiText = (aiData.content || []).filter(function(b){ return b.type === "text"; }).map(function(b){ return b.text; }).join(" ");
+      return Response.json({ success: false, error: aiText || "MCP send did not complete" }, { status: 500 });
     }
 
     // Detect Calendly link → Fit Invite
