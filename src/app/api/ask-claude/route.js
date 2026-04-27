@@ -13,7 +13,7 @@ export async function POST(request) {
     // Pull live pipeline data
     const { data: contacts } = await supabase
       .from('contacts')
-      .select('first_name, last_name, company_name, title, pipeline_stage, member_status, fit_call_date, fit_call_outcome, primary_challenge, pressure_categories, high_fit_cues, red_flags, email, lead_source, industry, annual_revenue, linkedin_location, created_at')
+      .select('id, first_name, last_name, company_name, title, pipeline_stage, member_status, fit_call_date, fit_call_outcome, primary_challenge, pressure_categories, high_fit_cues, red_flags, email, lead_source, industry, annual_revenue, linkedin_location, linkedin_connected_date, last_activity_date, created_at')
       .order('created_at', { ascending: false })
 
     // Pull recent communications
@@ -21,7 +21,7 @@ export async function POST(request) {
       .from('communications')
       .select('contact_id, occurred_at, channel, direction, step_label, body')
       .order('occurred_at', { ascending: false })
-      .limit(100)
+      .limit(500)
 
     // Build pipeline summary
     const stageCounts = {}
@@ -36,18 +36,23 @@ export async function POST(request) {
 
     const contactList = (contacts || []).map(c => {
       const name = c.first_name + ' ' + c.last_name
-      const commsForContact = (comms || []).filter(m => {
-        // Match by name in body since we don't have contact_id easily
-        return m.body && m.body.includes(c.first_name)
-      })
+      const commsForContact = (comms || []).filter(m => m.contact_id === c.id)
       const lastComm = commsForContact[0]
-      const lastActivity = lastComm
-        ? new Date(lastComm.occurred_at).toLocaleDateString('en-US', {month:'short',day:'numeric'})
-        : 'No activity logged'
+      const connectedDate = c.linkedin_connected_date
+        ? new Date(c.linkedin_connected_date).toLocaleDateString('en-US', {month:'short',day:'numeric'})
+        : null
+      const lastActivityDate = c.last_activity_date
+        ? new Date(c.last_activity_date).toLocaleDateString('en-US', {month:'short',day:'numeric'})
+        : lastComm
+          ? new Date(lastComm.occurred_at).toLocaleDateString('en-US', {month:'short',day:'numeric'})
+          : null
+      const createdDate = new Date(c.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric'})
+      const lastActivity = lastActivityDate || connectedDate || ('Added '+createdDate)
 
       return [
         name + ' | ' + (c.company_name || 'Unknown Company') + ' | ' + (c.title || ''),
         'Stage: ' + c.pipeline_stage,
+        connectedDate ? 'Connected: ' + connectedDate : '',
         c.fit_call_outcome ? 'Fit Outcome: ' + c.fit_call_outcome : '',
         c.primary_challenge ? 'Challenge: ' + c.primary_challenge : '',
         'Last Activity: ' + lastActivity,
