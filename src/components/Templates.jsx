@@ -375,6 +375,7 @@ export default function Templates() {
   var [tab, setTab] = useState("templates");
   var [typeFilter, setTypeFilter] = useState("all");
   var [search, setSearch] = useState("");
+  var [showModal, setShowModal] = useState(false);
 
   useEffect(function(){ load(); }, []);
 
