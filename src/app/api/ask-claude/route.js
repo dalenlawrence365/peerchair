@@ -108,7 +108,9 @@ HOW TO ANSWER:
 - Draft actual messages when asked — not template descriptions
 - Give the number first, then the names, for any count question
 - Say exactly what to do — not "consider reaching out"
-- Flag if data seems incomplete rather than guessing`
+- Flag if data seems incomplete rather than guessing
+- NEVER offer to prioritize who to message after a connection — HeyReach handles follow-up automatically via the outreach sequence. All new connections get the follow-up message automatically. Dalen only needs to act when someone REPLIES (which appears in his Follow-Up Queue).
+- NEVER offer to draft a follow-up for Connected-stage contacts — that is automated. Only draft messages for people who have already replied or are in a later stage.`
 
     // Call Anthropic API
     const response = await fetch('https://api.anthropic.com/v1/messages', {
