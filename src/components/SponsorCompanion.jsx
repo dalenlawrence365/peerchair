@@ -1,5 +1,5 @@
 "use client"
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 var G = "#f0c84a";
 var BG = "#080f1a";
@@ -12,411 +12,580 @@ var T = {
   blue:"#4a9eba", purple:"#9b59b6"
 };
 
-var SCRIPT = [
-  {id:"open", label:"Opening", tag:"INTRO", contextual:false,
-    prompt:"Thanks for making time, {name}. My goal today is simple — learn about {company} and what you are trying to accomplish, share what CFO Circle is building in LA, and figure out together if there is a fit worth exploring. Sound good?",
-    fallback:null},
-  {id:"goals", label:"Their Goals", tag:"QUALIFY", contextual:false,
-    prompt:"Tell me a bit about how {company} works with CFOs and finance leaders. What does a great client relationship look like for you in that space?",
-    fallback:"Are you more focused on the accounting and advisory side, or do you also work on transactions and capital events?"},
-  {id:"pitch", label:"CFO Circle Overview", tag:"PITCH", contextual:false,
-    prompt:"CFO Circle is a curated monthly peer group for CFOs of privately held companies in the $20M to $500M range. Ten to fourteen members. Confidential, issue-based discussion. No vendors in the room during meetings. Sponsors access the group through educational presentations, hosting, and relationship exposure — not sales time.",
-    fallback:"The members are exactly your target market. They are making decisions about systems, advisors, banks, and service partners right now."},
-  {id:"fit", label:"Category Fit", tag:"QUALIFY", contextual:false,
-    prompt:"We structure sponsorships by category — one firm per category per group. Given what you do, I would put {company} in the {category} seat. Does that feel right?",
-    fallback:"Are there other areas where you work with CFOs that I should know about?"},
-  {id:"host", label:"Host Venue", tag:"HOST", contextual:true,
-    prompt:"One of the most visible sponsor roles is hosting — providing the space for our monthly meeting. A boardroom or conference suite that fits 15 to 18 people. Does {company} have something like that in Los Angeles or the Valley?",
-    fallback:"If hosting is not the right fit, a presenting sponsor slot gives you one educational session per year — 20 minutes, topic approved in advance."},
-  {id:"investment", label:"Investment", tag:"PRICING", contextual:true,
-    prompt:"Sponsorship is $5,000 per year per group. We are launching two groups — Los Angeles and San Fernando Valley. Some sponsors take both. The commitment is annual and renews each January.",
-    fallback:"Most sponsors treat this as a business development investment — the relationships compound over time, not the first meeting."},
-  {id:"close", label:"Close", tag:"CLOSE", contextual:false,
-    prompt:"Based on what you have shared, I think there is a real fit here. The next step would be for you to visit a meeting as a guest before we finalize anything — I want you to see the room before you commit. Can we get that on the calendar?",
-    fallback:"If you need to loop in someone else before deciding, I am happy to do a second call. Who else would be involved?"},
+var SPONSOR_JOURNEY = [
+  {id:"prospect",   label:"Prospect",   short:"Prospect"},
+  {id:"engaged",    label:"Engaged",    short:"Engaged"},
+  {id:"discovery",  label:"Discovery",  short:"Discovery"},
+  {id:"proposal",   label:"Proposal",   short:"Proposal"},
+  {id:"commitment", label:"Committed",  short:"Committed"},
+  {id:"active",     label:"Active",     short:"Active"},
+  {id:"renewal",    label:"Renewal",    short:"Renewal"},
 ];
 
-var CATEGORIES = ["Accounting/Advisory","Commercial Banking","Law Firm","Executive Search","HR/Payroll","Insurance","Technology","Commercial Real Estate","Advisory/M&A","Other"];
-var OUTCOMES = [
-  {v:"proposal",      l:"Send Proposal",    c:"#2ecc71"},
-  {v:"discovery_complete", l:"Discovery Complete", c:"#9b59b6"},
-  {v:"needs_time",    l:"Needs Time",       c:"#f39c12"},
-  {v:"not_a_fit",     l:"Not a Fit",        c:"#e74c3c"},
-  {v:"no_show",       l:"No Show",          c:"#7f8c8d"},
-];
+var STAGE_KEYS = ["Prospect","Engaged","Discovery Scheduled","Proposal Sent","Verbal Commitment","Active","Renewal"];
 
-function fmt(s) {
-  return ("0"+Math.floor(s/60)).slice(-2)+":"+("0"+(s%60)).slice(-2);
+var STAGE_TO_IDX = {
+  "Prospect":0,"Engaged":1,"Discovery Scheduled":2,
+  "Proposal Sent":3,"Verbal Commitment":4,"Active":5,"Renewal":6
+};
+
+var STAGES = ["All","Prospect","Engaged","Discovery Scheduled","Discovery Complete","Proposal Sent","Verbal Commitment","Active","Renewal"];
+var CATEGORIES = ["All","Accounting/Advisory","Commercial Banking","Law Firm","Executive Search","HR/Payroll","Insurance","Technology","Commercial Real Estate","Other"];
+var GROUPS = ["All","Los Angeles","San Fernando Valley"];
+
+function SBfetch(path) {
+  var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return fetch(SBU + "/rest/v1/" + path, {
+    headers: {"apikey": SBK, "Authorization": "Bearer " + SBK}
+  }).then(function(r){ return r.json(); });
 }
 
-function STitle(props) {
-  var label = props.label; var color = props.color || G;
-  return <div style={{fontSize:11,letterSpacing:3,color:color,textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:7,fontWeight:600}}>{label}<div style={{flex:1,height:1,background:color+"18"}}/></div>;
+function SBpatch(table, id, data) {
+  var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return fetch(SBU + "/rest/v1/" + table + "?id=eq." + id, {
+    method: "PATCH",
+    headers: {"apikey": SBK, "Authorization": "Bearer " + SBK, "Content-Type": "application/json"},
+    body: JSON.stringify(data)
+  });
 }
 
-function renderMiddle(step, data, setData) {
-  var id = SCRIPT[step].id;
+function SBpost(table, data) {
+  var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return fetch(SBU + "/rest/v1/" + table, {
+    method: "POST",
+    headers: {"apikey": SBK, "Authorization": "Bearer " + SBK, "Content-Type": "application/json", "Prefer": "return=representation"},
+    body: JSON.stringify(data)
+  });
+}
 
-  if (id === "open") return (
-    <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",height:"100%",gap:14}}>
-      <div style={{fontSize:36,color:G,opacity:0.2}}>$</div>
-      <div style={{fontSize:13,color:T.dim,letterSpacing:2,textTransform:"uppercase"}}>Ready to start</div>
-      <div style={{fontSize:13,color:T.dim,textAlign:"center",maxWidth:240,lineHeight:1.85}}>Press Start when the call begins. Work through the script on the left.</div>
+function SBdelete(table, id) {
+  var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return fetch(SBU + "/rest/v1/" + table + "?id=eq." + id, {
+    method: "DELETE",
+    headers: {"apikey": SBK, "Authorization": "Bearer " + SBK}
+  });
+}
+
+function Badge(props) {
+  var label = props.label; var color = props.color || T.muted; var small = props.small;
+  return (
+    <span style={{display:"inline-block",padding:small?"1px 6px":"2px 9px",borderRadius:20,border:"1px solid "+color+"50",background:color+"14",color:color,fontSize:small?9:10,fontWeight:600,letterSpacing:0.3,whiteSpace:"nowrap"}}>{label}</span>
+  );
+}
+
+function HostBadge(props) {
+  var tier = props.tier; var viable = props.viable;
+  if (viable === "Yes" && tier === "Meeting Host") return <Badge label="HOST VIABLE" color={T.green}/>;
+  if (viable === "Yes" && tier === "Either") return <Badge label="HOST POSSIBLE" color={G}/>;
+  if (viable === "Adjacent") return <Badge label="ADJACENT" color={T.orange}/>;
+  if (tier === "Presentation") return <Badge label="PRESENT ONLY" color={T.muted}/>;
+  return null;
+}
+
+function StageColor(stage) {
+  if (stage === "Active") return T.green;
+  if (stage === "Verbal Commitment") return G;
+  if (stage === "Proposal Sent") return T.blue;
+  if (stage === "Discovery Complete") return "#9b59b6";
+  if (stage === "Discovery Scheduled") return T.purple;
+  if (stage === "Engaged") return T.orange;
+  if (stage === "Renewal") return "#1abc9c";
+  return T.dim;
+}
+
+function CategoryColor(cat) {
+  if (!cat) return T.muted;
+  if (cat.includes("Account")) return T.blue;
+  if (cat.includes("Banking")) return T.green;
+  if (cat.includes("Law")) return T.purple;
+  if (cat.includes("Search")) return T.orange;
+  if (cat.includes("HR")) return "#1abc9c";
+  if (cat.includes("Insurance")) return T.red;
+  if (cat.includes("Tech")) return "#3498db";
+  if (cat.includes("Real")) return "#f39c12";
+  return T.muted;
+}
+
+function SponsorJourneyTrack(props) {
+  var deal = props.deal;
+  var groupName = props.groupName;
+  var onStageChange = props.onStageChange;
+  if (!deal) return null;
+  var currentIdx = STAGE_TO_IDX[deal.stage] || 0;
+  var pct = (currentIdx / (SPONSOR_JOURNEY.length - 1)) * 100;
+  var stageColor = StageColor(deal.stage);
+  return (
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+        <div style={{fontSize:11,fontWeight:600,color:T.muted,letterSpacing:1,textTransform:"uppercase"}}>{groupName}</div>
+        {deal.host_assignment && <Badge label="HOST" color={T.green} small={true}/>}
+      </div>
+      <div style={{position:"relative",paddingTop:4,paddingBottom:4}}>
+        <div style={{position:"absolute",top:18,left:10,right:10,height:2,background:"rgba(255,255,255,0.06)",zIndex:0}}/>
+        <div style={{position:"absolute",top:18,left:10,width:"calc("+pct+"% - 10px)",height:2,background:"linear-gradient(90deg,"+stageColor+","+stageColor+"80)",zIndex:1}}/>
+        <div style={{display:"flex",position:"relative",zIndex:2}}>
+          {SPONSOR_JOURNEY.map(function(step, idx) {
+            var isDone = idx < currentIdx;
+            var isCurrent = idx === currentIdx;
+            var isNext = idx === currentIdx + 1;
+            return (
+              <div key={step.id} onClick={function(){ onStageChange(deal.id, STAGE_KEYS[idx]); }}
+                title={"Move to: "+STAGE_KEYS[idx]}
+                style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,cursor:"pointer"}}>
+                <div style={{
+                  width:24,height:24,borderRadius:"50%",
+                  background:isCurrent?stageColor:isDone?stageColor+"30":"rgba(255,255,255,0.04)",
+                  border:"2px solid "+(isCurrent?stageColor:isDone?stageColor+"60":isNext?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.08)"),
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:9,color:isCurrent?"#0c1520":isDone?stageColor:T.dim,fontWeight:"bold",
+                  boxShadow:isCurrent?"0 0 8px "+stageColor+"60":"none",transition:"all 0.2s"
+                }}>{isDone?"✓":idx+1}</div>
+                <div style={{fontSize:8,color:isCurrent?stageColor:isDone?T.muted:T.dim,textAlign:"center",lineHeight:1.3,maxWidth:44}}>{step.short}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
+}
 
-  if (id === "goals") return (
-    <div style={{height:"100%",display:"flex",flexDirection:"column",gap:10}}>
-      <STitle label="What They Said — Their Words"/>
-      <textarea value={data.goals||""} onChange={function(e){setData(function(p){var n=Object.assign({},p);n.goals=e.target.value;return n;});}}
-        placeholder="Capture their exact words about their goals and what a great client looks like..."
-        style={{flex:1,background:BG2,border:"1px solid rgba(74,158,186,0.22)",color:T.text,padding:"9px 11px",borderRadius:6,fontSize:14,lineHeight:1.75,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
-    </div>
-  );
+// Stage bucket dashboard
+function StageBuckets(props) {
+  var deals = props.deals;
+  var companies = props.companies;
+  var groupFilter = props.groupFilter;
+  var onSelectStage = props.onSelectStage;
+  var selectedStage = props.selectedStage;
 
-  if (id === "pitch") return (
-    <div style={{height:"100%",display:"flex",flexDirection:"column",gap:10}}>
-      <STitle label="CFO Circle — Key Points to Hit" color={T.blue}/>
-      {[
-        {point:"Curated — 10 to 14 CFOs only", sub:"No consultants, no vendors in the room during meetings"},
-        {point:"Privately held companies, $20M–$500M", sub:"Not public, not micro — your target market"},
-        {point:"Monthly meeting, 3 hours", sub:"Issue-based, confidential, peer-driven"},
-        {point:"Sponsor access model", sub:"Hosting, educational slot, relationship exposure — not sales time"},
-        {point:"One seat per category", sub:"Exclusivity protects your investment"},
-      ].map(function(item){
+  function getCompanyName(companyId) {
+    var co = companies.find(function(c){ return c.id === companyId; });
+    return co ? co.name : "Unknown";
+  }
+
+  var stagesWithColor = [
+    {stage:"Prospect", color:T.dim},
+    {stage:"Engaged", color:T.orange},
+    {stage:"Discovery Scheduled", color:T.purple},
+    {stage:"Proposal Sent", color:T.blue},
+    {stage:"Verbal Commitment", color:G},
+    {stage:"Active", color:T.green},
+    {stage:"Renewal", color:"#1abc9c"},
+  ];
+
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8,padding:"0 0 4px"}}>
+      {stagesWithColor.map(function(item) {
+        var relevantDeals = deals.filter(function(d){
+          var matchGroup = groupFilter === "All" || d.group_name === groupFilter;
+          return d.stage === item.stage && matchGroup;
+        });
+        var count = relevantDeals.length;
+        var isSelected = props.stageFilter === item.stage;
         return (
-          <div key={item.point} style={{padding:"9px 12px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:5,display:"flex",gap:10,alignItems:"flex-start"}}>
-            <div style={{width:6,height:6,borderRadius:"50%",background:T.blue,flexShrink:0,marginTop:5}}/>
-            <div>
-              <div style={{fontSize:13,color:T.text,fontWeight:600,marginBottom:2}}>{item.point}</div>
-              <div style={{fontSize:12,color:T.muted}}>{item.sub}</div>
-            </div>
+          <div key={item.stage} onClick={function(){ onSelectStage(isSelected ? null : item.stage); }}
+            style={{
+              background:isSelected?item.color+"18":BG3,
+              border:"1px solid "+(isSelected?item.color+"60":item.color+"20"),
+              borderTop:"2px solid "+item.color+(isSelected?"":"60"),
+              borderRadius:6, padding:"10px 8px", cursor:"pointer",
+              transition:"all 0.15s", textAlign:"center"
+            }}>
+            <div style={{fontSize:22,fontWeight:700,color:item.color,lineHeight:1,marginBottom:4}}>{count}</div>
+            <div style={{fontSize:9,color:isSelected?item.color:"#8ab4cc",letterSpacing:1,textTransform:"uppercase",lineHeight:1.3}}>{item.stage}</div>
           </div>
         );
       })}
     </div>
   );
-
-  if (id === "fit") return (
-    <div style={{height:"100%",display:"flex",flexDirection:"column",gap:12}}>
-      <STitle label="Category Assignment"/>
-      <div>
-        <div style={{fontSize:11,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Sponsor Category Seat</div>
-        <select value={data.category||""} onChange={function(e){setData(function(p){var n=Object.assign({},p);n.category=e.target.value;return n;});}}
-          style={{width:"100%",background:BG2,border:"1px solid "+G+"45",color:data.category?T.text:T.muted,padding:"8px 10px",borderRadius:5,fontSize:14,outline:"none",cursor:"pointer"}}>
-          <option value="">— Select category seat —</option>
-          {CATEGORIES.map(function(c){return <option key={c}>{c}</option>;})}
-        </select>
-      </div>
-      <div style={{display:"flex",gap:10}}>
-        <div onClick={function(){setData(function(p){var n=Object.assign({},p);n.groupLA=!p.groupLA;return n;});}}
-          style={{flex:1,padding:"12px",background:data.groupLA?"rgba(240,200,74,0.1)":"rgba(255,255,255,0.02)",border:"1px solid "+(data.groupLA?G+"50":T.border),borderRadius:6,cursor:"pointer",textAlign:"center"}}>
-          <div style={{fontSize:14,fontWeight:600,color:data.groupLA?G:T.muted}}>Los Angeles</div>
-          <div style={{fontSize:11,color:T.dim}}>$5,000/year</div>
-        </div>
-        <div onClick={function(){setData(function(p){var n=Object.assign({},p);n.groupSFV=!p.groupSFV;return n;});}}
-          style={{flex:1,padding:"12px",background:data.groupSFV?"rgba(74,158,186,0.1)":"rgba(255,255,255,0.02)",border:"1px solid "+(data.groupSFV?T.blue+"50":T.border),borderRadius:6,cursor:"pointer",textAlign:"center"}}>
-          <div style={{fontSize:14,fontWeight:600,color:data.groupSFV?T.blue:T.muted}}>San Fernando Valley</div>
-          <div style={{fontSize:11,color:T.dim}}>$5,000/year</div>
-        </div>
-      </div>
-      {data.groupLA&&data.groupSFV&&<div style={{padding:"8px 12px",background:"rgba(46,204,113,0.06)",border:"1px solid rgba(46,204,113,0.2)",borderRadius:5,fontSize:13,color:T.green}}>Both groups — $10,000/year total</div>}
-      <div>
-        <div style={{fontSize:11,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Their Reaction</div>
-        <textarea value={data.categoryNotes||""} onChange={function(e){setData(function(p){var n=Object.assign({},p);n.categoryNotes=e.target.value;return n;});}}
-          placeholder="How did they react to the category fit conversation?"
-          style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"8px 10px",borderRadius:5,fontSize:13,lineHeight:1.65,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box",minHeight:80}}/>
-      </div>
-    </div>
-  );
-
-  if (id === "host") return (
-    <div style={{height:"100%",display:"flex",flexDirection:"column",gap:12}}>
-      <STitle label="Host Venue Assessment" color={T.green}/>
-      <div style={{display:"flex",gap:8}}>
-        {["Yes — viable host","Possible — need to verify","No — not a host","Presentation only"].map(function(opt){
-          var isActive = data.hostViable === opt;
-          var color = opt.startsWith("Yes")?T.green:opt.startsWith("Possible")?G:opt.startsWith("No")?T.red:T.muted;
-          return (
-            <div key={opt} onClick={function(){setData(function(p){var n=Object.assign({},p);n.hostViable=opt;return n;});}}
-              style={{flex:1,padding:"10px 6px",background:isActive?color+"12":"rgba(255,255,255,0.02)",border:"1px solid "+(isActive?color+"50":T.border),borderRadius:6,cursor:"pointer",textAlign:"center",fontSize:11,color:isActive?color:T.dim,lineHeight:1.4}}>
-              {opt}
-            </div>
-          );
-        })}
-      </div>
-      <div>
-        <div style={{fontSize:11,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Venue Notes</div>
-        <textarea value={data.venueNotes||""} onChange={function(e){setData(function(p){var n=Object.assign({},p);n.venueNotes=e.target.value;return n;});}}
-          placeholder="Floor, suite, capacity, parking situation, vibe..."
-          style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"8px 10px",borderRadius:5,fontSize:13,lineHeight:1.65,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box",minHeight:100}}/>
-      </div>
-    </div>
-  );
-
-  if (id === "investment") return (
-    <div style={{height:"100%",display:"flex",flexDirection:"column",gap:12}}>
-      <STitle label="Investment Discussion"/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-        {[{g:"One Group",f:"$5,000",s:"/year"},{g:"Both Groups",f:"$10,000",s:"/year · recommended"},{g:"Host Sponsor",f:"$5,000",s:"/year + venue"}].map(function(tier){
-          return (
-            <div key={tier.g} style={{padding:"12px 10px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:6,textAlign:"center"}}>
-              <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",marginBottom:6}}>{tier.g}</div>
-              <div style={{fontSize:20,fontWeight:700,color:G,lineHeight:1}}>{tier.f}</div>
-              <div style={{fontSize:11,color:T.dim,marginTop:3}}>{tier.s}</div>
-            </div>
-          );
-        })}
-      </div>
-      <div style={{padding:"10px 12px",background:"rgba(240,200,74,0.04)",border:"1px solid "+G+"20",borderRadius:5,fontSize:13,color:T.muted,lineHeight:1.7,fontStyle:"italic"}}>
-        "Most sponsors treat this as a business development investment — the relationships compound over time."
-      </div>
-      <div>
-        <div style={{fontSize:11,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Their Reaction to Investment</div>
-        <textarea value={data.investmentNotes||""} onChange={function(e){setData(function(p){var n=Object.assign({},p);n.investmentNotes=e.target.value;return n;});}}
-          placeholder="How did they respond to the $5K discussion?"
-          style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"8px 10px",borderRadius:5,fontSize:13,lineHeight:1.65,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box",minHeight:80}}/>
-      </div>
-    </div>
-  );
-
-  if (id === "close") return (
-    <div style={{height:"100%",display:"flex",flexDirection:"column",gap:10}}>
-      <STitle label="Call Outcome"/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        {OUTCOMES.map(function(o){
-          return (
-            <button key={o.v} onClick={function(){setData(function(p){var n=Object.assign({},p);n.outcome=o.v;return n;});}}
-              style={{padding:"13px 10px",borderRadius:6,cursor:"pointer",border:"1px solid "+(data.outcome===o.v?o.c:"rgba(255,255,255,0.08)"),background:data.outcome===o.v?o.c+"14":"rgba(255,255,255,0.02)",color:data.outcome===o.v?o.c:"#8ab4cc",fontSize:13}}>
-              {o.l}
-            </button>
-          );
-        })}
-      </div>
-      {data.outcome&&<div style={{padding:"9px 12px",borderRadius:5,fontSize:13,color:T.muted,background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,lineHeight:1.7}}>
-        {data.outcome==="proposal"&&"Send the Sponsorship Opportunities deck within 24 hours. Move deal to Proposal Sent."}
-        {data.outcome==="discovery_complete"&&"Call complete. Awaiting next step. Move deal to Discovery Complete."}
-        {data.outcome==="needs_time"&&"Follow up in 5-7 days. Move deal to Engaged."}
-        {data.outcome==="not_a_fit"&&"Gracious close. Move deal to Lost."}
-        {data.outcome==="no_show"&&"Send reschedule message. Move deal to Engaged with no-show note."}
-      </div>}
-      <STitle label="Call Notes" color={T.blue}/>
-      <textarea value={data.notes||""} onChange={function(e){setData(function(p){var n=Object.assign({},p);n.notes=e.target.value;return n;});}}
-        placeholder="Anything else worth capturing..."
-        style={{flex:1,background:BG2,border:"1px solid "+T.border,color:T.text,padding:"8px 10px",borderRadius:5,fontSize:13,lineHeight:1.65,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
-    </div>
-  );
-
-  return null;
 }
 
-export default function SponsorCompanion(props) {
-  var contact = props.contact;
-  var deal = props.deal;
-  var onBack = props.onBack;
-  var onEnd = props.onEnd;
 
-  var name = contact ? (contact.first_name||contact.full_name||"Contact") : "Contact";
-  var company = contact ? (contact.company||contact.company_name||"") : (deal ? deal.category_seat||"" : "");
+function CompanyCard(props) {
+  var co = props.company;
+  var deals = props.deals || [];
+  var contacts = props.contacts || [];
+  var selected = props.selected;
+  var onClick = props.onClick;
+  var groupFilter = props.groupFilter;
+  var laDeals = deals.filter(function(d){ return d.group_name === "Los Angeles"; });
+  var sfvDeals = deals.filter(function(d){ return d.group_name === "San Fernando Valley"; });
+  var laStage = laDeals[0] ? laDeals[0].stage : null;
+  var sfvStage = sfvDeals[0] ? sfvDeals[0].stage : null;
+  return (
+    <div onClick={onClick} style={{padding:"11px 14px",borderRadius:6,cursor:"pointer",background:selected?"rgba(240,200,74,0.06)":"rgba(255,255,255,0.02)",border:"1px solid "+(selected?G+"40":T.border),marginBottom:6,transition:"all 0.15s"}}>
+      <div style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:5}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,fontWeight:600,color:selected?G:T.text,marginBottom:2}}>{co.name}</div>
+          <div style={{fontSize:11,color:CategoryColor(co.category)}}>{co.category}</div>
+        </div>
+        <HostBadge tier={co.host_tier} viable={co.host_viable}/>
+      </div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+        {laStage&&(groupFilter==="All"||groupFilter==="Los Angeles")&&<span style={{fontSize:10,color:StageColor(laStage),background:StageColor(laStage)+"14",border:"1px solid "+StageColor(laStage)+"30",padding:"1px 6px",borderRadius:10}}>LA: {laStage}</span>}
+        {sfvStage&&(groupFilter==="All"||groupFilter==="San Fernando Valley")&&<span style={{fontSize:10,color:StageColor(sfvStage),background:StageColor(sfvStage)+"14",border:"1px solid "+StageColor(sfvStage)+"30",padding:"1px 6px",borderRadius:10}}>SFV: {sfvStage}</span>}
+        <span style={{fontSize:10,color:T.dim,marginLeft:"auto"}}>{contacts.length} contact{contacts.length!==1?"s":""}</span>
+      </div>
+    </div>
+  );
+}
 
-  var [step, setStep] = useState(0);
-  var [live, setLive] = useState(false);
-  var [secs, setSecs] = useState(0);
+function CompanyDetail(props) {
+  var co = props.company;
+  var contacts = props.contacts || [];
+  var deals = props.deals || [];
+  var deals = props.deals || [];
+  var contacts = props.contacts || [];
+  var onUpdate = props.onUpdate;
   var [saving, setSaving] = useState(false);
-  var [saved, setSaved] = useState(false);
-  var [data, setData] = useState({
-    goals:"", category:"", groupLA:true, groupSFV:false,
-    categoryNotes:"", hostViable:"", venueNotes:"",
-    investmentNotes:"", outcome:"", notes:"",
-    source:"Discovery Call"
-  });
+  var [journeyOpen, setJourneyOpen] = useState(true);
 
-  var timer = useRef(null);
+  if (!co) return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",flex:1,color:T.dim,fontSize:13,flexDirection:"column",gap:8,background:BG}}>
+      <div style={{fontSize:24,opacity:0.3}}>◎</div>
+      <div>Select a company to view details</div>
+    </div>
+  );
 
-  useEffect(function() {
-    if (live) {
-      timer.current = setInterval(function(){setSecs(function(s){return s+1;});}, 1000);
-    } else {
-      clearInterval(timer.current);
-    }
-    return function(){clearInterval(timer.current);};
-  }, [live]);
-
-  var tc = secs>1800?"#e74c3c":secs>1200?"#f39c12":"#2ecc71";
-
-  function getPrompt(sc) {
-    return sc.prompt.replace("{name}", name).replace("{company}", company).replace("{category}", data.category||"[category]");
-  }
-
-  async function handleSave() {
-    if (!data.outcome || saving) return;
+  async function saveStage(dealId, newStage) {
     setSaving(true);
-    try {
-      var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      var h = {"apikey":SBK,"Authorization":"Bearer "+SBK,"Content-Type":"application/json","Prefer":"return=representation"};
-
-      var stageMap = {
-        proposal:"Proposal Sent",
-        discovery_complete:"Discovery Complete",
-        needs_time:"Engaged",
-        not_a_fit:"Lost",
-        no_show:"Engaged"
-      };
-      var newStage = stageMap[data.outcome] || "Discovery Complete";
-      var hostViable = data.hostViable.startsWith("Yes") ? "Yes" : data.hostViable.startsWith("Possible") ? "Adjacent" : "No";
-      var hostTier = data.hostViable.startsWith("Yes") ? "Meeting Host" : data.hostViable === "Presentation only" ? "Presentation" : "N/A";
-
-      // Update company host viability if assessed
-      if (contact && contact.company_id && data.hostViable) {
-        await fetch(SBU+"/rest/v1/sponsor_companies?id=eq."+contact.company_id, {
-          method:"PATCH", headers:h,
-          body:JSON.stringify({
-            host_viable: hostViable,
-            host_tier: hostTier,
-            notes: data.venueNotes ? "Venue: "+data.venueNotes : undefined,
-            category: data.category || undefined
-          })
-        });
-      }
-
-      // Update deal stage
-      if (deal && deal.id) {
-        await fetch(SBU+"/rest/v1/sponsor_deals?id=eq."+deal.id, {
-          method:"PATCH", headers:h,
-          body:JSON.stringify({stage:newStage, notes:data.notes, category_seat:data.category||deal.category_seat})
-        });
-      }
-
-      // Log communication
-      var companyId = contact ? contact.company_id : null;
-      if (companyId) {
-        await fetch(SBU+"/rest/v1/communications", {
-          method:"POST", headers:h,
-          body:JSON.stringify({
-            occurred_at:new Date().toISOString(), channel:"Phone", direction:"IN",
-            step_label:"Sponsor Discovery Call",
-            body:"Discovery call completed with "+name+" ("+company+"). Outcome: "+data.outcome+". Category: "+data.category+". Host: "+data.hostViable+". Notes: "+data.notes,
-            source:"PeerChair", logged_by:"Dalen Lawrence"
-          })
-        });
-      }
-
-      if (onEnd) onEnd(data.outcome, newStage);
-      setSaved(true);
-      setTimeout(function(){setSaved(false);}, 3000);
-    } catch(e){console.error("Save error:",e);}
+    await SBpatch("sponsor_deals", dealId, {stage: newStage});
+    if (onUpdate) onUpdate();
     setSaving(false);
   }
 
-  var sc = SCRIPT[step];
+  async function addGroup(groupName) {
+    setSaving(true);
+    await SBpost("sponsor_deals", {company_id:co.id,group_name:groupName,stage:"Prospect",category_seat:co.category,annual_fee:5000,host_assignment:co.host_tier==="Meeting Host"});
+    if (onUpdate) onUpdate();
+    setSaving(false);
+  }
+
+  async function removeGroup(dealId) {
+    setSaving(true);
+    await SBdelete("sponsor_deals", dealId);
+    if (onUpdate) onUpdate();
+    setSaving(false);
+  }
+
+  var laDeals = deals.filter(function(d){ return d.group_name === "Los Angeles"; });
+  var sfvDeals = deals.filter(function(d){ return d.group_name === "San Fernando Valley"; });
 
   return (
-    <div style={{fontFamily:"'Palatino Linotype','Book Antiqua',Palatino,serif",background:BG2,flex:1,minHeight:0,color:"#eaf2fc",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+    <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",background:BG}}>
 
-      {/* HEADER */}
-      <div style={{background:"linear-gradient(90deg,#0f1e30,#132840)",borderBottom:"1px solid rgba(201,168,76,0.2)",padding:"9px 20px",display:"flex",alignItems:"center",gap:14,flexShrink:0}}>
-        <div style={{flex:1}}>
-          <div style={{fontSize:15,fontWeight:600,color:"#fff"}}>{name}</div>
-          <div style={{fontSize:12,color:"#8ab4cc"}}>{company} — Sponsor Discovery</div>
+      {/* Journey — collapsible, at top */}
+      <div style={{borderBottom:"1px solid "+T.border,flexShrink:0}}>
+        <div onClick={function(){setJourneyOpen(function(v){return !v;});}}
+          style={{display:"flex",alignItems:"center",gap:8,padding:"10px 20px",cursor:"pointer",background:BG3}}>
+          <span style={{fontSize:12,color:G,letterSpacing:2,textTransform:"uppercase",fontWeight:600,flex:1}}>Sponsor Journey</span>
+          <span style={{fontSize:10,color:T.dim,transform:journeyOpen?"rotate(90deg)":"rotate(0deg)",display:"inline-block",transition:"transform 0.2s"}}>▶</span>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:6,height:6,borderRadius:"50%",background:live?"#2ecc71":"#6a9aba",boxShadow:live?"0 0 6px #2ecc71":"none"}}/>
-          <span style={{fontSize:12,color:"#6a9aba",letterSpacing:1,textTransform:"uppercase"}}>{live?"Live":"Ready"}</span>
-        </div>
-        <div style={{fontFamily:"'Courier New',monospace",fontSize:22,fontWeight:"bold",color:tc,letterSpacing:2}}>{fmt(secs)}</div>
-        <button onClick={function(){setLive(function(v){return !v;});}} style={{background:live?"rgba(231,76,60,0.15)":"rgba(46,204,113,0.15)",border:"1px solid "+(live?"#e74c3c":"#2ecc71"),color:live?"#e74c3c":"#2ecc71",padding:"5px 13px",borderRadius:4,cursor:"pointer",fontSize:13,letterSpacing:1,textTransform:"uppercase"}}>{live?"End":"Start"}</button>
-      </div>
-
-      {/* BODY */}
-      <div style={{display:"grid",gridTemplateColumns:"255px 1fr 240px",flex:1,overflow:"hidden",minHeight:0}}>
-
-        {/* LEFT — Script */}
-        <div style={{background:BG3,borderRight:"1px solid rgba(255,255,255,0.06)",padding:"12px 11px",overflowY:"auto",display:"flex",flexDirection:"column"}}>
-          <div style={{fontSize:11,letterSpacing:3,color:G,textTransform:"uppercase",marginBottom:9,flexShrink:0,fontWeight:600}}>Discovery Guide</div>
-          <div style={{flex:1,display:"flex",flexDirection:"column",gap:3}}>
-            {SCRIPT.map(function(s, i) {
-              var isActive = i === step;
-              var isDone = i < step;
-              return (
-                <div key={s.id} onClick={function(){setStep(i);}} style={{borderRadius:5,border:"1px solid "+(isActive?s.contextual?"rgba(230,126,34,0.35)":"rgba(201,168,76,0.32)":"rgba(255,255,255,0.04)"),background:isActive?s.contextual?"rgba(230,126,34,0.04)":"rgba(201,168,76,0.04)":"transparent",cursor:"pointer",marginBottom:2}}>
-                  <div style={{padding:"6px 9px",display:"flex",alignItems:"center",gap:7}}>
-                    <div style={{width:16,height:16,borderRadius:"50%",flexShrink:0,background:isActive?(s.contextual?"#e67e22":G):isDone?"rgba(201,168,76,0.22)":"rgba(255,255,255,0.06)",color:isActive?"#0c1520":isDone?"#f0c84a":"#8ab4cc",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:"bold"}}>
-                      {isDone?"v":s.contextual?"?":i+1}
-                    </div>
-                    <div>
-                      <div style={{fontSize:11,color:isActive?(s.contextual?"#e67e22":G):isDone?"rgba(201,168,76,0.5)":"#8ab4cc",letterSpacing:"0.5px",textTransform:"uppercase"}}>{s.label}</div>
-                      <div style={{fontSize:10,color:s.contextual?"rgba(230,126,34,0.35)":"#5a8aaa",letterSpacing:1}}>{s.tag}</div>
-                    </div>
-                  </div>
-                  {isActive&&<div style={{padding:"0 9px 9px 32px"}}>
-                    <div style={{fontSize:13,color:"#f0f6ff",lineHeight:1.85,fontStyle:"italic",marginBottom:s.fallback?8:0,padding:"7px 10px",background:"rgba(255,255,255,0.04)",borderRadius:5,borderLeft:"2px solid rgba(255,255,255,0.2)"}}>"{getPrompt(s)}"</div>
-                    {s.fallback&&<div>
-                      <div style={{fontSize:10,color:"#5a8aaa",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>If no response:</div>
-                      <div style={{fontSize:12,color:"#e8f2ff",lineHeight:1.75,fontStyle:"italic",padding:"7px 10px",background:"rgba(240,200,74,0.05)",borderRadius:5,borderLeft:"2px solid #f0c84a"}}>"{s.fallback}"</div>
-                    </div>}
-                  </div>}
+        {journeyOpen && (
+          <div style={{padding:"14px 20px 16px",background:BG2}}>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {/* Only show groups being pursued */}
+              {laDeals.length > 0 && (
+                <div style={{padding:"12px 14px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:6}}>
+                  <SponsorJourneyTrack deal={laDeals[0]} groupName="Los Angeles" onStageChange={saveStage}/>
+                  <div onClick={function(){ if(!saving) removeGroup(laDeals[0].id); }} style={{marginTop:4,fontSize:10,color:T.dim,cursor:"pointer",textAlign:"right"}}>Remove</div>
                 </div>
-              );
-            })}
+              )}
+              {sfvDeals.length > 0 && (
+                <div style={{padding:"12px 14px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:6}}>
+                  <SponsorJourneyTrack deal={sfvDeals[0]} groupName="San Fernando Valley" onStageChange={saveStage}/>
+                  <div onClick={function(){ if(!saving) removeGroup(sfvDeals[0].id); }} style={{marginTop:4,fontSize:10,color:T.dim,cursor:"pointer",textAlign:"right"}}>Remove</div>
+                </div>
+              )}
+              {/* Add group buttons - compact */}
+              <div style={{display:"flex",gap:8}}>
+                {laDeals.length === 0 && <button onClick={function(){ if(!saving) addGroup("Los Angeles"); }} style={{padding:"4px 12px",background:"rgba(240,200,74,0.08)",border:"1px solid "+G+"30",color:G+"80",borderRadius:4,cursor:"pointer",fontSize:11}}>+ Los Angeles</button>}
+                {sfvDeals.length === 0 && <button onClick={function(){ if(!saving) addGroup("San Fernando Valley"); }} style={{padding:"4px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid "+T.border,color:T.dim,borderRadius:4,cursor:"pointer",fontSize:11}}>+ San Fernando Valley</button>}
+              </div>
+            </div>
           </div>
-          <div style={{display:"flex",gap:5,paddingTop:9,borderTop:"1px solid rgba(255,255,255,0.04)",flexShrink:0,marginTop:7}}>
-            <button onClick={function(){setStep(function(s){return Math.max(0,s-1);});}} style={{flex:1,padding:"5px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",color:"#8ab4cc",borderRadius:4,cursor:"pointer",fontSize:12,textTransform:"uppercase"}}>Prev</button>
-            <button onClick={function(){setStep(function(s){return Math.min(SCRIPT.length-1,s+1);});}} style={{flex:1,padding:"5px",background:"rgba(201,168,76,0.05)",border:"1px solid rgba(201,168,76,0.18)",color:G,borderRadius:4,cursor:"pointer",fontSize:12,textTransform:"uppercase"}}>Next</button>
+        )}
+      </div>
+
+      {/* Company info */}
+      <div style={{padding:"16px 20px 0",flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:10}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:6}}>{co.name}</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <Badge label={co.category||"Uncategorized"} color={CategoryColor(co.category)}/>
+              <HostBadge tier={co.host_tier} viable={co.host_viable}/>
+            </div>
+          </div>
+          <button onClick={function(){if(props.onStartDiscovery)props.onStartDiscovery(co,contacts[0]||null,deals[0]||null);}}
+            style={{padding:"7px 14px",background:"rgba(155,89,182,0.15)",border:"1px solid rgba(155,89,182,0.4)",color:"#9b59b6",borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600,flexShrink:0,whiteSpace:"nowrap"}}>
+            Start Discovery Call
+          </button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+          {co.address_la&&<div><div style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>LA Address</div><div style={{fontSize:12,color:T.muted,lineHeight:1.5}}>{co.address_la}</div>{co.area_la&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{co.area_la}</div>}</div>}
+          {co.address_sfv&&<div><div style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>SFV Address</div><div style={{fontSize:12,color:T.muted,lineHeight:1.5}}>{co.address_sfv}</div>{co.area_sfv&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{co.area_sfv}</div>}</div>}
+        </div>
+        {co.notes&&<div style={{marginBottom:10,fontSize:12,color:T.muted,lineHeight:1.6,padding:"8px 12px",background:"rgba(255,255,255,0.02)",borderRadius:5,borderLeft:"2px solid "+G+"40"}}>{co.notes}</div>}
+      </div>
+
+      {/* Contacts */}
+      <div style={{padding:"0 20px 20px"}}>
+        <div style={{fontSize:10,color:G,letterSpacing:3,textTransform:"uppercase",marginBottom:10,fontWeight:600,marginTop:4}}>Contacts — {contacts.length}</div>
+        {contacts.length===0&&<div style={{fontSize:12,color:T.dim}}>No contacts loaded yet.</div>}
+        {contacts.map(function(ct){
+          return (
+            <div key={ct.id} style={{padding:"10px 12px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:5,marginBottom:6}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
+                <div style={{fontSize:13,fontWeight:600,color:T.text}}>{ct.full_name}</div>
+                {ct.warmth==="Met in person"&&<Badge label="Met in person" color={T.green} small={true}/>}
+                {ct.warmth==="Warm"&&<Badge label="Warm" color={G} small={true}/>}
+              </div>
+              <div style={{fontSize:12,color:T.muted,marginBottom:ct.email?3:0}}>{ct.title}</div>
+              {ct.email&&<div style={{fontSize:11,color:T.dim}}>{ct.email}</div>}
+              {ct.city&&<div style={{fontSize:11,color:T.dim}}>{ct.city}{ct.state?", "+ct.state:""}</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+function AddCompanyModal(props) {
+  var onClose = props.onClose;
+  var onCreated = props.onCreated;
+  var CATS = ["Accounting/Advisory","Commercial Banking","Law Firm","Executive Search","HR/Payroll","Insurance","Technology","Commercial Real Estate","Advisory/M&A","Other"];
+  var [form, setForm] = useState({
+    name:"", category:"Accounting/Advisory", host_viable:"Unknown",
+    address_la:"", area_la:"", notes:"",
+    contact_name:"", contact_title:"", contact_email:"", contact_warmth:"Cold",
+    group_la:true, group_sfv:false
+  });
+  var [saving, setSaving] = useState(false);
+
+  function set(key, val) { setForm(function(p){ var n=Object.assign({},p); n[key]=val; return n; }); }
+
+  async function create() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      var companies = await SBpost("sponsor_companies", {
+        name: form.name.trim(),
+        category: form.category,
+        host_viable: form.host_viable,
+        host_tier: "TBD",
+        address_la: form.address_la,
+        area_la: form.area_la,
+        viability_la: form.address_la ? "Viable" : "Unknown",
+        notes: form.notes,
+        source: "Manual"
+      });
+      var co = Array.isArray(companies) ? companies[0] : companies;
+      if (!co || !co.id) throw new Error("Failed to create company");
+
+      // Add contact if provided
+      if (form.contact_name.trim()) {
+        var parts = form.contact_name.trim().split(" ");
+        await SBpost("sponsor_contacts", {
+          company_id: co.id,
+          first_name: parts[0]||"",
+          last_name: parts.slice(1).join(" ")||"",
+          full_name: form.contact_name.trim(),
+          title: form.contact_title,
+          email: form.contact_email,
+          warmth: form.contact_warmth,
+          event_source: "Manual"
+        });
+      }
+
+      // Create deals
+      if (form.group_la) await SBpost("sponsor_deals", {company_id:co.id,group_name:"Los Angeles",stage:"Prospect",category_seat:form.category,annual_fee:5000});
+      if (form.group_sfv) await SBpost("sponsor_deals", {company_id:co.id,group_name:"San Fernando Valley",stage:"Prospect",category_seat:form.category,annual_fee:5000});
+
+      if (onCreated) onCreated(co.id);
+    } catch(e) { console.error(e); }
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+      <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:8,padding:"24px",width:480,maxWidth:"90vw",maxHeight:"85vh",overflowY:"auto"}}>
+        <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:16}}>Add Sponsor Company</div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          <div style={{gridColumn:"span 2"}}>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Company Name *</div>
+            <input value={form.name} onChange={function(e){set("name",e.target.value);}} placeholder="e.g. Lockton Insurance" style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Category</div>
+            <select value={form.category} onChange={function(e){set("category",e.target.value);}} style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",cursor:"pointer"}}>
+              {CATS.map(function(c){return <option key={c}>{c}</option>;})}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Host Viable</div>
+            <select value={form.host_viable} onChange={function(e){set("host_viable",e.target.value);}} style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",cursor:"pointer"}}>
+              {["Unknown","Yes","No","Adjacent"].map(function(v){return <option key={v}>{v}</option>;})}
+            </select>
+          </div>
+          <div style={{gridColumn:"span 2"}}>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>LA Address</div>
+            <input value={form.address_la} onChange={function(e){set("address_la",e.target.value);}} placeholder="Street address, Suite, City, State ZIP" style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+          <div style={{gridColumn:"span 2"}}>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Notes</div>
+            <input value={form.notes} onChange={function(e){set("notes",e.target.value);}} placeholder="How you know them, source, context..." style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.muted,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
           </div>
         </div>
 
-        {/* CENTER */}
-        <div style={{padding:"14px 16px",overflow:"auto",display:"flex",flexDirection:"column"}}>
-          {renderMiddle(step, data, setData)}
+        <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",fontWeight:600,marginBottom:10,paddingTop:10,borderTop:"1px solid "+T.border}}>Primary Contact (optional)</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          <div>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Full Name</div>
+            <input value={form.contact_name} onChange={function(e){set("contact_name",e.target.value);}} placeholder="First Last" style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Title</div>
+            <input value={form.contact_title} onChange={function(e){set("contact_title",e.target.value);}} placeholder="VP, Partner, Director..." style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Email</div>
+            <input value={form.contact_email} onChange={function(e){set("contact_email",e.target.value);}} placeholder="email@company.com" style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Warmth</div>
+            <select value={form.contact_warmth} onChange={function(e){set("contact_warmth",e.target.value);}} style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",cursor:"pointer"}}>
+              {["Cold","Warm","Met in person","Referred"].map(function(v){return <option key={v}>{v}</option>;})}
+            </select>
+          </div>
         </div>
 
-        {/* RIGHT — Contact + Summary */}
-        <div style={{background:"#0a1825",borderLeft:"1px solid rgba(255,255,255,0.06)",padding:"12px",overflow:"auto",display:"flex",flexDirection:"column",gap:8}}>
+        <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",fontWeight:600,marginBottom:10,paddingTop:10,borderTop:"1px solid "+T.border}}>Add to Groups</div>
+        <div style={{display:"flex",gap:10,marginBottom:20}}>
+          <div onClick={function(){set("group_la",!form.group_la);}} style={{flex:1,padding:"9px 12px",background:form.group_la?"rgba(240,200,74,0.1)":"rgba(255,255,255,0.02)",border:"1px solid "+(form.group_la?G+"50":T.border),borderRadius:5,cursor:"pointer",textAlign:"center",fontSize:12,color:form.group_la?G:T.dim,fontWeight:form.group_la?600:400}}>Los Angeles</div>
+          <div onClick={function(){set("group_sfv",!form.group_sfv);}} style={{flex:1,padding:"9px 12px",background:form.group_sfv?"rgba(74,158,186,0.1)":"rgba(255,255,255,0.02)",border:"1px solid "+(form.group_sfv?T.blue+"50":T.border),borderRadius:5,cursor:"pointer",textAlign:"center",fontSize:12,color:form.group_sfv?T.blue:T.dim,fontWeight:form.group_sfv?600:400}}>San Fernando Valley</div>
+        </div>
 
-          {/* Contact */}
-          <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:6,padding:"9px 10px",flexShrink:0}}>
-            <div style={{fontSize:13,fontWeight:600,color:"#fff",marginBottom:1}}>{name}</div>
-            <div style={{fontSize:12,color:T.muted}}>{contact && contact.title ? contact.title : "Sponsor Prospect"}</div>
-            <div style={{fontSize:12,color:T.muted}}>{company}</div>
-          </div>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <button onClick={onClose} style={{padding:"7px 16px",background:"transparent",border:"1px solid "+T.border,color:T.muted,borderRadius:5,cursor:"pointer",fontSize:13}}>Cancel</button>
+          <button onClick={create} disabled={saving||!form.name.trim()} style={{padding:"7px 20px",background:"rgba(240,200,74,0.12)",border:"1px solid "+G+"40",color:G,borderRadius:5,cursor:form.name.trim()?"pointer":"default",fontSize:13,fontWeight:600,opacity:form.name.trim()?1:0.5}}>{saving?"Creating...":"Add Company"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-          {/* Live summary */}
-          <div style={{flexShrink:0}}>
-            <div style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Call Summary</div>
-            {data.category&&<div style={{fontSize:11,color:T.muted,marginBottom:3}}>Category: <span style={{color:G}}>{data.category}</span></div>}
-            {(data.groupLA||data.groupSFV)&&<div style={{fontSize:11,color:T.muted,marginBottom:3}}>Groups: <span style={{color:T.blue}}>{[data.groupLA?"LA":null,data.groupSFV?"SFV":null].filter(Boolean).join(" + ")}</span></div>}
-            {data.hostViable&&<div style={{fontSize:11,color:T.muted,marginBottom:3}}>Host: <span style={{color:data.hostViable.startsWith("Yes")?T.green:T.orange}}>{data.hostViable.split(" — ")[0]}</span></div>}
-            {data.outcome&&<div style={{fontSize:11,color:T.muted}}>Outcome: <span style={{color:OUTCOMES.find(function(o){return o.v===data.outcome;})?OUTCOMES.find(function(o){return o.v===data.outcome;}).c:T.muted}}>{OUTCOMES.find(function(o){return o.v===data.outcome;})?OUTCOMES.find(function(o){return o.v===data.outcome;}).l:"—"}</span></div>}
-          </div>
+export default function Sponsors(props) {
+  var [companies, setCompanies] = useState([]);
+  var [deals, setDeals] = useState([]);
+  var [contacts, setContacts] = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [selected, setSelected] = useState(null);
+  var [stageFilter, setStageFilter] = useState("All");
+  var [categoryFilter, setCategoryFilter] = useState("All");
+  var [groupFilter, setGroupFilter] = useState("Los Angeles");
+  var [hostOnly, setHostOnly] = useState(false);
+  var [search, setSearch] = useState("");
 
-          {/* Notes */}
-          <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:80}}>
-            <div style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Quick Notes</div>
-            <textarea value={data.notes} onChange={function(e){setData(function(p){var n=Object.assign({},p);n.notes=e.target.value;return n;});}}
-              placeholder="Anything else..." style={{flex:1,width:"100%",background:BG3,border:"1px solid rgba(255,255,255,0.05)",color:T.text,padding:"5px 7px",borderRadius:4,fontSize:12,lineHeight:1.65,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box",minHeight:80}}/>
-          </div>
+  useEffect(function(){ load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      var cos = await SBfetch("sponsor_companies?order=name.asc&limit=200");
+      var ds  = await SBfetch("sponsor_deals?order=created_at.asc&limit=500");
+      var cs  = await SBfetch("sponsor_contacts?order=last_name.asc&limit=500");
+      setCompanies(Array.isArray(cos)?cos:[]);
+      setDeals(Array.isArray(ds)?ds:[]);
+      setContacts(Array.isArray(cs)?cs:[]);
+    } catch(e){ console.error(e); }
+    setLoading(false);
+  }
+
+  function getDeals(companyId) { return deals.filter(function(d){ return d.company_id===companyId; }); }
+  function getContacts(companyId) { return contacts.filter(function(c){ return c.company_id===companyId; }); }
+
+  function matchesFilters(co) {
+    if (search) {
+      var q = search.toLowerCase();
+      var nameMatch = co.name.toLowerCase().includes(q);
+      // Also search contacts linked to this company
+      var contactMatch = getContacts(co.id).some(function(ct){
+        return (ct.full_name||"").toLowerCase().includes(q) ||
+               (ct.title||"").toLowerCase().includes(q) ||
+               (ct.email||"").toLowerCase().includes(q);
+      });
+      if (!nameMatch && !contactMatch) return false;
+    }
+    if (categoryFilter !== "All" && co.category !== categoryFilter) return false;
+    if (hostOnly && co.host_viable !== "Yes") return false;
+    if (stageFilter !== "All") {
+      var coDeals = getDeals(co.id);
+      var relevantDeals = groupFilter==="All" ? coDeals : coDeals.filter(function(d){ return d.group_name===groupFilter; });
+      if (!relevantDeals.some(function(d){ return d.stage===stageFilter; })) return false;
+    }
+    if (groupFilter !== "All") {
+      if (!getDeals(co.id).some(function(d){ return d.group_name===groupFilter; })) return false;
+    }
+    return true;
+  }
+
+  var filtered = companies.filter(matchesFilters);
+  var selectedCo = selected ? companies.find(function(c){ return c.id===selected; }) : null;
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",flex:1,overflow:"hidden",background:BG,fontFamily:"'Palatino Linotype','Book Antiqua',Palatino,serif"}}>
+
+      {/* Header */}
+      <div style={{padding:"14px 20px 12px",borderBottom:"1px solid "+T.border,flexShrink:0,background:BG}}>
+        <div style={{display:"flex",alignItems:"baseline",gap:12,marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <h2 style={{fontSize:18,fontWeight:700,color:T.text,margin:0}}>Sponsor Pipeline</h2>
+          <button onClick={function(){setShowModal(true);}} style={{padding:"5px 14px",background:"rgba(240,200,74,0.1)",border:"1px solid "+G+"40",color:G,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600}}>+ Add Company</button>
+        </div>
+          <span style={{fontSize:12,color:T.dim}}>Los Angeles · San Fernando Valley</span>
+        </div>
+
+        {/* Stage buckets */}
+        <StageBuckets deals={deals} companies={companies} groupFilter={groupFilter} stageFilter={stageFilter} onSelectStage={function(s){ setStageFilter(function(prev){ return prev === s ? "All" : s; }); }}/>
+
+
+
+        {/* Filters */}
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginTop:10}}>
+          <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Search..." style={{background:BG2,border:"1px solid "+T.border,color:T.text,padding:"5px 10px",borderRadius:5,fontSize:12,outline:"none",width:130}}/>
+          <select value={groupFilter} onChange={function(e){setGroupFilter(e.target.value);}} style={{background:BG2,border:"1px solid "+T.border,color:T.muted,padding:"5px 8px",borderRadius:5,fontSize:12,outline:"none",cursor:"pointer"}}>
+            {GROUPS.map(function(g){ return <option key={g}>{g}</option>; })}
+          </select>
+          <select value={categoryFilter} onChange={function(e){setCategoryFilter(e.target.value);}} style={{background:BG2,border:"1px solid "+T.border,color:T.muted,padding:"5px 8px",borderRadius:5,fontSize:12,outline:"none",cursor:"pointer"}}>
+            {CATEGORIES.map(function(c){ return <option key={c}>{c}</option>; })}
+          </select>
+          <select value={stageFilter} onChange={function(e){setStageFilter(e.target.value);}} style={{background:BG2,border:"1px solid "+T.border,color:T.muted,padding:"5px 8px",borderRadius:5,fontSize:12,outline:"none",cursor:"pointer"}}>
+            {STAGES.map(function(s){ return <option key={s}>{s}</option>; })}
+          </select>
+          <div onClick={function(){setHostOnly(function(v){return !v;});}} style={{padding:"5px 12px",background:hostOnly?T.green+"14":"rgba(255,255,255,0.02)",border:"1px solid "+(hostOnly?T.green+"50":T.border),color:hostOnly?T.green:T.muted,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:hostOnly?700:400}}>Host Only</div>
+          <span style={{marginLeft:"auto",fontSize:11,color:T.dim}}>{filtered.length} companies</span>
         </div>
       </div>
 
-      {/* BOTTOM BAR */}
-      <div style={{background:"#0a1522",borderTop:"1px solid rgba(255,255,255,0.05)",padding:"7px 20px",display:"flex",alignItems:"center",gap:9,flexShrink:0,flexWrap:"wrap"}}>
-        <div style={{fontSize:11,color:T.dim,letterSpacing:2,textTransform:"uppercase",flexShrink:0}}>Outcome:</div>
-        <div style={{display:"flex",gap:5,flex:1,flexWrap:"wrap"}}>
-          {OUTCOMES.map(function(o){
-            return (
-              <button key={o.v} onClick={function(){setData(function(p){var n=Object.assign({},p);n.outcome=o.v;return n;});}}
-                style={{padding:"4px 9px",borderRadius:4,cursor:"pointer",border:"1px solid "+(data.outcome===o.v?o.c:"rgba(255,255,255,0.07)"),background:data.outcome===o.v?o.c+"12":"rgba(255,255,255,0.02)",color:data.outcome===o.v?o.c:"#7aaac8",fontSize:12}}>
-                {o.l}
-              </button>
-            );
+      {/* Body */}
+      <div style={{display:"grid",gridTemplateColumns:"300px 1fr",flex:1,overflow:"hidden",minHeight:0}}>
+        <div style={{borderRight:"1px solid "+T.border,overflowY:"auto",padding:"10px",background:BG}}>
+          {loading&&<div style={{textAlign:"center",color:T.dim,padding:40,fontSize:13}}>Loading...</div>}
+          {!loading&&filtered.length===0&&<div style={{textAlign:"center",color:T.dim,padding:40,fontSize:13}}>No companies match filters.</div>}
+          {filtered.map(function(co){
+            return <CompanyCard key={co.id} company={co} deals={getDeals(co.id)} contacts={getContacts(co.id)} selected={selected===co.id} groupFilter={groupFilter} onClick={function(){ setSelected(co.id); }}/>;
           })}
         </div>
-        {onBack&&<button onClick={onBack} style={{padding:"6px 14px",background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:T.muted,borderRadius:4,cursor:"pointer",fontSize:12,flexShrink:0}}>Back</button>}
-        <button onClick={handleSave} disabled={!data.outcome||saving}
-          style={{padding:"7px 20px",background:saved?"rgba(46,204,113,0.16)":"rgba(201,168,76,0.18)",border:"1px solid "+(saved?"#2ecc71":"rgba(201,168,76,0.35)"),color:saved?"#2ecc71":G,borderRadius:5,cursor:data.outcome?"pointer":"default",fontSize:12,letterSpacing:"1px",textTransform:"uppercase",flexShrink:0}}>
-          {saving?"Saving...":saved?"Saved":"Save & Close"}
-        </button>
+        <CompanyDetail company={selectedCo} deals={selectedCo?getDeals(selectedCo.id):[]} contacts={selectedCo?getContacts(selectedCo.id):[]} onUpdate={load}/>
       </div>
     </div>
   );
