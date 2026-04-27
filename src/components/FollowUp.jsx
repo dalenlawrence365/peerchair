@@ -68,6 +68,8 @@ function QueueCard(props) {
   var item = props.item;
   var onProfile = props.onProfile;
   var onDismiss = props.onDismiss;
+  var onNotAFit = props.onNotAFit;
+  var onOptOut = props.onOptOut;
   var [reply, setReply] = useState("");
   var [editing, setEditing] = useState(false);
   var [gone, setGone] = useState(false);
@@ -119,6 +121,21 @@ function QueueCard(props) {
     });
     var data = await res.json();
     if (!data.success) throw new Error("Send failed");
+    // Register Touch 2 sequence — auto-follow-up in 5 business days
+    fetch("/api/outreach-sequence", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        conversationId: item.conversationId,
+        linkedInAccountId: item.linkedInAccountId,
+        contactId: item.supabaseId||null,
+        firstName: item.firstName,
+        lastName: item.lastName,
+        title: item.title,
+        company: item.company,
+        profileUrl: item.profileUrl
+      })
+    }).catch(function(e){console.error("Sequence register:",e);});
     setGone(true);
     if (onDismiss) onDismiss(item.id);
   }
@@ -141,13 +158,16 @@ function QueueCard(props) {
         </div>
       </div>
 
-      <div style={{padding:"8px 11px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:5,marginBottom:10,fontSize:13,color:T.muted,lineHeight:1.6,fontStyle:"italic"}}>
+      <div style={{padding:"8px 11px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:5,marginBottom:item.sequenceStatus?6:10,fontSize:13,color:T.muted,lineHeight:1.6,fontStyle:"italic"}}>
         "{item.lastMessage}"
       </div>
+      {item.sequenceStatus&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,fontSize:10,color:T.blue,padding:"4px 8px",background:"rgba(74,158,186,0.06)",borderRadius:4,border:"1px solid rgba(74,158,186,0.15)"}}>
+        <span>⏱</span><span>{item.sequenceStatus}</span>
+      </div>}
 
       {isNeg ? (
         <div style={{display:"flex",gap:8}}>
-          <button onClick={dismiss} style={{padding:"5px 12px",background:"rgba(231,76,60,0.1)",border:"1px solid rgba(231,76,60,0.3)",color:T.red,borderRadius:5,cursor:"pointer",fontSize:12}}>Mark Not a Fit</button>
+          <button onClick={function(){if(onOptOut)onOptOut(item);else dismiss();}} style={{padding:"5px 12px",background:"rgba(231,76,60,0.1)",border:"1px solid rgba(231,76,60,0.3)",color:T.red,borderRadius:5,cursor:"pointer",fontSize:12}}>Mark Opted Out</button>
           <button onClick={dismiss} style={{padding:"5px 12px",background:"transparent",border:"1px solid "+T.border,color:T.dim,borderRadius:5,cursor:"pointer",fontSize:12}}>Dismiss</button>
         </div>
       ) : (
@@ -173,7 +193,7 @@ function QueueCard(props) {
           <div style={{display:"flex",gap:8,marginTop:10,alignItems:"center"}}>
             <SendButton onSend={sendReply}/>
             <button onClick={dismiss} style={{padding:"6px 12px",background:"transparent",border:"1px solid "+T.border,color:T.dim,borderRadius:5,cursor:"pointer",fontSize:12}}>Snooze</button>
-            <button onClick={dismiss} style={{padding:"6px 12px",background:"transparent",border:"1px solid rgba(231,76,60,0.3)",color:T.red,borderRadius:5,cursor:"pointer",fontSize:12}}>Not a Fit</button>
+            <button onClick={function(){if(onNotAFit)onNotAFit(item);else dismiss();}} style={{padding:"6px 12px",background:"transparent",border:"1px solid rgba(231,76,60,0.3)",color:T.red,borderRadius:5,cursor:"pointer",fontSize:12}}>Not a Fit</button>
             {item.profileUrl && <a href={item.profileUrl} target="_blank" rel="noreferrer" style={{marginLeft:"auto",fontSize:11,color:T.dim,textDecoration:"none"}}>LinkedIn →</a>}
           </div>
         </div>
@@ -259,6 +279,35 @@ export default function FollowUp(props) {
     });
   }
 
+  function updateContactStage(item, stage, extra) {
+    handleDismiss(item.id);
+    if (!item.profileUrl) return;
+    fetch("/api/contact-by-linkedin?url=" + encodeURIComponent(item.profileUrl))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (!data.contact || !data.contact.id) return;
+        var contactId = data.contact.id;
+        var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        var h = {"apikey":SBK,"Authorization":"Bearer "+SBK,"Content-Type":"application/json"};
+        var update = Object.assign({pipeline_stage:stage}, extra||{});
+        fetch(SBU+"/rest/v1/contacts?id=eq."+contactId, {method:"PATCH",headers:h,body:JSON.stringify(update)});
+        fetch(SBU+"/rest/v1/communications", {
+          method:"POST", headers:Object.assign({},h,{"Prefer":"return=representation"}),
+          body:JSON.stringify({contact_id:contactId, occurred_at:new Date().toISOString(), channel:"LinkedIn", direction:"IN", step_label:"Stage: "+stage, body:"Moved to "+stage+" from Follow-Up Queue. Message: "+item.lastMessage, source:"PeerChair", logged_by:"Dalen Lawrence"})
+        });
+      })
+      .catch(function(e){console.error("Stage update error:",e);});
+  }
+
+  function handleOptOut(item) {
+    updateContactStage(item, "Opted Out", {do_not_contact:true, opted_out_at:new Date().toISOString(), member_status:"Opted Out"});
+  }
+
+  function handleNotAFit(item) {
+    updateContactStage(item, "Lost — Not a Fit", {member_status:"Not a Fit"});
+  }
+
   function handleProfile(item) {
     if (!onNavigate || !item.profileUrl) return;
     fetch("/api/contact-by-linkedin?url=" + encodeURIComponent(item.profileUrl))
@@ -311,19 +360,19 @@ export default function FollowUp(props) {
         {warmItems.length > 0 && (
           <div style={{marginBottom:20}}>
             <div style={{fontSize:10,color:T.green,letterSpacing:2,textTransform:"uppercase",fontWeight:600,marginBottom:10}}>Warm Replies</div>
-            {warmItems.map(function(item){ return <QueueCard key={item.id} item={item} onProfile={handleProfile} onDismiss={handleDismiss}/>; })}
+            {warmItems.map(function(item){ return <QueueCard key={item.id} item={item} onProfile={handleProfile} onDismiss={handleDismiss} onNotAFit={handleNotAFit} onOptOut={handleOptOut}/>; })}
           </div>
         )}
         {neutralItems.length > 0 && (
           <div style={{marginBottom:20}}>
             <div style={{fontSize:10,color:T.blue,letterSpacing:2,textTransform:"uppercase",fontWeight:600,marginBottom:10}}>Neutral Replies</div>
-            {neutralItems.map(function(item){ return <QueueCard key={item.id} item={item} onProfile={handleProfile} onDismiss={handleDismiss}/>; })}
+            {neutralItems.map(function(item){ return <QueueCard key={item.id} item={item} onProfile={handleProfile} onDismiss={handleDismiss} onNotAFit={handleNotAFit} onOptOut={handleOptOut}/>; })}
           </div>
         )}
         {negItems.length > 0 && (
           <div style={{marginBottom:20}}>
             <div style={{fontSize:10,color:T.red,letterSpacing:2,textTransform:"uppercase",fontWeight:600,marginBottom:10}}>Not Interested</div>
-            {negItems.map(function(item){ return <QueueCard key={item.id} item={item} onProfile={handleProfile} onDismiss={handleDismiss}/>; })}
+            {negItems.map(function(item){ return <QueueCard key={item.id} item={item} onProfile={handleProfile} onDismiss={handleDismiss} onNotAFit={handleNotAFit} onOptOut={handleOptOut}/>; })}
           </div>
         )}
       </div>
