@@ -885,23 +885,98 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function SponsorMetrics(props) {
   var counts = props.stageCounts || {};
+  var onStartDiscovery = props.onStartDiscovery;
+  var [openStage, setOpenStage] = useState(null);
+  var [stageDeals, setStageDeals] = useState([]);
+  var [loadingDeals, setLoadingDeals] = useState(false);
+
+  function loadStageDeals(stage) {
+    if (openStage === stage) { setOpenStage(null); setStageDeals([]); return; }
+    setOpenStage(stage);
+    setLoadingDeals(true);
+    var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    var h = {"apikey":SBK,"Authorization":"Bearer "+SBK};
+    fetch(SBU+"/rest/v1/sponsor_deals?stage=eq."+encodeURIComponent(stage)+"&select=id,group_name,stage,category_seat,company_id&limit=50", {headers:h})
+      .then(function(r){return r.json();})
+      .then(function(deals){
+        if (!Array.isArray(deals)) { setLoadingDeals(false); return; }
+        var ids = deals.map(function(d){return d.company_id;}).filter(Boolean);
+        if (ids.length === 0) { setStageDeals([]); setLoadingDeals(false); return; }
+        fetch(SBU+"/rest/v1/sponsor_companies?id=in.("+ids.join(",")+")"+"&select=id,name,category,host_viable,host_tier&limit=50", {headers:h})
+          .then(function(r){return r.json();})
+          .then(function(companies){
+            fetch(SBU+"/rest/v1/sponsor_contacts?company_id=in.("+ids.join(",")+")"+"&select=id,full_name,title,email,company_id&order=created_at.asc&limit=100", {headers:h})
+              .then(function(r){return r.json();})
+              .then(function(contacts){
+                var enriched = deals.map(function(deal){
+                  var co = (Array.isArray(companies)?companies:[]).find(function(c){return c.id===deal.company_id;}) || {};
+                  var primaryContact = (Array.isArray(contacts)?contacts:[]).find(function(ct){return ct.company_id===deal.company_id;}) || null;
+                  return Object.assign({},deal,{company:co,primaryContact:primaryContact});
+                });
+                setStageDeals(enriched);
+                setLoadingDeals(false);
+              });
+          });
+      })
+      .catch(function(e){console.error(e);setLoadingDeals(false);});
+  }
+
   var items = [
-    {label:"Discovery Sched.",val:(counts["Discovery Scheduled"]||0),color:"#9b59b6"},
-    {label:"Discovery Done",val:(counts["Discovery Complete"]||0),color:"#7b2fbe"},
-    {label:"Proposal Sent",val:(counts["Proposal Sent"]||0),color:"#4a9eba"},
-    {label:"Committed",val:(counts["Verbal Commitment"]||0),color:"#f0c84a"},
-    {label:"Active Sponsors",val:(counts["Active"]||0),color:"#2ecc71"},
+    {label:"Discovery Sched.",stage:"Discovery Scheduled",val:(counts["Discovery Scheduled"]||0),color:"#9b59b6",clickable:true},
+    {label:"Discovery Done",stage:"Discovery Complete",val:(counts["Discovery Complete"]||0),color:"#7b2fbe",clickable:false},
+    {label:"Proposal Sent",stage:"Proposal Sent",val:(counts["Proposal Sent"]||0),color:"#4a9eba",clickable:false},
+    {label:"Committed",stage:"Verbal Commitment",val:(counts["Verbal Commitment"]||0),color:"#f0c84a",clickable:false},
+    {label:"Active Sponsors",stage:"Active",val:(counts["Active"]||0),color:"#2ecc71",clickable:false},
   ];
+
   return (
-    <div style={{display:"flex",gap:10,marginBottom:16}}>
-      {items.map(function(item){
-        return (
-          <div key={item.label} style={{flex:1,background:BG3,border:"1px solid "+item.color+"25",borderTop:"2px solid "+item.color+"70",borderRadius:7,padding:"10px 12px"}}>
-            <div style={{fontSize:10,color:item.color,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>{item.label}</div>
-            <div style={{fontSize:24,fontWeight:700,color:item.color}}>{item.val}</div>
-          </div>
-        );
-      })}
+    <div style={{marginBottom:16}}>
+      <div style={{display:"flex",gap:10}}>
+        {items.map(function(item){
+          var isOpen = openStage === item.stage;
+          return (
+            <div key={item.label} onClick={function(){if(item.clickable)loadStageDeals(item.stage);}}
+              style={{flex:1,background:isOpen?item.color+"14":BG3,border:"1px solid "+(isOpen?item.color+"50":item.color+"25"),borderTop:"2px solid "+item.color+(isOpen?"":"70"),borderRadius:7,padding:"10px 12px",cursor:item.clickable?"pointer":"default",transition:"all 0.15s"}}>
+              <div style={{fontSize:10,color:item.color,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>{item.label}</div>
+              <div style={{fontSize:24,fontWeight:700,color:item.color}}>{item.val}</div>
+              {item.clickable&&<div style={{fontSize:9,color:T.dim,marginTop:2}}>click for list</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {openStage&&<div style={{background:BG3,border:"1px solid "+T.border,borderRadius:7,padding:"14px 18px",marginTop:10}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#9b59b6"}}>{openStage} — {stageDeals.length} {stageDeals.length===1?"company":"companies"}</div>
+          <div onClick={function(){setOpenStage(null);setStageDeals([]);}} style={{cursor:"pointer",color:T.dim,fontSize:16}}>x</div>
+        </div>
+        {loadingDeals&&<div style={{fontSize:12,color:T.dim}}>Loading...</div>}
+        {!loadingDeals&&stageDeals.length===0&&<div style={{fontSize:12,color:T.dim}}>No companies in this stage.</div>}
+        {stageDeals.map(function(deal){
+          var co = deal.company || {};
+          var ct = deal.primaryContact;
+          return (
+            <div key={deal.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:6,marginBottom:8}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600,color:T.text}}>{co.name||"Unknown"}</div>
+                <div style={{fontSize:11,color:T.muted}}>{co.category||""} · {deal.group_name}</div>
+                {ct&&<div style={{fontSize:11,color:T.dim,marginTop:2}}>{ct.full_name} — {ct.title}</div>}
+              </div>
+              {openStage==="Discovery Scheduled"&&<button
+                onClick={function(){
+                  if(onStartDiscovery){
+                    var contact = ct ? Object.assign({},ct,{company:co.name,company_id:co.id,category:co.category}) : {company:co.name,company_id:co.id,category:co.category};
+                    onStartDiscovery(co, contact, deal);
+                  }
+                }}
+                style={{padding:"6px 14px",background:"rgba(155,89,182,0.15)",border:"1px solid rgba(155,89,182,0.4)",color:"#9b59b6",borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600,flexShrink:0}}>
+                Start Call
+              </button>}
+            </div>
+          );
+        })}
+      </div>}
     </div>
   );
 }
@@ -978,7 +1053,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
       </div>
 
         {/* SPONSOR DISCOVERY METRICS */}
-        <SponsorMetrics stageCounts={sponsorStageCounts}/>
+        <SponsorMetrics stageCounts={sponsorStageCounts} onStartDiscovery={function(co,contact,deal){setSponsorContact(contact);setSponsorDeal(deal);navigate("sponsor_call");}}/>
 
         {/* HEYREACH OUTREACH FUNNEL */}
         <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:8,padding:"14px 18px",marginBottom:16}}>
