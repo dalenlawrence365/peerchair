@@ -11,55 +11,112 @@ function extractSlug(url) {
   return url.replace(/\/$/, '').split('/in/').pop().toLowerCase()
 }
 
+function extractProfile(body) {
+  // HeyReach sends different shapes depending on event type and version
+  // Log the full body so we can see exactly what arrives
+  console.log('HeyReach webhook body:', JSON.stringify(body, null, 2))
+
+  // Try every known payload path
+  return (
+    body.lead?.linkedInUserProfile ||
+    body.lead?.profile ||
+    body.correspondentProfile ||
+    body.leadProfile ||
+    body.profile ||
+    body.lead ||
+    body.contact ||
+    body.data?.profile ||
+    body.data?.lead?.linkedInUserProfile ||
+    {}
+  )
+}
+
 export async function POST(request) {
   try {
     const body = await request.json()
-    const profile = body.lead?.linkedInUserProfile || body.correspondentProfile || body.leadProfile || {}
-    const firstName   = profile.firstName || ''
-    const lastName    = profile.lastName  || ''
-    const title       = profile.position  || profile.headline || ''
-    const company     = profile.companyName || ''
-    const email       = profile.emailAddress || profile.enrichedEmailAddress || ''
-    const linkedinUrl = profile.profileUrl || ''
-    const location    = profile.location || ''
+    const eventType = body.eventType || body.event_type || body.type || 'unknown'
+    console.log('HeyReach webhook received — event:', eventType)
 
-    if (!linkedinUrl && !firstName) return Response.json({ status: 'skipped' })
+    const profile = extractProfile(body)
 
+    const firstName   = profile.firstName   || profile.first_name  || ''
+    const lastName    = profile.lastName    || profile.last_name   || ''
+    const title       = profile.position    || profile.headline    || profile.title || ''
+    const company     = profile.companyName || profile.company     || profile.company_name || ''
+    const email       = profile.emailAddress || profile.enrichedEmailAddress || profile.email || ''
+    const linkedinUrl = profile.profileUrl  || profile.linkedin_url || profile.url || ''
+    const location    = profile.location    || ''
+
+    console.log('Extracted profile:', { firstName, lastName, title, company, linkedinUrl })
+
+    // Skip if we have nothing to work with
+    if (!linkedinUrl && !firstName) {
+      console.log('Webhook skipped — no profile data found in payload')
+      return Response.json({ status: 'skipped', reason: 'no profile data', received: Object.keys(body) })
+    }
+
+    // Check if already in Supabase
     const slug = extractSlug(linkedinUrl)
-    const { data: existing } = await supabase
-      .from('contacts').select('id,first_name,last_name')
-      .ilike('linkedin_url', '%' + slug + '%').limit(1)
+    if (slug) {
+      const { data: existing } = await supabase
+        .from('contacts').select('id,first_name,last_name')
+        .ilike('linkedin_url', '%' + slug + '%').limit(1)
+      if (existing && existing.length > 0) {
+        console.log('Contact already exists:', existing[0].first_name, existing[0].last_name)
+        return Response.json({ status: 'exists', contact: existing[0] })
+      }
+    }
 
-    if (existing && existing.length > 0) return Response.json({ status: 'exists' })
-
+    // Create contact
     const iso = new Date().toISOString()
     const { data: newContact, error } = await supabase.from('contacts').insert({
-      first_name: firstName, last_name: lastName, title, company_name: company,
-      email: email || null, email_type: email ? 'Company' : null,
-      linkedin_url: linkedinUrl, linkedin_location: location,
-      chapter_interest: 'Los Angeles', lead_source: 'LinkedIn / HeyReach',
-      heyreach_campaign: 'CFO Circle - CFO', pipeline_stage: 'Connected',
-      member_status: 'Prospect', linkedin_connected_date: iso,
+      first_name: firstName,
+      last_name: lastName,
+      title,
+      company_name: company,
+      email: email || null,
+      email_type: email ? 'Company' : null,
+      linkedin_url: linkedinUrl,
+      linkedin_location: location,
+      chapter_interest: 'Los Angeles',
+      lead_source: 'LinkedIn / HeyReach',
+      heyreach_campaign: body.campaignName || body.campaign_name || 'CFO Circle - CFO',
+      pipeline_stage: 'Connected',
+      member_status: 'Prospect',
+      linkedin_connected_date: iso,
+      created_at: iso,
+      updated_at: iso,
     }).select().single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Supabase insert error:', error)
+      throw error
+    }
 
+    console.log('Created contact:', newContact.id, firstName, lastName)
+
+    // Log communication
     await supabase.from('communications').insert({
-      contact_id: newContact.id, occurred_at: iso, channel: 'LinkedIn',
-      direction: 'IN', step_label: 'Connection Accepted',
+      contact_id: newContact.id,
+      occurred_at: iso,
+      channel: 'LinkedIn',
+      direction: 'IN',
+      step_label: 'Connection Accepted',
       body: firstName + ' ' + lastName + ' accepted your connection request on LinkedIn.',
-      source: 'HeyReach', logged_by: 'system',
+      source: 'HeyReach',
+      logged_by: 'system',
     })
 
+    // Send email alert
     await alertNewConnection(firstName, lastName, company)
 
-    return Response.json({ status: 'created', contact: newContact })
+    return Response.json({ status: 'created', contact: { id: newContact.id, name: firstName + ' ' + lastName } })
   } catch (err) {
-    console.error('Webhook error:', err)
+    console.error('Webhook error:', err.message, err.stack)
     return Response.json({ status: 'error', message: err.message }, { status: 500 })
   }
 }
 
 export async function GET() {
-  return Response.json({ status: 'PeerChair HeyReach webhook active' })
+  return Response.json({ status: 'PeerChair HeyReach webhook active', timestamp: new Date().toISOString() })
 }
