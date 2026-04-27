@@ -1358,7 +1358,7 @@ function AskClaude(props) {
     var question = q || input.trim();
     if (!question) return;
     setInput("");
-    setMessages(function(prev){ return prev.concat([{role:"user", text:question}]); });
+    setMessages(function(prev){ var next=prev.concat([{role:"user", text:question}]); return next.slice(-20); });
     setLoading(true);
     try {
       var res = await fetch("/api/ask-claude", {
@@ -1401,8 +1401,8 @@ function AskClaude(props) {
       </div>
 
       {/* Messages */}
-      <div style={{flex:1,overflowY:"auto",padding:"20px 28px",display:"flex",flexDirection:"column",gap:16}}>
-        {messages.map(function(msg, i){
+      <div style={{flex:1,overflowY:"auto",padding:"20px 28px",display:"flex",flexDirection:"column-reverse",gap:16}}>
+        {messages.slice().reverse().map(function(msg, i){
           var isUser = msg.role==="user";
           return (
             <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start",flexDirection:isUser?"row-reverse":"row"}}>
