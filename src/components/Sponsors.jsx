@@ -29,7 +29,7 @@ var STAGE_TO_IDX = {
   "Proposal Sent":3,"Verbal Commitment":4,"Active":5,"Renewal":6
 };
 
-var STAGES = ["All","Prospect","Engaged","Discovery Scheduled","Proposal Sent","Verbal Commitment","Active","Renewal"];
+var STAGES = ["All","Prospect","Engaged","Discovery Scheduled","Discovery Complete","Proposal Sent","Verbal Commitment","Active","Renewal"];
 var CATEGORIES = ["All","Accounting/Advisory","Commercial Banking","Law Firm","Executive Search","HR/Payroll","Insurance","Technology","Commercial Real Estate","Other"];
 var GROUPS = ["All","Los Angeles","San Fernando Valley"];
 
@@ -90,6 +90,7 @@ function StageColor(stage) {
   if (stage === "Active") return T.green;
   if (stage === "Verbal Commitment") return G;
   if (stage === "Proposal Sent") return T.blue;
+  if (stage === "Discovery Complete") return "#9b59b6";
   if (stage === "Discovery Scheduled") return T.purple;
   if (stage === "Engaged") return T.orange;
   if (stage === "Renewal") return "#1abc9c";
