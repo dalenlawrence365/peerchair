@@ -1552,9 +1552,9 @@ export default function CFOCircleApp() {
           {screen==="events"    && <Placeholder icon="✦" title="Events" description="Manage your Experience Events — attendee lists, confirmations, and post-event follow-up."/>}
           {screen==="templates" && <Templates/>}
           {screen==="claude"    && <AskClaude/>}
-          {screen==="sponsors"  && <Sponsors onStartDiscovery={function(co,contact,deal){setSponsorContact(Object.assign({},contact||{},{company:co.name,company_id:co.id,category:co.category}));setSponsorDeal(deal);navigate("sponsor_call");}}/>}
-        {screen==="followup"  && <FollowUp onNavigate={navigate}/>}
-        {screen==="sponsor_call" && <SponsorCompanion contact={sponsorContact||{}} deal={sponsorDeal} onBack={function(){navigate("sponsors");}} onEnd={function(){navigate("sponsors");}}/>}
+          {screen==="sponsors"  && <Sponsors onStartDiscovery={function(co,contact,deal){setSponsorContact(Object.assign({},contact||{},{company:co.name,company_id:co.id,category:co.category}));setSponsorDeal(deal);setScreen("sponsor_call");}}/>}
+          {screen==="followup"  && <FollowUp onNavigate={navigate}/>}
+          {screen==="sponsor_call" && <SponsorCompanion contact={sponsorContact||{}} deal={sponsorDeal} onBack={function(){navigate("sponsors");}} onEnd={function(){navigate("sponsors");}}/>}
           {screen==="fitcall" && fitCallContact && <LiveCallCompanion contact={fitCallContact} onEnd={function(){ setScreen("profile"); }} onBack={function(){ setScreen("profile"); }}/>}
         </div>
       </div>
