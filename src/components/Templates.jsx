@@ -44,6 +44,7 @@ function SBpost(table, data) {
 }
 
 function SBpatch(table, id, data) {
+  if (!id) return Promise.resolve(null);
   var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
   var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   return fetch(SBU+"/rest/v1/"+table+"?id=eq."+id, {
@@ -116,7 +117,7 @@ function TemplateEditor(props) {
     if (!current || !current.heyreach_campaign_id) return;
     setPushing(true);
     try {
-      var res = await fetch("/api/push-to-heyreach", {
+      var res = await fetch("/api/heyreach-stats", {  // TODO: replace with push endpoint
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
@@ -182,7 +183,7 @@ function TemplateEditor(props) {
         {isScript && current && current.steps && (
           <div>
             <div style={{fontSize:10,color:G,letterSpacing:2,textTransform:"uppercase",fontWeight:600,marginBottom:12}}>Script Steps</div>
-            {(Array.isArray(current.steps) ? current.steps : (typeof current.steps === "string" ? JSON.parse(current.steps||"[]") : [])).map(function(step, i){
+            {(function(){try{return Array.isArray(current.steps)?current.steps:JSON.parse(current.steps||"[]");}catch(e){return [];}})().map(function(step, i){
               return (
                 <div key={step.id} style={{padding:"12px 14px",background:BG3,border:"1px solid "+T.border,borderLeft:"3px solid "+(step.contextual?T.orange:T.purple),borderRadius:5,marginBottom:10}}>
                   <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
@@ -377,18 +378,25 @@ export default function Templates() {
 
   useEffect(function(){ load(); }, []);
 
-  async function load() {
+  function load() {
     setLoading(true);
-    try {
-      var gs = await SBfetch("template_groups?order=sort_order.asc&limit=100");
-      var vs = await SBfetch("template_variants?order=variant.asc&limit=300");
-      var ss = await SBfetch("template_sequences?order=created_at.asc&limit=50");
+    return Promise.all([
+      SBfetch("template_groups?order=sort_order.asc&limit=100"),
+      SBfetch("template_variants?order=variant.asc&limit=300"),
+      SBfetch("template_sequences?order=created_at.asc&limit=50")
+    ]).then(function(results){
+      var gs = results[0]; var vs = results[1]; var ss = results[2];
       setGroups(Array.isArray(gs)?gs:[]);
       setVariants(Array.isArray(vs)?vs:[]);
       setSequences(Array.isArray(ss)?ss:[]);
+      setLoading(false);
       if (!selected && gs && gs.length > 0) setSelected(gs[0].id);
-    } catch(e){ console.error(e); }
-    setLoading(false);
+      return gs;
+    }).catch(function(e){
+      console.error("Templates load error:",e);
+      setLoading(false);
+      return [];
+    });
   }
 
   function getVariants(groupId) {
