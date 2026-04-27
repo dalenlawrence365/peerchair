@@ -130,6 +130,8 @@ export async function POST(request) {
     var anthropicKey = process.env.ANTHROPIC_API_KEY;
     if (!anthropicKey) return Response.json({ success: false, error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
 
+    var hrKey = process.env.HEYREACH_API_KEY;
+
     var aiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -140,27 +142,36 @@ export async function POST(request) {
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 256,
-        mcp_servers: [{ type: "url", url: "https://mcp.heyreach.io/mcp", name: "heyreach" }],
-        system: "You are a send-message agent. Call the heyreach send_message tool immediately with the exact values provided. subject should be empty string. Do nothing else.",
+        max_tokens: 512,
+        mcp_servers: [{
+          type: "url",
+          url: "https://mcp.heyreach.io/mcp",
+          name: "heyreach",
+          authorization_token: hrKey
+        }],
+        system: "You are a LinkedIn message sending agent for Dalen Lawrence. Your only job is to call the heyreach send_message tool with these exact parameters: conversationId, linkedInAccountId, message, and subject as empty string. Call the tool immediately without any other output.",
         messages: [{
           role: "user",
-          content: JSON.stringify({ conversationId, linkedInAccountId: linkedInAccountId || 185228, message, subject: "" })
+          content: "Send LinkedIn message. conversationId: " + conversationId + " | linkedInAccountId: " + (linkedInAccountId || 185228) + " | message: " + message
         }]
       })
     });
 
+    var aiErr2 = null;
     if (!aiRes.ok) {
-      var aiErr = await aiRes.text();
-      console.error("MCP proxy error:", aiRes.status, aiErr);
-      return Response.json({ success: false, error: "Send proxy error " + aiRes.status }, { status: 500 });
+      aiErr2 = await aiRes.text();
+      console.error("MCP proxy error:", aiRes.status, aiErr2);
+      return Response.json({ success: false, error: "Send proxy error " + aiRes.status + ": " + aiErr2 }, { status: 500 });
     }
 
     var aiData = await aiRes.json();
-    // Any non-error stop reason means the tool ran
-    if (aiData.stop_reason === "end_turn" || (aiData.content || []).some(function(b){ return b.type === "tool_use"; })) {
-      // success — fall through to logging
-    } else {
+    console.log("MCP proxy response stop_reason:", aiData.stop_reason, "content types:", (aiData.content||[]).map(function(b){return b.type;}));
+
+    // Tool was called = message sent
+    var toolWasCalled = (aiData.content || []).some(function(b){ return b.type === "tool_use"; });
+    var endedNormally = aiData.stop_reason === "end_turn";
+
+    if (!toolWasCalled && !endedNormally) {
       var aiText = (aiData.content || []).filter(function(b){ return b.type === "text"; }).map(function(b){ return b.text; }).join(" ");
       return Response.json({ success: false, error: aiText || "MCP send did not complete" }, { status: 500 });
     }
