@@ -166,19 +166,26 @@ function QueueCard(props) {
 
   function markDone(label) {
     setGone(true);
-    // Log the "done" action to Supabase
     fetch("/api/follow-up-queue", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify({
-        action:    "mark_done",
-        profileUrl: item.profileUrl,
-        contactId: item.supabaseId || null,
-        firstName: item.firstName,
-        message:   label + " — cleared from Follow-Up Queue",
-        stepLabel: label,
+        action:      "dismiss",
+        reason:      label,
+        conversationId: item.conversationId,
+        profileUrl:  item.profileUrl,
+        contactId:   item.supabaseId || null,
+        firstName:   item.firstName,
+        lastName:    item.lastName   || "",
+        fullName:    item.fullName   || "",
+        title:       item.title      || "",
+        company:     item.company    || "",
+        location:    item.location   || "",
+        imageUrl:    item.imageUrl   || "",
+        message:     label + " — cleared from Follow-Up Queue",
+        stepLabel:   label,
       })
-    }).catch(function(e){ console.error("markDone log error:", e); });
+    }).catch(function(e){ console.error("markDone error:", e); });
     if (onDone) onDone(item, label, null);
   }
 
@@ -280,6 +287,7 @@ export default function FollowUp(props) {
   var [done,      setDone]      = useState([]);
   var [loading,   setLoading]   = useState(true);
   var [showDone,  setShowDone]  = useState(false);
+  var [todayCount, setTodayCount] = useState(0);
   var mountedRef = useRef(true);
 
   useEffect(function() {
@@ -296,6 +304,7 @@ export default function FollowUp(props) {
         if (!mountedRef.current) return;
         var items = Array.isArray(data.queue) ? data.queue : [];
         setQueue(items);
+        if (data.todayCount !== undefined) setTodayCount(data.todayCount);
         setLoading(false);
         generateReplies(items);
       })
@@ -391,7 +400,13 @@ export default function FollowUp(props) {
             <h2 style={{fontSize:18,fontWeight:700,color:T.text,margin:"0 0 2px"}}>Follow-Up Queue</h2>
             <div style={{fontSize:12,color:T.muted}}>LinkedIn replies waiting for your response</div>
           </div>
-          <button onClick={loadQueue} style={{padding:"6px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid "+T.border,color:T.muted,borderRadius:5,cursor:"pointer",fontSize:11}}>Refresh</button>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:20,fontWeight:700,color:G,lineHeight:1}}>{todayCount}</div>
+              <div style={{fontSize:9,color:T.dim,letterSpacing:1,textTransform:"uppercase",marginTop:1}}>Handled Today</div>
+            </div>
+            <button onClick={loadQueue} style={{padding:"6px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid "+T.border,color:T.muted,borderRadius:5,cursor:"pointer",fontSize:11}}>Refresh</button>
+          </div>
         </div>
         {!loading && (
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
