@@ -236,6 +236,8 @@ function CompanyCard(props) {
 
 function CompanyDetail(props) {
   var co = props.company;
+  var contacts = props.contacts || [];
+  var deals = props.deals || [];
   var deals = props.deals || [];
   var contacts = props.contacts || [];
   var onUpdate = props.onUpdate;
@@ -311,12 +313,18 @@ function CompanyDetail(props) {
 
       {/* Company info */}
       <div style={{padding:"16px 20px 0",flexShrink:0}}>
-        <div style={{marginBottom:10}}>
-          <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:6}}>{co.name}</div>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            <Badge label={co.category||"Uncategorized"} color={CategoryColor(co.category)}/>
-            <HostBadge tier={co.host_tier} viable={co.host_viable}/>
+        <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:10}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:6}}>{co.name}</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <Badge label={co.category||"Uncategorized"} color={CategoryColor(co.category)}/>
+              <HostBadge tier={co.host_tier} viable={co.host_viable}/>
+            </div>
           </div>
+          <button onClick={function(){if(props.onStartDiscovery)props.onStartDiscovery(co,contacts[0]||null,deals[0]||null);}}
+            style={{padding:"7px 14px",background:"rgba(155,89,182,0.15)",border:"1px solid rgba(155,89,182,0.4)",color:"#9b59b6",borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600,flexShrink:0,whiteSpace:"nowrap"}}>
+            Start Discovery Call
+          </button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
           {co.address_la&&<div><div style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>LA Address</div><div style={{fontSize:12,color:T.muted,lineHeight:1.5}}>{co.address_la}</div>{co.area_la&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{co.area_la}</div>}</div>}
@@ -475,7 +483,7 @@ function AddCompanyModal(props) {
   );
 }
 
-export default function Sponsors() {
+export default function Sponsors(props) {
   var [companies, setCompanies] = useState([]);
   var [deals, setDeals] = useState([]);
   var [contacts, setContacts] = useState([]);
