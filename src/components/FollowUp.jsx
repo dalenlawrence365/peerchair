@@ -71,10 +71,39 @@ function QueueCard(props) {
   var [reply, setReply] = useState("");
   var [editing, setEditing] = useState(false);
   var [gone, setGone] = useState(false);
+  var [loadingTemplate, setLoadingTemplate] = useState(false);
 
   useEffect(function() {
     if (item.suggestedReply) setReply(item.suggestedReply);
   }, [item.suggestedReply]);
+
+  function loadTemplate(templateName) {
+    setLoadingTemplate(true);
+    var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    fetch(SBU+"/rest/v1/template_groups?name=eq."+encodeURIComponent(templateName)+"&select=id,active_variant&limit=1", {
+      headers:{"apikey":SBK,"Authorization":"Bearer "+SBK}
+    })
+    .then(function(r){return r.json();})
+    .then(function(groups){
+      if (!groups || !groups[0]) return;
+      var group = groups[0];
+      return fetch(SBU+"/rest/v1/template_variants?group_id=eq."+group.id+"&variant=eq."+group.active_variant+"&limit=1", {
+        headers:{"apikey":SBK,"Authorization":"Bearer "+SBK}
+      }).then(function(r){return r.json();});
+    })
+    .then(function(variants){
+      if (variants && variants[0] && variants[0].body) {
+        var body = variants[0].body
+          .replace(/\{\{first_name\}\}/g, item.firstName||"")
+          .replace(/\{\{calendly_link\}\}/g, "https://calendly.com/dalen-lawrence/cfo-circle-fit-chat");
+        setReply(body);
+        setEditing(false);
+      }
+    })
+    .catch(function(e){console.error(e);})
+    .finally(function(){setLoadingTemplate(false);});
+  }
 
   if (gone) return null;
 
@@ -125,9 +154,14 @@ function QueueCard(props) {
         <div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
             <span style={{fontSize:10,color:G,letterSpacing:2,textTransform:"uppercase",fontWeight:600}}>Suggested Reply</span>
-            <button onClick={function(){ setEditing(function(e){ return !e; }); }} style={{background:"transparent",border:"none",color:T.muted,cursor:"pointer",fontSize:11}}>
-              {editing?"Done":"Edit"}
-            </button>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <button onClick={function(){loadTemplate("Post-Accept Welcome");}} disabled={loadingTemplate} style={{background:"transparent",border:"1px solid "+T.border,color:T.dim,cursor:"pointer",fontSize:10,padding:"2px 8px",borderRadius:4}}>
+                {loadingTemplate?"Loading...":"Use Template"}
+              </button>
+              <button onClick={function(){ setEditing(function(e){ return !e; }); }} style={{background:"transparent",border:"none",color:T.muted,cursor:"pointer",fontSize:11}}>
+                {editing?"Done":"Edit"}
+              </button>
+            </div>
           </div>
           {!item.suggestedReply && !editing ? (
             <div style={{padding:"10px 12px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,borderRadius:5,fontSize:12,color:T.dim}}>Generating reply...</div>
