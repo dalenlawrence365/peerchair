@@ -27,8 +27,8 @@ var DEFAULT_SCRIPT = [
    prompt:"One of the most visible sponsor roles is hosting — providing the space for our monthly meeting. A boardroom or conference suite that fits 15 to 18 people. Does {company} have something like that in Los Angeles or the Valley?",
    fallback:"If not, no problem — we have other options. Hosting is optional but sponsors who host tend to build relationships fastest."},
   {id:"invest",   label:"Investment",        tag:"PRICING",    contextual:true,
-   prompt:"Sponsorship is $5,000 per year — one seat per category, per group. That covers hosting opportunities when applicable, an educational presentation slot once per year, and ongoing relationship access to CFO members at every meeting.",
-   fallback:"We keep it at six sponsors total — and we protect exclusivity. Once the accounting seat is filled, it is closed for the year."},
+   prompt:"Sponsorship is $5,000 per year — one seat per category. It includes hosting opportunities, an educational presentation slot, and ongoing relationship access to CFO members over time.",
+   fallback:"We keep it at six sponsors total. Once a category seat is filled, it is closed for the year — exclusivity is part of the value."},
   {id:"close",    label:"Close",             tag:"CLOSE",      contextual:false,
    prompt:"Based on what you have shared, I think {company} is a strong fit for the {category} seat. The next step is for me to send you the sponsorship overview and proposed meeting dates. From there we can talk specifics. Does that work?",
    fallback:"If you want to see it in person first, I can also invite you to sit in on a meeting as a guest before committing."},
@@ -178,10 +178,14 @@ export default function SponsorCompanion(props) {
     var id = sc.id;
 
     if (id === "open") return (
-      <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",height:"100%",gap:14}}>
-        <div style={{fontSize:40,color:C,opacity:0.2}}>◈</div>
-        <div style={{fontSize:14,color:T.muted,letterSpacing:2,textTransform:"uppercase"}}>Ready to start</div>
-        <div style={{fontSize:14,color:T.dim,textAlign:"center",maxWidth:280,lineHeight:1.85}}>Press Start when the call begins. Work through the script on the left. Capture signals on the right.</div>
+      <div style={{height:"100%",display:"flex",flexDirection:"column",gap:14,justifyContent:"center"}}>
+        <STitle label="Opening — Read When Call Begins"/>
+        <div style={{padding:"20px 24px",background:"rgba(155,89,182,0.06)",border:"1px solid "+C+"25",borderLeft:"3px solid "+C,borderRadius:8,fontSize:16,color:"#ddeeff",lineHeight:2,fontStyle:"italic"}}>
+          "{fill(sc.prompt)}"
+        </div>
+        <div style={{padding:"11px 14px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:6,fontSize:13,color:T.dim,lineHeight:1.7}}>
+          Set the frame, confirm you have 15 minutes, and get their buy-in before moving forward.
+        </div>
       </div>
     );
 
