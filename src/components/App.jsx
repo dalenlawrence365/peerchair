@@ -1198,20 +1198,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
         </div>}
       <div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:20}}>
         <div style={{display:"flex",flexDirection:"column",gap:20}}>
-          <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:8,overflow:"hidden"}}>
-            <div style={{padding:"14px 18px",borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <div style={{fontSize:11,color:G,letterSpacing:3,textTransform:"uppercase",fontWeight:600}}>Today's Action Items</div>
-              <span style={{fontSize:10,color:T.dim}}>Powered by Claude ◎</span>
-            </div>
-            {ACTIONS.map(function(a,i){
-              var colors={warning:G,alert:T.red,info:T.blue,good:T.green};var c=colors[a.type];
-              return <div key={i} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 18px",borderBottom:i<ACTIONS.length-1?"1px solid "+T.border:"none",background:i%2===0?"rgba(255,255,255,0.01)":"transparent"}}>
-                <div style={{width:6,height:6,borderRadius:"50%",background:c,flexShrink:0}}/>
-                <div style={{flex:1,fontSize:13,color:T.text,lineHeight:1.5}}>{a.label}</div>
-                <button style={{padding:"5px 12px",background:c+"14",border:"1px solid "+c+"40",color:c,borderRadius:5,cursor:"pointer",fontSize:11,fontWeight:600,flexShrink:0}}>{a.action}</button>
-              </div>;
-            })}
-          </div>
+
           <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:8,overflow:"hidden"}}>
             <div style={{padding:"14px 18px",borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div style={{fontSize:11,color:G,letterSpacing:3,textTransform:"uppercase",fontWeight:600}}>Ask Claude</div>
