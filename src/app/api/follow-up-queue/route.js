@@ -124,20 +124,23 @@ export async function POST(request) {
       return Response.json({ success: true, action: "dismissed" });
     }
 
-    // ── Send via HeyReach ─────────────────────────────────────────────────────
-    var hrRes = await fetch(
-      "https://api.heyreach.io/api/public/v2/conversation/SendMessage",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-API-KEY": hrKey },
-        body: JSON.stringify({ conversationId, linkedInAccountId, message, subject: "" })
-      }
-    );
+    // ── Send via MCP proxy (HeyReach REST API is host-allowlisted) ───────────
+    var appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://peerchair.vercel.app";
+    var sendRes = await fetch(appUrl + "/api/follow-up-queue/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversationId, linkedInAccountId, message })
+    });
 
-    var hrBody = await hrRes.text();
-    if (!hrRes.ok) {
-      console.error("HeyReach SendMessage failed:", hrRes.status, hrBody);
-      return Response.json({ success: false, error: "HeyReach " + hrRes.status + ": " + hrBody }, { status: 400 });
+    if (!sendRes.ok) {
+      var sendErr = await sendRes.text();
+      console.error("MCP send failed:", sendRes.status, sendErr);
+      return Response.json({ success: false, error: "Send failed: " + sendErr }, { status: 400 });
+    }
+
+    var sendData = await sendRes.json();
+    if (!sendData.success) {
+      return Response.json({ success: false, error: sendData.error || "Send failed" }, { status: 400 });
     }
 
     // Detect Calendly link → Fit Invite
