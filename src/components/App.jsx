@@ -2,6 +2,7 @@
 import Sponsors from "@/components/Sponsors";
 import FollowUp from "@/components/FollowUp";
 import Templates from "@/components/Templates";
+import SponsorCompanion from "@/components/SponsorCompanion";
 import LiveCallCompanion from "@/components/LiveCallCompanion";
 import { useState, useEffect } from "react";
 
@@ -882,7 +883,30 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
-function Dashboard({onNavigate,totalContacts,stageCounts,pipelineTotal,fitCallContacts,onStartFitCall,onNavigateToBucket}) {
+function SponsorMetrics(props) {
+  var counts = props.stageCounts || {};
+  var items = [
+    {label:"Discovery Sched.",val:(counts["Discovery Scheduled"]||0),color:"#9b59b6"},
+    {label:"Discovery Done",val:(counts["Discovery Complete"]||0),color:"#7b2fbe"},
+    {label:"Proposal Sent",val:(counts["Proposal Sent"]||0),color:"#4a9eba"},
+    {label:"Committed",val:(counts["Verbal Commitment"]||0),color:"#f0c84a"},
+    {label:"Active Sponsors",val:(counts["Active"]||0),color:"#2ecc71"},
+  ];
+  return (
+    <div style={{display:"flex",gap:10,marginBottom:16}}>
+      {items.map(function(item){
+        return (
+          <div key={item.label} style={{flex:1,background:BG3,border:"1px solid "+item.color+"25",borderTop:"2px solid "+item.color+"70",borderRadius:7,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:item.color,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>{item.label}</div>
+            <div style={{fontSize:24,fontWeight:700,color:item.color}}>{item.val}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipelineTotal,fitCallContacts,onStartFitCall,onNavigateToBucket}) {
   var [openBucket,setOpenBucket] = useState(null);
   var [bucketContacts,setBucketContacts] = useState([]);
   var [bucketLoading,setBucketLoading] = useState(false);
@@ -953,6 +977,9 @@ function Dashboard({onNavigate,totalContacts,stageCounts,pipelineTotal,fitCallCo
         })}
       </div>
 
+        {/* SPONSOR DISCOVERY METRICS */}
+        <SponsorMetrics stageCounts={sponsorStageCounts}/>
+
         {/* HEYREACH OUTREACH FUNNEL */}
         <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:8,padding:"14px 18px",marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
@@ -1001,7 +1028,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,pipelineTotal,fitCallCo
         </div>
 
         {/* PIPELINE HEALTH ROW */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10,marginBottom:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr 1fr",gap:10,marginBottom:16}}>
           {/* Active Pipeline — hero metric */}
           <div style={{background:BG3,border:"1px solid "+G+"30",borderTop:"2px solid "+G,borderRadius:7,padding:"12px 14px",gridColumn:"span 1"}}>
             <div style={{fontSize:10,color:G,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4,fontWeight:600}}>Active Pipeline</div>
@@ -1024,8 +1051,9 @@ function Dashboard({onNavigate,totalContacts,stageCounts,pipelineTotal,fitCallCo
           </div>
           {/* Off-pipeline buckets */}
           {[
-            {label:"No Reply / Reserve",stages:["Reserve Pool","No Reply/Reserve"],color:T.orange},
-            {label:"Not a Fit",stages:["Not a Fit","Lost — Not a Fit"],color:T.red},
+            {label:"Opted Out",stages:["Opted Out"],color:T.red},
+            {label:"Not a Fit",stages:["Not a Fit","Lost — Not a Fit"],color:T.orange},
+            {label:"No Reply / Reserve",stages:["Reserve Pool","No Reply/Reserve"],color:T.muted},
             {label:"Total Contacts",stages:null,color:T.blue},
           ].map(function(bucket){
             var count=bucket.stages?bucket.stages.reduce(function(sum,s){return sum+(stageCounts[s]||0);},0):totalContacts;
@@ -1346,6 +1374,8 @@ export default function CFOCircleApp() {
   var [fitCallContact,setFitCallContact] = useState(null);
   var [fitCallContacts,setFitCallContacts] = useState([]);
   var [followUpCount,setFollowUpCount] = useState(0);
+  var [sponsorContact,setSponsorContact] = useState(null);
+  var [sponsorDeal,setSponsorDeal] = useState(null);
 
   var [selectedContact,setContact]   = useState(null);
   var [totalContacts,setTotal]       = useState(0);
@@ -1376,9 +1406,20 @@ export default function CFOCircleApp() {
 
 
 
+  var [sponsorStageCounts,setSponsorStageCounts] = useState({});
+
   async function loadStats(){
     setStatsLoading(true);
     try{
+      // Load sponsor deal counts
+      var sDeals = await sbFetch("/sponsor_deals?select=stage&limit=500");
+      var sCounts = {};
+      (Array.isArray(sDeals)?sDeals:[]).forEach(function(d){
+        var s = d.stage||"Unknown";
+        sCounts[s] = (sCounts[s]||0) + 1;
+      });
+      setSponsorStageCounts(sCounts);
+
       var rows=await sbFetch("/contacts?select=pipeline_stage");
       var counts={};var tot=0;var activePipelineStages=["Connected","Engaged","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member"];var pipelineTot=0;
       (Array.isArray(rows)?rows:[]).forEach(function(r){var s=r.pipeline_stage||"Unknown";counts[s]=(counts[s]||0)+1;tot++;if(activePipelineStages.indexOf(s)>-1)pipelineTot++;});
@@ -1430,7 +1471,7 @@ export default function CFOCircleApp() {
           </div>
         </div>
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-          {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts} pipelineTotal={pipelineTotal} fitCallContacts={fitCallContacts} onStartFitCall={function(ct){setFitCallContact({id:ct.id,firstName:ct.first_name,lastName:ct.last_name,title:ct.title,company:ct.company_name,email:ct.email,linkedinUrl:ct.linkedin_url,fit_call_date:ct.fit_call_date});setScreen("fitcall");}} onNavigateToBucket={function(stage){navigate("pipeline");}}/>}
+          {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts} sponsorStageCounts={sponsorStageCounts} pipelineTotal={pipelineTotal} fitCallContacts={fitCallContacts} onStartFitCall={function(ct){setFitCallContact({id:ct.id,firstName:ct.first_name,lastName:ct.last_name,title:ct.title,company:ct.company_name,email:ct.email,linkedinUrl:ct.linkedin_url,fit_call_date:ct.fit_call_date});setScreen("fitcall");}} onNavigateToBucket={function(stage){navigate("pipeline");}}/>}
           {screen==="pipeline"  && <Pipeline  onNavigate={navigate}/>}
           {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} contactData={selectedContact} onBack={function(){navigate("pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
           {screen==="events"    && <Placeholder icon="✦" title="Events" description="Manage your Experience Events — attendee lists, confirmations, and post-event follow-up."/>}
@@ -1438,6 +1479,7 @@ export default function CFOCircleApp() {
           {screen==="claude"    && <AskClaude/>}
           {screen==="sponsors"  && <Sponsors/>}
         {screen==="followup"  && <FollowUp onNavigate={navigate}/>}
+        {screen==="sponsor_call" && <SponsorCompanion contact={sponsorContact} deal={sponsorDeal} onBack={function(){navigate("sponsors");}} onEnd={function(){navigate("sponsors");}}/>}
           {screen==="fitcall" && fitCallContact && <LiveCallCompanion contact={fitCallContact} onEnd={function(){ setScreen("profile"); }} onBack={function(){ setScreen("profile"); }}/>}
         </div>
       </div>
