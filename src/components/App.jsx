@@ -1275,7 +1275,6 @@ function Pipeline({onNavigate}) {
             {s:"Fit Invite Sent",     c:T.orange,   label:"Invite Sent"},
             {s:"Fit Call Scheduled",  c:G,          label:"Fit Sched."},
             {s:"Fit Call Completed",  c:T.purple,   label:"Fit Done"},
-            {s:"Strong Fit",          c:T.green,    label:"Strong Fit"},
             {s:"Event Waitlist",      c:"#9b59b6",  label:"Waitlist"},
             {s:"Event Invited",       c:"#1abc9c",  label:"Invited"},
             {s:"Event Confirmed",     c:T.green,    label:"Confirmed"},
@@ -1523,7 +1522,7 @@ export default function CFOCircleApp() {
 
   function navigate(s,contact,q){setScreen(s);if(contact)setContact(contact);if(q)setClaudeQ(q);}
 
-  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:String(followUpCount)},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":(stageCounts["Active Member"]||0)+" active"},{id:"sponsors",icon:"$",label:"Sponsors",badge:sponsorCompanyCount>0?String(sponsorCompanyCount):""},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
+  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:String(followUpCount)},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors",badge:sponsorCompanyCount>0?String(sponsorCompanyCount):""},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
 
   var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",sponsors:"Sponsors",followup:"Follow-Up Queue",stalliant:"Sponsors"}[screen]||screen;
 
