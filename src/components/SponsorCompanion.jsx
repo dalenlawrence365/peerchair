@@ -139,7 +139,7 @@ export default function SponsorCompanion(props) {
                 fallback:   v ? v.fallback: def.fallback,
                 groupId:    g.id,
               };
-            });
+            }).filter(function(s){ return s.prompt && s.prompt.trim().length > 0; });
             setScript(built);
           });
       })
