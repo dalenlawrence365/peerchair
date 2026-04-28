@@ -55,6 +55,38 @@ export async function POST(request) {
       return Response.json({ status: 'skipped', reason: 'no profile data', received: Object.keys(body) })
     }
 
+    // MESSAGE_SENT = HeyReach sent Step 2 (3hrs after connection) → advance Connected → Engaged
+    if (eventType === 'message_sent' || eventType === 'MESSAGE_SENT') {
+      const slug = extractSlug(linkedinUrl)
+      if (slug) {
+        const { data: existing } = await supabase
+          .from('contacts').select('id,first_name,last_name,pipeline_stage')
+          .ilike('linkedin_url', '%' + slug + '%').limit(1)
+        if (existing && existing.length > 0) {
+          const ct = existing[0]
+          if (ct.pipeline_stage === 'Connected') {
+            await supabase.from('contacts').update({
+              pipeline_stage: 'Engaged',
+              last_activity_date: new Date().toISOString()
+            }).eq('id', ct.id)
+            await supabase.from('communications').insert({
+              contact_id: ct.id,
+              occurred_at: new Date().toISOString(),
+              channel: 'LinkedIn',
+              direction: 'OUT',
+              step_label: 'Step 2 Sent',
+              body: 'HeyReach sent Step 2 follow-up message.',
+              source: 'HeyReach',
+              logged_by: 'system',
+            })
+            console.log('Advanced to Engaged:', ct.first_name, ct.last_name)
+          }
+          return Response.json({ status: 'engaged', contact: ct.id })
+        }
+      }
+      return Response.json({ status: 'message_sent_no_match' })
+    }
+
     // Check if already in Supabase
     const slug = extractSlug(linkedinUrl)
     if (slug) {
