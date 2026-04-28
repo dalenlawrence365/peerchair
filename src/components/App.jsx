@@ -1040,7 +1040,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
     <div style={{padding:"28px 32px",overflowY:"auto",flex:1}}>
       <div style={{marginBottom:24}}>
         <div style={{fontSize:11,color:T.muted,letterSpacing:3,textTransform:"uppercase",marginBottom:6}}>{today}</div>
-        <h1 style={{fontSize:26,fontWeight:600,color:T.text,margin:0}}>Good morning, Dalen.</h1>
+        <h1 style={{fontSize:26,fontWeight:600,color:T.text,margin:0}}>{(function(){var h=new Date().getHours();return h<12?"Good morning":h<17?"Good afternoon":"Good evening";})()}, Dalen.</h1>
         <div style={{fontSize:14,color:T.muted,marginTop:4}}>Here's where things stand with your Los Angeles chapter.</div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:16}}>
@@ -1360,7 +1360,7 @@ function AskClaude(props) {
   var [input, setInput]   = useState("");
   var [loading, setLoading] = useState(false);
   var [messages, setMessages] = useState([
-    {role:"assistant", text:"Good morning, Dalen. I have your full pipeline loaded — 73 contacts across all stages. Ask me anything about who to call, what to say, or what needs attention today."}
+    {role:"assistant", text:(function(){var h=new Date().getHours();var g=h<12?"Good morning":h<17?"Good afternoon":"Good evening";return g+", Dalen. I have your full pipeline loaded. Ask me anything about who to call, what to say, or what needs attention today.";})()} 
   ]);
 
   useEffect(function(){
