@@ -930,7 +930,7 @@ function SponsorMetrics(props) {
 
   var items = [
     {label:"Discovery Sched.",stage:"Discovery Scheduled",val:(counts["Discovery Scheduled"]||0),color:"#9b59b6",clickable:true},
-    {label:"Discovery Done",stage:"Discovery Complete",val:(counts["Discovery Complete"]||0),color:"#7b2fbe",clickable:false},
+    {label:"Discovery Done",stage:"_discoveryDone",val:(counts["_discoveryDone"]||0),color:"#7b2fbe",clickable:false},
     {label:"Proposal Sent",stage:"Proposal Sent",val:(counts["Proposal Sent"]||0),color:"#4a9eba",clickable:false},
     {label:"Committed",stage:"Verbal Commitment",val:(counts["Verbal Commitment"]||0),color:"#f0c84a",clickable:false},
     {label:"Active Sponsors",stage:"Active",val:(counts["Active"]||0),color:"#2ecc71",clickable:false},
@@ -1500,12 +1500,13 @@ export default function CFOCircleApp() {
     setStatsLoading(true);
     try{
       // Load sponsor deal counts
-      var sDeals = await sbFetch("/sponsor_deals?select=stage&limit=500");
+      var sDeals = await sbFetch("/sponsor_deals?select=stage,discovery_date&limit=500");
       var sCounts = {};
       (Array.isArray(sDeals)?sDeals:[]).forEach(function(d){
         var s = d.stage||"Unknown";
         sCounts[s] = (sCounts[s]||0) + 1;
       });
+      sCounts["_discoveryDone"] = (Array.isArray(sDeals)?sDeals:[]).filter(function(d){return d.discovery_date;}).length;
       setSponsorStageCounts(sCounts);
 
       var rows=await sbFetch("/contacts?select=pipeline_stage");
