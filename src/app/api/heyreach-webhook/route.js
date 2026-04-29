@@ -32,8 +32,10 @@ function extractProfile(body) {
 }
 
 export async function POST(request) {
+  var rawBody = null
   try {
     const body = await request.json()
+    rawBody = body
     const eventType = body.eventType || body.event_type || body.type || 'unknown'
     console.log('HeyReach webhook received — event:', eventType)
 
@@ -186,6 +188,16 @@ export async function POST(request) {
     return Response.json({ status: 'created', contact: { id: newContact.id, name: firstName + ' ' + lastName } })
   } catch (err) {
     console.error('Webhook error:', err.message, err.stack)
+    // Write to dead letter table so we can replay
+    try {
+      await supabase.from('webhook_failures').insert({
+        event_type: 'unknown',
+        payload: rawBody || {},
+        error_message: err.message,
+        retry_count: 0,
+        resolved: false,
+      })
+    } catch(dlErr) { console.error('Dead letter write failed:', dlErr.message) }
     return Response.json({ status: 'error', message: err.message }, { status: 500 })
   }
 }

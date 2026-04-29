@@ -3,6 +3,14 @@
     {
       "path": "/api/pipeline-maintenance",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/audit",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/audit",
+      "schedule": "0 21 * * *"
     }
   ]
 }
