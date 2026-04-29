@@ -92,7 +92,7 @@ function ThreadPanel({item, onDone, onClose}) {
       : Promise.resolve();
 
     // Pull HeyReach chatroom
-    var hrPromise = fetch("/api/follow-up-queue/thread?conversationId="+encodeURIComponent(item.conversationId)+"&linkedInAccountId="+(item.linkedInAccountId||185228))
+    var hrPromise = fetch("/api/follow-up-queue/thread?conversationId="+encodeURIComponent(item.conversationId)+"&linkedInAccountId="+(item.linkedInAccountId||185228)+"&contactId="+(item.supabaseId||""))
       .then(function(r){return r.json();})
       .then(function(d){ heyMsgs = Array.isArray(d.messages)?d.messages:[]; })
       .catch(function(){});
@@ -248,7 +248,7 @@ function ThreadPanel({item, onDone, onClose}) {
         )}
         {!loading && thread.length===0 && (
           <div style={{textAlign:"center",color:T.dim,fontSize:13,padding:"40px 0"}}>
-            No messages found in HeyReach. Check LinkedIn directly.
+            No messages found — HeyReach API may be temporarily unavailable. Check LinkedIn directly or wait a moment and refresh.
           </div>
         )}
         {!loading && thread.map(function(msg,i){
@@ -350,7 +350,7 @@ export default function FollowUp({onNavigate}) {
         var q = Array.isArray(d.queue)?d.queue:[];
         setQueue(q);
         setDaily(d.dailyCount||0);
-        if (q.length>0 && !selected) setSelected(q[0]);
+        setSelected(q.length>0 ? q[0] : null);
       })
       .catch(function(e){setError(e.message);})
       .finally(function(){setLoading(false);});
