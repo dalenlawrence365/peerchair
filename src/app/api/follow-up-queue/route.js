@@ -124,14 +124,14 @@ export async function GET() {
           var p = item.correspondentProfile || {};
           var url = p.profileUrl || p.profile_url || "";
           if (url) {
-            var slug = url.replace(//$/, "").split("/in/").pop().toLowerCase();
+            var slug = url.replace(/\/$/, "").split("/in/").pop().toLowerCase();
             hrBySlug[slug] = item;
           }
         });
         // Enrich sbQueue items with real convId and photo
         sbQueue.forEach(function(item) {
           if (!item.profileUrl) return;
-          var slug = item.profileUrl.replace(//$/, "").split("/in/").pop().toLowerCase();
+          var slug = item.profileUrl.replace(/\/$/, "").split("/in/").pop().toLowerCase();
           var hr = hrBySlug[slug];
           if (!hr) return;
           item.conversationId = hr.id || item.conversationId;
@@ -151,9 +151,9 @@ export async function GET() {
           var p = hr.correspondentProfile || {};
           var url = p.profileUrl || p.profile_url || "";
           if (!url) return;
-          var slug = url.replace(//$/, "").split("/in/").pop().toLowerCase();
+          var slug = url.replace(/\/$/, "").split("/in/").pop().toLowerCase();
           // Skip if already in sbQueue or dismissed
-          var alreadyIn = sbQueue.find(function(i){ return i.profileUrl && i.profileUrl.replace(//$/, "").split("/in/").pop().toLowerCase() === slug; });
+          var alreadyIn = sbQueue.find(function(i){ return i.profileUrl && i.profileUrl.replace(/\/$/, "").split("/in/").pop().toLowerCase() === slug; });
           if (alreadyIn) return;
           var dismissed = dismissedMap.get(hr.id);
           if (dismissed && new Date(hr.lastMessageAt) <= new Date(dismissed)) return;
