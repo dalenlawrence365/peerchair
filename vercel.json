@@ -11,6 +11,14 @@
     {
       "path": "/api/audit",
       "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/scheduled-send",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/scheduled-send",
+      "schedule": "0 20 * * *"
     }
   ]
 }

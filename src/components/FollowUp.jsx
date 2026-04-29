@@ -72,6 +72,12 @@ function ThreadPanel({item, onDone, onClose}) {
   var [loading,    setLoading]    = useState(true);
   var [reply,      setReply]      = useState("");
   var [generating, setGenerating] = useState(false);
+  var [showSnooze, setShowSnooze] = useState(false);
+  var [snoozeDraft,setSnoozeDraft]= useState("");
+  var [snoozeDate, setSnoozeDate] = useState("");
+  var [snoozeMode, setSnoozeMode] = useState("resurface");
+  var [snoozing,   setSnoozing]   = useState(false);
+  var [snoozed,    setSnoozed]    = useState(false);
   var threadRef = useRef(null);
 
   // Load full thread from HeyReach + Supabase communications
@@ -212,6 +218,36 @@ function ThreadPanel({item, onDone, onClose}) {
     if (onDone) onDone(item,reason,null);
   }
 
+  async function handleSnooze() {
+    if (!snoozeDate || !snoozeDraft.trim() || snoozing) return;
+    setSnoozing(true);
+    try {
+      var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      var h = {"apikey":SBK,"Authorization":"Bearer "+SBK,"Content-Type":"application/json"};
+      await fetch(SBU+"/rest/v1/scheduled_actions", {
+        method:"POST", headers:h,
+        body: JSON.stringify({
+          contact_id:          item.supabaseId||null,
+          conversation_id:     item.conversationId,
+          channel:             "linkedin",
+          send_at:             new Date(snoozeDate+"T17:00:00Z").toISOString(),
+          message_body:        snoozeDraft,
+          mode:                snoozeMode,
+          contact_first_name:  item.firstName,
+          contact_last_name:   item.lastName,
+          contact_company:     item.company,
+          contact_linkedin_url:item.profileUrl,
+          status:              "pending",
+        })
+      });
+      setSnoozed(true);
+      setShowSnooze(false);
+      setTimeout(function(){ if(onDone) onDone(item,"snoozed",null); }, 1000);
+    } catch(e){ console.error(e); }
+    setSnoozing(false);
+  }
+
   if (!item) return null;
 
   var isWarm = item.category==="warm";
@@ -285,11 +321,29 @@ function ThreadPanel({item, onDone, onClose}) {
           rows={4}
           style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:T.text,padding:"10px 12px",borderRadius:6,fontSize:13,lineHeight:1.7,resize:"vertical",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}
         />
+        {showSnooze&&<div style={{background:"rgba(240,200,74,0.05)",border:"1px solid rgba(240,200,74,0.2)",borderRadius:6,padding:"12px 14px",marginTop:10}}>
+          <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>Schedule This Message</div>
+          <textarea value={snoozeDraft} onChange={function(e){setSnoozeDraft(e.target.value);}} placeholder={"Write the message to send on the scheduled date..."} rows={3} style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:T.text,padding:"8px 10px",borderRadius:5,fontSize:13,lineHeight:1.65,resize:"vertical",outline:"none",fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}}/>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <input type="date" value={snoozeDate} onChange={function(e){setSnoozeDate(e.target.value);}} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:T.text,padding:"5px 9px",borderRadius:4,fontSize:12,outline:"none",cursor:"pointer"}}/>
+            <div style={{display:"flex",gap:4}}>
+              {["resurface","auto_send"].map(function(m){return(
+                <button key={m} onClick={function(){setSnoozeMode(m);}} style={{padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11,border:"1px solid "+(snoozeMode===m?"rgba(240,200,74,0.4)":"rgba(255,255,255,0.08)"),background:snoozeMode===m?"rgba(240,200,74,0.1)":"transparent",color:snoozeMode===m?G:"#8ab4cc"}}>
+                  {m==="resurface"?"Review First":"Auto-Send"}
+                </button>
+              );})}
+            </div>
+            <button onClick={handleSnooze} disabled={!snoozeDate||!snoozeDraft.trim()||snoozing} style={{padding:"5px 14px",background:snoozed?"rgba(46,204,113,0.15)":"rgba(240,200,74,0.12)",border:"1px solid "+(snoozed?"rgba(46,204,113,0.4)":"rgba(240,200,74,0.3)"),color:snoozed?"#2ecc71":G,borderRadius:4,cursor:"pointer",fontSize:12,fontWeight:600}}>
+              {snoozing?"Saving...":snoozed?"✓ Scheduled":"Schedule"}
+            </button>
+          </div>
+        </div>}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:10}}>
-          <div style={{display:"flex",gap:6}}>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             <button onClick={function(){dismiss("scheduled");}} style={{padding:"6px 12px",background:"rgba(74,158,186,0.1)",border:"1px solid rgba(74,158,186,0.2)",color:T.blue,borderRadius:4,cursor:"pointer",fontSize:12}}>Scheduled</button>
             <button onClick={function(){dismiss("not_interested");}} style={{padding:"6px 12px",background:"rgba(231,76,60,0.08)",border:"1px solid rgba(231,76,60,0.2)",color:T.red,borderRadius:4,cursor:"pointer",fontSize:12}}>Not Interested</button>
             <button onClick={function(){dismiss("opted_out");}} style={{padding:"6px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:T.muted,borderRadius:4,cursor:"pointer",fontSize:12}}>Opted Out</button>
+            <button onClick={function(){setShowSnooze(function(v){return !v;});}} style={{padding:"6px 12px",background:showSnooze?"rgba(240,200,74,0.12)":"rgba(255,255,255,0.03)",border:"1px solid "+(showSnooze?"rgba(240,200,74,0.3)":"rgba(255,255,255,0.08)"),color:showSnooze?G:"#8ab4cc",borderRadius:4,cursor:"pointer",fontSize:12}}>⏰ Snooze</button>
           </div>
           <SendButton onSend={sendReply}/>
         </div>
@@ -334,11 +388,12 @@ function QueueCard({item, selected, onClick, gone}) {
 
 // ─── Main FollowUp Component ──────────────────────────────────────────────────
 export default function FollowUp({onNavigate}) {
-  var [queue,   setQueue]   = useState([]);
-  var [done,    setDone]    = useState([]);
-  var [loading, setLoading] = useState(true);
-  var [error,   setError]   = useState("");
-  var [selected, setSelected] = useState(null); // item
+  var [queue,    setQueue]    = useState([]);
+  var [snoozed,  setSnoozed]  = useState([]);
+  var [done,     setDone]     = useState([]);
+  var [loading,  setLoading]  = useState(true);
+  var [error,    setError]    = useState("");
+  var [selected, setSelected] = useState(null);
   var [goneIds,  setGoneIds]  = useState(new Set());
   var [daily,    setDaily]    = useState(0);
 
@@ -361,6 +416,13 @@ export default function FollowUp({onNavigate}) {
     if (reason==="sent") {
       setDone(function(p){ return [{...item,sentMessage:msg,completedAt:new Date().toISOString()}].concat(p); });
       setDaily(function(d){return d+1;});
+    }
+    if (reason==="snoozed") {
+      // reload snoozed list
+      var SBU2 = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      var SBK2 = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      fetch(SBU2+"/rest/v1/scheduled_actions?status=eq.pending&order=send_at.asc&limit=50",{headers:{"apikey":SBK2,"Authorization":"Bearer "+SBK2}})
+        .then(function(r){return r.json();}).then(function(sa){setSnoozed(Array.isArray(sa)?sa:[]);}).catch(function(){});
     }
     // Select next card
     var remaining = queue.filter(function(q){ return !goneIds.has(q.id) && q.id!==item.id; });
@@ -400,6 +462,33 @@ export default function FollowUp({onNavigate}) {
           {activeQueue.map(function(item){
             return <QueueCard key={item.id} item={item} selected={selected?.id===item.id} gone={goneIds.has(item.id)} onClick={function(){setSelected(item);}}/>;
           })}
+
+          {/* Snoozed section */}
+          {snoozed.length>0&&<>
+            <div style={{fontSize:10,color:G,letterSpacing:2,textTransform:"uppercase",padding:"10px 4px 6px",display:"flex",justifyContent:"space-between"}}>
+              <span>⏰ Snoozed ({snoozed.length})</span>
+            </div>
+            {snoozed.map(function(sa){
+              var sendDate = new Date(sa.send_at);
+              var daysOut  = Math.ceil((sendDate-Date.now())/86400000);
+              var label    = daysOut<=0?"Today":daysOut===1?"Tomorrow":"In "+daysOut+" days";
+              return (
+                <div key={sa.id} style={{padding:"10px 12px",borderRadius:6,background:"rgba(240,200,74,0.03)",border:"1px solid rgba(240,200,74,0.12)",marginBottom:6,borderLeft:"3px solid rgba(240,200,74,0.3)"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                    <div style={{fontSize:12,color:T.text,fontWeight:500}}>{sa.contact_first_name} {sa.contact_last_name}</div>
+                    <span style={{fontSize:10,color:G,flexShrink:0,marginLeft:6}}>{label}</span>
+                  </div>
+                  <div style={{fontSize:11,color:T.muted}}>{sa.contact_company}</div>
+                  <div style={{fontSize:11,color:T.dim,fontStyle:"italic",marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>"{sa.message_body}"</div>
+                  <div style={{display:"flex",gap:4,marginTop:5,alignItems:"center"}}>
+                    <span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"rgba(74,158,186,0.1)",border:"1px solid rgba(74,158,186,0.2)",color:T.blue}}>{sa.channel.toUpperCase()}</span>
+                    <span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.06)",color:T.dim}}>{sa.mode==="auto_send"?"AUTO-SEND":"REVIEW FIRST"}</span>
+                    <span style={{fontSize:9,color:T.dim,marginLeft:"auto"}}>{sendDate.toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </>}
 
           {/* Done section */}
           {done.length>0&&<>
