@@ -89,10 +89,12 @@ function TemplateEditor(props) {
         name: current.name||"",
         subject: current.subject||"",
         body: current.body||"",
-        performance_notes: current.performance_notes||""
+        performance_notes: current.performance_notes||"",
+        sequence_key: current.sequence_key||"",
+        webhook_phrase: current.webhook_phrase||""
       });
     } else {
-      setEditing({name:"", subject:"", body:"", performance_notes:""});
+      setEditing({name:"", subject:"", body:"", performance_notes:"", sequence_key:"", webhook_phrase:""});
     }
   }, [activeVariant, group.id]);
 
@@ -104,6 +106,8 @@ function TemplateEditor(props) {
         subject: editing.subject,
         body: editing.body,
         performance_notes: editing.performance_notes,
+        sequence_key: editing.sequence_key || null,
+        webhook_phrase: editing.webhook_phrase || null,
         updated_at: new Date().toISOString()
       });
     }
@@ -238,6 +242,17 @@ function TemplateEditor(props) {
             <div>
               <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:5}}>Performance Notes</div>
               <textarea value={editing.performance_notes||""} onChange={function(e){setEditing(function(p){var n=Object.assign({},p);n.performance_notes=e.target.value;return n;});}} placeholder="Notes on how this variant is performing..." style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.muted,padding:"7px 11px",borderRadius:5,fontSize:12,lineHeight:1.65,resize:"vertical",outline:"none",fontFamily:"inherit",boxSizing:"border-box",minHeight:60}}/>
+              {/* Sequence Key + Webhook Phrase */}
+              <div style={{display:"flex",gap:8,marginTop:10}}>
+                <div style={{flex:"0 0 140px"}}>
+                  <div style={{fontSize:11,letterSpacing:2,color:"#4a9eba",textTransform:"uppercase",marginBottom:4}}>Sequence Key</div>
+                  <input value={editing.sequence_key||""} onChange={function(e){setEditing(function(p){var n=Object.assign({},p);n.sequence_key=e.target.value;return n;});}} placeholder="e.g. LI-ENG-2" style={{width:"100%",background:BG2,border:"1px solid rgba(74,158,186,0.3)",color:"#4a9eba",padding:"5px 9px",borderRadius:5,fontSize:12,outline:"none",fontFamily:"'Courier New',monospace",boxSizing:"border-box"}}/>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,letterSpacing:2,color:"#4a9eba",textTransform:"uppercase",marginBottom:4}}>Webhook Phrase</div>
+                  <input value={editing.webhook_phrase||""} onChange={function(e){setEditing(function(p){var n=Object.assign({},p);n.webhook_phrase=e.target.value;return n;});}} placeholder="Distinctive phrase for auto-detection..." style={{width:"100%",background:BG2,border:"1px solid rgba(74,158,186,0.3)",color:T.muted,padding:"5px 9px",borderRadius:5,fontSize:12,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+                </div>
+              </div>
             </div>
 
             {!current&&(

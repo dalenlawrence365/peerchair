@@ -66,9 +66,30 @@ export async function POST(request) {
           .ilike('linkedin_url', '%' + slug + '%').limit(1)
         if (existing && existing.length > 0) {
           const ct = existing[0]
-          let stepLabel = ct.pipeline_stage === 'Connected' ? 'Step 2 Sent'
-                        : ct.pipeline_stage === 'Engaged'   ? 'Hail Mary Sent'
-                        : 'HeyReach Message Sent'
+
+          // Phrase-based sequence key lookup — match message body against known webhook phrases
+          let sequenceKey = null
+          let stepLabel = 'HeyReach Message Sent'
+          if (msgBody) {
+            const { data: tmpl } = await supabase
+              .from('template_variants')
+              .select('sequence_key, webhook_phrase')
+              .not('webhook_phrase', 'is', null)
+              .limit(50)
+            if (tmpl) {
+              const match = tmpl.find(t => t.webhook_phrase && msgBody.includes(t.webhook_phrase))
+              if (match && match.sequence_key) {
+                sequenceKey = match.sequence_key
+                stepLabel = match.sequence_key
+              }
+            }
+          }
+          // Fallback to stage inference if no phrase matched
+          if (!sequenceKey) {
+            sequenceKey = ct.pipeline_stage === 'Connected' ? 'LI-ENG-2' : 'LI-ENG-3'
+            stepLabel = sequenceKey
+          }
+
           if (ct.pipeline_stage === 'Connected') {
             await supabase.from('contacts').update({
               pipeline_stage: 'Engaged',
@@ -89,7 +110,17 @@ export async function POST(request) {
             body: msgBody || stepLabel,
             source: 'HeyReach',
             logged_by: 'system',
+            sequence_key: sequenceKey,
           })
+          // Log to sequence_performance for tracking
+          if (sequenceKey) {
+            await supabase.from('sequence_performance').insert({
+              sequence_key: sequenceKey,
+              contact_id: ct.id,
+              sent_at: msgTimestamp,
+              channel: sequenceKey.split('-')[0],
+            }).catch(e => console.warn('seq perf log failed:', e.message))
+          }
           console.log(stepLabel + ':', ct.first_name, ct.last_name)
           return Response.json({ status: 'logged', step: stepLabel, contact: ct.id })
         }
