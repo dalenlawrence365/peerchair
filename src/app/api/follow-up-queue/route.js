@@ -9,11 +9,11 @@ export async function GET() {
     var sbH = { "apikey": SBK, "Authorization": "Bearer " + SBK };
 
     // Fetch dismissed conversation IDs from Supabase
-    var dismissedIds = new Set();
+    var dismissedMap = new Map();
     try {
-      var dRes = await fetch(SBU + "/rest/v1/queue_dismissed?select=conversation_id&limit=500", { headers: sbH });
+      var dRes = await fetch(SBU + "/rest/v1/queue_dismissed?select=conversation_id,dismissed_at&limit=500", { headers: sbH });
       var dData = await dRes.json();
-      if (Array.isArray(dData)) dData.forEach(function(d) { dismissedIds.add(d.conversation_id); });
+      if (Array.isArray(dData)) dData.forEach(function(d) { dismissedMap.set(d.conversation_id, d.dismissed_at); });
     } catch(e) { console.warn("Could not load dismissed IDs:", e.message); }
 
     // Fetch live conversations from HeyReach
@@ -47,7 +47,11 @@ export async function GET() {
     // Build queue — filter out sent (lastMessageSender=ME) and dismissed
     var conversations = convData.items || [];
     var needsReply = conversations.filter(function(c) {
-      return c.lastMessageSender === "CORRESPONDENT" && !dismissedIds.has(c.id);
+      if (c.lastMessageSender !== "CORRESPONDENT") return false;
+      var dismissedAt = dismissedMap.get(c.id);
+      if (!dismissedAt) return true; // never dismissed
+      // Re-show if they sent a NEW message after we dismissed
+      return new Date(c.lastMessageAt) > new Date(dismissedAt);
     });
 
     var queue = needsReply.map(function(conv) {
