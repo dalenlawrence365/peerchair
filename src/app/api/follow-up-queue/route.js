@@ -194,45 +194,14 @@ export async function GET() {
       });
     } catch(e) { console.warn("Could not load excluded contacts:", e.message); }
 
-    // Build queue — filter out sent, dismissed, and excluded pipeline stages
-    var conversations = convData.items || [];
-    var needsReply = conversations.filter(function(c) {
-      if (c.lastMessageSender !== "CORRESPONDENT") return false;
-      // Check if contact is in an excluded pipeline stage
-      var profileUrl = (c.correspondentProfile || {}).profileUrl || (c.correspondentProfile || {}).profile_url || "";
-      if (profileUrl) {
-        var slug = profileUrl.replace(/\/$/, '').split('/in/').pop().toLowerCase();
-        if (excludedSlugs.has(slug)) return false;
-      }
-      var dismissedAt = dismissedMap.get(c.id);
-      if (!dismissedAt) return true; // never dismissed
-      // Re-show if they sent a NEW message after we dismissed
-      return new Date(c.lastMessageAt) > new Date(dismissedAt);
-    });
+    // sbQueue is already filtered, categorized and formatted — use it directly
+    var queue = convData.items || [];
 
-    var queue = needsReply.map(function(conv) {
-      var person = conv.correspondentProfile || {};
-      var lastMsg = conv.lastMessageText || "";
-      var isNegative = /not interested|no thanks|unsubscribe|stop|remove|opt.?out/i.test(lastMsg);
-      var isWarm = /happy to (chat|connect|participate|talk|learn|hear)|sounds (fun|great|interesting)|love to|interested|open to/i.test(lastMsg);
-      var category = isNegative ? "not_interested" : isWarm ? "warm" : "neutral";
-      return {
-        id: conv.id,
-        conversationId: conv.id,
-        linkedInAccountId: conv.linkedInAccountId || 185228,
-        firstName: person.firstName || "",
-        lastName: person.lastName || "",
-        fullName: (person.firstName || "") + " " + (person.lastName || ""),
-        title: person.position || "",
-        company: person.companyName || "",
-        location: person.location || "",
-        profileUrl: person.profileUrl || "",
-        imageUrl: person.imageUrl || "",
-        lastMessage: lastMsg,
-        lastMessageAt: conv.lastMessageAt,
-        category: category,
-        suggestedReply: "",
-      };
+    // Final excluded stage check (belt and suspenders)
+    queue = queue.filter(function(item) {
+      if (!item.profileUrl) return true; // no URL to check, include it
+      var slug = item.profileUrl.replace(/\/$/, '').split('/in/').pop().toLowerCase();
+      return !excludedSlugs.has(slug);
     });
 
     // Fetch today's activity count
