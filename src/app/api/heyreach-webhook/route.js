@@ -55,8 +55,10 @@ export async function POST(request) {
       return Response.json({ status: 'skipped', reason: 'no profile data', received: Object.keys(body) })
     }
 
-    // MESSAGE_SENT = HeyReach sent Step 2 (3hrs after connection) → advance Connected → Engaged
+    // MESSAGE_SENT = HeyReach sent outbound message (Step 2, Hail Mary, etc)
     if (eventType === 'message_sent' || eventType === 'MESSAGE_SENT') {
+      const msgBody = body.message || body.messageText || body.message_text || body.text || ''
+      const msgTimestamp = body.timestamp || new Date().toISOString()
       const slug = extractSlug(linkedinUrl)
       if (slug) {
         const { data: existing } = await supabase
@@ -64,24 +66,32 @@ export async function POST(request) {
           .ilike('linkedin_url', '%' + slug + '%').limit(1)
         if (existing && existing.length > 0) {
           const ct = existing[0]
+          let stepLabel = ct.pipeline_stage === 'Connected' ? 'Step 2 Sent'
+                        : ct.pipeline_stage === 'Engaged'   ? 'Hail Mary Sent'
+                        : 'HeyReach Message Sent'
           if (ct.pipeline_stage === 'Connected') {
             await supabase.from('contacts').update({
               pipeline_stage: 'Engaged',
               last_activity_date: new Date().toISOString()
             }).eq('id', ct.id)
-            await supabase.from('communications').insert({
-              contact_id: ct.id,
-              occurred_at: new Date().toISOString(),
-              channel: 'LinkedIn',
-              direction: 'OUT',
-              step_label: 'Step 2 Sent',
-              body: 'HeyReach sent Step 2 follow-up message.',
-              source: 'HeyReach',
-              logged_by: 'system',
-            })
             console.log('Advanced to Engaged:', ct.first_name, ct.last_name)
+          } else {
+            await supabase.from('contacts').update({
+              last_activity_date: new Date().toISOString()
+            }).eq('id', ct.id)
           }
-          return Response.json({ status: 'engaged', contact: ct.id })
+          await supabase.from('communications').insert({
+            contact_id: ct.id,
+            occurred_at: msgTimestamp,
+            channel: 'LinkedIn',
+            direction: 'OUT',
+            step_label: stepLabel,
+            body: msgBody || stepLabel,
+            source: 'HeyReach',
+            logged_by: 'system',
+          })
+          console.log(stepLabel + ':', ct.first_name, ct.last_name)
+          return Response.json({ status: 'logged', step: stepLabel, contact: ct.id })
         }
       }
       return Response.json({ status: 'message_sent_no_match' })
