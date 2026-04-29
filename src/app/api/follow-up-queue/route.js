@@ -41,14 +41,33 @@ export async function GET() {
         { id:"2-OGU1NmQ1NGUtODhhMC00M2Q3LWJhMDAtODg3NGIwN2Y2YWI1XzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"Thanks", lastMessageAt:"2026-04-21T21:21:12.969Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"R.", lastName:"Urban", position:"Member of the Board of Directors", companyName:"GenRocket", profileUrl:"https://www.linkedin.com/in/r-allen-urban-680a423", imageUrl:"https://media.licdn.com/dms/image/v2/C4D03AQGkBLXltC7QEA/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1516306915584?e=1778716800&v=beta&t=OD4bcbmvZFXEKmhkJOQntty-X8VFHjy8HTJrkDejQe0", location:"Ventura, California" }},
         { id:"2-NzVhNWI2YmUtOGFlMS00NTlkLWE0NWMtYmZlMWRhMGE1YzliXzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"I'm happy to connect", lastMessageAt:"2026-04-21T20:42:29.948Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"Gaheez", lastName:"Ghowrwal", position:"Chief Financial Officer", companyName:"StarPoint Properties", profileUrl:"https://www.linkedin.com/in/gaheez-g-977aa718a", imageUrl:"https://media.licdn.com/dms/image/v2/D5603AQGh6I9AmidSCw/profile-displayphoto-scale_100_100/B56Zu0tfypIwAc-/0/1768263384917?e=1778716800&v=beta&t=AZA5VFtlqvvgtwAWHEOPVvsndXpb7KcnzNmCdExk", location:"Los Angeles Metropolitan Area" }},
         { id:"2-M2MwZjdhMTItNWM2NS00YTAzLWFjOTQtMmUwZmYyZGI3YjQ1XzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"Thanks", lastMessageAt:"2026-04-20T20:33:17.937Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"Marcus", lastName:"D'Anna", position:"Chief Financial Officer", companyName:"U-PIC Shipping Insurance", profileUrl:"https://www.linkedin.com/in/marcus-d-anna-cpa-84a16718", imageUrl:"https://media.licdn.com/dms/image/v2/C5603AQEW-J7rYgs_2g/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1522783231144?e=1778716800&v=beta&t=xswNXyT2zDfNddC6N5QLnJTZEubGswpu31Bw6qtFZnE", location:"Los Angeles Metropolitan Area" }},
-        { id:"2-Mzk5MWUxY2QtNWQyNC00NzE4LThkNWYtZjcxZmQ2YzZkZDg3XzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"Hi Dalen, Thanks for reaching out, but I'm not interested.", lastMessageAt:"2026-04-25T04:30:55.457Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"Leena", lastName:"Mathew", position:"Chief Financial Officer", companyName:"Catalyst California", profileUrl:"https://www.linkedin.com/in/leena-mathew-mba-cpa-7555935", imageUrl:"https://media.licdn.com/dms/image/v2/C5603AQGTx5ywuol2xw/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1605689346483?e=1778716800&v=beta&t=pv3QKTo8UCB-eX29LyxWg5gz_cEUqNDIymCr2GNR2q8", location:"Burbank, California" }},
+
       ]};
     }
 
-    // Build queue — filter out sent (lastMessageSender=ME) and dismissed
+    // Load excluded contacts (Opted Out, Lost, Reserve) by LinkedIn URL
+    var excludedSlugs = new Set();
+    try {
+      var exRes = await fetch(SBU + "/rest/v1/contacts?select=linkedin_url&pipeline_stage=in.(Opted+Out,Lost+%E2%80%94+Not+a+Fit,No+Reply+%2F+Reserve)&limit=500", { headers: sbH });
+      var exData = await exRes.json();
+      if (Array.isArray(exData)) exData.forEach(function(ct) {
+        if (ct.linkedin_url) {
+          var slug = ct.linkedin_url.replace(/\/$/, '').split('/in/').pop().toLowerCase();
+          excludedSlugs.add(slug);
+        }
+      });
+    } catch(e) { console.warn("Could not load excluded contacts:", e.message); }
+
+    // Build queue — filter out sent, dismissed, and excluded pipeline stages
     var conversations = convData.items || [];
     var needsReply = conversations.filter(function(c) {
       if (c.lastMessageSender !== "CORRESPONDENT") return false;
+      // Check if contact is in an excluded pipeline stage
+      var profileUrl = (c.correspondentProfile || {}).profileUrl || (c.correspondentProfile || {}).profile_url || "";
+      if (profileUrl) {
+        var slug = profileUrl.replace(/\/$/, '').split('/in/').pop().toLowerCase();
+        if (excludedSlugs.has(slug)) return false;
+      }
       var dismissedAt = dismissedMap.get(c.id);
       if (!dismissedAt) return true; // never dismissed
       // Re-show if they sent a NEW message after we dismissed
