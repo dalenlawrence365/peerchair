@@ -349,7 +349,7 @@ export default function FollowUp({onNavigate}) {
       .then(function(d){
         var q = Array.isArray(d.queue)?d.queue:[];
         setQueue(q);
-        setDaily(d.dailyCount||0);
+        setDaily(d.todayCount||0);
         setSelected(q.length>0 ? q[0] : null);
       })
       .catch(function(e){setError(e.message);})

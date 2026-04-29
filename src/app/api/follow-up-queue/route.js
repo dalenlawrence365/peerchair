@@ -111,6 +111,29 @@ export async function GET() {
       todayCount = Array.isArray(aData) ? aData.length : 0;
     } catch(e) {}
 
+    // Enrich queue items with supabaseId by matching LinkedIn URL slug
+    try {
+      var slugMap = {};
+      queue.forEach(function(item) {
+        if (item.profileUrl) {
+          var slug = item.profileUrl.replace(/\/$/, '').split('/in/').pop().toLowerCase();
+          slugMap[slug] = item;
+        }
+      });
+      var slugList = Object.keys(slugMap);
+      if (slugList.length > 0) {
+        var sbContactRes = await fetch(SBU + "/rest/v1/contacts?select=id,linkedin_url&limit=500", { headers: sbH });
+        var sbContacts = await sbContactRes.json();
+        if (Array.isArray(sbContacts)) {
+          sbContacts.forEach(function(ct) {
+            if (!ct.linkedin_url) return;
+            var ctSlug = ct.linkedin_url.replace(/\/$/, '').split('/in/').pop().toLowerCase();
+            if (slugMap[ctSlug]) slugMap[ctSlug].supabaseId = ct.id;
+          });
+        }
+      }
+    } catch(e) { console.warn("supabaseId enrichment failed:", e.message); }
+
     return Response.json({ queue, todayCount });
   } catch(e) {
     console.error("follow-up-queue GET error:", e.message);
