@@ -20,9 +20,92 @@ export async function GET() {
       if (Array.isArray(dData)) dData.forEach(function(d) { dismissedMap.set(d.conversation_id, d.dismissed_at); });
     } catch(e) { console.warn("Could not load dismissed IDs:", e.message); }
 
-    // 2. Build queue from Supabase — contacts with unanswered inbound messages
-    // Try HeyReach live first, fall back to Supabase-derived queue
-    var convData = null;
+    // 2. SUPABASE-ALWAYS queue — build from unanswered inbound communications
+    // HeyReach enriches with real conversation IDs and photos, but never replaces Supabase
+
+    // Build Supabase queue first
+    var sbQueue = [];
+    try {
+      var inboundRes = await fetch(
+        SBU + "/rest/v1/communications?direction=eq.IN&order=occurred_at.desc&select=contact_id,body,occurred_at,channel&limit=500",
+        { headers: sbH }
+      );
+      var inboundComms = await inboundRes.json();
+
+      var outboundRes = await fetch(
+        SBU + "/rest/v1/communications?direction=eq.OUT&order=occurred_at.desc&select=contact_id,occurred_at&limit=500",
+        { headers: sbH }
+      );
+      var outboundComms = await outboundRes.json();
+
+      var lastOutbound = {};
+      if (Array.isArray(outboundComms)) {
+        outboundComms.forEach(function(o) {
+          if (!lastOutbound[o.contact_id] || o.occurred_at > lastOutbound[o.contact_id]) {
+            lastOutbound[o.contact_id] = o.occurred_at;
+          }
+        });
+      }
+
+      var latestInbound = {};
+      if (Array.isArray(inboundComms)) {
+        inboundComms.forEach(function(m) {
+          if (!latestInbound[m.contact_id] || m.occurred_at > latestInbound[m.contact_id].occurred_at) {
+            latestInbound[m.contact_id] = m;
+          }
+        });
+      }
+
+      var needReplyIds = Object.keys(latestInbound).filter(function(cid) {
+        var inAt  = latestInbound[cid].occurred_at;
+        var outAt = lastOutbound[cid];
+        return !outAt || inAt > outAt;
+      });
+
+      if (needReplyIds.length > 0) {
+        var ctRes = await fetch(
+          SBU + "/rest/v1/contacts?id=in.(" + needReplyIds.join(",") + ")&select=id,first_name,last_name,title,company_name,linkedin_url,pipeline_stage&limit=200",
+          { headers: sbH }
+        );
+        var ctData = await ctRes.json();
+        var EXCLUDED = ["Opted Out","Lost — Not a Fit","No Reply / Reserve"];
+
+        if (Array.isArray(ctData)) {
+          ctData.forEach(function(ct) {
+            if (EXCLUDED.includes(ct.pipeline_stage)) return;
+            var lastIn = latestInbound[ct.id];
+            if (!lastIn) return;
+            var convId = "sb-" + ct.id;
+            var dismissed = dismissedMap.get(convId);
+            if (dismissed && new Date(lastIn.occurred_at) <= new Date(dismissed)) return;
+            var msg = lastIn.body || "";
+            var isNeg  = /not interested|no thanks|stop|opt.?out|not a good time|swamped/i.test(msg);
+            var isWarm = /happy to|sounds (fun|great)|love to|interested|open to|would like|like to learn/i.test(msg);
+            sbQueue.push({
+              id:               convId,
+              conversationId:   convId,
+              linkedInAccountId: 185228,
+              firstName:        ct.first_name || "",
+              lastName:         ct.last_name  || "",
+              fullName:         (ct.first_name||"") + " " + (ct.last_name||""),
+              title:            ct.title || "",
+              company:          ct.company_name || "",
+              location:         "",
+              profileUrl:       ct.linkedin_url || "",
+              imageUrl:         "",
+              lastMessage:      msg,
+              lastMessageAt:    lastIn.occurred_at,
+              category:         isNeg ? "not_interested" : isWarm ? "warm" : "neutral",
+              supabaseId:       ct.id,
+              suggestedReply:   "",
+              source:           "supabase",
+            });
+          });
+        }
+      }
+    } catch(e) { console.error("Supabase queue build error:", e.message); }
+
+    // Enrich with HeyReach data (real conversation IDs, photos, newer messages)
     try {
       var convRes = await fetch(
         "https://api.heyreach.io/api/public/v2/conversation/GetAllConversations",
@@ -33,108 +116,70 @@ export async function GET() {
         }
       );
       if (convRes.ok) {
-        var raw = await convRes.json();
-        if (raw && raw.items && raw.items.length > 0) convData = raw;
-      } else console.warn("HeyReach live failed:", convRes.status);
-    } catch(e) { console.warn("HeyReach fetch error:", e.message); }
-
-    // If HeyReach failed or returned nothing, build queue from Supabase communications
-    if (!convData || !convData.items || convData.items.length === 0) {
-      console.log("Building queue from Supabase communications (HeyReach unavailable)");
-      try {
-        // Get all contacts with at least one inbound communication
-        var inboundRes = await fetch(
-          SBU + "/rest/v1/communications?direction=eq.IN&order=occurred_at.desc&select=contact_id,body,occurred_at,channel&limit=500",
-          { headers: sbH }
-        );
-        var inboundComms = await inboundRes.json();
-
-        // Get last outbound per contact
-        var outboundRes = await fetch(
-          SBU + "/rest/v1/communications?direction=eq.OUT&order=occurred_at.desc&select=contact_id,occurred_at&limit=500",
-          { headers: sbH }
-        );
-        var outboundComms = await outboundRes.json();
-
-        // Build map: contactId → last outbound time
-        var lastOutbound = {};
-        if (Array.isArray(outboundComms)) {
-          outboundComms.forEach(function(o) {
-            if (!lastOutbound[o.contact_id] || o.occurred_at > lastOutbound[o.contact_id]) {
-              lastOutbound[o.contact_id] = o.occurred_at;
-            }
-          });
-        }
-
-        // Find contacts where last inbound is AFTER last outbound (unanswered)
-        var needReplyIds = [];
-        var latestInbound = {};
-        if (Array.isArray(inboundComms)) {
-          inboundComms.forEach(function(m) {
-            if (!latestInbound[m.contact_id] || m.occurred_at > latestInbound[m.contact_id].occurred_at) {
-              latestInbound[m.contact_id] = m;
-            }
-          });
-          Object.keys(latestInbound).forEach(function(cid) {
-            var inAt  = latestInbound[cid].occurred_at;
-            var outAt = lastOutbound[cid];
-            if (!outAt || inAt > outAt) needReplyIds.push(cid);
-          });
-        }
-
-        if (needReplyIds.length > 0) {
-          // Load contact details
-          var ctRes = await fetch(
-            SBU + "/rest/v1/contacts?id=in.(" + needReplyIds.join(",") + ")&select=id,first_name,last_name,title,company_name,linkedin_url,pipeline_stage&limit=100",
-            { headers: sbH }
-          );
-          var ctData = await ctRes.json();
-          var EXCLUDED = ["Opted Out","Lost — Not a Fit","No Reply / Reserve"];
-
-          var sbItems = [];
-          if (Array.isArray(ctData)) {
-            ctData.forEach(function(ct) {
-              if (EXCLUDED.includes(ct.pipeline_stage)) return;
-              var lastIn = latestInbound[ct.id];
-              var convId = "sb-" + ct.id; // synthetic conv ID for Supabase-sourced items
-              var dismissed = dismissedMap.get(convId);
-              if (dismissed && new Date(lastIn.occurred_at) <= new Date(dismissed)) return;
-              var msg = lastIn ? (lastIn.body || "") : "";
-              var isNeg  = /not interested|no thanks|stop|opt.?out|not a good time|swamped/i.test(msg);
-              var isWarm = /happy to|sounds (fun|great)|love to|interested|open to|would like|like to learn/i.test(msg);
-              sbItems.push({
-                id: convId,
-                conversationId: convId,
-                linkedInAccountId: 185228,
-                firstName:  ct.first_name || "",
-                lastName:   ct.last_name  || "",
-                fullName:   (ct.first_name||"") + " " + (ct.last_name||""),
-                title:      ct.title || "",
-                company:    ct.company_name || "",
-                location:   "",
-                profileUrl: ct.linkedin_url || "",
-                imageUrl:   "",
-                lastMessage: msg,
-                lastMessageAt: lastIn ? lastIn.occurred_at : "",
-                category: isNeg ? "not_interested" : isWarm ? "warm" : "neutral",
-                supabaseId: ct.id,
-                suggestedReply: "",
-                source: "supabase",
-              });
-            });
+        var hrData = await convRes.json();
+        var hrItems = (hrData && hrData.items) || [];
+        // Build a slug→hrItem map for enrichment
+        var hrBySlug = {};
+        hrItems.forEach(function(item) {
+          var p = item.correspondentProfile || {};
+          var url = p.profileUrl || p.profile_url || "";
+          if (url) {
+            var slug = url.replace(//$/, "").split("/in/").pop().toLowerCase();
+            hrBySlug[slug] = item;
           }
+        });
+        // Enrich sbQueue items with real convId and photo
+        sbQueue.forEach(function(item) {
+          if (!item.profileUrl) return;
+          var slug = item.profileUrl.replace(//$/, "").split("/in/").pop().toLowerCase();
+          var hr = hrBySlug[slug];
+          if (!hr) return;
+          item.conversationId = hr.id || item.conversationId;
+          item.imageUrl = (hr.correspondentProfile || {}).imageUrl || "";
+          // Use HeyReach message if newer
+          if (hr.lastMessageSender === "CORRESPONDENT" && hr.lastMessageAt > item.lastMessageAt) {
+            item.lastMessage   = hr.lastMessageText || item.lastMessage;
+            item.lastMessageAt = hr.lastMessageAt;
+          }
+          item.source = "enriched";
+        });
 
-          // Sort newest first
-          sbItems.sort(function(a,b){ return new Date(b.lastMessageAt) - new Date(a.lastMessageAt); });
-          convData = { items: sbItems, _source: "supabase" };
-        } else {
-          convData = { items: [] };
-        }
-      } catch(e) {
-        console.error("Supabase queue build failed:", e.message);
-        convData = { items: [] };
+        // Add any HeyReach conversations NOT in sbQueue (edge cases)
+        var sbContactIds = new Set(sbQueue.map(function(i){ return i.supabaseId; }));
+        hrItems.forEach(function(hr) {
+          if (hr.lastMessageSender !== "CORRESPONDENT") return;
+          var p = hr.correspondentProfile || {};
+          var url = p.profileUrl || p.profile_url || "";
+          if (!url) return;
+          var slug = url.replace(//$/, "").split("/in/").pop().toLowerCase();
+          // Skip if already in sbQueue or dismissed
+          var alreadyIn = sbQueue.find(function(i){ return i.profileUrl && i.profileUrl.replace(//$/, "").split("/in/").pop().toLowerCase() === slug; });
+          if (alreadyIn) return;
+          var dismissed = dismissedMap.get(hr.id);
+          if (dismissed && new Date(hr.lastMessageAt) <= new Date(dismissed)) return;
+          var msg = hr.lastMessageText || "";
+          var isNeg  = /not interested|no thanks|stop|opt.?out/i.test(msg);
+          var isWarm = /happy to|sounds (fun|great)|love to|interested|open to/i.test(msg);
+          sbQueue.push({
+            id:               hr.id,
+            conversationId:   hr.id,
+            linkedInAccountId: hr.linkedInAccountId || 185228,
+            firstName:  p.firstName || "", lastName: p.lastName || "",
+            fullName:   (p.firstName||"") + " " + (p.lastName||""),
+            title:      p.position || "", company: p.companyName || "",
+            location:   p.location || "", profileUrl: url,
+            imageUrl:   p.imageUrl || "",
+            lastMessage: msg, lastMessageAt: hr.lastMessageAt,
+            category:   isNeg ? "not_interested" : isWarm ? "warm" : "neutral",
+            supabaseId: null, suggestedReply: "", source: "heyreach",
+          });
+        });
       }
-    }
+    } catch(e) { console.warn("HeyReach enrichment failed (non-fatal):", e.message); }
+
+    // Sort newest first
+    sbQueue.sort(function(a,b){ return new Date(b.lastMessageAt) - new Date(a.lastMessageAt); });
+    var convData = { items: sbQueue };
 
         // Load excluded contacts (Opted Out, Lost, Reserve) by LinkedIn URL
     var excludedSlugs = new Set();
