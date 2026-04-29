@@ -254,15 +254,15 @@ function ThreadPanel({item, onDone, onClose}) {
         {!loading && thread.map(function(msg,i){
           var isOut = msg.direction==="OUT";
           return (
-            <div key={msg.id||i} style={{display:"flex",flexDirection:"column",alignItems:isOut?"flex-end":"flex-start"}}>
+            <div key={msg.id||i} style={{display:"flex",flexDirection:"column",alignItems:isOut?"flex-end":"flex-start",width:"100%"}}>
               {/* Channel + seq key badge */}
-              <div style={{display:"flex",gap:5,marginBottom:4,alignItems:"center"}}>
+              <div style={{display:"flex",gap:5,marginBottom:4,alignItems:"center",flexDirection:isOut?"row-reverse":"row"}}>
                 {msg.seqKey&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"rgba(74,158,186,0.12)",border:"1px solid rgba(74,158,186,0.2)",color:T.blue,fontFamily:"'Courier New',monospace",letterSpacing:0.5}}>{msg.seqKey}</span>}
                 {msg.channel==="InMail"&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"rgba(155,89,182,0.12)",border:"1px solid rgba(155,89,182,0.2)",color:T.purple}}>InMail</span>}
                 <span style={{fontSize:10,color:T.dim}}>{fmt(msg.sentAt)}</span>
               </div>
               {/* Bubble */}
-              <div style={{maxWidth:"82%",padding:"10px 13px",borderRadius:isOut?"12px 4px 12px 12px":"4px 12px 12px 12px",background:isOut?"rgba(240,200,74,0.08)":"rgba(255,255,255,0.04)",border:"1px solid "+(isOut?"rgba(240,200,74,0.2)":"rgba(255,255,255,0.07)"),fontSize:13,color:isOut?G:T.text,lineHeight:1.7,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
+              <div style={{maxWidth:"75%",minWidth:80,padding:"10px 14px",borderRadius:isOut?"14px 4px 14px 14px":"4px 14px 14px 14px",background:isOut?"rgba(240,200,74,0.09)":"rgba(255,255,255,0.05)",border:"1px solid "+(isOut?"rgba(240,200,74,0.25)":"rgba(255,255,255,0.09)"),fontSize:13,color:isOut?"#f5e49a":T.text,lineHeight:1.75,whiteSpace:"pre-wrap",wordBreak:"break-word",boxShadow:isOut?"0 1px 8px rgba(240,200,74,0.05)":"0 1px 8px rgba(0,0,0,0.2)"}}>
                 {msg.body}
               </div>
             </div>
