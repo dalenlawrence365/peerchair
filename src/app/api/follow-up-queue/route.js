@@ -8,7 +8,11 @@ export async function GET() {
     var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     var sbH = { "apikey": SBK, "Authorization": "Bearer " + SBK };
 
-    // Fetch dismissed conversation IDs from Supabase
+    // ── SUPABASE-FIRST QUEUE LOGIC ──────────────────────────────────────────
+    // Find contacts who have an inbound reply with no outbound after it
+    // This is reliable regardless of HeyReach API status
+
+    // 1. Load dismissed map (conversation_id → dismissed_at)
     var dismissedMap = new Map();
     try {
       var dRes = await fetch(SBU + "/rest/v1/queue_dismissed?select=conversation_id,dismissed_at&limit=500", { headers: sbH });
@@ -16,7 +20,8 @@ export async function GET() {
       if (Array.isArray(dData)) dData.forEach(function(d) { dismissedMap.set(d.conversation_id, d.dismissed_at); });
     } catch(e) { console.warn("Could not load dismissed IDs:", e.message); }
 
-    // Fetch live conversations from HeyReach
+    // 2. Build queue from Supabase — contacts with unanswered inbound messages
+    // Try HeyReach live first, fall back to Supabase-derived queue
     var convData = null;
     try {
       var convRes = await fetch(
@@ -27,25 +32,111 @@ export async function GET() {
           body: JSON.stringify({ linkedInAccountIds: [185228], limit: 100, offset: 0 })
         }
       );
-      if (convRes.ok) convData = await convRes.json();
-      else console.error("HeyReach GET failed:", convRes.status, await convRes.text());
-    } catch(e) { console.error("HeyReach fetch error:", e.message); }
+      if (convRes.ok) {
+        var raw = await convRes.json();
+        if (raw && raw.items && raw.items.length > 0) convData = raw;
+      } else console.warn("HeyReach live failed:", convRes.status);
+    } catch(e) { console.warn("HeyReach fetch error:", e.message); }
 
-    // Fallback — current real data as of 2026-04-27
-    if (!convData || !convData.items) {
-      convData = { items: [
-        { id:"todd-barretta-conv", lastMessageSender:"CORRESPONDENT", lastMessageText:"Hi Dalen. Ok. Next week is better. Please email me at tbarretta@pilgrimplace.org with a cc to my EA, Debbie, dspaulding@pilgrimplace.org and she will find you a good day and time.", lastMessageAt:"2026-04-28T12:00:00.000Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"Todd", lastName:"Barretta", position:"Senior Executive - CFO & CCO", companyName:"Pilgrim Place", profileUrl:"https://www.linkedin.com/in/todd-barretta", imageUrl:"", location:"Los Angeles, California" }},
-        { id:"2-MjM0MWY1ZjEtYTk5Zi00MWUwLWJmNWQtMTQ5NjZkYmY5NDA1XzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"Hi Dalen, Thanks for reaching out. I'd like to learn more.", lastMessageAt:"2026-04-27T22:59:21.017Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"Amy", lastName:"Muradyan", position:"Chief Financial Officer", companyName:"4medica", profileUrl:"https://www.linkedin.com/in/amy-muradyan-882533171", imageUrl:"https://media.licdn.com/dms/image/v2/C5603AQEzl_cVjbVVtw/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1621222024218?e=1778716800&v=beta&t=O-Xc0yK1Pu6wAKhbIxwEDdaL3b1xP7r-6i5kEs2K8Tk", location:"Marina del Rey, California, United States" }},
-        { id:"2-MTA4NWEzNmItMzQ0YS00MzkxLWIxNGMtMDBjMWZlZDA2ODhhXzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"Sounds fun! Thanks for reaching out Dalen, happy to participate", lastMessageAt:"2026-04-25T04:02:48.382Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"Roger", lastName:"Sweis", position:"Chief Financial Officer", companyName:"Essential Access Health", profileUrl:"https://www.linkedin.com/in/rogersweis", imageUrl:"https://media.licdn.com/dms/image/v2/C5603AQF5mIT3Bp26rg/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1652393284769?e=1778716800&v=beta&t=lcJcQKUOYVN_q_GHpACMwQ4O-Penn-MztLzXj5Wu_DM", location:"Los Angeles, California" }},
-        { id:"2-NDAyZGVlNmQtNTYxYi00NDBjLWI3Y2MtYTRiNWMwMGI4NDdlXzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"I'm happy to chat", lastMessageAt:"2026-04-23T02:12:41.985Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"Josh", lastName:"Farris", position:"Chief Financial Officer", companyName:"Electronic Source Company", profileUrl:"https://www.linkedin.com/in/joshfarrisdfw", imageUrl:"https://media.licdn.com/dms/image/v2/C4E03AQENclNjxgha7w/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1554959981318?e=1778716800&v=beta&t=xVGYeGKXpWu6skJz1JSzo88voenvQsYNJIxLiiAPpVk", location:"Los Angeles, California" }},
-        { id:"2-OGU1NmQ1NGUtODhhMC00M2Q3LWJhMDAtODg3NGIwN2Y2YWI1XzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"I am pretty swamped until late May and will be in Europe from May 8 through 25, so this is just not a good time.", lastMessageAt:"2026-04-28T16:28:00.000Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"R.", lastName:"Urban", position:"Member of the Board of Directors", companyName:"GenRocket", profileUrl:"https://www.linkedin.com/in/r-allen-urban-680a423", imageUrl:"https://media.licdn.com/dms/image/v2/C4D03AQGkBLXltC7QEA/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1516306915584?e=1778716800&v=beta&t=OD4bcbmvZFXEKmhkJOQntty-X8VFHjy8HTJrkDejQe0", location:"Ventura, California" }},
-        { id:"2-NzVhNWI2YmUtOGFlMS00NTlkLWE0NWMtYmZlMWRhMGE1YzliXzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"I'm happy to connect", lastMessageAt:"2026-04-21T20:42:29.948Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"Gaheez", lastName:"Ghowrwal", position:"Chief Financial Officer", companyName:"StarPoint Properties", profileUrl:"https://www.linkedin.com/in/gaheez-g-977aa718a", imageUrl:"https://media.licdn.com/dms/image/v2/D5603AQGh6I9AmidSCw/profile-displayphoto-scale_100_100/B56Zu0tfypIwAc-/0/1768263384917?e=1778716800&v=beta&t=AZA5VFtlqvvgtwAWHEOPVvsndXpb7KcnzNmCdExk", location:"Los Angeles Metropolitan Area" }},
-        { id:"2-M2MwZjdhMTItNWM2NS00YTAzLWFjOTQtMmUwZmYyZGI3YjQ1XzEwMA==", lastMessageSender:"CORRESPONDENT", lastMessageText:"Thanks", lastMessageAt:"2026-04-20T20:33:17.937Z", linkedInAccountId:185228, correspondentProfile:{ firstName:"Marcus", lastName:"D'Anna", position:"Chief Financial Officer", companyName:"U-PIC Shipping Insurance", profileUrl:"https://www.linkedin.com/in/marcus-d-anna-cpa-84a16718", imageUrl:"https://media.licdn.com/dms/image/v2/C5603AQEW-J7rYgs_2g/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1522783231144?e=1778716800&v=beta&t=xswNXyT2zDfNddC6N5QLnJTZEubGswpu31Bw6qtFZnE", location:"Los Angeles Metropolitan Area" }},
+    // If HeyReach failed or returned nothing, build queue from Supabase communications
+    if (!convData || !convData.items || convData.items.length === 0) {
+      console.log("Building queue from Supabase communications (HeyReach unavailable)");
+      try {
+        // Get all contacts with at least one inbound communication
+        var inboundRes = await fetch(
+          SBU + "/rest/v1/communications?direction=eq.IN&order=occurred_at.desc&select=contact_id,body,occurred_at,channel&limit=500",
+          { headers: sbH }
+        );
+        var inboundComms = await inboundRes.json();
 
-      ]};
+        // Get last outbound per contact
+        var outboundRes = await fetch(
+          SBU + "/rest/v1/communications?direction=eq.OUT&order=occurred_at.desc&select=contact_id,occurred_at&limit=500",
+          { headers: sbH }
+        );
+        var outboundComms = await outboundRes.json();
+
+        // Build map: contactId → last outbound time
+        var lastOutbound = {};
+        if (Array.isArray(outboundComms)) {
+          outboundComms.forEach(function(o) {
+            if (!lastOutbound[o.contact_id] || o.occurred_at > lastOutbound[o.contact_id]) {
+              lastOutbound[o.contact_id] = o.occurred_at;
+            }
+          });
+        }
+
+        // Find contacts where last inbound is AFTER last outbound (unanswered)
+        var needReplyIds = [];
+        var latestInbound = {};
+        if (Array.isArray(inboundComms)) {
+          inboundComms.forEach(function(m) {
+            if (!latestInbound[m.contact_id] || m.occurred_at > latestInbound[m.contact_id].occurred_at) {
+              latestInbound[m.contact_id] = m;
+            }
+          });
+          Object.keys(latestInbound).forEach(function(cid) {
+            var inAt  = latestInbound[cid].occurred_at;
+            var outAt = lastOutbound[cid];
+            if (!outAt || inAt > outAt) needReplyIds.push(cid);
+          });
+        }
+
+        if (needReplyIds.length > 0) {
+          // Load contact details
+          var ctRes = await fetch(
+            SBU + "/rest/v1/contacts?id=in.(" + needReplyIds.join(",") + ")&select=id,first_name,last_name,title,company_name,linkedin_url,pipeline_stage&limit=100",
+            { headers: sbH }
+          );
+          var ctData = await ctRes.json();
+          var EXCLUDED = ["Opted Out","Lost — Not a Fit","No Reply / Reserve"];
+
+          var sbItems = [];
+          if (Array.isArray(ctData)) {
+            ctData.forEach(function(ct) {
+              if (EXCLUDED.includes(ct.pipeline_stage)) return;
+              var lastIn = latestInbound[ct.id];
+              var convId = "sb-" + ct.id; // synthetic conv ID for Supabase-sourced items
+              var dismissed = dismissedMap.get(convId);
+              if (dismissed && new Date(lastIn.occurred_at) <= new Date(dismissed)) return;
+              var msg = lastIn ? (lastIn.body || "") : "";
+              var isNeg  = /not interested|no thanks|stop|opt.?out|not a good time|swamped/i.test(msg);
+              var isWarm = /happy to|sounds (fun|great)|love to|interested|open to|would like|like to learn/i.test(msg);
+              sbItems.push({
+                id: convId,
+                conversationId: convId,
+                linkedInAccountId: 185228,
+                firstName:  ct.first_name || "",
+                lastName:   ct.last_name  || "",
+                fullName:   (ct.first_name||"") + " " + (ct.last_name||""),
+                title:      ct.title || "",
+                company:    ct.company_name || "",
+                location:   "",
+                profileUrl: ct.linkedin_url || "",
+                imageUrl:   "",
+                lastMessage: msg,
+                lastMessageAt: lastIn ? lastIn.occurred_at : "",
+                category: isNeg ? "not_interested" : isWarm ? "warm" : "neutral",
+                supabaseId: ct.id,
+                suggestedReply: "",
+                source: "supabase",
+              });
+            });
+          }
+
+          // Sort newest first
+          sbItems.sort(function(a,b){ return new Date(b.lastMessageAt) - new Date(a.lastMessageAt); });
+          convData = { items: sbItems, _source: "supabase" };
+        } else {
+          convData = { items: [] };
+        }
+      } catch(e) {
+        console.error("Supabase queue build failed:", e.message);
+        convData = { items: [] };
+      }
     }
 
-    // Load excluded contacts (Opted Out, Lost, Reserve) by LinkedIn URL
+        // Load excluded contacts (Opted Out, Lost, Reserve) by LinkedIn URL
     var excludedSlugs = new Set();
     try {
       var exRes = await fetch(SBU + "/rest/v1/contacts?select=linkedin_url&pipeline_stage=in.(Opted+Out,Lost+%E2%80%94+Not+a+Fit,No+Reply+%2F+Reserve)&limit=500", { headers: sbH });
