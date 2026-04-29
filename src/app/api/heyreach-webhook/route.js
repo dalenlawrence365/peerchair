@@ -101,7 +101,7 @@ export async function POST(request) {
 
     // Create contact
     const iso = new Date().toISOString()
-    const { data: newContact, error } = await supabase.from('contacts').insert({
+    const { data: newContact, error } = await supabase.from('contacts').upsert({
       first_name: firstName,
       last_name: lastName,
       title,
@@ -118,7 +118,7 @@ export async function POST(request) {
       linkedin_connected_date: iso,
       created_at: iso,
       updated_at: iso,
-    }).select().single()
+    }, { onConflict: 'linkedin_url', ignoreDuplicates: false }).select().single()
 
     if (error) {
       console.error('Supabase insert error:', error)
