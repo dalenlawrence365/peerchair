@@ -421,8 +421,8 @@ export default function FollowUp({onNavigate}) {
       // reload snoozed list
       var SBU2 = process.env.NEXT_PUBLIC_SUPABASE_URL;
       var SBK2 = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      fetch(SBU2+"/rest/v1/scheduled_actions?status=eq.pending&order=send_at.asc&limit=50",{headers:{"apikey":SBK2,"Authorization":"Bearer "+SBK2}})
-        .then(function(r){return r.json();}).then(function(sa){setSnoozed(Array.isArray(sa)?sa:[]);}).catch(function(){});
+      fetch("/api/scheduled-actions").then(function(r){return r.json();})
+        .then(function(sa){setSnoozed(Array.isArray(sa)?sa:[]);}).catch(function(){});
     }
     // Select next card
     var remaining = queue.filter(function(q){ return !goneIds.has(q.id) && q.id!==item.id; });

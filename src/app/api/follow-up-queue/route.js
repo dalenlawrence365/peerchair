@@ -79,7 +79,7 @@ export async function GET() {
             var dismissed = dismissedMap.get(convId);
             if (dismissed && new Date(lastIn.occurred_at) <= new Date(dismissed)) return;
             var msg = lastIn.body || "";
-            var isNeg  = /not interested|no thanks|stop|opt.?out|not a good time|swamped/i.test(msg);
+            var isNeg  = /not interested|no thanks|stop|opt.?out|remove me|unsubscribe/i.test(msg);
             var isWarm = /happy to|sounds (fun|great)|love to|interested|open to|would like|like to learn/i.test(msg);
             sbQueue.push({
               id:               convId,
