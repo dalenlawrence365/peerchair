@@ -335,7 +335,8 @@ function AddTemplateModal(props) {
   var categories = {
     call_script: ["cfo_fit_call","sponsor_discovery"],
     linkedin: ["cfo_outreach","sponsor_outreach"],
-    email: ["fit_call","event","nurture_prelease","nurture_waitlist","sponsor","general"]
+    email: ["fit_call","event","nurture_prelease","nurture_waitlist","sponsor","general"],
+    calendly: ["calendly"]
   };
 
   return (
@@ -346,7 +347,7 @@ function AddTemplateModal(props) {
         <div style={{marginBottom:12}}>
           <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:5}}>Type</div>
           <div style={{display:"flex",gap:6}}>
-            {[{k:"email",l:"Email",c:G},{k:"linkedin",l:"LinkedIn",c:T.blue},{k:"call_script",l:"Call Script",c:T.purple}].map(function(t){
+            {[{k:"email",l:"Email",c:G},{k:"linkedin",l:"LinkedIn",c:T.blue},{k:"call_script",l:"Call Script",c:T.purple},{k:"calendly",l:"Calendly",c:"#006BFF"}].map(function(t){
               var isActive = form.type===t.k;
               return <button key={t.k} onClick={function(){set("type",t.k); set("category",categories[t.k][0]);}} style={{flex:1,padding:"7px 6px",background:isActive?t.c+"14":"rgba(255,255,255,0.02)",border:"1px solid "+(isActive?t.c+"50":T.border),color:isActive?t.c:T.muted,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:isActive?600:400}}>{t.l}</button>;
             })}
@@ -461,7 +462,7 @@ export default function Templates() {
             <div style={{padding:"10px",flexShrink:0,borderBottom:"1px solid "+T.border}}>
               <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Search templates..." style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"6px 10px",borderRadius:5,fontSize:12,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
               <div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap"}}>
-                {[{k:"all",l:"All",c:T.muted},{k:"call_script",l:"Scripts",c:T.purple},{k:"linkedin",l:"LinkedIn",c:T.blue},{k:"email",l:"Email",c:G}].map(function(f){
+                {[{k:"all",l:"All",c:T.muted},{k:"call_script",l:"Scripts",c:T.purple},{k:"linkedin",l:"LinkedIn",c:T.blue},{k:"email",l:"Email",c:G},{k:"calendly",l:"Calendly",c:"#006BFF"}].map(function(f){
                   var isActive = typeFilter===f.k;
                   return <button key={f.k} onClick={function(){setTypeFilter(f.k);}} style={{padding:"3px 10px",background:isActive?f.c+"14":"transparent",border:"1px solid "+(isActive?f.c+"50":T.border),color:isActive?f.c:T.dim,borderRadius:10,cursor:"pointer",fontSize:10,fontWeight:isActive?600:400}}>{f.l} ({counts[f.k]||0})</button>;
                 })}
