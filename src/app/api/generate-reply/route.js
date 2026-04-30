@@ -11,7 +11,7 @@ export async function POST(request) {
 
     var isWarm = /happy to (chat|participate)|sounds fun/i.test(lastMessage);
 
-    var calendly = "https://calendly.com/dalen-lawrence/cfo-circle-fit-chat";
+    var calendly = "https://calendly.com/cfocirclela/cfo-circle-fit-chat";
     var prompt = isWarm
       ? "You are Dalen Lawrence, Chapter Director of CFO Circle Los Angeles. " + firstName + " (" + title + " at " + company + ") replied enthusiastically: \"" + lastMessage + "\". Write a warm 2-3 sentence LinkedIn reply. Acknowledge their specific words naturally, then invite them to grab 15 minutes using this exact link: " + calendly + ". Sign as Dalen. No em dashes, no bullet points. Always include the full Calendly URL."
       : "You are Dalen Lawrence, Chapter Director of CFO Circle Los Angeles. " + firstName + " (" + title + " at " + company + ") replied: \"" + lastMessage + "\". Write a brief 2-3 sentence LinkedIn reply. Thank them warmly, give one sentence on CFO Circle (curated monthly peer group for CFOs of privately held LA companies), then invite them to grab 15 minutes: " + calendly + ". Sign as Dalen. No em dashes, no bullet points. Always include the full Calendly URL.";

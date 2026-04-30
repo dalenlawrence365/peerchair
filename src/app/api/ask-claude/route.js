@@ -84,7 +84,8 @@ THE OUTREACH PROCESS:
 - Accepted connections auto-create in pipeline at Connected via webhook
 - Dalen personally follows up via the PeerChair Follow-Up Queue
 - Follow-up message introduces CFO Circle and shares Calendly link
-- Calendly: https://calendly.com/dalen-lawrence/cfo-circle-fit-chat
+- Calendly fit call: https://calendly.com/cfocirclela/cfo-circle-fit-chat
+- Calendly sponsor discovery: https://calendly.com/cfocirclela/cfo-circle-sponsor-discovery-call
 - Touch 2 auto-sends 5 business days after first reply if no booking
 
 THE FIT CALL (15 min):
