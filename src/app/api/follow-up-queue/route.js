@@ -27,7 +27,7 @@ export async function GET() {
     var sbQueue = [];
     try {
       var inboundRes = await fetch(
-        SBU + "/rest/v1/communications?direction=eq.IN&order=occurred_at.desc&select=contact_id,body,occurred_at,channel&limit=500",
+        SBU + "/rest/v1/communications?direction=eq.IN&step_label=not.ilike.*Connection Accepted*&step_label=not.ilike.*audit recovery*&step_label=not.ilike.*Resurfaced*&order=occurred_at.desc&select=contact_id,body,occurred_at,channel&limit=500",
         { headers: sbH }
       );
       var inboundComms = await inboundRes.json();
