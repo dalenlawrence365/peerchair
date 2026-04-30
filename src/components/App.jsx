@@ -1561,6 +1561,21 @@ export default function CFOCircleApp() {
           <div style={{display:"flex",gap:7,alignItems:"center"}}>
             <div style={{width:7,height:7,borderRadius:"50%",background:T.green,boxShadow:"0 0 6px "+T.green}}/>
             <span style={{fontSize:10,color:T.dim,letterSpacing:1,textTransform:"uppercase"}}>Live · Supabase</span>
+            <span style={{color:"#3a5a74",fontSize:10,margin:"0 4px"}}>·</span>
+            <button id="sync-btn" onClick={async function(){
+              var btn=document.getElementById("sync-btn");
+              if(btn){btn.textContent="Syncing...";btn.style.color="#f0c84a";}
+              try{
+                var r=await fetch("/api/audit",{headers:{"Authorization":"Bearer peerchair2026"}});
+                var d=await r.json();
+                var parts=[];
+                if(d.contacts_created>0) parts.push(d.contacts_created+" added");
+                if(d.replies_surfaced>0) parts.push(d.replies_surfaced+" replies");
+                if(parts.length===0) parts.push("Up to date");
+                if(btn){btn.textContent=parts.join(" · ");btn.style.color="#2ecc71";}
+              }catch(e){if(btn){btn.textContent="Sync failed";btn.style.color="#e74c3c";}}
+              setTimeout(function(){if(btn){btn.textContent="↻ Sync";btn.style.color="#3a5a74";}},6000);
+            }} style={{background:"transparent",border:"none",color:"#3a5a74",fontSize:10,cursor:"pointer",letterSpacing:1,textTransform:"uppercase",padding:0}}>↻ Sync</button>
           </div>
         </div>
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
