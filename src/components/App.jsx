@@ -1661,11 +1661,15 @@ export default function CFOCircleApp() {
               var btn=document.getElementById("sync-btn");
               if(btn){btn.textContent="Syncing...";btn.style.color="#f0c84a";}
               try{
-                var r=await fetch("/api/audit",{headers:{"Authorization":"Bearer peerchair2026"}});
-                var d=await r.json();
+                var h={"Authorization":"Bearer peerchair2026"};
+                var [ar,cr]=await Promise.all([fetch("/api/audit",{headers:h}),fetch("/api/sync-conversations",{headers:h})]);
+                var d=await ar.json().catch(function(){return {};});
+                var cd=await cr.json().catch(function(){return {};});
+                var added=(d.contacts_created||0)+(cd.contacts_created||0);
+                var convos=cd.conversations_synced||0;
                 var parts=[];
-                if(d.contacts_created>0) parts.push(d.contacts_created+" added");
-                if(d.replies_surfaced>0) parts.push(d.replies_surfaced+" replies");
+                if(added>0) parts.push(added+" contacts");
+                if(convos>0) parts.push(convos+" convos synced");
                 if(parts.length===0) parts.push("Up to date");
                 if(btn){btn.textContent=parts.join(" · ");btn.style.color="#2ecc71";}
               }catch(e){if(btn){btn.textContent="Sync failed";btn.style.color="#e74c3c";}}
