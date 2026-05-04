@@ -1,32 +1,11 @@
 {
   "crons": [
-    {
-      "path": "/api/pipeline-maintenance",
-      "schedule": "0 14 * * *"
-    },
-    {
-      "path": "/api/audit",
-      "schedule": "0 15 * * *"
-    },
-    {
-      "path": "/api/audit",
-      "schedule": "0 21 * * *"
-    },
-    {
-      "path": "/api/scheduled-send",
-      "schedule": "0 16 * * *"
-    },
-    {
-      "path": "/api/scheduled-send",
-      "schedule": "0 20 * * *"
-    },
-    {
-      "path": "/api/sync-conversations",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/sync-email",
-      "schedule": "0 * * * *"
-    }
+    { "path": "/api/pipeline-maintenance", "schedule": "0 14 * * *" },
+    { "path": "/api/audit",                "schedule": "0 15 * * *" },
+    { "path": "/api/audit",                "schedule": "0 21 * * *" },
+    { "path": "/api/scheduled-send",       "schedule": "0 16 * * *" },
+    { "path": "/api/scheduled-send",       "schedule": "0 20 * * *" },
+    { "path": "/api/sync-conversations",   "schedule": "0 15 * * *" },
+    { "path": "/api/sync-email",           "schedule": "0 15 * * *" }
   ]
 }
