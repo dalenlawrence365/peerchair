@@ -85,6 +85,48 @@ function ThreadView({ conv }) {
     }
   }, [messages])
 
+  async function sendReply() {
+    if (!reply.trim() || sending) return
+    setSending(true)
+    try {
+      var res = await fetch("/api/follow-up-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId: conv.conversation_id,
+          linkedInAccountId: conv.linkedin_account_id || 185228,
+          message: reply,
+          profileUrl: conv.contact_linkedin_url || "",
+          contactId: conv.contact_id || null,
+          firstName: conv.contact_first_name,
+          lastName: conv.contact_last_name,
+          fullName: conv.contact_first_name + " " + conv.contact_last_name,
+          title: conv.contact_title || "",
+          company: conv.contact_company || "",
+        })
+      })
+      var d = await res.json()
+      if (d.success) {
+        setSent(true)
+        setReply("")
+        // Add message to thread locally
+        setMessages(function(prev) {
+          return prev.concat([{
+            id: Date.now(),
+            direction: "OUT",
+            body: reply,
+            sent_at: new Date().toISOString(),
+            channel: "linkedin",
+            sequence_key: null,
+            sender_name: "Dalen Lawrence"
+          }])
+        })
+        setTimeout(function(){ setSent(false) }, 3000)
+      }
+    } catch(e) { console.error(e) }
+    setSending(false)
+  }
+
   if (!conv) return (
     <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:10, color:T.dim }}>
       <div style={{ fontSize:32, opacity:0.3 }}>💬</div>
