@@ -140,19 +140,17 @@ export default function EmailMessages({ onNavigate }) {
   async function loadEmails() {
     setLoading(true)
     try {
-      var rows = await sbFetch("email_messages?order=sent_at.desc&limit=500&select=id,message_id,direction,subject,body,body_preview,sent_at,from_address,to_address,thread_id,contact_id,contacts(first_name,last_name,company_name,pipeline_stage,contact_type,custom_photo_url)")
-      setAllEmails(Array.isArray(rows) ? rows : [])
+      var rows = await sbFetch("email_messages?order=sent_at.desc&limit=500&select=id,message_id,direction,subject,body,body_preview,sent_at,from_address,to_address,thread_id,contact_id")
+      var emailRows = Array.isArray(rows) ? rows : []
+      setAllEmails(emailRows)
 
-      // Build unique contact list
-      var seen = {}
+      // Load contact details separately
+      var contactIds = [...new Set(emailRows.map(function(e){ return e.contact_id }).filter(Boolean))]
       var ctList = []
-      ;(Array.isArray(rows) ? rows : []).forEach(function(e) {
-        var ct = e.contacts || {}
-        if (!seen[e.contact_id]) {
-          seen[e.contact_id] = true
-          ctList.push({ id: e.contact_id, first_name: ct.first_name||"", last_name: ct.last_name||"", company_name: ct.company_name||"", pipeline_stage: ct.pipeline_stage||"", contact_type: ct.contact_type||"", custom_photo_url: ct.custom_photo_url||"" })
-        }
-      })
+      if (contactIds.length > 0) {
+        var ctRows = await sbFetch("contacts?id=in.(" + contactIds.join(",") + ")&select=id,first_name,last_name,company_name,pipeline_stage,contact_type,custom_photo_url&limit=200")
+        ctList = Array.isArray(ctRows) ? ctRows : []
+      }
       setContacts(ctList)
     } catch(e) { console.error(e) }
     setLoading(false)
@@ -160,8 +158,9 @@ export default function EmailMessages({ onNavigate }) {
 
   async function loadLastSync() {
     try {
-      var U = process.env.NEXT_PUBLIC_SUPABASE_URL
-      var K = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      var U = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+      var K = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+      if (!U || !K) return;
       var r = await fetch(U + "/rest/v1/system_settings?key=eq.email_last_sync", { headers: { "apikey":K, "Authorization":"Bearer "+K } })
       var d = await r.json()
       if (d && d[0]) setLastSync(d[0].value)

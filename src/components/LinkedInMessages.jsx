@@ -23,9 +23,10 @@ function fmtTime(d) {
 }
 
 function sbFetch(path) {
-  var U = process.env.NEXT_PUBLIC_SUPABASE_URL
-  var K = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  return fetch(U + "/rest/v1/" + path, { headers: { "apikey": K, "Authorization": "Bearer " + K } }).then(r => r.json())
+  var U = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+  var K = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  if (!U || !K) { console.error("Supabase env vars not set"); return Promise.resolve([]); }
+  return fetch(U + "/rest/v1/" + path, { headers: { "apikey": K, "Authorization": "Bearer " + K } }).then(function(r){ return r.json(); }).catch(function(e){ console.error("sbFetch error:", e); return []; })
 }
 
 function Avatar({ first, last, imageUrl, size }) {
@@ -147,9 +148,17 @@ export default function LinkedInMessages({ onNavigate }) {
     setLoading(true)
     try {
       // Join conversations with contacts for display
-      var rows = await sbFetch("conversations?order=last_message_at.desc&limit=200&select=id,conversation_id,channel,last_message_at,last_message_direction,last_message_body,last_sender,unread,last_synced_at,contact_id,contacts(first_name,last_name,title,company_name,pipeline_stage,contact_type,custom_photo_url)")
-      var mapped = (Array.isArray(rows) ? rows : []).map(function(r) {
-        var ct = r.contacts || {}
+      var rows = await sbFetch("conversations?order=last_message_at.desc&limit=200&select=id,conversation_id,channel,last_message_at,last_message_direction,last_message_body,last_sender,unread,last_synced_at,contact_id")
+      var convRows = Array.isArray(rows) ? rows : []
+      // Load contact details for all conversations
+      var contactIds = [...new Set(convRows.map(function(r){ return r.contact_id }).filter(Boolean))]
+      var contactMap = {}
+      if (contactIds.length > 0) {
+        var ctRows = await sbFetch("contacts?id=in.(" + contactIds.join(",") + ")&select=id,first_name,last_name,title,company_name,pipeline_stage,contact_type,custom_photo_url&limit=200")
+        ;(Array.isArray(ctRows) ? ctRows : []).forEach(function(ct){ contactMap[ct.id] = ct })
+      }
+      var mapped = convRows.map(function(r) {
+        var ct = contactMap[r.contact_id] || {}
         return {
           id: r.id,
           conversation_id: r.conversation_id,
@@ -178,8 +187,9 @@ export default function LinkedInMessages({ onNavigate }) {
 
   async function loadLastSync() {
     try {
-      var U = process.env.NEXT_PUBLIC_SUPABASE_URL
-      var K = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      var U = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+      var K = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+      if (!U || !K) return;
       var r = await fetch(U + "/rest/v1/system_settings?key=eq.linkedin_last_sync", { headers: { "apikey":K, "Authorization":"Bearer "+K } })
       var d = await r.json()
       if (d && d[0]) setLastSync(d[0].value)
