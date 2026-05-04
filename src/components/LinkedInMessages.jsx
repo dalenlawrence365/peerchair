@@ -79,7 +79,9 @@ function ThreadView({ conv }) {
   }, [conv?.id])
 
   useEffect(function() {
-    if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior:"smooth" })
+    if (threadRef.current && messages.length > 0) {
+      threadRef.current.scrollTop = threadRef.current.scrollHeight
+    }
   }, [messages])
 
   if (!conv) return (
