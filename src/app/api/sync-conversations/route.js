@@ -137,47 +137,8 @@ export async function GET(request) {
 
       results.conversations_synced++
 
-      // ── Fetch full message thread for this conversation ───────────────────
-      if (convRecord) {
-        try {
-          const threadRes = await fetch(`${HR_BASE}/inbox/GetChatroom`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-API-KEY': HR_KEY },
-            body: JSON.stringify({
-              linkedInAccountId: conv.linkedInAccountId || 185228,
-              conversationId: conv.id
-            })
-          })
-
-          if (threadRes.ok) {
-            const threadData = await threadRes.json()
-            const messages = threadData.messages || threadData.items || []
-
-            for (const msg of messages) {
-              const sentAt = new Date(msg.sentAt || msg.createdAt || msg.timestamp || Date.now())
-              // Only store messages newer than watermark
-              if (sentAt < watermark && messages.length > 20) continue
-
-              const msgId = msg.id || msg.messageId || `${conv.id}-${sentAt.getTime()}`
-
-              await supabase.from('conversation_messages').upsert({
-                conversation_id: convRecord.id,
-                message_id: String(msgId),
-                direction: (msg.sender === 'ME' || msg.isFromMe) ? 'OUT' : 'IN',
-                body: msg.text || msg.message || msg.content || '',
-                sent_at: sentAt.toISOString(),
-                channel: msg.type === 'INMAIL' ? 'inmail' : 'linkedin',
-                sender_name: msg.sender === 'ME' ? 'Dalen Lawrence' : (profile.firstName || '') + ' ' + (profile.lastName || '')
-              }, { onConflict: 'conversation_id,message_id' })
-
-              results.messages_stored++
-            }
-          }
-        } catch(e) {
-          // Thread fetch failing is non-fatal — conversation record still updated
-          console.warn('Thread fetch failed for', conv.id, e.message)
-        }
-      }
+      // Thread messages load on-demand when user opens a conversation
+      // Skipping per-conversation chatroom fetch to stay within function timeout
     } catch(e) {
       results.errors.push('Conversation error: ' + e.message)
     }
