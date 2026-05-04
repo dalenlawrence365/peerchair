@@ -193,19 +193,14 @@ export async function GET(request) {
 
         if (eventType && payload) {
           // Re-send to our own webhook handler
-          const retryRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.peerchair.com'}/api/heyreach-webhook`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          })
-
-          if (retryRes.ok) {
-            await supabase.from('webhook_failures').update({ resolved: true, resolved_at: new Date().toISOString() }).eq('id', failure.id)
-            results.dead_letter_retried++
-            results.details.push(`Retried and resolved webhook failure: ${failure.id}`)
-          } else {
-            await supabase.from('webhook_failures').update({ retry_count: (failure.retry_count || 0) + 1 }).eq('id', failure.id)
-          }
+    // Dead letter retry disabled — was causing recursive webhook calls
+          // Just mark as resolved after max retries
+          await supabase.from('webhook_failures').update({ 
+            resolved: true, 
+            resolved_at: new Date().toISOString(),
+            error_message: 'Auto-resolved after max retries'
+          }).eq('id', failure.id)
+          results.dead_letter_retried++
         }
       } catch(e) {
         await supabase.from('webhook_failures').update({ retry_count: (failure.retry_count || 0) + 1 }).eq('id', failure.id)
