@@ -67,7 +67,7 @@ function SendButton({onSend}) {
 }
 
 // ─── Thread Panel ─────────────────────────────────────────────────────────────
-function ThreadPanel({item, onDone, onClose}) {
+function ThreadPanel({item, onDone, onClose, onNavigate}) {
   var [thread,     setThread]     = useState([]);
   var [loading,    setLoading]    = useState(true);
   var [reply,      setReply]      = useState("");
@@ -263,7 +263,7 @@ function ThreadPanel({item, onDone, onClose}) {
           {item.imageUrl?<img src={item.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>:((item.firstName||"?")[0]+(item.lastName||"?")[0])}
         </div>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:15,fontWeight:600,color:"#fff"}}>{item.firstName} {item.lastName}</div>
+          <div onClick={function(){ if(onNavigate&&item.supabaseId) onNavigate("profile",{id:item.supabaseId,first_name:item.firstName,last_name:item.lastName,title:item.title,company_name:item.company,linkedin_url:item.profileUrl}); }} style={{fontSize:15,fontWeight:600,color:"#fff",cursor:item.supabaseId?"pointer":"default",textDecoration:item.supabaseId?"underline":"none"}}>{item.firstName} {item.lastName}</div>
           <div style={{fontSize:12,color:T.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.title}{item.company?" · "+item.company:""}</div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -508,7 +508,7 @@ export default function FollowUp({onNavigate}) {
       {/* RIGHT — Thread panel */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         {selected
-          ? <ThreadPanel key={selected.id} item={selected} onDone={handleDone} onClose={function(){setSelected(null);}}/>
+          ? <ThreadPanel key={selected.id} item={selected} onDone={handleDone} onClose={function(){setSelected(null);}} onNavigate={onNavigate}/>
           : <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",color:T.dim,gap:10}}>
               <div style={{fontSize:32,opacity:0.3}}>↩</div>
               <div style={{fontSize:14}}>Select a conversation</div>
