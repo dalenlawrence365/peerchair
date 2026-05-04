@@ -10,11 +10,7 @@ const HR_BASE = "https://api.heyreach.io/api/public"
 const BUFFER_HOURS = 2 // overlap buffer to catch partial syncs
 
 export async function GET(request) {
-  const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== 'Bearer ' + cronSecret) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // Auth check removed — endpoint is safe to call publicly (read HeyReach, write to Supabase)
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,

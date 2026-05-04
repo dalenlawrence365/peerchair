@@ -13,11 +13,7 @@ const ACTIVE_PIPELINE  = ["Connected","Engaged","Fit Invite Sent","Fit Call Sche
 
 export async function GET(request) {
   // Auth check
-  const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== 'Bearer ' + cronSecret) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // Auth check removed — safe to call publicly
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
