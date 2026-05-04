@@ -871,6 +871,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                 </button>
               </div>
             </div>
+          </div>
           :null}
 
           {/* EMAIL TAB */}
