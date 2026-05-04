@@ -65,6 +65,7 @@ function ThreadView({ conv }) {
   var [messages, setMessages] = useState([])
   var [loading, setLoading] = useState(true)
   var bottomRef = useRef(null)
+  var threadRef = useRef(null)
 
   useEffect(function() {
     if (!conv) return
@@ -104,7 +105,7 @@ function ThreadView({ conv }) {
       </div>
 
       {/* Messages */}
-      <div style={{ flex:1, overflowY:"auto", padding:"16px 20px", display:"flex", flexDirection:"column", gap:12 }}>
+      <div ref={threadRef} style={{ flex:1, overflowY:"auto", padding:"16px 20px", display:"flex", flexDirection:"column", gap:12 }}>
         {loading && <div style={{ textAlign:"center", color:T.dim, padding:"40px 0", fontSize:13 }}>Loading messages…</div>}
         {!loading && messages.length === 0 && (
           <div style={{ textAlign:"center", color:T.dim, padding:"40px 0", fontSize:13 }}>
