@@ -864,7 +864,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
             </div>
             {/* Reply composer */}
             <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",padding:"12px 16px",flexShrink:0,background:"#0a1522"}}>
-              <textarea value={liReply} onChange={function(e){setLiReply(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))sendLiReply();}} placeholder={"Reply to "+((data&&data.firstName)||"")+"… (Cmd+Enter to send)"} rows={3} style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:T.text,padding:"9px 12px",borderRadius:6,fontSize:13,lineHeight:1.65,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+              <textarea value={liReply} onChange={function(e){setLiReply(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))sendLiReply();}} placeholder={"Reply to "+((data&&data.firstName)||"")+"... (Cmd+Enter to send)"} rows={3} style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:T.text,padding:"9px 12px",borderRadius:6,fontSize:13,lineHeight:1.65,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
               <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
                 <button onClick={sendLiReply} disabled={!liReply.trim()||liSending} style={{padding:"7px 18px",background:liSent?"rgba(46,204,113,0.15)":"rgba(46,204,113,0.12)",border:"1px solid "+(liSent?"rgba(46,204,113,0.4)":"rgba(46,204,113,0.3)"),color:T.green,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600}}>
                   {liSending?"Sending…":liSent?"✓ Sent":"Send via LinkedIn"}
