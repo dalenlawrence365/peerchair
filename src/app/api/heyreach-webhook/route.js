@@ -185,6 +185,10 @@ export async function POST(request) {
     // Send email alert
     await alertNewConnection(firstName, lastName, company)
 
+    // Trigger background conversation sync
+    fetch(process.env.NEXT_PUBLIC_SITE_URL || 'https://www.peerchair.com' + '/api/sync-conversations', {
+      headers: { 'Authorization': 'Bearer ' + (process.env.CRON_SECRET || 'peerchair2026') }
+    }).catch(function(){});
     return Response.json({ status: 'created', contact: { id: newContact.id, name: firstName + ' ' + lastName } })
   } catch (err) {
     console.error('Webhook error:', err.message, err.stack)
