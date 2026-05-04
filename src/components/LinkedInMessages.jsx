@@ -117,7 +117,7 @@ function ThreadView({ conv }) {
           return (
             <div key={msg.id || i} style={{ display:"flex", flexDirection:"column", alignItems: isOut ? "flex-end" : "flex-start", width:"100%" }}>
               <div style={{ display:"flex", gap:5, marginBottom:3, alignItems:"center", flexDirection: isOut ? "row-reverse" : "row" }}>
-                {msg.sequence_key && <span style={{ fontSize:9, padding:"1px 6px", borderRadius:3, background:"rgba(74,158,186,0.12)", border:"1px solid rgba(74,158,186,0.2)", color:T.blue, fontFamily:"monospace" }}>{msg.sequence_key}</span>}
+
                 {msg.channel === "inmail" && <span style={{ fontSize:9, padding:"1px 6px", borderRadius:3, background:"rgba(155,89,182,0.12)", border:"1px solid rgba(155,89,182,0.2)", color:T.purple }}>InMail</span>}
                 <span style={{ fontSize:10, color:T.dim }}>{fmtTime(msg.sent_at)}</span>
               </div>
