@@ -441,6 +441,10 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
   var [comms,setComms]         = useState([]);
   var [commsLoading,setCommsLoading] = useState(true);
   var [tab,setTab]             = useState("summary");
+  var [linkedinMsgs,setLinkedinMsgs] = useState([]);
+  var [linkedinLoading,setLinkedinLoading] = useState(false);
+  var [emailMsgs,setEmailMsgs]   = useState([]);
+  var [emailLoading,setEmailLoading] = useState(false);
   var [showHR,setShowHR]       = useState(false);
   var [drawer,setDrawer]       = useState(null);
   var [tlFilter,setTlFilter]   = useState("All");
@@ -479,6 +483,33 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
       if(rows && rows.length>0) setData(dbToLocal(rows[0]));
     } catch(e) { console.error("loadContact error:",e); }
     setLoading(false);
+  }
+
+  async function loadLinkedinMsgs() {
+    if (!contactId) return;
+    setLinkedinLoading(true);
+    try {
+      // Get conversation record for this contact
+      var convRows = await sbFetch("/conversations?contact_id=eq."+contactId+"&limit=1");
+      if (convRows && convRows.length > 0) {
+        var conv = convRows[0];
+        var msgs = await sbFetch("/conversation_messages?conversation_id=eq."+conv.id+"&order=sent_at.asc&limit=200");
+        setLinkedinMsgs(Array.isArray(msgs) ? msgs : []);
+      } else {
+        setLinkedinMsgs([]);
+      }
+    } catch(e) { setLinkedinMsgs([]); }
+    setLinkedinLoading(false);
+  }
+
+  async function loadEmailMsgs() {
+    if (!contactId) return;
+    setEmailLoading(true);
+    try {
+      var rows = await sbFetch("/email_messages?contact_id=eq."+contactId+"&order=sent_at.desc&limit=100");
+      setEmailMsgs(Array.isArray(rows) ? rows : []);
+    } catch(e) { setEmailMsgs([]); }
+    setEmailLoading(false);
   }
 
   async function loadComms() {
@@ -521,6 +552,11 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
     } catch(e) { console.error("saveNote error:",e); }
   }
 
+  useEffect(function(){
+    if (tab === "linkedin" && linkedinMsgs.length === 0) loadLinkedinMsgs();
+    if (tab === "email"    && emailMsgs.length    === 0) loadEmailMsgs();
+  }, [tab]);
+
   function set(field){return function(val){setData(function(d){return Object.assign({},d,{[field]:val});});};}
   function tog(field){return function(){setData(function(d){return Object.assign({},d,{[field]:!d[field]});});};}
 
@@ -538,6 +574,8 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
 
   var sc = stageColor(data.pipelineStage);
   var channels = ["All","LinkedIn","Email","Phone","Calendly","App","Note"];
+  // Tab definitions including new communication tabs
+  var profileTabs = ["summary","linkedin","email","timeline","notes"];
   var filtered = comms
     .filter(function(c){ return c.body && c.channel && c.direction; })
     .filter(function(c){ return tlFilter==="All" || c.channel===tlFilter; });
@@ -762,6 +800,61 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                 </Grid2>
               </Section>
 
+            </div>
+          :null}
+
+          {/* LINKEDIN MESSAGES TAB */}
+          {tab==="linkedin"
+            ?<div style={{flex:1,overflow:"auto",padding:"16px 20px"}}>
+              {linkedinLoading&&<div style={{color:T.muted,fontSize:13,textAlign:"center",padding:"30px 0"}}>Loading…</div>}
+              {!linkedinLoading&&linkedinMsgs.length===0&&<div style={{color:T.dim,fontSize:13,textAlign:"center",padding:"30px 0"}}>No LinkedIn messages stored yet. Hit ↻ Sync.</div>}
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {linkedinMsgs.map(function(msg,i){
+                var isOut=msg.direction==="OUT";
+                return(
+                  <div key={msg.id||i} style={{display:"flex",flexDirection:"column",alignItems:isOut?"flex-end":"flex-start",width:"100%"}}>
+                    <div style={{display:"flex",gap:5,marginBottom:3,flexDirection:isOut?"row-reverse":"row",alignItems:"center"}}>
+                      {msg.sequence_key&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"rgba(74,158,186,0.12)",border:"1px solid rgba(74,158,186,0.2)",color:T.blue,fontFamily:"monospace"}}>{msg.sequence_key}</span>}
+                      {msg.channel==="inmail"&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"rgba(155,89,182,0.12)",border:"1px solid rgba(155,89,182,0.2)",color:"#9b59b6"}}>InMail</span>}
+                      <span style={{fontSize:10,color:T.dim}}>{new Date(msg.sent_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+                    </div>
+                    <div style={{maxWidth:"75%",padding:"10px 14px",borderRadius:isOut?"14px 4px 14px 14px":"4px 14px 14px 14px",background:isOut?"rgba(240,200,74,0.09)":"rgba(255,255,255,0.05)",border:"1px solid "+(isOut?"rgba(240,200,74,0.25)":"rgba(255,255,255,0.09)"),fontSize:13,color:isOut?"#f5e49a":T.text,lineHeight:1.75,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
+                      {msg.body}
+                    </div>
+                  </div>
+                );
+              })}
+              </div>
+            </div>
+          :null}
+
+          {/* EMAIL TAB */}
+          {tab==="email"
+            ?<div style={{flex:1,overflow:"auto",padding:"16px 20px"}}>
+              {emailLoading&&<div style={{color:T.muted,fontSize:13,textAlign:"center",padding:"30px 0"}}>Loading…</div>}
+              {!emailLoading&&emailMsgs.length===0&&(
+                <div style={{textAlign:"center",padding:"30px 0",color:T.dim}}>
+                  <div style={{fontSize:13,marginBottom:6}}>No emails synced yet</div>
+                  <div style={{fontSize:11}}>{data&&data.email?"Syncs hourly from CFO Circle inbox":"Add email address to enable"}</div>
+                </div>
+              )}
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              {emailMsgs.map(function(msg,i){
+                var isOut=msg.direction==="OUT";
+                return(
+                  <div key={msg.id||i} style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:7,overflow:"hidden"}}>
+                    <div style={{padding:"10px 14px",borderBottom:"1px solid rgba(255,255,255,0.05)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:12,fontWeight:600,color:isOut?G:T.text}}>{isOut?"You":data.firstName+" "+data.lastName}</span>
+                      <span style={{fontSize:11,color:T.dim,marginLeft:8}}>{new Date(msg.sent_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+                      <span style={{fontSize:11,color:T.muted,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginLeft:"auto"}}>{msg.subject}</span>
+                    </div>
+                    <div style={{padding:"12px 14px",fontSize:13,color:T.muted,lineHeight:1.75,whiteSpace:"pre-wrap",wordBreak:"break-word",maxHeight:200,overflow:"auto"}}>
+                      {msg.body||msg.body_preview||"(no content)"}
+                    </div>
+                  </div>
+                );
+              })}
+              </div>
             </div>
           :null}
 
@@ -1523,7 +1616,7 @@ export default function CFOCircleApp() {
 
   function navigate(s,contact,q){setScreen(s);if(contact)setContact(contact);if(q)setClaudeQ(q);}
 
-  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:String(followUpCount)},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors",badge:sponsorCompanyCount>0?String(sponsorCompanyCount):""},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
+  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:String(followUpCount)},{id:"linkedin_msgs",icon:"💬",label:"LinkedIn",badge:""},{id:"email_msgs",icon:"📧",label:"Email",badge:""},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors",badge:sponsorCompanyCount>0?String(sponsorCompanyCount):""},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
 
   var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",sponsors:"Sponsors",followup:"Follow-Up Queue",stalliant:"Sponsors"}[screen]||screen;
 
@@ -1586,7 +1679,9 @@ export default function CFOCircleApp() {
           {screen==="templates" && <Templates/>}
           {screen==="claude"    && <AskClaude initialQ={claudeQ} onQuestionConsumed={function(){setClaudeQ("");}}/>}
           {screen==="sponsors"  && <Sponsors onStartDiscovery={function(co,contact,deal){setSponsorContact(Object.assign({},contact||{},{company:co.name,company_id:co.id,category:co.category}));setSponsorDeal(deal);setScreen("sponsor_call");}}/>}
-          {screen==="followup"  && <FollowUp onNavigate={navigate}/>}
+          {screen==="followup"      && <FollowUp onNavigate={navigate}/>}
+          {screen==="linkedin_msgs" && <LinkedInMessages onNavigate={navigate}/>}
+          {screen==="email_msgs"    && <EmailMessages onNavigate={navigate}/>}
           {screen==="sponsor_call" && <SponsorCompanion contact={sponsorContact||{}} deal={sponsorDeal} onBack={function(){navigate("sponsors");}} onEnd={function(){navigate("sponsors");}}/>}
           {screen==="fitcall" && fitCallContact && <LiveCallCompanion contact={fitCallContact} onEnd={function(){ setScreen("profile"); }} onBack={function(){ setScreen("profile"); }}/>}
         </div>
