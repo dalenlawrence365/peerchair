@@ -1635,7 +1635,7 @@ export default function CFOCircleApp() {
             <div><div style={{fontSize:13,fontWeight:700,color:G,letterSpacing:2,textTransform:"uppercase",lineHeight:1}}>CFO Circle</div><div style={{fontSize:9,color:T.dim,letterSpacing:1.5,textTransform:"uppercase",marginTop:2}}>Los Angeles</div></div>
           </div>
         </div>
-        <div style={{flex:1,display:"flex",flexDirection:"column",gap:2}}>
+        <div style={{flex:1,display:"flex",flexDirection:"column",gap:2,overflowY:"auto"}}>
           {NAV.map(function(n){return <NavItem key={n.id} icon={n.icon} label={n.label} badge={n.badge} active={screen===n.id} onClick={function(){navigate(n.id);}}/>;  })}
 
         </div>
