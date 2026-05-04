@@ -1,6 +1,8 @@
 "use client"
 import Sponsors from "@/components/Sponsors";
 import FollowUp from "@/components/FollowUp";
+import LinkedInMessages from "@/components/LinkedInMessages";
+import EmailMessages from "@/components/EmailMessages";
 import Templates from "@/components/Templates";
 import SponsorCompanion from "@/components/SponsorCompanion";
 import LiveCallCompanion from "@/components/LiveCallCompanion";
