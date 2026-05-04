@@ -447,6 +447,9 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
   var [linkedinLoading,setLinkedinLoading] = useState(false);
   var [emailMsgs,setEmailMsgs]   = useState([]);
   var [emailLoading,setEmailLoading] = useState(false);
+  var [liReply,setLiReply] = useState("");
+  var [liSending,setLiSending] = useState(false);
+  var [liSent,setLiSent] = useState(false);
   var [showHR,setShowHR]       = useState(false);
   var [drawer,setDrawer]       = useState(null);
   var [tlFilter,setTlFilter]   = useState("All");
@@ -552,6 +555,37 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
       await sbFetch("/communications",{method:"POST",body:JSON.stringify({contact_id:data.id,occurred_at:new Date().toISOString(),channel:"App",direction:"INTERNAL",step_label:"Note",body:noteText.trim(),source:"Manual",logged_by:"Dalen Lawrence"})});
       setNoteText("");setAddingNote(false);loadComms();
     } catch(e) { console.error("saveNote error:",e); }
+  }
+
+  async function sendLiReply() {
+    if (!liReply.trim() || liSending || !data) return;
+    setLiSending(true);
+    try {
+      // Get conversation record for this contact
+      var convRows = await sbFetch("/conversations?contact_id=eq."+data.id+"&limit=1");
+      var conv = convRows && convRows[0];
+      var res = await fetch("/api/follow-up-queue", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          conversationId: conv ? conv.conversation_id : "sb-"+data.id,
+          linkedInAccountId: 185228,
+          message: liReply,
+          profileUrl: data.linkedinUrl||"",
+          contactId: data.id,
+          firstName: data.firstName, lastName: data.lastName,
+          fullName: data.firstName+" "+data.lastName,
+          title: data.title||"", company: data.company||""
+        })
+      });
+      var d = await res.json();
+      if (d.success) {
+        setLiSent(true);
+        setLinkedinMsgs(function(prev){ return prev.concat([{id:Date.now(),direction:"OUT",body:liReply,sent_at:new Date().toISOString(),channel:"linkedin"}]); });
+        setLiReply("");
+        setTimeout(function(){ setLiSent(false); }, 3000);
+      }
+    } catch(e){ console.error(e); }
+    setLiSending(false);
   }
 
   useEffect(function(){
@@ -826,6 +860,15 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                   </div>
                 );
               })}
+              </div>
+            </div>
+            {/* Reply composer */}
+            <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",padding:"12px 16px",flexShrink:0,background:"#0a1522"}}>
+              <textarea value={liReply} onChange={function(e){setLiReply(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))sendLiReply();}} placeholder={"Reply to "+((data&&data.firstName)||"")+"… (Cmd+Enter to send)"} rows={3} style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:T.text,padding:"9px 12px",borderRadius:6,fontSize:13,lineHeight:1.65,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+              <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
+                <button onClick={sendLiReply} disabled={!liReply.trim()||liSending} style={{padding:"7px 18px",background:liSent?"rgba(46,204,113,0.15)":"rgba(46,204,113,0.12)",border:"1px solid "+(liSent?"rgba(46,204,113,0.4)":"rgba(46,204,113,0.3)"),color:T.green,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600}}>
+                  {liSending?"Sending…":liSent?"✓ Sent":"Send via LinkedIn"}
+                </button>
               </div>
             </div>
           :null}
