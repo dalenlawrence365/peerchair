@@ -55,7 +55,7 @@ function ConvCard({ conv, selected, onClick }) {
       <div style={{ display:"flex", gap:5, marginTop:5 }}>
         {conv.contact_stage && <span style={{ fontSize:9, padding:"1px 6px", borderRadius:3, background:"rgba(74,158,186,0.1)", border:"1px solid rgba(74,158,186,0.2)", color:T.blue }}>{conv.contact_stage}</span>}
         {conv.channel === "inmail" && <span style={{ fontSize:9, padding:"1px 6px", borderRadius:3, background:"rgba(155,89,182,0.1)", border:"1px solid rgba(155,89,182,0.2)", color:T.purple }}>InMail</span>}
-        {isTheirs && <span style={{ fontSize:9, padding:"1px 6px", borderRadius:3, background:"rgba(46,204,113,0.1)", border:"1px solid rgba(46,204,113,0.2)", color:T.green }}>Their Turn</span>}
+        {isTheirs && <span style={{ fontSize:9, padding:"1px 6px", borderRadius:3, background:"rgba(46,204,113,0.1)", border:"1px solid rgba(46,204,113,0.2)", color:T.green }}>Reply Needed</span>}
       </div>
     </div>
   )
@@ -242,8 +242,8 @@ export default function LinkedInMessages({ onNavigate }) {
   }
 
   var filtered = convs.filter(function(c) {
-    if (filter === "theirs" && c.last_sender !== "CORRESPONDENT") return false
-    if (filter === "mine"   && c.last_sender === "CORRESPONDENT") return false
+    if (filter === "mine"   && c.last_sender !== "CORRESPONDENT") return false
+    if (filter === "theirs" && c.last_sender === "CORRESPONDENT") return false
     if (typeFilter === "cfo"     && c.contact_type !== "CFO_PROSPECT") return false
     if (typeFilter === "sponsor" && c.contact_type !== "SPONSOR_CONTACT") return false
     if (search) {
@@ -269,7 +269,7 @@ export default function LinkedInMessages({ onNavigate }) {
           <input value={search} onChange={function(e){setSearch(e.target.value)}} placeholder="Search name or company…" style={{ width:"100%", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", color:T.text, padding:"6px 10px", borderRadius:5, fontSize:12, outline:"none", boxSizing:"border-box", marginBottom:8 }} />
           {/* Filter tabs */}
           <div style={{ display:"flex", gap:3, marginBottom:5 }}>
-            {[["all","All"],["theirs","Their Turn"],["mine","My Turn"]].map(function(f) {
+            {[["all","All"],["mine","My Turn"],["theirs","Their Turn"]].map(function(f) {
               var active = filter === f[0]
               return <button key={f[0]} onClick={function(){setFilter(f[0])}} style={{ flex:1, padding:"4px 3px", borderRadius:4, cursor:"pointer", border:"1px solid "+(active?"rgba(240,200,74,0.4)":"rgba(255,255,255,0.07)"), background:active?"rgba(240,200,74,0.1)":"transparent", color:active?G:T.muted, fontSize:10 }}>{f[1]}</button>
             })}
