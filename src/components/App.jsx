@@ -841,37 +841,36 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
 
           {/* LINKEDIN MESSAGES TAB */}
           {tab==="linkedin"
-            ?<div style={{flex:1,overflow:"auto",padding:"16px 20px"}}>
-              {linkedinLoading&&<div style={{color:T.muted,fontSize:13,textAlign:"center",padding:"30px 0"}}>Loading…</div>}
-              {!linkedinLoading&&linkedinMsgs.length===0&&<div style={{color:T.dim,fontSize:13,textAlign:"center",padding:"30px 0"}}>No LinkedIn messages stored yet. Hit ↻ Sync.</div>}
-              <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              {linkedinMsgs.map(function(msg,i){
-                var isOut=msg.direction==="OUT";
-                return(
-                  <div key={msg.id||i} style={{display:"flex",flexDirection:"column",alignItems:isOut?"flex-end":"flex-start",width:"100%"}}>
-                    <div style={{display:"flex",gap:5,marginBottom:3,flexDirection:isOut?"row-reverse":"row",alignItems:"center"}}>
-                      {msg.sequence_key&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"rgba(74,158,186,0.12)",border:"1px solid rgba(74,158,186,0.2)",color:T.blue,fontFamily:"monospace"}}>{msg.sequence_key}</span>}
-                      {msg.channel==="inmail"&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"rgba(155,89,182,0.12)",border:"1px solid rgba(155,89,182,0.2)",color:"#9b59b6"}}>InMail</span>}
-                      <span style={{fontSize:10,color:T.dim}}>{new Date(msg.sent_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+            ?<div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+              <div style={{flex:1,overflow:"auto",padding:"16px 20px"}}>
+                {linkedinLoading&&<div style={{color:T.muted,fontSize:13,textAlign:"center",padding:"30px 0"}}>Loading...</div>}
+                {!linkedinLoading&&linkedinMsgs.length===0&&<div style={{color:T.dim,fontSize:13,textAlign:"center",padding:"30px 0"}}>No LinkedIn messages stored yet. Hit Sync.</div>}
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {linkedinMsgs.map(function(msg,i){
+                  var isOut=msg.direction==="OUT";
+                  return(
+                    <div key={msg.id||i} style={{display:"flex",flexDirection:"column",alignItems:isOut?"flex-end":"flex-start",width:"100%"}}>
+                      <div style={{display:"flex",gap:5,marginBottom:3,flexDirection:isOut?"row-reverse":"row",alignItems:"center"}}>
+                        {msg.channel==="inmail"&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"rgba(155,89,182,0.12)",border:"1px solid rgba(155,89,182,0.2)",color:"#9b59b6"}}>InMail</span>}
+                        <span style={{fontSize:10,color:T.dim}}>{new Date(msg.sent_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true})}</span>
+                      </div>
+                      <div style={{maxWidth:"75%",padding:"10px 14px",borderRadius:isOut?"14px 4px 14px 14px":"4px 14px 14px 14px",background:isOut?"rgba(240,200,74,0.09)":"rgba(255,255,255,0.05)",border:"1px solid "+(isOut?"rgba(240,200,74,0.25)":"rgba(255,255,255,0.09)"),fontSize:13,color:isOut?"#f5e49a":T.text,lineHeight:1.75,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
+                        {msg.body}
+                      </div>
                     </div>
-                    <div style={{maxWidth:"75%",padding:"10px 14px",borderRadius:isOut?"14px 4px 14px 14px":"4px 14px 14px 14px",background:isOut?"rgba(240,200,74,0.09)":"rgba(255,255,255,0.05)",border:"1px solid "+(isOut?"rgba(240,200,74,0.25)":"rgba(255,255,255,0.09)"),fontSize:13,color:isOut?"#f5e49a":T.text,lineHeight:1.75,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
-                      {msg.body}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+                </div>
+              </div>
+              <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",padding:"12px 16px",flexShrink:0,background:"#0a1522"}}>
+                <textarea value={liReply} onChange={function(e){setLiReply(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))sendLiReply();}} placeholder={"Reply to "+((data&&data.firstName)||"")+"..."} rows={3} style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:T.text,padding:"9px 12px",borderRadius:6,fontSize:13,lineHeight:1.65,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+                <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
+                  <button onClick={sendLiReply} disabled={!liReply.trim()||liSending} style={{padding:"7px 18px",background:liSent?"rgba(46,204,113,0.15)":"rgba(46,204,113,0.12)",border:"1px solid "+(liSent?"rgba(46,204,113,0.4)":"rgba(46,204,113,0.3)"),color:T.green,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600}}>
+                    {liSending?"Sending...":liSent?"Sent":"Send via LinkedIn"}
+                  </button>
+                </div>
               </div>
             </div>
-            {/* Reply composer */}
-            <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",padding:"12px 16px",flexShrink:0,background:"#0a1522"}}>
-              <textarea value={liReply} onChange={function(e){setLiReply(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))sendLiReply();}} placeholder={"Reply to "+((data&&data.firstName)||"")+"... (Cmd+Enter to send)"} rows={3} style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:T.text,padding:"9px 12px",borderRadius:6,fontSize:13,lineHeight:1.65,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
-              <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
-                <button onClick={sendLiReply} disabled={!liReply.trim()||liSending} style={{padding:"7px 18px",background:liSent?"rgba(46,204,113,0.15)":"rgba(46,204,113,0.12)",border:"1px solid "+(liSent?"rgba(46,204,113,0.4)":"rgba(46,204,113,0.3)"),color:T.green,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600}}>
-                  {liSending?"Sending…":liSent?"✓ Sent":"Send via LinkedIn"}
-                </button>
-              </div>
-            </div>
-          </div>
           :null}
 
           {/* EMAIL TAB */}
