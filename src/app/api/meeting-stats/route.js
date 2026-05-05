@@ -4,7 +4,7 @@
 const CALENDLY_USER = "https://api.calendly.com/users/6e6c3a6f-335a-4520-a3f7-53b42e7d834c"
 
 function classifyEvent(name, slug) {
-  var s = (slug || name || "").toLowerCase()
+  var s = (name || slug || "").toLowerCase() // name first — event_type is a UUID URL
   if (s.includes("sponsor") || s.includes("discovery")) return "sponsor_discovery"
   if (s.includes("fit") || s.includes("15") || s.includes("30")) return "fit_call"
   return "other"

@@ -58,9 +58,11 @@ export async function GET() {
     const loc = event.location?.actual_instance || {}
     const slug = (event.event_type || '').split('/event_types/').pop()
 
-    let eventType = 'fit_call'
-    if (slug.includes('sponsor') || slug.includes('discovery')) eventType = 'sponsor_discovery'
-    else if (slug.includes('30')) eventType = 'fit_call_30'
+    // Classify by event name — slug extracted from event_type is a UUID, not readable
+    const eName = (event.name || '').toLowerCase()
+    let eventType = 'other'
+    if (eName.includes('sponsor') || eName.includes('discovery')) eventType = 'sponsor_discovery'
+    else if (eName.includes('fit') || eName.includes('15') || eName.includes('30')) eventType = eName.includes('30') ? 'fit_call_30' : 'fit_call'
 
     let invitee = null
     let contact = null

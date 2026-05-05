@@ -1361,8 +1361,8 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
         <h1 style={{fontSize:26,fontWeight:600,color:T.text,margin:0}}>{(function(){var h=new Date().getHours();return h<12?"Good morning":h<17?"Good afternoon":"Good evening";})()}, Dalen.</h1>
         <div style={{fontSize:14,color:T.muted,marginTop:4}}>Here's where things stand with your Los Angeles chapter.</div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:16}}>
-        {[{label:"Fit Calls Scheduled",val:String(fitCallContacts.length),sub:"this week",color:T.gold,icon:"☎",action:function(){setShowFitCallList(function(v){return !v;});}},{label:"Days to Next Event",val:"—",sub:"no event scheduled",color:T.purple,icon:"✦",action:null},{label:"Active Members",val:String(getCount("Active Member")||0),sub:"in chapter",color:T.green,icon:"★",action:function(){navigate("pipeline");}}].map(function(k){
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14,marginBottom:16}}>
+        {[{label:"Days to Next Event",val:"—",sub:"no event scheduled",color:T.purple,icon:"✦",action:null},{label:"Active Members",val:String(getCount("Active Member")||0),sub:"in chapter",color:T.green,icon:"★",action:function(){navigate("pipeline");}}].map(function(k){
           return <div key={k.label} onClick={k.action||undefined} style={{background:BG3,border:"1px solid "+T.border,borderTop:"2px solid "+k.color+"40",borderRadius:8,padding:"18px 20px",cursor:k.action?"pointer":"default",transition:"all 0.15s"}}
             onMouseOver={function(e){if(k.action)e.currentTarget.style.borderColor=k.color+"40";}}
             onMouseOut={function(e){if(k.action)e.currentTarget.style.borderColor=T.border;}}>
