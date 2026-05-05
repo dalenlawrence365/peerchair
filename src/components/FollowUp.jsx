@@ -382,6 +382,17 @@ function QueueCard({item, selected, onClick, gone}) {
       </div>
       {isWarm&&<div style={{marginTop:6,fontSize:10,color:T.green,letterSpacing:1}}>● WARM REPLY</div>}
       {isNeg&&<div style={{marginTop:6,fontSize:10,color:T.red,letterSpacing:1}}>● NOT INTERESTED</div>}
+      {item.scheduledActions&&item.scheduledActions.length>0&&(
+        <div style={{marginTop:5,display:"flex",gap:4,flexWrap:"wrap"}}>
+          {item.scheduledActions.map(function(sa,i){
+            var d=new Date(sa.send_at);
+            var dateStr=d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+            return(
+              <span key={sa.id||i} style={{fontSize:9,padding:"1px 7px",borderRadius:9,background:"rgba(155,89,182,0.1)",border:"1px solid rgba(155,89,182,0.2)",color:"#9b59b6"}}>⏰ {dateStr}</span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
