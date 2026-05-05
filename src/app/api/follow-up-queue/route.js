@@ -324,9 +324,10 @@ export async function POST(request) {
     var toolWasCalled = (aiData.content || []).some(function(b){ return b.type === "tool_use"; });
     var endedNormally = aiData.stop_reason === "end_turn";
 
-    if (!toolWasCalled && !endedNormally) {
+    if (!toolWasCalled) {
       var aiText = (aiData.content || []).filter(function(b){ return b.type === "text"; }).map(function(b){ return b.text; }).join(" ");
-      return Response.json({ success: false, error: aiText || "MCP send did not complete" }, { status: 500 });
+      console.error("MCP send: tool not called. stop_reason:", aiData.stop_reason, "text:", aiText);
+      return Response.json({ success: false, error: aiText || "HeyReach send tool was not called — message may not have been sent" }, { status: 500 });
     }
 
     // Detect Calendly link → Fit Invite
@@ -438,17 +439,19 @@ async function logToSupabase(contactId, profileUrl, firstName, message, body, st
 
     if (!resolvedId) return;
 
+    var isOutbound = !stepLabel.includes("Cleared") && !stepLabel.includes("Queue");
     await fetch(SBU + "/rest/v1/communications", {
       method: "POST", headers: h,
       body: JSON.stringify({
         contact_id:  resolvedId,
         occurred_at: new Date().toISOString(),
         channel:     "LinkedIn",
-        direction:   stepLabel.includes("Cleared") || stepLabel.includes("Queue") ? "INTERNAL" : "OUT",
+        direction:   isOutbound ? "OUT" : "INTERNAL",
         step_label:  stepLabel,
         body:        message,
         source:      "PeerChair",
         logged_by:   "Dalen Lawrence",
+        send_status: isOutbound ? "pending" : null,
       })
     });
 

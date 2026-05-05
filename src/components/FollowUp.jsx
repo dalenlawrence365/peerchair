@@ -109,6 +109,7 @@ function InboundCard({item, selected, onClick, gone}) {
       </div>
       {isWarm&&<div style={{marginTop:6,fontSize:10,color:T.green,letterSpacing:1}}>● WARM REPLY</div>}
       {isNeg&&<div style={{marginTop:6,fontSize:10,color:T.red,letterSpacing:1}}>● NOT INTERESTED</div>}
+      {item.hasUnconfirmed&&<div style={{marginTop:4,fontSize:10,color:T.orange,letterSpacing:1}}>⚠ UNCONFIRMED SEND — check thread</div>}
       <div style={{marginTop:4}}>
         <span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"rgba(74,158,186,0.1)",border:"1px solid rgba(74,158,186,0.2)",color:T.blue}}>INBOUND</span>
       </div>
@@ -329,6 +330,7 @@ function ThreadPanel({item, onDone, onClose, onNavigate}) {
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           <span style={{fontSize:10,padding:"2px 8px",borderRadius:9,background:accent+"12",border:"1px solid "+accent+"30",color:accent,textTransform:"uppercase",letterSpacing:1}}>{isWarm?"Warm":isNeg?"Not Interested":"Neutral"}</span>
+          {item.hasUnconfirmed&&<span title="A recent message was not confirmed by HeyReach" style={{fontSize:10,padding:"2px 8px",borderRadius:9,background:"rgba(230,126,34,0.15)",border:"1px solid rgba(230,126,34,0.4)",color:T.orange,fontWeight:600}}>⚠ UNCONFIRMED SEND</span>}
           <button onClick={onClose} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:T.muted,width:28,height:28,borderRadius:5,cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
         </div>
       </div>
@@ -502,7 +504,14 @@ export default function FollowUp({onNavigate}) {
     try{
       var d=await fetch("/api/follow-up-queue").then(function(r){return r.json();});
       var q=Array.isArray(d.queue)?d.queue:[];
-      setQueue(q.map(function(i){return Object.assign({},i,{itemType:"inbound"});}));
+      // Check for unconfirmed sends
+      try {
+        var U=process.env.NEXT_PUBLIC_SUPABASE_URL;var K=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        var uc=await fetch(U+"/rest/v1/communications?send_status=eq.unconfirmed&select=contact_id&limit=200",{headers:{"apikey":K,"Authorization":"Bearer "+K}}).then(function(r){return r.json();});
+        var ucIds=new Set((Array.isArray(uc)?uc:[]).map(function(c){return c.contact_id;}));
+        q=q.map(function(i){return Object.assign({},i,{itemType:"inbound",hasUnconfirmed:ucIds.has(i.supabaseId)});});
+      } catch(e){ q=q.map(function(i){return Object.assign({},i,{itemType:"inbound"});}); }
+      setQueue(q);
       setDaily(d.todayCount||0);
     }catch(e){setError(e.message);}
   }

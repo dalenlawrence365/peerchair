@@ -210,6 +210,21 @@ export async function GET(request) {
     results.errors.push(`Dead letter retry error: ${e.message}`)
   }
 
+  // ── Flag unconfirmed sends (pending > 30 minutes) ────────────────────────
+  try {
+    const thirtyMinsAgo = new Date(Date.now() - 30 * 60000).toISOString()
+    const { data: stalePending, error: spErr } = await supabase
+      .from('communications')
+      .update({ send_status: 'unconfirmed' })
+      .eq('send_status', 'pending')
+      .lt('occurred_at', thirtyMinsAgo)
+      .select('id, contact_id, occurred_at, body')
+    if (!spErr && stalePending && stalePending.length > 0) {
+      results.errors.push(`${stalePending.length} unconfirmed send(s) flagged — MESSAGE_SENT webhook did not fire`)
+      console.warn('Unconfirmed sends:', stalePending.map(function(m){ return m.contact_id + ' @ ' + m.occurred_at }))
+    }
+  } catch(e) { results.errors.push('Pending send audit error: ' + e.message) }
+
   // ── Write audit log ──────────────────────────────────────────────────────
   const summary = [
     results.heyreach_available ? 'HeyReach ✓' : 'HeyReach ✗',

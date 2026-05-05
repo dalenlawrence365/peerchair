@@ -59,6 +59,34 @@ export async function POST(request) {
 
     // MESSAGE_SENT = HeyReach sent outbound message (Step 2, Hail Mary, etc)
     if (eventType === 'message_sent' || eventType === 'MESSAGE_SENT') {
+      // Confirm any pending outbound communication for this contact
+      // Match: contact + direction=OUT + send_status=pending + sent within last 10 minutes
+      if (linkedinUrl || firstName) {
+        try {
+          var matchSlug = linkedinUrl ? linkedinUrl.replace(/\/+$/, '').split('/in/').pop().toLowerCase() : null
+          var matchContact = null
+          if (matchSlug) {
+            var { data: mc } = await supabase.from('contacts').select('id')
+              .ilike('linkedin_url', '%' + matchSlug + '%').limit(1)
+            if (mc && mc[0]) matchContact = mc[0]
+          }
+          if (!matchContact && firstName) {
+            var { data: mc2 } = await supabase.from('contacts').select('id')
+              .ilike('first_name', firstName).limit(1)
+            if (mc2 && mc2[0]) matchContact = mc2[0]
+          }
+          if (matchContact) {
+            var tenMinsAgo = new Date(Date.now() - 10 * 60000).toISOString()
+            await supabase.from('communications')
+              .update({ send_status: 'confirmed' })
+              .eq('contact_id', matchContact.id)
+              .eq('direction', 'OUT')
+              .eq('send_status', 'pending')
+              .gte('occurred_at', tenMinsAgo)
+            console.log('Confirmed pending message for contact:', matchContact.id)
+          }
+        } catch(e) { console.warn('Confirm pending error:', e.message) }
+      }
       const msgBody = body.message || body.messageText || body.message_text || body.text || ''
       const msgTimestamp = body.timestamp || new Date().toISOString()
       const slug = extractSlug(linkedinUrl)
