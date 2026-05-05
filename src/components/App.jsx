@@ -1434,19 +1434,35 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
             <div style={{fontSize:32,fontWeight:700,color:G,lineHeight:1,marginBottom:4}}>{pipelineTotal}</div>
             {snapshots.length>=2&&<div style={{fontSize:10,color:snapshots[snapshots.length-1].active_pipeline_count>snapshots[snapshots.length-2].active_pipeline_count?T.green:T.red}}>{snapshots[snapshots.length-1].active_pipeline_count>snapshots[snapshots.length-2].active_pipeline_count?"▲":"▼"} {Math.abs(snapshots[snapshots.length-1].active_pipeline_count-(snapshots[snapshots.length-2]?snapshots[snapshots.length-2].active_pipeline_count:0))} vs last snapshot</div>}
           </div>
-          {/* Sparkline */}
-          <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:7,padding:"12px 14px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
-            <div style={{fontSize:10,color:T.muted,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>Pipeline Trend</div>
-            <div style={{display:"flex",alignItems:"flex-end",gap:3,height:32}}>
-              {snapshots.length===0&&<div style={{fontSize:11,color:T.dim}}>Tracking started today</div>}
-              {snapshots.map(function(snap,i){
-                var maxVal=Math.max.apply(null,snapshots.map(function(s){return s.active_pipeline_count;}));
-                var h=maxVal>0?Math.round((snap.active_pipeline_count/maxVal)*32):4;
-                var isLast=i===snapshots.length-1;
-                return <div key={snap.snapshot_date} title={snap.snapshot_date+": "+snap.active_pipeline_count} style={{flex:1,height:h+"px",background:isLast?G:G+"50",borderRadius:2,minHeight:3}}/>;
-              })}
-            </div>
-            {snapshots.length>0&&<div style={{fontSize:9,color:T.dim,marginTop:4}}>{snapshots[0].snapshot_date} — today</div>}
+          {/* Pipeline Trend — sparkline with context */}
+          <div style={{background:BG3,border:"1px solid "+T.border,borderRadius:7,padding:"12px 14px",display:"flex",flexDirection:"column",gap:6}}>
+            <div style={{fontSize:10,color:T.muted,letterSpacing:1.5,textTransform:"uppercase",fontWeight:600}}>Pipeline Trend</div>
+            {(function(){
+              if(snapshots.length===0) return <div style={{fontSize:11,color:T.dim,marginTop:4}}>First snapshot taken today</div>;
+              var first=snapshots[0]; var last=snapshots[snapshots.length-1];
+              var delta=last.active_pipeline_count-(first.active_pipeline_count||0);
+              var days=Math.round((new Date(last.snapshot_date)-new Date(first.snapshot_date))/86400000)||1;
+              var perWeek=Math.round((delta/days)*7);
+              var maxVal=Math.max.apply(null,snapshots.map(function(s){return s.active_pipeline_count;}));
+              return <>
+                <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+                  <span style={{fontSize:11,color:delta>=0?T.green:T.red,fontWeight:700}}>{delta>=0?"+":""}{delta}</span>
+                  <span style={{fontSize:10,color:T.dim}}>since {first.snapshot_date}</span>
+                  {snapshots.length>=3&&<span style={{fontSize:10,color:delta>=0?T.green:T.red}}>{perWeek>=0?"+":""}{perWeek}/wk</span>}
+                </div>
+                <div style={{display:"flex",alignItems:"flex-end",gap:2,height:36,marginTop:2}}>
+                  {snapshots.map(function(snap,i){
+                    var h=maxVal>0?Math.max(3,Math.round((snap.active_pipeline_count/maxVal)*36)):3;
+                    var isLast=i===snapshots.length-1;
+                    return <div key={snap.snapshot_date} title={snap.snapshot_date+": "+snap.active_pipeline_count+" active"} style={{flex:1,height:h,background:isLast?G:G+"45",borderRadius:"2px 2px 0 0",cursor:"default"}}/>;
+                  })}
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between"}}>
+                  <span style={{fontSize:8,color:T.dim}}>{first.snapshot_date}</span>
+                  <span style={{fontSize:8,color:T.dim}}>today</span>
+                </div>
+              </>;
+            })()}
           </div>
           {/* Off-pipeline buckets */}
           {[

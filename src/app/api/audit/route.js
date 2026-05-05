@@ -210,6 +210,35 @@ export async function GET(request) {
     results.errors.push(`Dead letter retry error: ${e.message}`)
   }
 
+  // ── Daily pipeline snapshot ──────────────────────────────────────────────
+  try {
+    const today = new Date().toISOString().slice(0, 10)
+    const stageCounts = {}
+    const { data: allContacts } = await supabase.from('contacts').select('pipeline_stage')
+    ;(allContacts || []).forEach(c => { stageCounts[c.pipeline_stage] = (stageCounts[c.pipeline_stage] || 0) + 1 })
+    const ACTIVE = ['Connected','Engaged','Fit Invite Sent','Fit Call Scheduled','Fit Call Completed','Strong Fit','Event Waitlist','Event Invited','Event Confirmed','Event Attended','Membership Conversation Scheduled','Membership Conversation Completed','Verbal Commitment','Active Member']
+    const activeCount = ACTIVE.reduce((sum, s) => sum + (stageCounts[s] || 0), 0)
+    await supabase.from('pipeline_snapshots').upsert({
+      snapshot_date:        today,
+      active_pipeline_count: activeCount,
+      connected_count:      stageCounts['Connected'] || 0,
+      engaged_count:        stageCounts['Engaged'] || 0,
+      fit_scheduled_count:  (stageCounts['Fit Call Scheduled'] || 0) + (stageCounts['Fit Scheduled'] || 0),
+      fit_completed_count:  (stageCounts['Fit Call Completed'] || 0) + (stageCounts['Fit Completed'] || 0),
+      event_invited_count:  stageCounts['Event Invited'] || 0,
+      event_confirmed_count: stageCounts['Event Confirmed'] || 0,
+      event_attended_count: stageCounts['Event Attended'] || 0,
+      membership_convo_count: (stageCounts['Membership Conversation Scheduled'] || 0) + (stageCounts['Membership Conversation Completed'] || 0),
+      verbal_commitment_count: stageCounts['Verbal Commitment'] || 0,
+      active_member_count:  stageCounts['Active Member'] || 0,
+      reserve_count:        (stageCounts['No Reply / Reserve'] || 0) + (stageCounts['Reserve Pool'] || 0) + (stageCounts['Stalled'] || 0),
+      not_a_fit_count:      (stageCounts['Not a Fit'] || 0) + (stageCounts['Lost — Not a Fit'] || 0),
+      bad_timing_count:     (stageCounts['Bad Timing'] || 0) + (stageCounts['Lost — Bad Timing'] || 0),
+      total_contacts:       (allContacts || []).length,
+    }, { onConflict: 'snapshot_date' })
+    console.log(`Pipeline snapshot saved: ${today} — ${activeCount} active`)
+  } catch(e) { results.errors.push('Snapshot error: ' + e.message) }
+
   // ── Stage aging rules ────────────────────────────────────────────────────
   // Rule 1: Engaged → No Reply / Reserve
   //   3+ real outbound messages, zero inbound ever, last outbound 14+ days ago
