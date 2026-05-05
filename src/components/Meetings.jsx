@@ -4,101 +4,167 @@ import { useState, useEffect } from "react"
 var G   = "#f0c84a"
 var BG  = "#080f1a"
 var BG2 = "#0c1520"
-var BG3 = "#0f1e2e"
 var T   = {
   text:"#e8f2ff", muted:"#7a9bb8", dim:"#3a5a74",
-  border:"rgba(255,255,255,0.06)",
   green:"#2ecc71", red:"#e74c3c", orange:"#e67e22",
   blue:"#4a9eba", purple:"#9b59b6"
 }
 
-function typeColor(event_type) {
-  if (event_type === "sponsor_discovery") return T.purple
-  if (event_type === "fit_call_30")       return T.blue
+function typeColor(t) {
+  if (t==="sponsor_discovery") return T.purple
+  if (t==="fit_call_30")       return T.blue
   return G
 }
-
-function typeLabel(event_type) {
-  if (event_type === "sponsor_discovery") return "Sponsor Discovery"
-  if (event_type === "fit_call_30")       return "Fit Call — 30 min"
+function typeLabel(t) {
+  if (t==="sponsor_discovery") return "Sponsor Discovery"
+  if (t==="fit_call_30")       return "Fit Call — 30 min"
   return "Fit Chat"
 }
-
-function formatDate(iso) {
+function fDate(iso) {
   if (!iso) return ""
-  return new Date(iso).toLocaleDateString("en-US", {
-    weekday:"short", month:"short", day:"numeric", year:"numeric"
-  })
+  return new Date(iso).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})
+}
+function fTime(iso) {
+  if (!iso) return ""
+  return new Date(iso).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",hour12:true,timeZone:"America/Los_Angeles"})+" PT"
+}
+function fShortDate(iso) {
+  return new Date(iso).toLocaleDateString("en-US",{month:"short",day:"numeric"})
 }
 
-function formatTime(iso) {
-  if (!iso) return ""
-  return new Date(iso).toLocaleTimeString("en-US", {
-    hour:"numeric", minute:"2-digit", hour12:true,
-    timeZone:"America/Los_Angeles"
-  }) + " PT"
+function groupByBucket(meetings) {
+  var now   = new Date()
+  var today = new Date(now.getFullYear(),now.getMonth(),now.getDate())
+  var buckets = { today:[], thisWeek:[], nextWeek:[], later:[] }
+  meetings.forEach(function(m) {
+    var d = new Date(m.start_time)
+    var day = new Date(d.getFullYear(),d.getMonth(),d.getDate())
+    var diff = Math.round((day-today)/86400000)
+    if (diff===0)      buckets.today.push(m)
+    else if (diff<=7)  buckets.thisWeek.push(m)
+    else if (diff<=14) buckets.nextWeek.push(m)
+    else               buckets.later.push(m)
+  })
+  return buckets
 }
 
 function Avatar({ name, size }) {
-  size = size || 36
-  var parts = (name || "?").split(" ")
-  var initials = (parts[0]?.[0] || "") + (parts[1]?.[0] || "")
+  size = size||44
+  var parts=(name||"?").split(" ")
+  var initials=((parts[0]||"")[0]||"")+((parts[1]||"")[0]||"")
   return (
-    <div style={{width:size,height:size,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size>40?14:11,fontWeight:700,color:G,flexShrink:0}}>
+    <div style={{width:size,height:size,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:G,flexShrink:0}}>
       {initials.toUpperCase()}
     </div>
   )
 }
 
-function MeetingCard({ meeting, selected, onClick }) {
-  var isUpcoming = meeting.is_upcoming
-  var color = typeColor(meeting.event_type)
-  var isSelected = selected
+function MeetingCard({ meeting, onNavigate }) {
+  var color    = typeColor(meeting.event_type)
+  var name     = meeting.invitee?.name  || "Unknown"
+  var company  = meeting.contact?.company || meeting.invitee?.email || "—"
+  var title    = meeting.contact?.title || ""
+  var stage    = meeting.contact?.stage || ""
+  var matched  = meeting.peerchair_matched
+  var correct  = meeting.peerchair_stage_correct
+  var isToday  = meeting.countdown && (meeting.countdown.includes("h") || meeting.countdown.includes("m"))
 
   return (
-    <div onClick={onClick} style={{
-      padding:"12px 14px", borderRadius:6, cursor:"pointer",
-      background: isSelected ? "rgba(240,200,74,0.06)" : "rgba(255,255,255,0.01)",
-      border:"1px solid " + (isSelected ? G+"40" : "rgba(255,255,255,0.06)"),
-      borderLeft:"3px solid " + (isSelected ? G : color),
-      marginBottom:6, transition:"all 0.1s"
+    <div style={{
+      background: isToday ? "rgba(240,200,74,0.04)" : "rgba(255,255,255,0.02)",
+      border:"1px solid "+(isToday ? "rgba(240,200,74,0.2)" : "rgba(255,255,255,0.07)"),
+      borderLeft:"4px solid "+color,
+      borderRadius:8, padding:"18px 20px",
+      boxShadow: isToday ? "0 0 24px rgba(240,200,74,0.06)" : "none",
     }}>
-      <div style={{display:"flex", gap:10, alignItems:"flex-start"}}>
-        <Avatar name={meeting.invitee?.name || "?"} size={34}/>
-        <div style={{flex:1, minWidth:0}}>
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:2}}>
-            <span style={{fontSize:13, fontWeight:600, color:isSelected?"#fff":T.text}}>
-              {meeting.invitee?.name || "Unknown"}
-            </span>
-            {isUpcoming && meeting.countdown && (
-              <span style={{fontSize:10, padding:"1px 8px", borderRadius:9, background:color+"12", border:"1px solid "+color+"30", color, fontWeight:600, flexShrink:0}}>
-                {meeting.countdown}
-              </span>
-            )}
+      <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
+        <Avatar name={name} size={44}/>
+
+        {/* Main content */}
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:6}}>
+
+            {/* Left: name + company */}
+            <div>
+              <div style={{fontSize:16,fontWeight:600,color:"#fff",marginBottom:2}}>{name}</div>
+              <div style={{fontSize:13,color:T.muted}}>{title}{title&&company?" · ":""}{company}</div>
+            </div>
+
+            {/* Right: time + countdown */}
+            <div style={{textAlign:"right",flexShrink:0}}>
+              <div style={{fontSize:15,fontWeight:600,color:isToday?G:T.text}}>{fTime(meeting.start_time)}</div>
+              {meeting.countdown && (
+                <div style={{fontSize:11,color:isToday?G:T.dim,marginTop:2,fontWeight:isToday?700:400}}>
+                  {isToday?"⚡ ":""}{meeting.countdown}
+                </div>
+              )}
+            </div>
           </div>
-          <div style={{fontSize:11, color:T.muted, marginBottom:3}}>
-            {meeting.contact?.company || meeting.invitee?.email || "—"}
-          </div>
-          <div style={{fontSize:12, color:T.dim}}>
-            {formatDate(meeting.start_time)} · {formatTime(meeting.start_time)}
-          </div>
-          <div style={{display:"flex", gap:5, marginTop:5, flexWrap:"wrap"}}>
-            <span style={{fontSize:9, padding:"1px 6px", borderRadius:3, background:color+"10", border:"1px solid "+color+"20", color}}>
+
+          {/* Meta row */}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+            <span style={{fontSize:10,padding:"2px 8px",borderRadius:9,background:color+"12",border:"1px solid "+color+"25",color,fontWeight:600}}>
               {typeLabel(meeting.event_type)}
             </span>
-            {meeting.peerchair_matched ? (
-              <span style={{fontSize:9, padding:"1px 6px", borderRadius:3, background:"rgba(46,204,113,0.1)", border:"1px solid rgba(46,204,113,0.2)", color:T.green}}>
-                ✓ IN PEERCHAIR
+            {matched ? (
+              <span style={{fontSize:10,padding:"2px 8px",borderRadius:9,background:"rgba(46,204,113,0.1)",border:"1px solid rgba(46,204,113,0.2)",color:T.green}}>
+                ✓ Matched
               </span>
             ) : (
-              <span style={{fontSize:9, padding:"1px 6px", borderRadius:3, background:"rgba(231,76,60,0.1)", border:"1px solid rgba(231,76,60,0.2)", color:T.red}}>
-                ✗ NOT MATCHED
+              <span style={{fontSize:10,padding:"2px 8px",borderRadius:9,background:"rgba(231,76,60,0.1)",border:"1px solid rgba(231,76,60,0.2)",color:T.red}}>
+                ✗ Not in PeerChair
               </span>
             )}
-            {meeting.peerchair_matched && !meeting.peerchair_stage_correct && (
-              <span style={{fontSize:9, padding:"1px 6px", borderRadius:3, background:"rgba(230,126,34,0.1)", border:"1px solid rgba(230,126,34,0.2)", color:T.orange}}>
-                ⚠ STAGE MISMATCH
+            {matched && !correct && (
+              <span style={{fontSize:10,padding:"2px 8px",borderRadius:9,background:"rgba(230,126,34,0.1)",border:"1px solid rgba(230,126,34,0.2)",color:T.orange}}>
+                ⚠ Stage: {stage}
               </span>
+            )}
+            {matched && correct && (
+              <span style={{fontSize:10,padding:"2px 8px",borderRadius:9,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:T.dim}}>
+                {stage}
+              </span>
+            )}
+          </div>
+
+          {/* Invitee notes */}
+          {meeting.invitee?.notes && (
+            <div style={{fontSize:12,color:T.muted,fontStyle:"italic",marginBottom:10,paddingLeft:10,borderLeft:"2px solid rgba(255,255,255,0.08)"}}>
+              "{meeting.invitee.notes}"
+            </div>
+          )}
+
+          {/* Action row */}
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            {meeting.zoom_url && (
+              <a href={meeting.zoom_url} target="_blank" rel="noreferrer"
+                style={{padding:"6px 16px",background:"rgba(74,154,186,0.12)",border:"1px solid rgba(74,154,186,0.3)",color:T.blue,borderRadius:5,fontSize:12,fontWeight:600,textDecoration:"none"}}>
+                Join Zoom →
+              </a>
+            )}
+            {matched && onNavigate && (
+              <button onClick={function(){
+                onNavigate("profile",{
+                  id:meeting.contact.id,
+                  first_name:meeting.contact.name.split(" ")[0],
+                  last_name:meeting.contact.name.split(" ").slice(1).join(" "),
+                  company_name:meeting.contact.company
+                })
+              }} style={{padding:"6px 16px",background:"rgba(240,200,74,0.08)",border:"1px solid rgba(240,200,74,0.2)",color:G,borderRadius:5,fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                Open in Pipeline
+              </button>
+            )}
+            {meeting.invitee?.reschedule_url && (
+              <a href={meeting.invitee.reschedule_url} target="_blank" rel="noreferrer"
+                style={{padding:"6px 12px",background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:T.muted,borderRadius:5,fontSize:12,textDecoration:"none"}}>
+                Reschedule
+              </a>
+            )}
+            {meeting.invitee?.cancel_url && (
+              <a href={meeting.invitee.cancel_url} target="_blank" rel="noreferrer"
+                style={{padding:"6px 12px",background:"transparent",border:"1px solid rgba(231,76,60,0.15)",color:T.red,borderRadius:5,fontSize:12,textDecoration:"none",opacity:0.7}}>
+                Cancel
+              </a>
             )}
           </div>
         </div>
@@ -107,123 +173,68 @@ function MeetingCard({ meeting, selected, onClick }) {
   )
 }
 
-function MeetingDetail({ meeting, onNavigate }) {
-  if (!meeting) return (
-    <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:12, color:T.dim}}>
-      <div style={{fontSize:32, opacity:0.3}}>📅</div>
-      <div style={{fontSize:14}}>Select a meeting</div>
-    </div>
-  )
-
-  var color = typeColor(meeting.event_type)
-  var isUpcoming = meeting.is_upcoming
+function PastCard({ meeting, onNavigate }) {
+  var color   = typeColor(meeting.event_type)
+  var name    = meeting.invitee?.name || "Unknown"
+  var company = meeting.contact?.company || meeting.invitee?.email || "—"
+  var matched = meeting.peerchair_matched
 
   return (
-    <div style={{flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:BG2, borderLeft:"1px solid rgba(255,255,255,0.06)"}}>
-
-      {/* Header */}
-      <div style={{padding:"16px 24px", borderBottom:"1px solid rgba(255,255,255,0.06)", background:"linear-gradient(90deg,#0c1520,#0f1e2e)", flexShrink:0}}>
-        <div style={{display:"flex", alignItems:"center", gap:14}}>
-          <Avatar name={meeting.invitee?.name || "?"} size={48}/>
-          <div style={{flex:1}}>
-            <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:3}}>
-              <h2 style={{fontSize:18, fontWeight:600, color:"#fff", margin:0}}>
-                {meeting.invitee?.name || "Unknown Invitee"}
-              </h2>
-              <span style={{fontSize:10, padding:"2px 9px", borderRadius:9, background:color+"12", border:"1px solid "+color+"30", color, fontWeight:600}}>
-                {typeLabel(meeting.event_type)}
-              </span>
-              {isUpcoming && meeting.countdown && (
-                <span style={{fontSize:10, padding:"2px 9px", borderRadius:9, background:"rgba(46,204,113,0.12)", border:"1px solid rgba(46,204,113,0.3)", color:T.green, fontWeight:600}}>
-                  {meeting.countdown}
-                </span>
-              )}
-            </div>
-            <div style={{fontSize:12, color:T.muted}}>
-              {meeting.contact?.company || meeting.invitee?.email || "—"}
-            </div>
+    <div style={{
+      background:"rgba(255,255,255,0.01)",
+      border:"1px solid rgba(255,255,255,0.05)",
+      borderLeft:"3px solid "+color+"60",
+      borderRadius:6,padding:"12px 16px",opacity:0.75,
+      display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"
+    }}>
+      <Avatar name={name} size={34}/>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+          <div>
+            <span style={{fontSize:13,fontWeight:600,color:T.muted}}>{name}</span>
+            <span style={{fontSize:12,color:T.dim}}>{company?" · "+company:""}</span>
           </div>
-          {meeting.zoom_url && isUpcoming && (
-            <a href={meeting.zoom_url} target="_blank" rel="noreferrer" style={{padding:"8px 18px", background:"rgba(74,154,186,0.12)", border:"1px solid rgba(74,154,186,0.35)", color:T.blue, borderRadius:6, fontSize:13, fontWeight:600, textDecoration:"none", flexShrink:0}}>
-              Join Zoom →
-            </a>
-          )}
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <span style={{fontSize:11,color:T.dim}}>{fShortDate(meeting.start_time)} · {fTime(meeting.start_time)}</span>
+            <span style={{fontSize:9,padding:"1px 7px",borderRadius:9,background:color+"10",border:"1px solid "+color+"20",color}}>{typeLabel(meeting.event_type)}</span>
+            {matched
+              ? <span style={{fontSize:9,padding:"1px 7px",borderRadius:9,background:"rgba(46,204,113,0.08)",border:"1px solid rgba(46,204,113,0.15)",color:T.green}}>✓</span>
+              : <span style={{fontSize:9,padding:"1px 7px",borderRadius:9,background:"rgba(231,76,60,0.08)",border:"1px solid rgba(231,76,60,0.15)",color:T.red}}>✗</span>
+            }
+          </div>
         </div>
       </div>
+      {matched && onNavigate && (
+        <button onClick={function(){
+          onNavigate("profile",{
+            id:meeting.contact.id,
+            first_name:meeting.contact.name.split(" ")[0],
+            last_name:meeting.contact.name.split(" ").slice(1).join(" "),
+            company_name:meeting.contact.company
+          })
+        }} style={{padding:"4px 12px",background:"rgba(240,200,74,0.06)",border:"1px solid rgba(240,200,74,0.15)",color:G,borderRadius:4,fontSize:11,cursor:"pointer",flexShrink:0}}>
+          Open
+        </button>
+      )}
+    </div>
+  )
+}
 
-      <div style={{flex:1, overflowY:"auto", padding:"20px 24px", display:"flex", flexDirection:"column", gap:20}}>
-
-        {/* Time + date */}
-        <div style={{background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"14px 18px"}}>
-          <div style={{fontSize:10, color:T.dim, letterSpacing:2, textTransform:"uppercase", marginBottom:10}}>Meeting Time</div>
-          <div style={{fontSize:20, fontWeight:600, color:isUpcoming?G:T.muted}}>{formatDate(meeting.start_time)}</div>
-          <div style={{fontSize:14, color:T.muted, marginTop:3}}>{formatTime(meeting.start_time)} — {formatTime(meeting.end_time)}</div>
-          {meeting.invitee?.timezone && (
-            <div style={{fontSize:11, color:T.dim, marginTop:4}}>Invitee timezone: {meeting.invitee.timezone}</div>
-          )}
-        </div>
-
-        {/* PeerChair match */}
-        <div style={{background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"14px 18px"}}>
-          <div style={{fontSize:10, color:T.dim, letterSpacing:2, textTransform:"uppercase", marginBottom:10}}>PeerChair Status</div>
-          {meeting.peerchair_matched ? (
-            <div>
-              <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:8}}>
-                <span style={{fontSize:12, color:T.green, fontWeight:600}}>✓ Matched to contact</span>
-              </div>
-              <div style={{fontSize:14, color:T.text, fontWeight:600}}>{meeting.contact.name}</div>
-              <div style={{fontSize:12, color:T.muted}}>{meeting.contact.title} · {meeting.contact.company}</div>
-              <div style={{display:"flex", alignItems:"center", gap:8, marginTop:8}}>
-                <span style={{fontSize:11, padding:"2px 8px", borderRadius:4, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", color:meeting.peerchair_stage_correct?T.green:T.orange}}>
-                  {meeting.contact.stage}
-                </span>
-                {!meeting.peerchair_stage_correct && (
-                  <span style={{fontSize:11, color:T.orange}}>⚠ Expected "Fit Call Scheduled"</span>
-                )}
-              </div>
-              {onNavigate && (
-                <button onClick={function(){ onNavigate("profile", {id:meeting.contact.id, first_name:meeting.contact.name.split(" ")[0], last_name:meeting.contact.name.split(" ").slice(1).join(" "), company_name:meeting.contact.company}); }} style={{marginTop:10, padding:"6px 14px", background:"rgba(240,200,74,0.1)", border:"1px solid rgba(240,200,74,0.25)", color:G, borderRadius:5, cursor:"pointer", fontSize:12, fontWeight:600}}>
-                  Open in Pipeline →
-                </button>
-              )}
-            </div>
-          ) : (
-            <div>
-              <div style={{fontSize:12, color:T.red, fontWeight:600, marginBottom:6}}>✗ No matching contact found</div>
-              <div style={{fontSize:12, color:T.muted}}>Email: {meeting.invitee?.email || "—"}</div>
-              <div style={{fontSize:11, color:T.dim, marginTop:6}}>This meeting was not logged in PeerChair. Check if the contact exists under a different email or was booked by an EA.</div>
-            </div>
-          )}
-        </div>
-
-        {/* Invitee notes */}
-        {meeting.invitee?.notes && (
-          <div style={{background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"14px 18px"}}>
-            <div style={{fontSize:10, color:T.dim, letterSpacing:2, textTransform:"uppercase", marginBottom:8}}>Invitee Notes</div>
-            <div style={{fontSize:13, color:T.text, lineHeight:1.7, fontStyle:"italic"}}>"{meeting.invitee.notes}"</div>
-          </div>
-        )}
-
-        {/* Zoom link (past meetings) */}
-        {meeting.zoom_url && !isUpcoming && (
-          <div style={{background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"14px 18px"}}>
-            <div style={{fontSize:10, color:T.dim, letterSpacing:2, textTransform:"uppercase", marginBottom:8}}>Recording / Link</div>
-            <a href={meeting.zoom_url} target="_blank" rel="noreferrer" style={{fontSize:13, color:T.blue, textDecoration:"none"}}>Zoom link (may have recording) →</a>
-          </div>
-        )}
-
-        {/* Reschedule / Cancel links */}
-        {meeting.invitee && meeting.is_upcoming && (
-          <div style={{display:"flex", gap:8}}>
-            {meeting.invitee.reschedule_url && (
-              <a href={meeting.invitee.reschedule_url} target="_blank" rel="noreferrer" style={{fontSize:12, color:T.blue, padding:"6px 14px", background:"rgba(74,154,186,0.08)", border:"1px solid rgba(74,154,186,0.2)", borderRadius:5, textDecoration:"none"}}>Reschedule</a>
-            )}
-            {meeting.invitee.cancel_url && (
-              <a href={meeting.invitee.cancel_url} target="_blank" rel="noreferrer" style={{fontSize:12, color:T.red, padding:"6px 14px", background:"rgba(231,76,60,0.08)", border:"1px solid rgba(231,76,60,0.2)", borderRadius:5, textDecoration:"none"}}>Cancel</a>
-            )}
-          </div>
-        )}
-
+function BucketSection({ title, meetings, onNavigate, isPast }) {
+  if (meetings.length===0) return null
+  return (
+    <div style={{marginBottom:32}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+        <div style={{fontSize:10,letterSpacing:3,textTransform:"uppercase",color:G,fontWeight:600}}>{title}</div>
+        <div style={{flex:1,height:1,background:"rgba(240,200,74,0.12)"}}/>
+        <div style={{fontSize:11,color:T.dim}}>{meetings.length} meeting{meetings.length!==1?"s":""}</div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap: isPast?6:10}}>
+        {meetings.map(function(m){
+          return isPast
+            ? <PastCard key={m.id} meeting={m} onNavigate={onNavigate}/>
+            : <MeetingCard key={m.id} meeting={m} onNavigate={onNavigate}/>
+        })}
       </div>
     </div>
   )
@@ -234,96 +245,94 @@ export default function Meetings({ onNavigate }) {
   var [past,     setPast]     = useState([])
   var [loading,  setLoading]  = useState(true)
   var [error,    setError]    = useState("")
-  var [selected, setSelected] = useState(null)
-  var [tab,      setTab]      = useState("upcoming") // upcoming | past
+  var [showPast, setShowPast] = useState(true)
 
-  useEffect(function() { load() }, [])
+  useEffect(function(){ load() },[])
 
   async function load() {
     setLoading(true); setError("")
     try {
       var res = await fetch("/api/meetings")
-      var d = await res.json()
+      var d   = await res.json()
       if (d.error) { setError(d.error); setLoading(false); return }
-      setUpcoming(d.upcoming || [])
-      setPast(d.past || [])
-      var first = (d.upcoming || [])[0] || (d.past || [])[0] || null
-      setSelected(first)
+      setUpcoming(d.upcoming||[])
+      setPast(d.past||[])
     } catch(e) { setError(e.message) }
     setLoading(false)
   }
 
-  var list = tab === "upcoming" ? upcoming : past
-  var unmatchedCount = [...upcoming, ...past].filter(function(m){ return !m.peerchair_matched }).length
-  var mismatchCount  = [...upcoming, ...past].filter(function(m){ return m.peerchair_matched && !m.peerchair_stage_correct }).length
+  var buckets       = groupByBucket(upcoming)
+  var totalUpcoming = upcoming.length
+  var totalPast     = past.length
+  var unmatched     = [...upcoming,...past].filter(function(m){return !m.peerchair_matched}).length
+  var mismatched    = [...upcoming,...past].filter(function(m){return m.peerchair_matched&&!m.peerchair_stage_correct}).length
 
   return (
-    <div style={{fontFamily:"'Palatino Linotype','Book Antiqua',Palatino,serif", display:"flex", height:"100%", overflow:"hidden", background:BG}}>
+    <div style={{fontFamily:"'Palatino Linotype','Book Antiqua',Palatino,serif",height:"100%",overflowY:"auto",background:BG,padding:"24px 32px"}}>
 
-      {/* LEFT */}
-      <div style={{width:320, flexShrink:0, display:"flex", flexDirection:"column", borderRight:"1px solid rgba(255,255,255,0.06)", background:BG2, overflow:"hidden"}}>
-
-        <div style={{padding:"14px 14px 10px", borderBottom:"1px solid rgba(255,255,255,0.06)", flexShrink:0}}>
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10}}>
-            <div style={{fontSize:11, letterSpacing:3, color:G, textTransform:"uppercase", fontWeight:600}}>Meetings</div>
-            <button onClick={load} style={{background:"transparent", border:"none", color:T.dim, cursor:"pointer", fontSize:13}}>↺</button>
-          </div>
-
-          {/* Alert badges */}
-          {(unmatchedCount > 0 || mismatchCount > 0) && (
-            <div style={{display:"flex", gap:6, marginBottom:8, flexWrap:"wrap"}}>
-              {unmatchedCount > 0 && (
-                <span style={{fontSize:10, padding:"2px 8px", borderRadius:9, background:"rgba(231,76,60,0.1)", border:"1px solid rgba(231,76,60,0.2)", color:T.red}}>
-                  {unmatchedCount} unmatched
-                </span>
-              )}
-              {mismatchCount > 0 && (
-                <span style={{fontSize:10, padding:"2px 8px", borderRadius:9, background:"rgba(230,126,34,0.1)", border:"1px solid rgba(230,126,34,0.2)", color:T.orange}}>
-                  {mismatchCount} stage mismatch
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Tabs */}
-          <div style={{display:"flex", gap:3}}>
-            {[["upcoming","Upcoming",upcoming.length],["past","Past",past.length]].map(function(t){
-              var active = tab === t[0]
-              return (
-                <button key={t[0]} onClick={function(){setTab(t[0]);}} style={{flex:1, padding:"5px", borderRadius:4, cursor:"pointer", border:"1px solid "+(active?G+"40":"rgba(255,255,255,0.07)"), background:active?G+"10":"transparent", color:active?G:T.muted, fontSize:11}}>
-                  {t[1]} {t[2]>0 && <span style={{color:active?G:T.dim}}>({t[2]})</span>}
-                </button>
-              )
-            })}
+      {/* Page header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28}}>
+        <div>
+          <h1 style={{fontSize:22,fontWeight:600,color:"#fff",margin:0,marginBottom:4}}>Meetings</h1>
+          <div style={{fontSize:13,color:T.muted}}>
+            {totalUpcoming} upcoming · {totalPast} in last 60 days
+            {unmatched>0 && <span style={{marginLeft:12,color:T.red}}>⚠ {unmatched} unmatched</span>}
+            {mismatched>0 && <span style={{marginLeft:8,color:T.orange}}>⚠ {mismatched} stage mismatch</span>}
           </div>
         </div>
+        <button onClick={load} disabled={loading} style={{padding:"7px 16px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:T.muted,borderRadius:5,cursor:"pointer",fontSize:12}}>
+          {loading?"Loading…":"↺ Refresh"}
+        </button>
+      </div>
 
-        <div style={{flex:1, overflowY:"auto", padding:"8px 10px"}}>
-          {loading && <div style={{color:T.dim, fontSize:13, textAlign:"center", padding:"40px 0"}}>Loading from Calendly…</div>}
-          {error && <div style={{color:T.red, fontSize:12, textAlign:"center", padding:"20px"}}>{error}</div>}
-          {!loading && list.length === 0 && (
-            <div style={{textAlign:"center", padding:"40px 20px", color:T.dim}}>
-              <div style={{fontSize:24, marginBottom:8, opacity:0.4}}>📅</div>
-              <div style={{fontSize:13}}>{tab === "upcoming" ? "No upcoming meetings" : "No past meetings"}</div>
-            </div>
-          )}
-          {list.map(function(m) {
-            return (
-              <MeetingCard
-                key={m.id}
-                meeting={m}
-                selected={selected?.id === m.id}
-                onClick={function(){ setSelected(m); }}
-              />
-            )
-          })}
+      {loading && (
+        <div style={{textAlign:"center",padding:"80px 0",color:T.dim}}>
+          <div style={{fontSize:28,marginBottom:12,opacity:0.4}}>📅</div>
+          <div style={{fontSize:14}}>Loading from Calendly…</div>
         </div>
-      </div>
+      )}
 
-      {/* RIGHT */}
-      <div style={{flex:1, display:"flex", flexDirection:"column", overflow:"hidden"}}>
-        <MeetingDetail meeting={selected} onNavigate={onNavigate}/>
-      </div>
+      {error && (
+        <div style={{padding:"16px 20px",background:"rgba(231,76,60,0.08)",border:"1px solid rgba(231,76,60,0.2)",borderRadius:8,color:T.red,fontSize:13,marginBottom:20}}>
+          {error}
+        </div>
+      )}
+
+      {!loading && !error && totalUpcoming===0 && (
+        <div style={{textAlign:"center",padding:"60px 0",color:T.dim}}>
+          <div style={{fontSize:28,marginBottom:12,opacity:0.3}}>📅</div>
+          <div style={{fontSize:14}}>No upcoming meetings</div>
+          <div style={{fontSize:12,marginTop:6,opacity:0.7}}>Share your Calendly link to start booking fit calls</div>
+        </div>
+      )}
+
+      {/* Upcoming buckets */}
+      {!loading && <>
+        <BucketSection title="Today"      meetings={buckets.today}    onNavigate={onNavigate} isPast={false}/>
+        <BucketSection title="This Week"  meetings={buckets.thisWeek} onNavigate={onNavigate} isPast={false}/>
+        <BucketSection title="Next Week"  meetings={buckets.nextWeek} onNavigate={onNavigate} isPast={false}/>
+        <BucketSection title="Coming Up"  meetings={buckets.later}    onNavigate={onNavigate} isPast={false}/>
+
+        {/* Past meetings — collapsible */}
+        {totalPast > 0 && (
+          <div style={{marginTop:16}}>
+            <button onClick={function(){setShowPast(function(v){return !v;});}} style={{display:"flex",alignItems:"center",gap:10,background:"transparent",border:"none",cursor:"pointer",padding:"6px 0",marginBottom:showPast?14:0}}>
+              <div style={{fontSize:10,letterSpacing:3,textTransform:"uppercase",color:T.dim,fontWeight:600}}>
+                Past Meetings ({totalPast})
+              </div>
+              <div style={{flex:1,height:1,background:"rgba(255,255,255,0.06)",width:120}}/>
+              <div style={{fontSize:11,color:T.dim}}>{showPast?"▲ hide":"▼ show"}</div>
+            </button>
+            {showPast && (
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {past.map(function(m){
+                  return <PastCard key={m.id} meeting={m} onNavigate={onNavigate}/>
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </>}
     </div>
   )
 }
