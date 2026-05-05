@@ -1452,7 +1452,8 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
           {[
             {label:"Opted Out",stages:["Opted Out"],color:T.red},
             {label:"Not a Fit",stages:["Not a Fit","Lost — Not a Fit"],color:T.orange},
-            {label:"No Reply / Reserve","Stalled",stages:["Reserve Pool","No Reply/Reserve"],color:T.muted},
+            {label:"No Reply / Reserve",stages:["Reserve Pool","No Reply/Reserve","No Reply / Reserve"],color:T.muted},
+            {label:"Stalled",stages:["Stalled"],color:T.orange},
             {label:"Total Contacts",stages:null,color:T.blue},
           ].map(function(bucket){
             var count=bucket.stages?bucket.stages.reduce(function(sum,s){return sum+(stageCounts[s]||0);},0):totalContacts;
