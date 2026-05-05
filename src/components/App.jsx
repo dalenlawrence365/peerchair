@@ -190,7 +190,8 @@ function stageColor(s) {
   if (s==="Fit Invite Sent") return T.orange;
   if (s==="Event Waitlist") return "#9b59b6";
   if (["Lost — Not a Fit","Not a Fit"].indexOf(s)>-1) return T.red;
-  if (["Bad Timing","Lost — Bad Timing","Reserve Pool","No Show"].indexOf(s)>-1) return T.orange;
+  if (["Bad Timing","Lost — Bad Timing","Reserve Pool","No Show","Stalled"].indexOf(s)>-1) return T.orange;
+  if (s==="No Reply / Reserve") return T.dim;
   if (s==="Possible Fit") return "#f39c12";
   return T.blue;
 }
@@ -1451,7 +1452,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
           {[
             {label:"Opted Out",stages:["Opted Out"],color:T.red},
             {label:"Not a Fit",stages:["Not a Fit","Lost — Not a Fit"],color:T.orange},
-            {label:"No Reply / Reserve",stages:["Reserve Pool","No Reply/Reserve"],color:T.muted},
+            {label:"No Reply / Reserve","Stalled",stages:["Reserve Pool","No Reply/Reserve"],color:T.muted},
             {label:"Total Contacts",stages:null,color:T.blue},
           ].map(function(bucket){
             var count=bucket.stages?bucket.stages.reduce(function(sum,s){return sum+(stageCounts[s]||0);},0):totalContacts;
@@ -1524,17 +1525,22 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
         {/* This week summary */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
           {[
-            {label:"Fit Calls",val:(meetingStats.this_week&&meetingStats.this_week.fit_call)||0,total:(meetingStats.totals&&meetingStats.totals.fit_call)||0,upcoming:(meetingStats.upcoming&&meetingStats.upcoming.fit_call)||0,color:G,icon:"☎"},
-            {label:"Sponsor Discovery",val:(meetingStats.this_week&&meetingStats.this_week.sponsor_discovery)||0,total:(meetingStats.totals&&meetingStats.totals.sponsor_discovery)||0,upcoming:(meetingStats.upcoming&&meetingStats.upcoming.sponsor_discovery)||0,color:"#9b59b6",icon:"💼"},
-            {label:"Other Meetings",val:(meetingStats.this_week&&meetingStats.this_week.other)||0,total:(meetingStats.totals&&meetingStats.totals.other)||0,upcoming:(meetingStats.upcoming&&meetingStats.upcoming.other)||0,color:"#4a9eba",icon:"📋"},
+            {label:"Fit Calls",scheduled:(meetingStats.scheduled&&meetingStats.scheduled.fit_call)||0,completed:(meetingStats.completed&&meetingStats.completed.fit_call)||0,color:G,icon:"☎"},
+            {label:"Sponsor Discovery",scheduled:(meetingStats.scheduled&&meetingStats.scheduled.sponsor_discovery)||0,completed:(meetingStats.completed&&meetingStats.completed.sponsor_discovery)||0,color:"#9b59b6",icon:"💼"},
+            {label:"Other Meetings",scheduled:(meetingStats.scheduled&&meetingStats.scheduled.other)||0,completed:(meetingStats.completed&&meetingStats.completed.other)||0,color:"#4a9eba",icon:"📋"},
           ].map(function(k){
             return <div key={k.label} style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderTop:"2px solid "+k.color+"40",borderRadius:6,padding:"12px 14px",textAlign:"center"}}>
-              <div style={{fontSize:9,color:T.dim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>{k.icon} {k.label}</div>
-              <div style={{fontSize:28,fontWeight:700,color:k.color,lineHeight:1,marginBottom:3}}>{k.val}</div>
-              <div style={{fontSize:10,color:T.dim}}>this week</div>
-              <div style={{marginTop:6,display:"flex",justifyContent:"center",gap:10}}>
-                <span style={{fontSize:10,color:T.muted}}>{k.total} total</span>
-                {k.upcoming>0&&<span style={{fontSize:10,color:k.color,fontWeight:600}}>{k.upcoming} upcoming</span>}
+              <div style={{fontSize:9,color:T.dim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>{k.icon} {k.label}</div>
+              <div style={{display:"flex",justifyContent:"center",gap:16,marginBottom:4}}>
+                <div>
+                  <div style={{fontSize:26,fontWeight:700,color:k.color,lineHeight:1}}>{k.scheduled}</div>
+                  <div style={{fontSize:9,color:T.dim,marginTop:2,letterSpacing:1}}>SCHEDULED</div>
+                </div>
+                <div style={{width:1,background:"rgba(255,255,255,0.06)"}}/>
+                <div>
+                  <div style={{fontSize:26,fontWeight:700,color:k.completed>0?T.green:T.dim,lineHeight:1}}>{k.completed}</div>
+                  <div style={{fontSize:9,color:T.dim,marginTop:2,letterSpacing:1}}>COMPLETED</div>
+                </div>
               </div>
             </div>;
           })}
@@ -1635,7 +1641,7 @@ function Pipeline({onNavigate}) {
     setLoading(false);
   }
   var filtered=contacts.filter(function(c){if(!search)return true;var n=((c.first_name||"")+" "+(c.last_name||"")).toLowerCase();var co=(c.company_name||"").toLowerCase();var q=search.toLowerCase();return n.indexOf(q)>-1||co.indexOf(q)>-1;});
-  var stageOptions=["All","Connected","Fit Call Scheduled","Fit Call Completed","Event Waitlist","Event Invited","Event Confirmed","Active Member","No Reply / Reserve","Lost — Not a Fit"];
+  var stageOptions=["All","Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Event Waitlist","Event Invited","Event Confirmed","Active Member","Stalled","No Reply / Reserve","Lost — Not a Fit"];
   return (
     <div style={{display:"flex",flexDirection:"column",flex:1,overflow:"hidden"}}>
       <div style={{padding:"16px 28px 0",flexShrink:0}}>

@@ -91,9 +91,19 @@ export async function GET() {
 
   const weeks = Object.values(weekMap).sort((a, b) => a.week.localeCompare(b.week))
 
+  // Scheduled = upcoming (not yet happened), Completed = past
+  const scheduled = { fit_call: 0, sponsor_discovery: 0, other: 0 }
+  const completed = { fit_call: 0, sponsor_discovery: 0, other: 0 }
+  classified.forEach(e => {
+    if (!e.is_past) scheduled[e.type]++
+    else completed[e.type]++
+  })
+
   return Response.json({
     totals,
     upcoming,
+    scheduled,
+    completed,
     this_week: thisWeekCounts,
     weeks,
     total_meetings: classified.length,

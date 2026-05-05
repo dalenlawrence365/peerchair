@@ -210,6 +210,158 @@ export async function GET(request) {
     results.errors.push(`Dead letter retry error: ${e.message}`)
   }
 
+  // ── Stage aging rules ────────────────────────────────────────────────────
+  // Rule 1: Engaged → No Reply / Reserve
+  //   3+ real outbound messages, zero inbound ever, last outbound 14+ days ago
+  // Rule 2: Engaged → Stalled
+  //   3+ real outbound messages, at least 1 inbound ever, last outbound 14+ days ago
+  // Connection requests (LI-ENG-1, LinkedIn Outreach, Connection Message) don't count
+  try {
+    const EXCLUDED_STEPS = ['LI-ENG-1', 'LinkedIn Outreach', 'Connection Message']
+    const EXCLUDED_LIKE  = ['%connection%', '%accepted%']
+
+    const { data: agingCandidates } = await supabase.rpc('get_aging_engaged_contacts').catch(() => ({ data: null }))
+
+    // Fallback: raw SQL approach
+    const { data: outboundData } = await supabase
+      .from('communications')
+      .select('contact_id, occurred_at, direction')
+      .in('direction', ['OUT', 'outbound'])
+      .not('step_label', 'in', `(${EXCLUDED_STEPS.map(s => `"${s}"`).join(',')})`)
+      .not('step_label', 'ilike', '%connection%')
+      .not('step_label', 'ilike', '%accepted%')
+
+    const { data: inboundData } = await supabase
+      .from('communications')
+      .select('contact_id, occurred_at')
+      .in('direction', ['IN', 'inbound'])
+
+    const { data: engagedContacts } = await supabase
+      .from('contacts')
+      .select('id, first_name, last_name, company_name')
+      .eq('pipeline_stage', 'Engaged')
+
+    if (outboundData && engagedContacts) {
+      const now = new Date()
+      const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 3600000)
+
+      // Build maps
+      const outboundByContact = {}
+      outboundData.forEach(c => {
+        if (!outboundByContact[c.contact_id]) outboundByContact[c.contact_id] = []
+        outboundByContact[c.contact_id].push(new Date(c.occurred_at))
+      })
+
+      const inboundByContact = {}
+      ;(inboundData || []).forEach(c => {
+        if (!inboundByContact[c.contact_id]) inboundByContact[c.contact_id] = []
+        inboundByContact[c.contact_id].push(new Date(c.occurred_at))
+      })
+
+      const engagedIds = new Set(engagedContacts.map(c => c.id))
+      const engagedMap = {}
+      engagedContacts.forEach(c => { engagedMap[c.id] = c })
+
+      const toNoReply = []
+      const toStalled = []
+
+      for (const contactId of engagedIds) {
+        const outbounds = outboundByContact[contactId] || []
+        const inbounds  = inboundByContact[contactId]  || []
+
+        if (outbounds.length < 3) continue
+
+        const lastOutbound = new Date(Math.max(...outbounds.map(d => d.getTime())))
+        if (lastOutbound > fourteenDaysAgo) continue // still within 14 day window
+
+        // Check for recent inbound (last 14 days resets the clock)
+        const recentInbound = inbounds.some(d => d > fourteenDaysAgo)
+        if (recentInbound) continue
+
+        if (inbounds.length === 0) {
+          toNoReply.push({ id: contactId, ...engagedMap[contactId], last_outbound: lastOutbound })
+        } else {
+          toStalled.push({ id: contactId, ...engagedMap[contactId], last_outbound: lastOutbound })
+        }
+      }
+
+      // Move to No Reply / Reserve
+      for (const ct of toNoReply) {
+        await supabase.from('contacts')
+          .update({ pipeline_stage: 'No Reply / Reserve', updated_at: now.toISOString(), last_activity_date: now.toISOString() })
+          .eq('id', ct.id)
+        await supabase.from('communications').insert({
+          contact_id: ct.id, occurred_at: now.toISOString(),
+          channel: 'internal', direction: 'INTERNAL',
+          step_label: 'Auto-Staged: No Reply / Reserve',
+          body: `Auto-moved from Engaged. 3+ outbound messages, no reply received, last outbound ${Math.round((now - ct.last_outbound)/86400000)} days ago.`,
+          source: 'PeerChair Audit', logged_by: 'system'
+        })
+        results.stage_corrections++
+      }
+
+      // Move to Stalled
+      for (const ct of toStalled) {
+        await supabase.from('contacts')
+          .update({ pipeline_stage: 'Stalled', updated_at: now.toISOString(), last_activity_date: now.toISOString() })
+          .eq('id', ct.id)
+        await supabase.from('communications').insert({
+          contact_id: ct.id, occurred_at: now.toISOString(),
+          channel: 'internal', direction: 'INTERNAL',
+          step_label: 'Auto-Staged: Stalled',
+          body: `Auto-moved from Engaged. 3+ outbound messages, had prior engagement but went silent, last outbound ${Math.round((now - ct.last_outbound)/86400000)} days ago.`,
+          source: 'PeerChair Audit', logged_by: 'system'
+        })
+        results.stage_corrections++
+      }
+
+      if (toNoReply.length > 0 || toStalled.length > 0) {
+        console.log(`Stage aging: ${toNoReply.length} → No Reply / Reserve, ${toStalled.length} → Stalled`)
+      }
+    }
+  } catch(e) { results.errors.push('Stage aging error: ' + e.message) }
+
+  // ── No-show task creation ─────────────────────────────────────────────────
+  // If fit_call_date passed 48+ hours ago and stage is still Fit Call Scheduled → create task
+  try {
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 3600000).toISOString()
+    const { data: noShows } = await supabase
+      .from('contacts')
+      .select('id, first_name, last_name, company_name, fit_call_date')
+      .eq('pipeline_stage', 'Fit Call Scheduled')
+      .lt('fit_call_date', fortyEightHoursAgo)
+
+    for (const ct of (noShows || [])) {
+      // Check if a no-show task already exists
+      const { data: existing } = await supabase
+        .from('follow_up_tasks')
+        .select('id')
+        .eq('contact_id', ct.id)
+        .ilike('note', '%no-show%')
+        .limit(1)
+
+      if (existing && existing.length > 0) continue
+
+      // Create the task
+      await supabase.from('follow_up_tasks').insert({
+        contact_id: ct.id,
+        contact_first_name: ct.first_name,
+        contact_last_name: ct.last_name,
+        contact_company: ct.company_name,
+        contact_type: 'CFO_PROSPECT',
+        note: `Fit call on ${new Date(ct.fit_call_date).toLocaleDateString('en-US',{month:'short',day:'numeric'})} — possible no-show. Send re-engagement message and reset stage if confirmed.`,
+        priority: 'high',
+        source: 'auto_reply',
+        status: 'open',
+        due_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      results.stage_corrections++
+      console.log(`No-show task created for ${ct.first_name} ${ct.last_name}`)
+    }
+  } catch(e) { results.errors.push('No-show task error: ' + e.message) }
+
   // ── Flag unconfirmed sends (pending > 30 minutes) ────────────────────────
   try {
     const thirtyMinsAgo = new Date(Date.now() - 30 * 60000).toISOString()
