@@ -138,22 +138,51 @@ export async function GET(request) {
 
       if (!contactId) continue
 
-      // Upsert conversation record
-      const { data: convRecord } = await supabase
+      // Check if this contact already has a conversation record (possibly with sb- ID)
+      const { data: existingByContact } = await supabase
         .from("conversations")
-        .upsert({
-          contact_id: contactId,
-          conversation_id: conv.id,
-          channel: "linkedin",
-          last_message_at: conv.lastMessageAt || null,
-          last_message_direction: conv.lastMessageSender === "ME" ? "OUT" : "IN",
-          last_message_body: (conv.lastMessageText || "").slice(0, 500),
-          last_sender: conv.lastMessageSender || "",
-          unread: conv.lastMessageSender !== "ME",
-          linkedin_account_id: conv.linkedInAccountId || 185228,
-          updated_at: new Date().toISOString()
-        }, { onConflict: "conversation_id" })
-        .select("id").single()
+        .select("id, conversation_id")
+        .eq("contact_id", contactId)
+        .limit(1)
+      const existingConv = existingByContact && existingByContact[0]
+
+      let convRecord = null
+      if (existingConv && existingConv.conversation_id !== conv.id) {
+        // Update the existing record with the real HeyReach conversation ID
+        const { data: updated } = await supabase
+          .from("conversations")
+          .update({
+            conversation_id: conv.id,
+            last_message_at: conv.lastMessageAt || null,
+            last_message_direction: conv.lastMessageSender === "ME" ? "OUT" : "IN",
+            last_message_body: (conv.lastMessageText || "").slice(0, 500),
+            last_sender: conv.lastMessageSender || "",
+            unread: conv.lastMessageSender !== "ME",
+            linkedin_account_id: conv.linkedInAccountId || 185228,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", existingConv.id)
+          .select("id").single()
+        convRecord = updated
+      } else {
+        // Upsert conversation record
+        const { data: upserted } = await supabase
+          .from("conversations")
+          .upsert({
+            contact_id: contactId,
+            conversation_id: conv.id,
+            channel: "linkedin",
+            last_message_at: conv.lastMessageAt || null,
+            last_message_direction: conv.lastMessageSender === "ME" ? "OUT" : "IN",
+            last_message_body: (conv.lastMessageText || "").slice(0, 500),
+            last_sender: conv.lastMessageSender || "",
+            unread: conv.lastMessageSender !== "ME",
+            linkedin_account_id: conv.linkedInAccountId || 185228,
+            updated_at: new Date().toISOString()
+          }, { onConflict: "conversation_id" })
+          .select("id").single()
+        convRecord = upserted
+      }
 
       if (!convRecord) continue
       const dbConvId = convRecord.id

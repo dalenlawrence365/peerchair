@@ -22,11 +22,25 @@ export async function GET(request) {
   )
 
   // ── 1. Get DB conversation record ─────────────────────────────────────────
-  const { data: convRecord } = await supabase
-    .from("conversations")
-    .select("id, last_message_at, messages_synced_at")
-    .eq("conversation_id", conversationId)
-    .single()
+  // Look up by contact_id first — stored IDs may be synthetic "sb-" prefixed
+  let convRecord = null
+  if (contactId) {
+    const { data: byContact } = await supabase
+      .from("conversations")
+      .select("id, conversation_id, last_message_at, messages_synced_at")
+      .eq("contact_id", contactId)
+      .order("last_message_at", { ascending: false })
+      .limit(1)
+    convRecord = byContact && byContact[0] ? byContact[0] : null
+  }
+  if (!convRecord && conversationId) {
+    const { data: byConvId } = await supabase
+      .from("conversations")
+      .select("id, conversation_id, last_message_at, messages_synced_at")
+      .eq("conversation_id", conversationId)
+      .limit(1)
+    convRecord = byConvId && byConvId[0] ? byConvId[0] : null
+  }
 
   // ── 2. Load conversation_messages from DB ─────────────────────────────────
   let dbMessages = []
