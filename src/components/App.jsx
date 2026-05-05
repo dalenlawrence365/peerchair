@@ -4,6 +4,7 @@ import FollowUp from "@/components/FollowUp";
 import LinkedInMessages from "@/components/LinkedInMessages";
 import EmailMessages from "@/components/EmailMessages";
 import Templates from "@/components/Templates";
+import Meetings from "@/components/Meetings";
 import SponsorCompanion from "@/components/SponsorCompanion";
 import LiveCallCompanion from "@/components/LiveCallCompanion";
 import { useState, useEffect } from "react";
@@ -1831,9 +1832,9 @@ export default function CFOCircleApp() {
 
   function navigate(s,contact,q){setScreen(s);if(contact)setContact(contact);if(q)setClaudeQ(q);}
 
-  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:String(followUpCount)},{id:"linkedin_msgs",icon:"◈",label:"LinkedIn",badge:""},{id:"email_msgs",icon:"✦",label:"Email",badge:""},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors",badge:sponsorCompanyCount>0?String(sponsorCompanyCount):""},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
+  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:String(followUpCount)},{id:"linkedin_msgs",icon:"◈",label:"LinkedIn",badge:""},{id:"email_msgs",icon:"✦",label:"Email",badge:""},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors",badge:sponsorCompanyCount>0?String(sponsorCompanyCount):""},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"meetings",icon:"📅",label:"Meetings",badge:""},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
 
-  var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",sponsors:"Sponsors",followup:"Follow-Up Queue",stalliant:"Sponsors"}[screen]||screen;
+  var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",sponsors:"Sponsors",followup:"Follow-Up Queue",meetings:"Meetings",stalliant:"Sponsors"}[screen]||screen;
 
   return (
     <div style={{display:"flex",height:"100vh",width:"100%",overflow:"hidden",background:BG,fontFamily:"'Palatino Linotype','Book Antiqua',Palatino,serif",color:T.text}}>
@@ -1895,6 +1896,7 @@ export default function CFOCircleApp() {
           {screen==="pipeline"  && <Pipeline  onNavigate={navigate}/>}
           {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} contactData={selectedContact} onBack={function(){navigate("pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
           {screen==="events"    && <Placeholder icon="✦" title="Events" description="Manage your Experience Events — attendee lists, confirmations, and post-event follow-up."/>}
+          {screen==="meetings"  && <Meetings onNavigate={navigate}/>}
           {screen==="templates" && <Templates/>}
           {screen==="claude"    && <AskClaude initialQ={claudeQ} onQuestionConsumed={function(){setClaudeQ("");}}/>}
           {screen==="sponsors"  && <Sponsors onStartDiscovery={function(co,contact,deal){setSponsorContact(Object.assign({},contact||{},{company:co.name,company_id:co.id,category:co.category}));setSponsorDeal(deal);setScreen("sponsor_call");}}/>}
