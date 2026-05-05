@@ -89,10 +89,11 @@ function MeetingCard({ meeting, onNavigate }) {
         <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:6}}>
 
-            {/* Left: name + company */}
+            {/* Left: event type badge + Calendly event name + invitee */}
             <div>
-              <div style={{fontSize:16,fontWeight:600,color:"#fff",marginBottom:2}}>{name}</div>
-              <div style={{fontSize:13,color:T.muted}}>{title}{title&&company?" · ":""}{company}</div>
+              <div style={{fontSize:10,fontWeight:700,color,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>{typeIcon(meeting.event_type)} {typeLabel(meeting.event_type)}</div>
+              <div style={{fontSize:16,fontWeight:600,color:"#fff",marginBottom:2}}>{meeting.name}</div>
+              <div style={{fontSize:13,color:T.muted}}>{name}{company?" · "+company:""}</div>
             </div>
 
             {/* Right: time + countdown */}
@@ -108,9 +109,7 @@ function MeetingCard({ meeting, onNavigate }) {
 
           {/* Meta row */}
           <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
-            <span style={{fontSize:10,padding:"2px 8px",borderRadius:9,background:color+"12",border:"1px solid "+color+"25",color,fontWeight:600}}>
-              {typeLabel(meeting.event_type)}
-            </span>
+
             {matched ? (
               <span style={{fontSize:10,padding:"2px 8px",borderRadius:9,background:"rgba(46,204,113,0.1)",border:"1px solid rgba(46,204,113,0.2)",color:T.green}}>
                 ✓ Matched
