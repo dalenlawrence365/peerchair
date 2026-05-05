@@ -546,7 +546,7 @@ function ThreadPanel({item, onDone, onClose, onNavigate}) {
         </div>}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:10}}>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            <button onClick={function(){dismiss("scheduled");}} style={{padding:"6px 12px",background:"rgba(74,158,186,0.1)",border:"1px solid rgba(74,158,186,0.2)",color:T.blue,borderRadius:4,cursor:"pointer",fontSize:12}}>Scheduled</button>
+            <button onClick={function(){dismiss("scheduled");}} style={{padding:"6px 12px",background:"rgba(46,204,113,0.1)",border:"1px solid rgba(46,204,113,0.25)",color:T.green,borderRadius:4,cursor:"pointer",fontSize:12,fontWeight:600}}>Done</button>
             <button onClick={function(){dismiss("not_interested");}} style={{padding:"6px 12px",background:"rgba(231,76,60,0.08)",border:"1px solid rgba(231,76,60,0.2)",color:T.red,borderRadius:4,cursor:"pointer",fontSize:12}}>Not Interested</button>
             <button onClick={function(){dismiss("opted_out");}} style={{padding:"6px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:T.muted,borderRadius:4,cursor:"pointer",fontSize:12}}>Opted Out</button>
             <button onClick={function(){setShowSnooze(function(v){return !v;});}} style={{padding:"6px 12px",background:showSnooze?"rgba(240,200,74,0.12)":"rgba(255,255,255,0.03)",border:"1px solid "+(showSnooze?"rgba(240,200,74,0.3)":"rgba(255,255,255,0.08)"),color:showSnooze?G:"#8ab4cc",borderRadius:4,cursor:"pointer",fontSize:12}}>⏰ Snooze</button>
