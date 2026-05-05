@@ -12,13 +12,18 @@ var T   = {
 
 function typeColor(t) {
   if (t==="sponsor_discovery") return T.purple
-  if (t==="fit_call_30")       return T.blue
+  if (t==="other")             return T.blue
   return G
 }
 function typeLabel(t) {
   if (t==="sponsor_discovery") return "Sponsor Discovery"
-  if (t==="fit_call_30")       return "Fit Call — 30 min"
-  return "Fit Chat"
+  if (t==="other")             return "Other Meeting"
+  return "Fit Call"
+}
+function typeIcon(t) {
+  if (t==="sponsor_discovery") return "💼"
+  if (t==="other")             return "📋"
+  return "☎"
 }
 function fDate(iso) {
   if (!iso) return ""
@@ -196,7 +201,7 @@ function PastCard({ meeting, onNavigate }) {
           </div>
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
             <span style={{fontSize:11,color:T.dim}}>{fShortDate(meeting.start_time)} · {fTime(meeting.start_time)}</span>
-            <span style={{fontSize:9,padding:"1px 7px",borderRadius:9,background:color+"10",border:"1px solid "+color+"20",color}}>{typeLabel(meeting.event_type)}</span>
+            <span style={{fontSize:10,padding:"2px 8px",borderRadius:9,background:color+"12",border:"1px solid "+color+"25",color,fontWeight:700}}>{typeIcon(meeting.event_type)} {typeLabel(meeting.event_type)}</span>
             {matched
               ? <span style={{fontSize:9,padding:"1px 7px",borderRadius:9,background:"rgba(46,204,113,0.08)",border:"1px solid rgba(46,204,113,0.15)",color:T.green}}>✓</span>
               : <span style={{fontSize:9,padding:"1px 7px",borderRadius:9,background:"rgba(231,76,60,0.08)",border:"1px solid rgba(231,76,60,0.15)",color:T.red}}>✗</span>

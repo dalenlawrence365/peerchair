@@ -1302,8 +1302,16 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
   var [bucketLoading,setBucketLoading] = useState(false);
   var [snapshots,setSnapshots] = useState([]);
   var [hrStats,setHrStats] = useState({sent:187,accepted:63,msgSent:65,replies:22,acceptRate:34,replyRate:34,campaigns:[]});
+  var [meetingStats,setMeetingStats] = useState(null);
 
-  useEffect(function(){ loadSnapshots(); loadHeyReach(); },[]);
+  useEffect(function(){ loadSnapshots(); loadHeyReach(); loadMeetingStats(); },[]);
+
+  async function loadMeetingStats(){
+    try{
+      var res=await fetch("/api/meeting-stats");
+      if(res.ok){var d=await res.json();setMeetingStats(d);}
+    }catch(e){ console.warn("meeting stats error",e.message); }
+  }
 
   async function loadHeyReach(){
     try{
@@ -1507,6 +1515,69 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
             );
           })}
         </div>}
+      {/* MEETINGS TRACKER */}
+      {meetingStats&&<div style={{background:BG3,border:"1px solid "+T.border,borderRadius:8,padding:"14px 18px",marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+          <div style={{fontSize:11,color:G,letterSpacing:2,textTransform:"uppercase",fontWeight:600}}>Meeting Activity</div>
+          <button onClick={function(){onNavigate("meetings");}} style={{fontSize:11,color:G,background:"transparent",border:"1px solid rgba(240,200,74,0.25)",borderRadius:4,padding:"3px 10px",cursor:"pointer"}}>View All →</button>
+        </div>
+        {/* This week summary */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
+          {[
+            {label:"Fit Calls",val:(meetingStats.this_week&&meetingStats.this_week.fit_call)||0,total:(meetingStats.totals&&meetingStats.totals.fit_call)||0,upcoming:(meetingStats.upcoming&&meetingStats.upcoming.fit_call)||0,color:G,icon:"☎"},
+            {label:"Sponsor Discovery",val:(meetingStats.this_week&&meetingStats.this_week.sponsor_discovery)||0,total:(meetingStats.totals&&meetingStats.totals.sponsor_discovery)||0,upcoming:(meetingStats.upcoming&&meetingStats.upcoming.sponsor_discovery)||0,color:"#9b59b6",icon:"💼"},
+            {label:"Other Meetings",val:(meetingStats.this_week&&meetingStats.this_week.other)||0,total:(meetingStats.totals&&meetingStats.totals.other)||0,upcoming:(meetingStats.upcoming&&meetingStats.upcoming.other)||0,color:"#4a9eba",icon:"📋"},
+          ].map(function(k){
+            return <div key={k.label} style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderTop:"2px solid "+k.color+"40",borderRadius:6,padding:"12px 14px",textAlign:"center"}}>
+              <div style={{fontSize:9,color:T.dim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>{k.icon} {k.label}</div>
+              <div style={{fontSize:28,fontWeight:700,color:k.color,lineHeight:1,marginBottom:3}}>{k.val}</div>
+              <div style={{fontSize:10,color:T.dim}}>this week</div>
+              <div style={{marginTop:6,display:"flex",justifyContent:"center",gap:10}}>
+                <span style={{fontSize:10,color:T.muted}}>{k.total} total</span>
+                {k.upcoming>0&&<span style={{fontSize:10,color:k.color,fontWeight:600}}>{k.upcoming} upcoming</span>}
+              </div>
+            </div>;
+          })}
+        </div>
+        {/* 8-week bar chart */}
+        {meetingStats.weeks&&meetingStats.weeks.length>0&&(function(){
+          var weeks=meetingStats.weeks.slice(-8);
+          var maxVal=Math.max(1,...weeks.map(function(w){return (w.fit_call||0)+(w.sponsor_discovery||0)+(w.other||0);}));
+          var chartH=60;
+          return <div>
+            <div style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>8-Week Trend</div>
+            <div style={{display:"flex",alignItems:"flex-end",gap:4,height:chartH+24}}>
+              {weeks.map(function(w,i){
+                var total=(w.fit_call||0)+(w.sponsor_discovery||0)+(w.other||0);
+                var h=total>0?Math.max(4,Math.round((total/maxVal)*chartH)):2;
+                var fcH=total>0?Math.round(((w.fit_call||0)/total)*h):0;
+                var sdH=total>0?Math.round(((w.sponsor_discovery||0)/total)*h):0;
+                var otH=Math.max(0,h-fcH-sdH);
+                var isThisWeek=w.week===(function(){var d=new Date();var day=d.getDay();var mon=new Date(d);mon.setDate(d.getDate()-((day+6)%7));return mon.toISOString().slice(0,10);})();
+                return <div key={w.week} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:0}}>
+                  <div style={{fontSize:9,color:total>0?T.muted:T.dim,marginBottom:2,fontWeight:isThisWeek?700:400}}>{total>0?total:""}</div>
+                  <div style={{width:"100%",display:"flex",flexDirection:"column",justifyContent:"flex-end",height:chartH}}>
+                    {otH>0&&<div style={{height:otH,background:"#4a9eba"+(isThisWeek?"":"80"),borderRadius:total===otH?"2px 2px 2px 2px":"0 0 0 0",marginBottom:0}}/>}
+                    {sdH>0&&<div style={{height:sdH,background:"#9b59b6"+(isThisWeek?"":"80"),borderRadius:0}}/>}
+                    {fcH>0&&<div style={{height:fcH,background:G+(isThisWeek?"":"80"),borderRadius:"2px 2px 0 0"}}/>}
+                    {total===0&&<div style={{height:2,background:"rgba(255,255,255,0.05)",borderRadius:1}}/>}
+                  </div>
+                  <div style={{fontSize:8,color:isThisWeek?G:T.dim,marginTop:4,whiteSpace:"nowrap",fontWeight:isThisWeek?700:400}}>{w.label}</div>
+                </div>;
+              })}
+            </div>
+            <div style={{display:"flex",gap:14,marginTop:8,justifyContent:"flex-end"}}>
+              {[{color:G,label:"Fit Call"},{color:"#9b59b6",label:"Sponsor Discovery"},{color:"#4a9eba",label:"Other"}].map(function(l){
+                return <div key={l.label} style={{display:"flex",alignItems:"center",gap:4}}>
+                  <div style={{width:8,height:8,background:l.color,borderRadius:2}}/>
+                  <span style={{fontSize:9,color:T.dim}}>{l.label}</span>
+                </div>;
+              })}
+            </div>
+          </div>;
+        })()}
+      </div>}
+
       <div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:20}}>
         <div style={{display:"flex",flexDirection:"column",gap:20}}>
 
