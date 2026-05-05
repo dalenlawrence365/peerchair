@@ -156,12 +156,178 @@ function PlanCard({item, selected, onComplete, onClick}) {
   );
 }
 
+
+// ─── Smart Command Bar ────────────────────────────────────────────────────────
+// Full-width, editable after dictation, confirmation before execution
+function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
+  var [cmd,         setCmd]         = useState("");
+  var [interim,     setInterim]     = useState("");
+  var [listening,   setListening]   = useState(false);
+  var [confirming,  setConfirming]  = useState(false);
+  var [running,     setRunning]     = useState(false);
+  var [result,      setResult]      = useState("");
+  var [resultOk,    setResultOk]    = useState(true);
+  var recRef = useRef(null);
+
+  function startVoice() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert("Voice input requires Chrome."); return; }
+    var r = new SR();
+    r.lang = "en-US";
+    r.interimResults = true;
+    r.continuous = true;
+    r.onresult = function(e) {
+      var finalText = "";
+      var interimText = "";
+      for (var i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+        else interimText += e.results[i][0].transcript;
+      }
+      if (finalText) setCmd(function(prev){ return (prev + " " + finalText).trim(); });
+      setInterim(interimText);
+    };
+    r.onerror = function() { setListening(false); setInterim(""); };
+    r.onend   = function() { setListening(false); setInterim(""); };
+    r.start();
+    recRef.current = r;
+    setListening(true);
+    setResult("");
+    setConfirming(false);
+  }
+
+  function stopVoice() {
+    if (recRef.current) { recRef.current.stop(); recRef.current = null; }
+    setListening(false);
+    setInterim("");
+  }
+
+  function handleGo() {
+    if (!cmd.trim() || running || confirming) return;
+    setConfirming(true);
+  }
+
+  async function confirm() {
+    setConfirming(false);
+    setRunning(true);
+    setResult("");
+    try {
+      var res = await fetch("/api/smart-action", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          command: cmd,
+          contact: contact || null,
+          conversationId: conversationId || null,
+        })
+      });
+      var d = await res.json();
+      setResult(d.confirmation || "Done");
+      setResultOk(true);
+      setCmd("");
+      if (onRefresh) onRefresh();
+    } catch(e) {
+      setResult("Error — " + e.message);
+      setResultOk(false);
+    }
+    setRunning(false);
+    setTimeout(function(){ setResult(""); }, 8000);
+  }
+
+  function cancel() {
+    setConfirming(false);
+  }
+
+  var ph = placeholder || "Speak or type a command — e.g. \"Snooze until June 1\" or \"They opted out\"";
+
+  return (
+    <div style={{padding:"14px 20px",borderTop:"1px solid rgba(255,255,255,0.06)",background:"rgba(0,0,0,0.1)",flexShrink:0}}>
+
+      {/* Label row */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <div style={{fontSize:10,color:T.dim,letterSpacing:2,textTransform:"uppercase"}}>Smart Command</div>
+        {listening && (
+          <div style={{display:"flex",alignItems:"center",gap:5}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:T.red,animation:"pulse 1s infinite"}}/>
+            <span style={{fontSize:10,color:T.red,fontWeight:600}}>Listening</span>
+          </div>
+        )}
+      </div>
+
+      {/* Interim transcript (shows while speaking) */}
+      {(listening && interim) && (
+        <div style={{padding:"6px 12px",marginBottom:8,background:"rgba(255,255,255,0.03)",border:"1px dashed rgba(255,255,255,0.1)",borderRadius:5,fontSize:13,color:T.dim,fontStyle:"italic",lineHeight:1.5}}>
+          {interim}…
+        </div>
+      )}
+
+      {/* Main textarea */}
+      <textarea
+        value={cmd}
+        onChange={function(e){ if(!confirming) setCmd(e.target.value); }}
+        onKeyDown={function(e){ if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)) handleGo(); }}
+        placeholder={ph}
+        rows={4}
+        readOnly={confirming}
+        style={{
+          width:"100%", boxSizing:"border-box",
+          background: confirming ? "rgba(240,200,74,0.04)" : "rgba(255,255,255,0.03)",
+          border:"1px solid "+(confirming?"rgba(240,200,74,0.3)":"rgba(255,255,255,0.08)"),
+          color: T.text, padding:"10px 12px", borderRadius:6,
+          fontSize:13, lineHeight:1.7, resize:"vertical",
+          outline:"none", fontFamily:"inherit",
+          marginBottom:8
+        }}
+      />
+
+      {/* Confirmation banner */}
+      {confirming && (
+        <div style={{padding:"10px 14px",marginBottom:8,background:"rgba(240,200,74,0.06)",border:"1px solid rgba(240,200,74,0.25)",borderRadius:6}}>
+          <div style={{fontSize:12,color:G,fontWeight:600,marginBottom:6}}>Run this command?</div>
+          <div style={{fontSize:12,color:T.text,fontStyle:"italic",marginBottom:10,lineHeight:1.6}}>"{cmd}"</div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={confirm} style={{flex:1,padding:"7px",background:"rgba(46,204,113,0.12)",border:"1px solid rgba(46,204,113,0.3)",color:T.green,borderRadius:5,cursor:"pointer",fontSize:13,fontWeight:700}}>
+              ✓ Confirm
+            </button>
+            <button onClick={cancel} style={{padding:"7px 16px",background:"rgba(231,76,60,0.08)",border:"1px solid rgba(231,76,60,0.2)",color:T.red,borderRadius:5,cursor:"pointer",fontSize:13}}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Result */}
+      {result && (
+        <div style={{padding:"8px 12px",marginBottom:8,background:resultOk?"rgba(46,204,113,0.08)":"rgba(231,76,60,0.08)",border:"1px solid "+(resultOk?"rgba(46,204,113,0.2)":"rgba(231,76,60,0.2)"),borderRadius:5,fontSize:12,color:resultOk?T.green:T.red}}>
+          {resultOk?"✓":"✗"} {result}
+        </div>
+      )}
+
+      {/* Button row */}
+      {!confirming && (
+        <div style={{display:"flex",gap:8}}>
+          {!listening ? (
+            <button onClick={startVoice} style={{padding:"7px 14px",background:"rgba(74,158,186,0.1)",border:"1px solid rgba(74,158,186,0.25)",color:T.blue,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600}}>
+              🎙 Dictate
+            </button>
+          ) : (
+            <button onClick={stopVoice} style={{padding:"7px 14px",background:"rgba(231,76,60,0.15)",border:"1px solid rgba(231,76,60,0.35)",color:T.red,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:700}}>
+              ■ Stop
+            </button>
+          )}
+          <button
+            onClick={handleGo}
+            disabled={!cmd.trim() || running || listening}
+            style={{flex:1,padding:"7px 14px",background:cmd.trim()&&!running&&!listening?"rgba(240,200,74,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+(cmd.trim()&&!running&&!listening?"rgba(240,200,74,0.3)":"rgba(255,255,255,0.07)"),color:cmd.trim()&&!running&&!listening?G:T.dim,borderRadius:5,cursor:cmd.trim()&&!running&&!listening?"pointer":"default",fontSize:12,fontWeight:600,transition:"all 0.15s"}}>
+            {running ? "Running…" : "Go  ⌘↵"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Item Detail Panel (scheduled sends + tasks) ──────────────────────────────
 function ItemDetailPanel({item, onClose, onComplete, onRefresh}) {
-  var [cmd, setCmd]         = useState("");
-  var [running, setRunning] = useState(false);
-  var [result, setResult]   = useState("");
-  var [listening, setListening] = useState(false);
   var [thread, setThread]   = useState([]);
   var [threadLoading, setThreadLoading] = useState(false);
   var threadRef = useRef(null);
@@ -181,29 +347,6 @@ function ItemDetailPanel({item, onClose, onComplete, onRefresh}) {
       })
       .catch(function(){setThreadLoading(false);});
   }, [item?.contact_id]);
-
-  function startVoice() {
-    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { alert("Voice input not supported. Use Chrome."); return; }
-    var r = new SR(); r.lang="en-US"; r.interimResults=false;
-    r.onresult=function(e){ setCmd(e.results[0][0].transcript); setListening(false); };
-    r.onerror=function(){ setListening(false); };
-    r.onend=function(){ setListening(false); };
-    r.start(); setListening(true);
-  }
-
-  async function runCommand() {
-    if (!cmd.trim() || running) return;
-    setRunning(true); setResult("");
-    try {
-      var res = await fetch("/api/smart-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({command:cmd,contact:item?{id:item.contact_id,firstName:item.contact_first_name,lastName:item.contact_last_name,company:item.contact_company,type:item.contact_type||"CFO_PROSPECT"}:null,conversationId:item?.conversation_id||null})});
-      var d = await res.json();
-      setResult(d.confirmation || "Done");
-      setCmd("");
-      if (onRefresh) onRefresh();
-    } catch(e){ setResult("Error — try again"); }
-    setRunning(false);
-  }
 
   if (!item) return (
     <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.dim}}>
@@ -264,25 +407,12 @@ function ItemDetailPanel({item, onClose, onComplete, onRefresh}) {
         </div>}
       </div>
 
-      <div style={{flex:1,display:"flex",flexDirection:"column",padding:"16px 20px",gap:10,overflowY:"auto"}}>
-        <div style={{fontSize:11,color:T.dim,letterSpacing:2,textTransform:"uppercase"}}>Smart Action</div>
-        <div style={{fontSize:12,color:T.muted,lineHeight:1.6}}>
-          Type or speak a command. Examples:<br/>
-          <span style={{color:T.dim}}>"Send: Great talking to you. Follow up June 1"</span><br/>
-          <span style={{color:T.dim}}>"Reschedule to next Monday"</span><br/>
-          <span style={{color:T.dim}}>"Mark done — they opted out"</span>
-        </div>
-        <textarea value={cmd} onChange={function(e){setCmd(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))runCommand();}} placeholder="What do you want to do with this item?" rows={3} style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:T.text,padding:"10px 12px",borderRadius:6,fontSize:13,lineHeight:1.65,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <button onClick={startVoice} style={{padding:"7px 14px",background:listening?"rgba(231,76,60,0.15)":"rgba(74,158,186,0.1)",border:"1px solid "+(listening?"rgba(231,76,60,0.3)":"rgba(74,158,186,0.25)"),color:listening?T.red:T.blue,borderRadius:5,cursor:"pointer",fontSize:12}}>
-            {listening?"🔴 Listening...":"🎙 Voice"}
-          </button>
-          <button onClick={runCommand} disabled={!cmd.trim()||running} style={{flex:1,padding:"7px 14px",background:"rgba(240,200,74,0.1)",border:"1px solid rgba(240,200,74,0.25)",color:G,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600}}>
-            {running?"Running...":"Execute (Cmd+Enter)"}
-          </button>
-        </div>
-        {result&&<div style={{padding:"8px 12px",background:"rgba(46,204,113,0.08)",border:"1px solid rgba(46,204,113,0.2)",borderRadius:5,fontSize:12,color:T.green}}>✓ {result}</div>}
-      </div>
+      <SmartCommand
+        contact={item ? {id:item.contact_id,firstName:item.contact_first_name,lastName:item.contact_last_name,company:item.contact_company,type:item.contact_type||"CFO_PROSPECT"} : null}
+        conversationId={item?.conversation_id||null}
+        onRefresh={onRefresh}
+        placeholder={"Command for " + (item?.contact_first_name||"this contact") + " — e.g. \"Snooze until June 1\" or \"They opted out\""}
+      />
     </div>
   );
 }
@@ -424,6 +554,11 @@ function ThreadPanel({item, onDone, onClose, onNavigate}) {
           <SendButton onSend={sendReply}/>
         </div>
       </div>
+      <SmartCommand
+        contact={item ? {id:item.supabaseId,firstName:item.firstName,lastName:item.lastName,company:item.company,type:"CFO_PROSPECT"} : null}
+        conversationId={item?.conversationId||null}
+        placeholder={"Command for " + (item?.firstName||"this contact") + " — e.g. \"Schedule a follow-up\" or \"Move to Stalled\""}
+      />
     </div>
   );
 }
@@ -673,14 +808,13 @@ export default function FollowUp({onNavigate}) {
           </div>
         </div>
 
-        {showVoice&&<div style={{padding:"10px 12px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(240,200,74,0.03)",flexShrink:0}}>
-          <div style={{fontSize:10,color:G,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Smart Command</div>
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={startGlobalVoice} style={{padding:"6px 10px",background:voiceListening?"rgba(231,76,60,0.15)":"rgba(74,158,186,0.08)",border:"1px solid "+(voiceListening?"rgba(231,76,60,0.3)":"rgba(74,158,186,0.2)"),color:voiceListening?"#e74c3c":"#4a9eba",borderRadius:4,cursor:"pointer",fontSize:11,flexShrink:0}}>{voiceListening?"🔴":"🎙"}</button>
-            <input value={voiceCmd} onChange={function(e){setVoiceCmd(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")runGlobalVoice();}} placeholder='e.g. "Put Jonathan Elbaz at TriNet on my follow-up list"' style={{flex:1,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:"#e8f2ff",padding:"6px 10px",borderRadius:4,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
-            <button onClick={runGlobalVoice} disabled={!voiceCmd.trim()||voiceRunning} style={{padding:"6px 12px",background:"rgba(240,200,74,0.1)",border:"1px solid rgba(240,200,74,0.25)",color:G,borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:600,flexShrink:0}}>{voiceRunning?"...":"Go"}</button>
-          </div>
-          {voiceResult&&<div style={{marginTop:5,fontSize:11,color:"#2ecc71"}}>✓ {voiceResult}</div>}
+        {showVoice&&<div style={{borderBottom:"1px solid rgba(255,255,255,0.06)",flexShrink:0}}>
+          <SmartCommand
+            contact={null}
+            conversationId={null}
+            onRefresh={loadAll}
+            placeholder='e.g. "Put Jonathan Elbaz at Trinet on my follow-up list"'
+          />
         </div>}
 
         <div style={{flex:1,overflowY:"auto",padding:"10px 10px"}}>
