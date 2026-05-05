@@ -29,7 +29,19 @@ export async function POST(request) {
       const { data } = await supabase.from('contacts').select('id,first_name,last_name,pipeline_stage').ilike('first_name', parts[0]).ilike('last_name', parts.slice(1).join(' ')).limit(1)
       if (data && data.length > 0) contact = data[0]
     }
-    if (!contact) return Response.json({ status: 'no_match' })
+    // If still no match, try first name only as last resort
+    if (!contact && name) {
+      const parts = name.trim().split(' ')
+      const { data } = await supabase.from('contacts').select('id,first_name,last_name,pipeline_stage,email')
+        .ilike('first_name', parts[0]).limit(5)
+      if (data && data.length === 1) contact = data[0]
+    }
+    if (!contact) return Response.json({ status: 'no_match', name, email })
+
+    // If matched by name and contact has no email, update it now
+    if (email && !contact.email) {
+      await supabase.from('contacts').update({ email, email_type: 'Personal' }).eq('id', contact.id)
+    }
 
     const iso = new Date().toISOString()
     const dateStr = startTime ? new Date(startTime).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : ''

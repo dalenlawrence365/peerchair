@@ -130,6 +130,75 @@ export async function POST(request) {
       return Response.json({ status: 'message_sent_no_match' })
     }
 
+    // MESSAGE_REPLY_RECEIVED / INMAIL_REPLY_RECEIVED = prospect replied to us
+    if (eventType === 'message_reply_received' || eventType === 'MESSAGE_REPLY_RECEIVED' ||
+        eventType === 'inmail_reply_received'  || eventType === 'INMAIL_REPLY_RECEIVED'  ||
+        eventType === 'every_message_reply_received' || eventType === 'EVERY_MESSAGE_REPLY_RECEIVED') {
+      const replyBody = body.message || body.messageText || body.message_text || body.text || body.replyText || ''
+      const replyTimestamp = body.timestamp || body.sentAt || body.created_at || new Date().toISOString()
+      const convId = body.conversationId || body.conversation_id || null
+      const slug = extractSlug(linkedinUrl)
+
+      if (slug || firstName) {
+        let contact = null
+        if (slug) {
+          const { data } = await supabase.from('contacts').select('id,first_name,last_name,pipeline_stage')
+            .ilike('linkedin_url', '%' + slug + '%').limit(1)
+          if (data && data.length > 0) contact = data[0]
+        }
+        if (!contact && firstName) {
+          const { data } = await supabase.from('contacts').select('id,first_name,last_name,pipeline_stage')
+            .ilike('first_name', firstName).limit(1)
+          if (data && data.length > 0) contact = data[0]
+        }
+
+        if (contact) {
+          // Log to communications
+          await supabase.from('communications').insert({
+            contact_id: contact.id,
+            occurred_at: replyTimestamp,
+            channel: eventType.includes('INMAIL') || eventType.includes('inmail') ? 'inmail' : 'linkedin',
+            direction: 'inbound',
+            step_label: 'Reply Received',
+            body: replyBody || '(reply received)',
+            source: 'HeyReach',
+            logged_by: 'system',
+          })
+
+          // Log to conversation_messages if we have a conversation record
+          if (convId || contact.id) {
+            const { data: convRecord } = await supabase
+              .from('conversations')
+              .select('id')
+              .eq('contact_id', contact.id)
+              .limit(1)
+            if (convRecord && convRecord[0]) {
+              const messageId = body.messageId || body.message_id || ('reply-' + replyTimestamp)
+              await supabase.from('conversation_messages').upsert({
+                conversation_id: convRecord[0].id,
+                message_id: String(messageId),
+                direction: 'IN',
+                body: replyBody || '(reply received)',
+                sent_at: replyTimestamp,
+                channel: eventType.includes('INMAIL') || eventType.includes('inmail') ? 'inmail' : 'linkedin',
+                sender_name: firstName + ' ' + lastName,
+                created_at: new Date().toISOString()
+              }, { onConflict: 'conversation_id,message_id', ignoreDuplicates: true })
+            }
+          }
+
+          // Update last activity
+          await supabase.from('contacts').update({
+            last_activity_date: new Date().toISOString()
+          }).eq('id', contact.id)
+
+          console.log('Reply logged for:', contact.first_name, contact.last_name, '|', replyBody.slice(0,60))
+          return Response.json({ status: 'reply_logged', contact: contact.id })
+        }
+      }
+      return Response.json({ status: 'reply_no_match', eventType })
+    }
+
     // Check if already in Supabase
     const slug = extractSlug(linkedinUrl)
     if (slug) {
