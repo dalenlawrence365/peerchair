@@ -396,6 +396,11 @@ export default function FollowUp({onNavigate}) {
   var [selected, setSelected] = useState(null);
   var [goneIds,  setGoneIds]  = useState(new Set());
   var [daily,    setDaily]    = useState(0);
+  var [voiceCmd, setVoiceCmd] = useState("");
+  var [voiceRunning,setVoiceRunning] = useState(false);
+  var [voiceResult,setVoiceResult]  = useState("");
+  var [voiceListening,setVoiceListening] = useState(false);
+  var [showVoice,setShowVoice] = useState(false);
 
   useEffect(function(){
     setLoading(true);
@@ -429,6 +434,33 @@ export default function FollowUp({onNavigate}) {
     setSelected(remaining.length>0?remaining[0]:null);
   }
 
+  function startGlobalVoice() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert("Voice input requires Chrome"); return; }
+    var r = new SR(); r.lang="en-US"; r.interimResults=false;
+    r.onresult=function(e){ setVoiceCmd(e.results[0][0].transcript); setVoiceListening(false); };
+    r.onerror=function(){ setVoiceListening(false); };
+    r.onend=function(){ setVoiceListening(false); };
+    r.start(); setVoiceListening(true);
+  }
+
+  async function runGlobalVoice() {
+    if (!voiceCmd.trim() || voiceRunning) return;
+    setVoiceRunning(true); setVoiceResult("");
+    try {
+      var res = await fetch("/api/smart-action", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ command: voiceCmd, contact: null, conversationId: null })
+      });
+      var d = await res.json();
+      setVoiceResult(d.confirmation || "Done");
+      setVoiceCmd("");
+      // Reload snoozed
+      fetch("/api/scheduled-actions").then(function(r){return r.json();}).then(function(sa){setSnoozed(Array.isArray(sa)?sa:[]);}).catch(function(){});
+    } catch(e){ setVoiceResult("Error — try again"); }
+    setVoiceRunning(false);
+  }
+
   var activeQueue = queue.filter(function(q){ return !goneIds.has(q.id); });
   var isEmpty = !loading && activeQueue.length===0;
 
@@ -448,6 +480,17 @@ export default function FollowUp({onNavigate}) {
             </div>
           </div>
         </div>
+
+        {/* Global voice intake */}
+        {showVoice&&<div style={{padding:"10px 12px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(240,200,74,0.03)",flexShrink:0}}>
+          <div style={{fontSize:10,color:G,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Add to Follow-Up</div>
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={startGlobalVoice} style={{padding:"6px 10px",background:voiceListening?"rgba(231,76,60,0.15)":"rgba(74,158,186,0.08)",border:"1px solid "+(voiceListening?"rgba(231,76,60,0.3)":"rgba(74,158,186,0.2)"),color:voiceListening?"#e74c3c":"#4a9eba",borderRadius:4,cursor:"pointer",fontSize:11,flexShrink:0}}>{voiceListening?"🔴":"🎙"}</button>
+            <input value={voiceCmd} onChange={function(e){setVoiceCmd(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")runGlobalVoice();}} placeholder="Follow up with [name] about [topic]..." style={{flex:1,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:"#e8f2ff",padding:"6px 10px",borderRadius:4,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+            <button onClick={runGlobalVoice} disabled={!voiceCmd.trim()||voiceRunning} style={{padding:"6px 12px",background:"rgba(240,200,74,0.1)",border:"1px solid rgba(240,200,74,0.25)",color:G,borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:600,flexShrink:0}}>{voiceRunning?"...":"Go"}</button>
+          </div>
+          {voiceResult&&<div style={{marginTop:5,fontSize:11,color:"#2ecc71"}}>✓ {voiceResult}</div>}
+        </div>}
 
         {/* Cards */}
         <div style={{flex:1,overflowY:"auto",padding:"10px 10px"}}>

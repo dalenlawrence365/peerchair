@@ -458,6 +458,17 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
   var [noteText,setNoteText]   = useState("");
   var [editEmail,setEditEmail] = useState(false);
   var [editPhone,setEditPhone] = useState(false);
+  var [smartCmd,setSmartCmd]   = useState("");
+  var [smartRunning,setSmartRunning] = useState(false);
+  var [smartResult,setSmartResult] = useState("");
+  var [smartListening,setSmartListening] = useState(false);
+  var [showSnooze,setShowSnooze] = useState(false);
+  var [snoozeMsg,setSnoozeMsg] = useState("");
+  var [snoozeDate,setSnoozeDate] = useState("");
+  var [snoozeMode,setSnoozeMode] = useState("resurface");
+  var [snoozeSaving,setSnoozeSaving] = useState(false);
+  var [snoozeSaved,setSnoozeSaved] = useState(false);
+  var [futureItems,setFutureItems] = useState([]);
 
   useEffect(function(){
     if(!contactId) {
@@ -556,6 +567,90 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
       await sbFetch("/communications",{method:"POST",body:JSON.stringify({contact_id:data.id,occurred_at:new Date().toISOString(),channel:"App",direction:"INTERNAL",step_label:"Note",body:noteText.trim(),source:"Manual",logged_by:"Dalen Lawrence"})});
       setNoteText("");setAddingNote(false);loadComms();
     } catch(e) { console.error("saveNote error:",e); }
+  }
+
+  // Load future commitments for this contact
+  useEffect(function(){
+    if (!data || !data.id) return;
+    var U = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    var K = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    var h = {"apikey":K,"Authorization":"Bearer "+K};
+    Promise.all([
+      fetch(U+"/rest/v1/scheduled_actions?contact_id=eq."+data.id+"&status=eq.pending&order=send_at.asc", {headers:h}).then(function(r){return r.json();}),
+      fetch(U+"/rest/v1/follow_up_tasks?contact_id=eq."+data.id+"&status=eq.open&order=due_at.asc.nullslast", {headers:h}).then(function(r){return r.json();})
+    ]).then(function(results){
+      var scheduled = (Array.isArray(results[0])?results[0]:[]).map(function(s){return {type:"scheduled",id:s.id,note:s.message_body,due_at:s.send_at,channel:s.channel,mode:s.mode};});
+      var tasks = (Array.isArray(results[1])?results[1]:[]).map(function(t){return {type:"task",id:t.id,note:t.note,due_at:t.due_at,source:t.source};});
+      setFutureItems(scheduled.concat(tasks).sort(function(a,b){
+        if (!a.due_at && !b.due_at) return 0;
+        if (!a.due_at) return 1;
+        if (!b.due_at) return -1;
+        return new Date(a.due_at)-new Date(b.due_at);
+      }));
+    }).catch(function(){});
+  }, [data?.id]);
+
+  function startSmartVoice() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert("Voice input requires Chrome"); return; }
+    var r = new SR(); r.lang="en-US"; r.interimResults=false;
+    r.onresult=function(e){ setSmartCmd(e.results[0][0].transcript); setSmartListening(false); };
+    r.onerror=function(){ setSmartListening(false); };
+    r.onend=function(){ setSmartListening(false); };
+    r.start(); setSmartListening(true);
+  }
+
+  async function runSmartAction() {
+    if (!smartCmd.trim() || smartRunning || !data) return;
+    setSmartRunning(true); setSmartResult("");
+    try {
+      var res = await fetch("/api/smart-action", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          command: smartCmd,
+          contact: {id:data.id, firstName:data.firstName, lastName:data.lastName, company:data.company, type:data.contactType||"CFO_PROSPECT"},
+          conversationId: null
+        })
+      });
+      var d = await res.json();
+      setSmartResult(d.confirmation || "Done");
+      setSmartCmd("");
+      // Reload future items
+      if (data.id) {
+        var U2=process.env.NEXT_PUBLIC_SUPABASE_URL; var K2=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        var h2={"apikey":K2,"Authorization":"Bearer "+K2};
+        var [sa,ft] = await Promise.all([
+          fetch(U2+"/rest/v1/scheduled_actions?contact_id=eq."+data.id+"&status=eq.pending&order=send_at.asc",{headers:h2}).then(function(r){return r.json();}),
+          fetch(U2+"/rest/v1/follow_up_tasks?contact_id=eq."+data.id+"&status=eq.open&order=due_at.asc.nullslast",{headers:h2}).then(function(r){return r.json();})
+        ]);
+        var scheduled=(Array.isArray(sa)?sa:[]).map(function(s){return {type:"scheduled",id:s.id,note:s.message_body,due_at:s.send_at,channel:s.channel,mode:s.mode};});
+        var tasks=(Array.isArray(ft)?ft:[]).map(function(t){return {type:"task",id:t.id,note:t.note,due_at:t.due_at,source:t.source};});
+        setFutureItems(scheduled.concat(tasks).sort(function(a,b){ if(!a.due_at&&!b.due_at)return 0; if(!a.due_at)return 1; if(!b.due_at)return -1; return new Date(a.due_at)-new Date(b.due_at); }));
+      }
+    } catch(e){ setSmartResult("Error — try again"); }
+    setSmartRunning(false);
+  }
+
+  async function saveSnooze() {
+    if (!snoozeDate || !snoozeMsg.trim() || !data) return;
+    setSnoozeSaving(true);
+    try {
+      var U3=process.env.NEXT_PUBLIC_SUPABASE_URL; var K3=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      var h3={"apikey":K3,"Authorization":"Bearer "+K3,"Content-Type":"application/json","Prefer":"return=minimal"};
+      await fetch(U3+"/rest/v1/scheduled_actions", {
+        method:"POST", headers:h3,
+        body: JSON.stringify({
+          contact_id:data.id, channel:"linkedin",
+          send_at: new Date(snoozeDate+"T17:00:00Z").toISOString(),
+          message_body:snoozeMsg, mode:snoozeMode,
+          contact_first_name:data.firstName, contact_last_name:data.lastName,
+          contact_company:data.company||"", status:"pending"
+        })
+      });
+      setSnoozeSaved(true); setShowSnooze(false); setSnoozeMsg(""); setSnoozeDate("");
+      setTimeout(function(){setSnoozeSaved(false);},3000);
+    } catch(e){}
+    setSnoozeSaving(false);
   }
 
   async function sendLiReply() {
@@ -904,6 +999,32 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
             </div>
           :null}
 
+          {/* FUTURE COMMITMENTS in Timeline */}
+          {tab==="timeline" && futureItems.length>0&&(
+            <div style={{padding:"12px 20px 0",flexShrink:0}}>
+              <div style={{fontSize:10,letterSpacing:2,color:T.purple,textTransform:"uppercase",marginBottom:8}}>Scheduled & Upcoming</div>
+              {futureItems.map(function(fi,i){
+                var isScheduled=fi.type==="scheduled";
+                var color=isScheduled?T.purple:T.blue;
+                var dateStr=fi.due_at?new Date(fi.due_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"No date";
+                return(
+                  <div key={fi.id||i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"8px 12px",background:color+"08",border:"1px solid "+color+"15",borderRadius:6,marginBottom:6}}>
+                    <span style={{fontSize:12,color:color,marginTop:1}}>{isScheduled?"→":"●"}</span>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <span style={{fontSize:11,fontWeight:600,color:color}}>{isScheduled?"Scheduled Send":"Follow-Up Task"}</span>
+                        <span style={{fontSize:10,color:T.dim}}>{dateStr}</span>
+                      </div>
+                      <div style={{fontSize:12,color:T.muted,marginTop:2}}>{(fi.note||"").slice(0,120)}</div>
+                      {isScheduled&&<span style={{fontSize:9,color:color,marginTop:3,display:"inline-block"}}>{fi.mode==="auto_send"?"AUTO-SEND":"REVIEW FIRST"}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+              <div style={{borderBottom:"1px solid rgba(255,255,255,0.06)",marginBottom:12,marginTop:4}}/>
+            </div>
+          )}
+
           {/* TIMELINE */}
           {tab==="timeline"
             ?<div style={{display:"flex",flexDirection:"column",flex:1,overflow:"hidden"}}>
@@ -1023,6 +1144,55 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
       </Drawer>
 
       {showHR?<HRPopup data={data} onClose={function(){setShowHR(false);}}/>:null}
+
+      {/* ─── SMART ACTION BAR ──────────────────────────────────────────── */}
+      <div style={{borderTop:"1px solid rgba(255,255,255,0.07)",background:"#060d17",padding:"10px 20px",flexShrink:0}}>
+        {/* Future commitments strip */}
+        {futureItems.length>0&&<div style={{display:"flex",gap:8,marginBottom:8,overflowX:"auto",paddingBottom:4}}>
+          {futureItems.map(function(fi,i){
+            var isScheduled=fi.type==="scheduled";
+            var color=isScheduled?T.purple:T.blue;
+            var dateStr=fi.due_at?new Date(fi.due_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"No date";
+            return(
+              <div key={fi.id||i} style={{flexShrink:0,padding:"4px 10px",borderRadius:20,background:color+"10",border:"1px solid "+color+"25",display:"flex",alignItems:"center",gap:5}}>
+                <span style={{fontSize:9,color:color}}>{isScheduled?"→":"●"}</span>
+                <span style={{fontSize:11,color:color,fontWeight:600}}>{dateStr}</span>
+                <span style={{fontSize:11,color:T.muted,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(fi.note||"").slice(0,40)}</span>
+              </div>
+            );
+          })}
+        </div>}
+        {/* Command row */}
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <button onClick={startSmartVoice} style={{padding:"6px 10px",background:smartListening?"rgba(231,76,60,0.15)":"rgba(74,158,186,0.08)",border:"1px solid "+(smartListening?"rgba(231,76,60,0.3)":"rgba(74,158,186,0.2)"),color:smartListening?T.red:T.blue,borderRadius:5,cursor:"pointer",fontSize:11,flexShrink:0}}>
+            {smartListening?"🔴":"🎙"}
+          </button>
+          <input value={smartCmd} onChange={function(e){setSmartCmd(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")runSmartAction();}} placeholder={"Smart action for "+(data?data.firstName:"")+"... (send, schedule, follow up, snooze)"} style={{flex:1,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:T.text,padding:"7px 12px",borderRadius:5,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+          <button onClick={runSmartAction} disabled={!smartCmd.trim()||smartRunning} style={{padding:"6px 14px",background:"rgba(240,200,74,0.1)",border:"1px solid rgba(240,200,74,0.25)",color:G,borderRadius:5,cursor:"pointer",fontSize:11,fontWeight:600,flexShrink:0}}>
+            {smartRunning?"...":"Go"}
+          </button>
+          <button onClick={function(){setShowSnooze(function(v){return !v;});}} style={{padding:"6px 10px",background:showSnooze?"rgba(155,89,182,0.15)":"rgba(255,255,255,0.03)",border:"1px solid "+(showSnooze?"rgba(155,89,182,0.3)":"rgba(255,255,255,0.08)"),color:showSnooze?T.purple:T.dim,borderRadius:5,cursor:"pointer",fontSize:11,flexShrink:0}}>
+            ⏰
+          </button>
+        </div>
+        {smartResult&&<div style={{marginTop:6,fontSize:11,color:T.green,padding:"4px 8px",background:"rgba(46,204,113,0.08)",borderRadius:4}}>✓ {smartResult}</div>}
+        {/* Snooze panel */}
+        {showSnooze&&<div style={{marginTop:10,padding:"12px",background:"rgba(155,89,182,0.06)",border:"1px solid rgba(155,89,182,0.15)",borderRadius:6}}>
+          <div style={{fontSize:11,color:T.purple,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>Schedule Message</div>
+          <textarea value={snoozeMsg} onChange={function(e){setSnoozeMsg(e.target.value);}} placeholder="Write the message to send on the scheduled date..." rows={2} style={{width:"100%",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",color:T.text,padding:"7px 10px",borderRadius:5,fontSize:12,outline:"none",fontFamily:"inherit",resize:"none",boxSizing:"border-box",marginBottom:8}}/>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <input type="date" value={snoozeDate} onChange={function(e){setSnoozeDate(e.target.value);}} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:T.text,padding:"5px 8px",borderRadius:4,fontSize:11,outline:"none"}}/>
+            <div style={{display:"flex",gap:4}}>
+              {["resurface","auto_send"].map(function(m){return(
+                <button key={m} onClick={function(){setSnoozeMode(m);}} style={{padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:10,border:"1px solid "+(snoozeMode===m?"rgba(155,89,182,0.4)":"rgba(255,255,255,0.08)"),background:snoozeMode===m?"rgba(155,89,182,0.1)":"transparent",color:snoozeMode===m?T.purple:T.muted}}>{m==="resurface"?"Review First":"Auto-Send"}</button>
+              );})}
+            </div>
+            <button onClick={saveSnooze} disabled={!snoozeDate||!snoozeMsg.trim()||snoozeSaving} style={{marginLeft:"auto",padding:"5px 14px",background:snoozeSaved?"rgba(46,204,113,0.15)":"rgba(155,89,182,0.12)",border:"1px solid "+(snoozeSaved?"rgba(46,204,113,0.4)":"rgba(155,89,182,0.3)"),color:snoozeSaved?T.green:T.purple,borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:600}}>
+              {snoozeSaving?"Saving...":snoozeSaved?"✓ Scheduled":"Schedule"}
+            </button>
+          </div>
+        </div>}
+      </div>
     </div>
   );
 }
