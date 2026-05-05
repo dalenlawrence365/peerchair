@@ -162,6 +162,25 @@ function ItemDetailPanel({item, onClose, onComplete, onRefresh}) {
   var [running, setRunning] = useState(false);
   var [result, setResult]   = useState("");
   var [listening, setListening] = useState(false);
+  var [thread, setThread]   = useState([]);
+  var [threadLoading, setThreadLoading] = useState(false);
+  var threadRef = useRef(null);
+
+  useEffect(function() {
+    if (!item || !item.contact_id) return;
+    setThreadLoading(true);
+    var U=process.env.NEXT_PUBLIC_SUPABASE_URL;
+    var K=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    fetch(U+"/rest/v1/communications?contact_id=eq."+item.contact_id+"&channel=in.(linkedin,LinkedIn,inmail,InMail)&order=occurred_at.asc&limit=100",
+      {headers:{"apikey":K,"Authorization":"Bearer "+K}})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        setThread(Array.isArray(d)?d:[]);
+        setThreadLoading(false);
+        if(threadRef.current) setTimeout(function(){threadRef.current.scrollTop=threadRef.current.scrollHeight;},50);
+      })
+      .catch(function(){setThreadLoading(false);});
+  }, [item?.contact_id]);
 
   function startVoice() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -209,6 +228,27 @@ function ItemDetailPanel({item, onClose, onComplete, onRefresh}) {
         <button onClick={function(){onComplete(item);}} style={{padding:"6px 14px",background:"rgba(46,204,113,0.1)",border:"1px solid rgba(46,204,113,0.25)",color:T.green,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600}}>Mark Done</button>
         <button onClick={onClose} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:T.muted,width:28,height:28,borderRadius:5,cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
       </div>
+
+      {/* Conversation thread */}
+      {(thread.length > 0 || threadLoading) && (
+        <div ref={threadRef} style={{maxHeight:200,overflowY:"auto",padding:"10px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",display:"flex",flexDirection:"column",gap:7,background:"rgba(0,0,0,0.12)",flexShrink:0}}>
+          <div style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>Conversation History</div>
+          {threadLoading&&<div style={{fontSize:11,color:T.dim}}>Loading…</div>}
+          {thread.map(function(msg){
+            var isOut=msg.direction==="OUT"||msg.direction==="outbound";
+            return (
+              <div key={msg.id} style={{display:"flex",flexDirection:"column",alignItems:isOut?"flex-end":"flex-start"}}>
+                <div style={{maxWidth:"85%",padding:"7px 11px",borderRadius:isOut?"10px 3px 10px 10px":"3px 10px 10px 10px",background:isOut?"rgba(240,200,74,0.08)":"rgba(255,255,255,0.05)",border:"1px solid "+(isOut?"rgba(240,200,74,0.18)":"rgba(255,255,255,0.07)"),fontSize:12,color:isOut?"#f5e49a":T.text,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
+                  {msg.body}
+                </div>
+                <div style={{fontSize:9,color:T.dim,marginTop:2,paddingRight:2}}>
+                  {new Date(msg.occurred_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})} · {msg.step_label}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
