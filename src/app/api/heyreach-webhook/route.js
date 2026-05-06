@@ -38,6 +38,13 @@ export async function POST(request) {
     rawBody = body
     const eventType = body.eventType || body.event_type || body.type || 'unknown'
     console.log('HeyReach webhook received — event:', eventType)
+    // Log raw payload to audit_log for debugging unrecognized shapes
+    supabase.from('audit_log').insert({
+      run_at: new Date().toISOString(),
+      audit_type: 'webhook_received',
+      summary: 'HeyReach webhook: ' + eventType,
+      errors: [JSON.stringify(body).slice(0, 2000)]
+    }).catch(() => {})
 
     const profile = extractProfile(body)
 
@@ -87,7 +94,15 @@ export async function POST(request) {
           }
         } catch(e) { console.warn('Confirm pending error:', e.message) }
       }
-      const msgBody = body.message || body.messageText || body.message_text || body.text || ''
+      const msgBody = (
+        body.message ||
+        body.messageText || body.message_text ||
+        body.messageBody || body.message_body ||
+        body.messageContent || body.message_content ||
+        body.content || body.text ||
+        body.data?.message || body.data?.text ||
+        ''
+      )
       const msgTimestamp = body.timestamp || new Date().toISOString()
       const slug = extractSlug(linkedinUrl)
       if (slug) {
@@ -162,7 +177,21 @@ export async function POST(request) {
     if (eventType === 'message_reply_received' || eventType === 'MESSAGE_REPLY_RECEIVED' ||
         eventType === 'inmail_reply_received'  || eventType === 'INMAIL_REPLY_RECEIVED'  ||
         eventType === 'every_message_reply_received' || eventType === 'EVERY_MESSAGE_REPLY_RECEIVED') {
-      const replyBody = body.message || body.messageText || body.message_text || body.text || body.replyText || ''
+      // Extract reply body — HeyReach uses different field names per event type
+      const replyBody = (
+        body.message ||
+        body.messageText || body.message_text ||
+        body.messageBody || body.message_body ||
+        body.messageContent || body.message_content ||
+        body.content ||
+        body.text ||
+        body.replyText || body.reply_text ||
+        body.reply ||
+        body.data?.message || body.data?.text || body.data?.content ||
+        body.lead?.lastMessage || body.lead?.message ||
+        body.chatMessage || body.chat_message ||
+        ''
+      )
       const replyTimestamp = body.timestamp || body.sentAt || body.created_at || new Date().toISOString()
       const convId = body.conversationId || body.conversation_id || null
       const slug = extractSlug(linkedinUrl)
