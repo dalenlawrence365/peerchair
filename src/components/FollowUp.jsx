@@ -172,6 +172,29 @@ function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
   var chunksRef  = useRef([]);
   var silenceRef = useRef(null);
 
+  function playChime(type) {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var notes = type === "start"
+        ? [{f:600,t:0,d:0.08},{f:900,t:0.09,d:0.12}]
+        : [{f:900,t:0,d:0.08},{f:600,t:0.09,d:0.12}];
+      notes.forEach(function(n) {
+        var osc  = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(n.f, ctx.currentTime + n.t);
+        gain.gain.setValueAtTime(0, ctx.currentTime + n.t);
+        gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + n.t + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + n.t + n.d);
+        osc.start(ctx.currentTime + n.t);
+        osc.stop(ctx.currentTime + n.t + n.d + 0.01);
+      });
+      setTimeout(function(){ ctx.close(); }, 500);
+    } catch(e) {}
+  }
+
   function startVoice() {
     if (!navigator.mediaDevices || !window.MediaRecorder) {
       alert("Audio recording not supported in this browser.");
@@ -179,6 +202,7 @@ function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
     }
     chunksRef.current = [];
     setInterim("Recording… release to transcribe");
+    playChime("start");
     setListening(true);
     setResult("");
     setConfirming(false);
@@ -213,6 +237,7 @@ function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
       streamRef.current.getTracks().forEach(function(t){ t.stop(); });
       streamRef.current = null;
     }
+    playChime("stop");
     setListening(false);
     setInterim("Transcribing…");
   }
