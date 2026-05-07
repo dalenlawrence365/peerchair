@@ -170,6 +170,7 @@ function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
   var recRef     = useRef(null);
   var streamRef  = useRef(null);
   var chunksRef  = useRef([]);
+  var silenceRef = useRef(null);
 
   function startVoice() {
     if (!navigator.mediaDevices || !window.MediaRecorder) {
@@ -189,6 +190,13 @@ function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
       recorder.ondataavailable = function(e) { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = function() { transcribeAudio(); };
       recorder.start();
+      // Auto-stop after 10 seconds of no interaction
+      silenceRef.current = setTimeout(function() {
+        if (recRef.current && recRef.current.state !== "inactive") {
+          setInterim("Auto-stopped after 10 seconds…");
+          stopVoice();
+        }
+      }, 10000);
     }).catch(function(e) {
       setListening(false);
       setInterim("");
@@ -197,6 +205,7 @@ function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
   }
 
   function stopVoice() {
+    if (silenceRef.current) { clearTimeout(silenceRef.current); silenceRef.current = null; }
     if (recRef.current && recRef.current.state !== "inactive") {
       recRef.current.stop();
     }
