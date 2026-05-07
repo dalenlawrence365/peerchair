@@ -355,12 +355,9 @@ function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
       {!confirming && (
         <div style={{display:"flex",gap:8}}>
           <button
-            onMouseDown={startVoice}
-            onMouseUp={stopVoice}
-            onTouchStart={startVoice}
-            onTouchEnd={stopVoice}
-            style={{padding:"7px 14px",background:listening?"rgba(231,76,60,0.15)":"rgba(74,158,186,0.1)",border:"1px solid "+(listening?"rgba(231,76,60,0.35)":"rgba(74,158,186,0.25)"),color:listening?T.red:T.blue,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:listening?700:600,userSelect:"none"}}>
-            {listening ? "■ Release to send" : "🎙 Hold to speak"}
+            onClick={listening ? stopVoice : startVoice}
+            style={{padding:"7px 14px",background:listening?"rgba(231,76,60,0.15)":"rgba(74,158,186,0.1)",border:"1px solid "+(listening?"rgba(231,76,60,0.35)":"rgba(74,158,186,0.25)"),color:listening?T.red:T.blue,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:listening?700:600}}>
+            {listening ? "■ Click to stop" : "🎙 Click to speak"}
           </button>
           <button
             onClick={handleGo}
