@@ -745,46 +745,8 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
         {/* LEFT RAIL */}
         <div style={{background:"#060d17",borderRight:"1px solid "+T.border,padding:"14px 12px",display:"flex",flexDirection:"column",overflowY:"auto"}}>
 
-          {/* Email */}
-          <div style={{marginBottom:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-              <div style={{fontSize:9,letterSpacing:2,color:T.dim,textTransform:"uppercase"}}>Email</div>
-              <button onClick={function(){setEditEmail(function(v){return !v;});}} style={{background:"transparent",border:"none",color:editEmail?G:T.blue,cursor:"pointer",fontSize:10}}>{editEmail?"✓":"✎"}</button>
-            </div>
-            {editEmail
-              ?<div style={{display:"flex",flexDirection:"column",gap:4}}>
-                <input value={data.email||""} onChange={function(e){set("email")(e.target.value);}} autoFocus style={{width:"100%",background:BG3,border:"1px solid "+G,color:T.text,padding:"5px 7px",borderRadius:4,fontSize:12,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
-                <select value={data.emailType||"Personal"} onChange={function(e){set("emailType")(e.target.value);}} style={{background:BG3,border:"1px solid rgba(255,255,255,0.1)",color:T.text,padding:"4px 7px",borderRadius:4,fontSize:11,outline:"none",cursor:"pointer"}}>
-                  <option>Personal</option><option>Company</option><option>Unknown</option>
-                </select>
-              </div>
-              :<div style={{fontSize:12,color:data.email?T.muted:T.dim,wordBreak:"break-all",lineHeight:1.4}}>{data.email||"No email"}<span style={{color:T.dim,fontSize:10}}>{data.email?" · "+data.emailType:""}</span></div>
-            }
-          </div>
-
-          {/* Phone */}
-          <div style={{marginBottom:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-              <div style={{fontSize:9,letterSpacing:2,color:T.dim,textTransform:"uppercase"}}>Phone</div>
-              <button onClick={function(){setEditPhone(function(v){return !v;});}} style={{background:"transparent",border:"none",color:editPhone?G:T.blue,cursor:"pointer",fontSize:10}}>{editPhone?"✓":"✎"}</button>
-            </div>
-            {editPhone
-              ?<input value={data.phone||""} onChange={function(e){set("phone")(e.target.value);}} autoFocus placeholder="Add phone" style={{width:"100%",background:BG3,border:"1px solid "+G,color:T.text,padding:"5px 7px",borderRadius:4,fontSize:12,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
-              :<div style={{fontSize:12,color:data.phone?T.muted:T.dim}}>{data.phone||"—"}</div>
-            }
-          </div>
-
-          {/* LinkedIn */}
-          <div style={{marginBottom:12}}>
-            <div style={{fontSize:9,letterSpacing:2,color:T.dim,textTransform:"uppercase",marginBottom:4}}>LinkedIn</div>
-            <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              {data.linkedinUrl?<a href={data.linkedinUrl} target="_blank" rel="noreferrer" style={{fontSize:12,color:T.blue,textDecoration:"none",flex:1}}>View Profile →</a>:<span style={{fontSize:12,color:T.dim,flex:1}}>—</span>}
-              <button onClick={function(){setShowHR(true);}} style={{background:"rgba(74,154,186,0.1)",border:"1px solid rgba(74,154,186,0.25)",color:T.blue,borderRadius:4,padding:"3px 7px",cursor:"pointer",fontSize:10,fontWeight:600,flexShrink:0}}>ℹ Data</button>
-            </div>
-          </div>
-
-          {/* Other fields */}
-          {[["Campaign",data.campaign],["Chapter",data.chapterInterest],["Connected",data.connectedDate],["Last Activity",data.lastActivity],["Stage",data.pipelineStage]].map(function(kv){
+          {/* Pipeline info */}
+          {[["Campaign",data.campaign],["Connected",data.connectedDate],["Last Activity",data.lastActivity]].map(function(kv){
             return <div key={kv[0]} style={{marginBottom:10}}>
               <div style={{fontSize:9,letterSpacing:2,color:T.dim,textTransform:"uppercase",marginBottom:2}}>{kv[0]}</div>
               <div style={{fontSize:12,color:kv[1]?T.muted:T.dim,lineHeight:1.4}}>{kv[1]||"—"}</div>
@@ -869,8 +831,8 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                   <div><FL label="LinkedIn URL"/>{data.linkedinUrl?<a href={data.linkedinUrl} target="_blank" rel="noreferrer" style={{fontSize:13,color:T.blue,textDecoration:"none"}}>View Profile →</a>:<FV val=""/>}</div>
                   <div><FL label="Location"/><FV val={data.linkedinLocation}/></div>
                   <div><FL label="Chapter Interest"/><FV val={data.chapterInterest}/></div>
+                  <div><FL label="Email"/><FV val={data.email ? data.email + (data.emailType ? " · " + data.emailType : "") : "—"}/></div>
                   <div><FL label="Phone"/><FV val={data.phone}/></div>
-                  <div><FL label="Email 2"/><FV val={data.email2}/></div>
                   <div><FL label="Referred By"/><FV val={data.referredBy}/></div>
                 </Grid2>
               </Section>
@@ -1149,12 +1111,12 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
         <DField label="Last Name" val={data.lastName} set={set("lastName")}/>
         <DField label="Title / Role" val={data.title} set={set("title")}/>
         <DField label="Company" val={data.company} set={set("company")}/>
+        <DField label="Email" val={data.email} set={set("email")}/>
+        <DSelect label="Email Type" val={data.emailType} set={set("emailType")} opts={["Personal","Company","Unknown"]}/>
+        <DField label="Phone" val={data.phone} set={set("phone")}/>
         <DField label="LinkedIn URL" val={data.linkedinUrl} set={set("linkedinUrl")}/>
         <DField label="LinkedIn Location" val={data.linkedinLocation} set={set("linkedinLocation")}/>
         <DSelect label="Chapter Interest" val={data.chapterInterest} set={set("chapterInterest")} opts={CHAPTERS}/>
-        <DField label="Email 2 (Optional)" val={data.email2} set={set("email2")}/>
-        <DField label="Phone" val={data.phone} set={set("phone")}/>
-        <DSelect label="Email Type" val={data.emailType} set={set("emailType")} opts={["Personal","Company","Unknown"]}/>
         <DSelect label="Lead Source" val={data.leadSource} set={set("leadSource")} opts={SOURCES}/>
         <DField label="Referred By" val={data.referredBy} set={set("referredBy")}/>
       </Drawer>
