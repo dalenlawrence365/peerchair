@@ -2,6 +2,7 @@
 import Sponsors from "@/components/Sponsors";
 import FollowUp from "@/components/FollowUp";
 import LinkedInMessages from "@/components/LinkedInMessages";
+import SmartCommand from "@/components/SmartCommand";
 import EmailMessages from "@/components/EmailMessages";
 import Templates from "@/components/Templates";
 import Meetings from "@/components/Meetings";
@@ -814,7 +815,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
         {/* RIGHT TABS */}
         <div style={{display:"flex",flexDirection:"column",overflow:"hidden"}}>
           <div style={{display:"flex",borderBottom:"1px solid "+T.border,background:BG2,flexShrink:0}}>
-            {[["summary","Summary"],["timeline","Timeline"]].map(function(t){
+            {[["summary","Summary"],["timeline","Timeline"],["actions","⚡ Actions"]].map(function(t){
               return <button key={t[0]} onClick={function(){setTab(t[0]);}} style={{padding:"11px 22px",background:"transparent",border:"none",borderBottom:"2px solid "+(tab===t[0]?G:"transparent"),color:tab===t[0]?G:T.muted,cursor:"pointer",fontSize:13,fontWeight:tab===t[0]?600:400}}>
                 {t[1]}{t[0]==="timeline"?<span style={{marginLeft:6,fontSize:10,color:T.dim}}>{comms.length||""}</span>:null}
               </button>;
@@ -1083,6 +1084,62 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
               </div>
             </div>
           :null}
+
+          {/* ACTIONS TAB */}
+          {tab==="actions" && data && (
+            <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",background:"#080f1a"}}>
+
+              {/* Context summary strip */}
+              <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(12,21,32,0.8)",flexShrink:0}}>
+                <div style={{fontSize:10,color:"#3a5a74",letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>Context Loaded</div>
+                <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+                  <span style={{fontSize:12,color:"#7a9bb8"}}><b style={{color:"#e8f2ff"}}>{data.firstName} {data.lastName}</b> · {data.title||"—"} · {data.company||"—"}</span>
+                  <span style={{fontSize:12,color:"#7a9bb8"}}>Stage: <b style={{color:"#f0c84a"}}>{data.pipelineStage||"—"}</b></span>
+                  <span style={{fontSize:12,color:"#7a9bb8"}}>{comms.length} messages logged</span>
+                  {data.email && <span style={{fontSize:12,color:"#7a9bb8"}}>{data.email}</span>}
+                </div>
+              </div>
+
+              {/* Recent thread preview */}
+              {comms.length > 0 && (
+                <div style={{padding:"14px 20px 0",flexShrink:0}}>
+                  <div style={{fontSize:10,color:"#3a5a74",letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Recent Activity</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:280,overflowY:"auto"}}>
+                    {comms.slice(0,6).reverse().map(function(msg){
+                      var isOut = msg.direction==="OUT"||msg.direction==="outbound"
+                      var isIn  = msg.direction==="IN"||msg.direction==="inbound"
+                      if (!msg.body) return null
+                      return (
+                        <div key={msg.id} style={{display:"flex",flexDirection:"column",alignItems:isOut?"flex-end":"flex-start"}}>
+                          <div style={{maxWidth:"85%",padding:"8px 12px",borderRadius:isOut?"10px 3px 10px 10px":"3px 10px 10px 10px",background:isOut?"rgba(240,200,74,0.07)":"rgba(255,255,255,0.04)",border:"1px solid "+(isOut?"rgba(240,200,74,0.15)":"rgba(255,255,255,0.07)"),fontSize:13,color:isOut?"#f5e49a":"#d8eeff",lineHeight:1.65}}>
+                            {msg.body.length>200?msg.body.slice(0,200)+"…":msg.body}
+                          </div>
+                          <div style={{fontSize:9,color:"#3a5a74",marginTop:2,padding:"0 4px"}}>
+                            {isOut?"You":""}  {msg.step_label} · {msg.occurred_at?new Date(msg.occurred_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):""}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* SmartCommand — full context */}
+              <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"flex-end",padding:"14px 20px 20px"}}>
+                <div style={{fontSize:10,color:"#3a5a74",letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Actions</div>
+                <div style={{background:"rgba(12,21,32,0.6)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,overflow:"hidden"}}>
+                  <SmartCommand
+                    contact={data.id ? {id:data.id, firstName:data.firstName, lastName:data.lastName, company:data.company, type:"CFO_PROSPECT"} : null}
+                    conversationId={null}
+                    onRefresh={function(){ loadComms(); loadContact(); }}
+                    placeholder={"What do you want to do with " + (data.firstName||"this contact") + "? e.g. "Draft a follow-up email" or "Snooze until June 1" or "Move to Event Waitlist""}
+                    systemContext={"Contact: " + data.firstName + " " + data.lastName + " | Company: " + (data.company||"?") + " | Title: " + (data.title||"?") + " | Stage: " + (data.pipelineStage||"?") + " | Email: " + (data.email||"none") + " | Messages: " + comms.length + " logged | Last activity: " + (comms[0]?.occurred_at?new Date(comms[0].occurred_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"unknown")}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
 
