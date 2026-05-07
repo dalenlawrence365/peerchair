@@ -131,11 +131,32 @@ export default function EmailMessages({ onNavigate }) {
   var [typeFilter, setTypeFilter] = useState("all")
   var [search, setSearch]       = useState("")
   var [lastSync, setLastSync]   = useState(null)
+  var [syncing,  setSyncing]    = useState(false)
+  var [syncResult, setSyncResult] = useState(null)
 
   useEffect(function() {
     loadEmails()
     loadLastSync()
   }, [])
+
+  async function syncEmail() {
+    setSyncing(true); setSyncResult(null)
+    try {
+      var res = await fetch("/api/email/fetch")
+      var d   = await res.json()
+      if (d.error) {
+        setSyncResult({ ok:false, msg: d.error })
+      } else {
+        setSyncResult({ ok:true, msg: d.total + " emails synced" })
+        await loadEmails()
+        setLastSync(new Date().toISOString())
+      }
+    } catch(e) {
+      setSyncResult({ ok:false, msg: e.message })
+    }
+    setSyncing(false)
+    setTimeout(function(){ setSyncResult(null) }, 5000)
+  }
 
   async function loadEmails() {
     setLoading(true)
@@ -213,7 +234,12 @@ export default function EmailMessages({ onNavigate }) {
         <div style={{ padding:"14px 14px 10px", borderBottom:"1px solid rgba(255,255,255,0.06)", flexShrink:0 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
             <div style={{ fontSize:11, letterSpacing:3, color:T.green, textTransform:"uppercase", fontWeight:600 }}>Email</div>
-            <div style={{ fontSize:10, color:T.dim }}>{threadCards.length} threads</div>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              {syncResult && <span style={{ fontSize:10, color:syncResult.ok?T.green:T.red }}>{syncResult.msg}</span>}
+              <button onClick={syncEmail} disabled={syncing} style={{ padding:"4px 12px", background:syncing?"rgba(255,255,255,0.03)":"rgba(46,204,113,0.1)", border:"1px solid "+(syncing?"rgba(255,255,255,0.08)":"rgba(46,204,113,0.25)"), color:syncing?T.dim:T.green, borderRadius:4, cursor:syncing?"default":"pointer", fontSize:11, fontWeight:600 }}>
+                {syncing ? "Syncing…" : "↺ Sync"}
+              </button>
+            </div>
           </div>
           <input value={search} onChange={function(e){setSearch(e.target.value)}} placeholder="Search name or company…" style={{ width:"100%", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", color:T.text, padding:"6px 10px", borderRadius:5, fontSize:12, outline:"none", boxSizing:"border-box", marginBottom:8 }} />
           <div style={{ display:"flex", gap:3, marginBottom:5 }}>
