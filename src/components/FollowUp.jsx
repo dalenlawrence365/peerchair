@@ -362,17 +362,21 @@ function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
 
       {/* Button row */}
       {!confirming && (
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <button
             onClick={listening ? stopVoice : startVoice}
-            style={{padding:"7px 14px",background:listening?"rgba(231,76,60,0.15)":"rgba(74,158,186,0.1)",border:"1px solid "+(listening?"rgba(231,76,60,0.35)":"rgba(74,158,186,0.25)"),color:listening?T.red:T.blue,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:listening?700:600}}>
-            {listening ? "■ Click to stop" : "🎙 Click to speak"}
+            title={listening ? "Click to stop" : "Click to speak"}
+            style={{flexShrink:0,width:34,height:34,borderRadius:"50%",background:listening?"rgba(231,76,60,0.15)":"rgba(74,158,186,0.08)",border:"1px solid "+(listening?"rgba(231,76,60,0.35)":"rgba(74,158,186,0.2)"),color:listening?T.red:T.blue,cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}}>
+            {listening ? "■" : "🎙"}
           </button>
+          {listening && <span style={{fontSize:11,color:T.red,fontWeight:600,letterSpacing:0.5}}>Listening…</span>}
+          <div style={{flex:1}}/>
           <button
             onClick={handleGo}
             disabled={!cmd.trim() || running || listening}
-            style={{flex:1,padding:"7px 14px",background:cmd.trim()&&!running&&!listening?"rgba(240,200,74,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+(cmd.trim()&&!running&&!listening?"rgba(240,200,74,0.3)":"rgba(255,255,255,0.07)"),color:cmd.trim()&&!running&&!listening?G:T.dim,borderRadius:5,cursor:cmd.trim()&&!running&&!listening?"pointer":"default",fontSize:12,fontWeight:600,transition:"all 0.15s"}}>
-            {running ? "Running…" : "Go  ⌘↵"}
+            title="Send (⌘↵)"
+            style={{flexShrink:0,width:34,height:34,borderRadius:"50%",background:cmd.trim()&&!running&&!listening?G:"rgba(255,255,255,0.06)",border:"none",color:cmd.trim()&&!running&&!listening?"#000":T.dim,cursor:cmd.trim()&&!running&&!listening?"pointer":"default",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s",fontWeight:700}}>
+            {running ? "…" : "↑"}
           </button>
         </div>
       )}
