@@ -108,5 +108,18 @@ Rules:
 
   results.parsed = parsed
   results.confirmation = results.summary.join(' · ') || 'Done'
+
+  // Log result back to voice_commands if this came from a voice input
+  const commandId = body.command_id || null
+  if (commandId) {
+    const { createClient } = await import('@supabase/supabase-js')
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    await sb.from('voice_commands').update({
+      action_taken: command,
+      status:       results.errors && results.errors.length ? 'failed' : 'executed',
+      result:       results.confirmation,
+    }).eq('id', commandId)
+  }
+
   return Response.json(results)
 }

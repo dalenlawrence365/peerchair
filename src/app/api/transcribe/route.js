@@ -1,39 +1,76 @@
 // POST /api/transcribe
-// Accepts an audio blob, sends to OpenAI Whisper, returns clean text
-// Replaces browser SpeechRecognition throughout the app
+// Accepts audio blob, transcribes via OpenAI Whisper, logs to voice_commands table
+
+import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request) {
   const OPENAI_KEY = process.env.OPENAI_API_KEY
   if (!OPENAI_KEY) return Response.json({ error: 'No OPENAI_API_KEY' }, { status: 500 })
 
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+
+  let commandId = null
+  let rawTranscript = null
+
   try {
     const formData = await request.formData()
-    const audio = formData.get('audio')
+    const audio     = formData.get('audio')
+    const contactId = formData.get('contact_id') || null
+    const source    = formData.get('source') || 'unknown'
+
     if (!audio) return Response.json({ error: 'No audio file' }, { status: 400 })
 
-    // Forward to Whisper API
+    // Create pending voice_command record immediately
+    const { data: cmd } = await supabase
+      .from('voice_commands')
+      .insert({
+        contact_id:  contactId,
+        source,
+        status:      'transcribing',
+        occurred_at: new Date().toISOString()
+      })
+      .select('id')
+      .single()
+    if (cmd) commandId = cmd.id
+
+    // Send to Whisper
     const whisperForm = new FormData()
     whisperForm.append('file', audio, 'recording.webm')
     whisperForm.append('model', 'whisper-1')
     whisperForm.append('language', 'en')
-    // Prompt helps Whisper understand domain-specific terms
-    whisperForm.append('prompt', 'CFO Circle, Stalliant, HeyReach, DigitalOcean, Calendly, Supabase, PeerChair, Sales Navigator, Dalen Lawrence, Los Angeles, LinkedIn')
+    whisperForm.append('prompt', 'CFO Circle, Stalliant, HeyReach, DigitalOcean, Calendly, Supabase, PeerChair, Sales Navigator, LinkedIn, Los Angeles, Dalen Lawrence')
 
     const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Authorization': 'Bearer ' + OPENAI_KEY },
-      body: whisperForm
+      body:    whisperForm
     })
 
     if (!res.ok) {
       const err = await res.text()
+      if (commandId) await supabase.from('voice_commands').update({ status: 'failed', result: 'Whisper error: ' + err }).eq('id', commandId)
       return Response.json({ error: 'Whisper error: ' + err }, { status: 500 })
     }
 
     const data = await res.json()
-    return Response.json({ text: data.text || '' })
+    rawTranscript = data.text || ''
+
+    // Update record with transcript
+    if (commandId) {
+      await supabase.from('voice_commands')
+        .update({ raw_transcript: rawTranscript, command_text: rawTranscript, status: 'transcribed' })
+        .eq('id', commandId)
+    }
+
+    return Response.json({ text: rawTranscript, command_id: commandId })
 
   } catch(e) {
+    if (commandId) {
+      await supabase.from('voice_commands').update({ status: 'failed', result: e.message }).eq('id', commandId)
+    }
     return Response.json({ error: e.message }, { status: 500 })
   }
 }

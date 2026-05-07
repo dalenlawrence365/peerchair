@@ -225,10 +225,13 @@ function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
 
     var form = new FormData();
     form.append("audio", blob, "recording." + ext);
+    if (contact && contact.id) form.append("contact_id", contact.id);
+    form.append("source", "followup_smart_command");
     try {
       var res = await fetch("/api/transcribe", { method: "POST", body: form });
       var d   = await res.json();
       console.log("Whisper response:", d);
+      if (d.command_id) setCommandId(d.command_id);
       if (d.text && d.text.trim()) {
         setCmd(function(prev){ return (prev ? prev + " " : "") + d.text.trim(); });
         setInterim("");
@@ -263,6 +266,7 @@ function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
           command: cmd,
           contact: contact || null,
           conversationId: conversationId || null,
+          command_id: commandId || null,
         })
       });
       var d = await res.json();
