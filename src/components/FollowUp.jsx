@@ -167,38 +167,69 @@ function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
   var [running,     setRunning]     = useState(false);
   var [result,      setResult]      = useState("");
   var [resultOk,    setResultOk]    = useState(true);
-  var recRef = useRef(null);
+  var recRef     = useRef(null);
+  var streamRef  = useRef(null);
+  var chunksRef  = useRef([]);
 
   function startVoice() {
-    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { alert("Voice input requires Chrome."); return; }
-    var r = new SR();
-    r.lang = "en-US";
-    r.interimResults = true;
-    r.continuous = true;
-    r.onresult = function(e) {
-      var finalText = "";
-      var interimText = "";
-      for (var i = 0; i < e.results.length; i++) {
-        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
-        else interimText += e.results[i][0].transcript;
-      }
-      if (finalText) setCmd(function(prev){ return (prev + " " + finalText).trim(); });
-      setInterim(interimText);
-    };
-    r.onerror = function() { setListening(false); setInterim(""); };
-    r.onend   = function() { setListening(false); setInterim(""); };
-    r.start();
-    recRef.current = r;
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+      alert("Audio recording not supported in this browser.");
+      return;
+    }
+    chunksRef.current = [];
+    setInterim("Recording… release to transcribe");
     setListening(true);
     setResult("");
     setConfirming(false);
+
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+      streamRef.current = stream;
+      var recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg" });
+      recRef.current = recorder;
+      recorder.ondataavailable = function(e) { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = function() { transcribeAudio(); };
+      recorder.start();
+    }).catch(function(e) {
+      setListening(false);
+      setInterim("");
+      alert("Microphone access denied: " + e.message);
+    });
   }
 
   function stopVoice() {
-    if (recRef.current) { recRef.current.stop(); recRef.current = null; }
+    if (recRef.current && recRef.current.state !== "inactive") {
+      recRef.current.stop();
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(function(t){ t.stop(); });
+      streamRef.current = null;
+    }
     setListening(false);
-    setInterim("");
+    setInterim("Transcribing…");
+  }
+
+  async function transcribeAudio() {
+    var chunks = chunksRef.current;
+    if (!chunks.length) { setInterim(""); return; }
+    var mimeType = chunks[0].type || "audio/webm";
+    var blob = new Blob(chunks, { type: mimeType });
+    var ext  = mimeType.includes("ogg") ? "ogg" : "webm";
+    var form = new FormData();
+    form.append("audio", blob, "recording." + ext);
+    try {
+      var res = await fetch("/api/transcribe", { method: "POST", body: form });
+      var d   = await res.json();
+      if (d.text) {
+        setCmd(function(prev){ return (prev + " " + d.text).trim(); });
+        setInterim("");
+      } else {
+        setInterim("Could not transcribe — try again");
+        setTimeout(function(){ setInterim(""); }, 3000);
+      }
+    } catch(e) {
+      setInterim("Transcription error — try again");
+      setTimeout(function(){ setInterim(""); }, 3000);
+    }
   }
 
   function handleGo() {
@@ -305,15 +336,14 @@ function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
       {/* Button row */}
       {!confirming && (
         <div style={{display:"flex",gap:8}}>
-          {!listening ? (
-            <button onClick={startVoice} style={{padding:"7px 14px",background:"rgba(74,158,186,0.1)",border:"1px solid rgba(74,158,186,0.25)",color:T.blue,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600}}>
-              🎙 Dictate
-            </button>
-          ) : (
-            <button onClick={stopVoice} style={{padding:"7px 14px",background:"rgba(231,76,60,0.15)",border:"1px solid rgba(231,76,60,0.35)",color:T.red,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:700}}>
-              ■ Stop
-            </button>
-          )}
+          <button
+            onMouseDown={startVoice}
+            onMouseUp={stopVoice}
+            onTouchStart={startVoice}
+            onTouchEnd={stopVoice}
+            style={{padding:"7px 14px",background:listening?"rgba(231,76,60,0.15)":"rgba(74,158,186,0.1)",border:"1px solid "+(listening?"rgba(231,76,60,0.35)":"rgba(74,158,186,0.25)"),color:listening?T.red:T.blue,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:listening?700:600,userSelect:"none"}}>
+            {listening ? "■ Release to send" : "🎙 Hold to speak"}
+          </button>
           <button
             onClick={handleGo}
             disabled={!cmd.trim() || running || listening}
