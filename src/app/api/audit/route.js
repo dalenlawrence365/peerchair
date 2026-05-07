@@ -210,6 +210,19 @@ export async function GET(request) {
     results.errors.push(`Dead letter retry error: ${e.message}`)
   }
 
+  // ── Email sync (pull matched emails from Outlook into email_messages + communications) ──
+  try {
+    const emailRes = await fetch(process.env.NEXT_PUBLIC_APP_URL + "/api/email/fetch" || "https://www.peerchair.com/api/email/fetch")
+    if (emailRes.ok) {
+      const emailData = await emailRes.json()
+      if (emailData.synced > 0) {
+        console.log("Email sync: " + emailData.synced + " emails written")
+        results.notes = results.notes || []
+        results.notes.push("Email sync: " + emailData.total + " matched, " + emailData.synced + " written")
+      }
+    }
+  } catch(e) { results.errors.push("Email sync error: " + e.message) }
+
   // ── Daily pipeline snapshot ──────────────────────────────────────────────
   try {
     const today = new Date().toISOString().slice(0, 10)
