@@ -210,25 +210,39 @@ function SmartCommand({contact, conversationId, onRefresh, placeholder}) {
 
   async function transcribeAudio() {
     var chunks = chunksRef.current;
-    if (!chunks.length) { setInterim(""); return; }
+    if (!chunks.length) { setInterim("No audio captured — try again"); setTimeout(function(){ setInterim(""); },3000); return; }
+    setInterim("Sending to Whisper…");
+
+    // Detect MIME type and pick correct extension
     var mimeType = chunks[0].type || "audio/webm";
+    var ext = "webm";
+    if (mimeType.includes("ogg"))  ext = "ogg";
+    if (mimeType.includes("mp4"))  ext = "mp4";
+    if (mimeType.includes("wav"))  ext = "wav";
+
     var blob = new Blob(chunks, { type: mimeType });
-    var ext  = mimeType.includes("ogg") ? "ogg" : "webm";
+    console.log("Whisper: blob size", blob.size, "type", mimeType, "ext", ext);
+
     var form = new FormData();
     form.append("audio", blob, "recording." + ext);
     try {
       var res = await fetch("/api/transcribe", { method: "POST", body: form });
       var d   = await res.json();
-      if (d.text) {
-        setCmd(function(prev){ return (prev + " " + d.text).trim(); });
+      console.log("Whisper response:", d);
+      if (d.text && d.text.trim()) {
+        setCmd(function(prev){ return (prev ? prev + " " : "") + d.text.trim(); });
         setInterim("");
+      } else if (d.error) {
+        setInterim("Error: " + d.error);
+        setTimeout(function(){ setInterim(""); }, 4000);
       } else {
-        setInterim("Could not transcribe — try again");
+        setInterim("Nothing captured — speak closer to mic");
         setTimeout(function(){ setInterim(""); }, 3000);
       }
     } catch(e) {
-      setInterim("Transcription error — try again");
-      setTimeout(function(){ setInterim(""); }, 3000);
+      console.error("Whisper fetch error:", e);
+      setInterim("Network error — " + e.message);
+      setTimeout(function(){ setInterim(""); }, 4000);
     }
   }
 
