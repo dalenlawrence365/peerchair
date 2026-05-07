@@ -1132,7 +1132,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                     contact={data.id ? {id:data.id, firstName:data.firstName, lastName:data.lastName, company:data.company, type:"CFO_PROSPECT"} : null}
                     conversationId={null}
                     onRefresh={function(){ loadComms(); loadContact(); }}
-                    placeholder={"What do you want to do with " + (data.firstName||"this contact") + "? e.g. "Draft a follow-up email" or "Snooze until June 1" or "Move to Event Waitlist""}
+                    placeholder={"What do you want to do with " + (data.firstName||"this contact") + "? e.g. Draft a follow-up email, Snooze until June 1, Move to Event Waitlist"}
                     systemContext={"Contact: " + data.firstName + " " + data.lastName + " | Company: " + (data.company||"?") + " | Title: " + (data.title||"?") + " | Stage: " + (data.pipelineStage||"?") + " | Email: " + (data.email||"none") + " | Messages: " + comms.length + " logged | Last activity: " + (comms[0]?.occurred_at?new Date(comms[0].occurred_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"unknown")}
                   />
                 </div>
