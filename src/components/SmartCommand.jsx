@@ -1,5 +1,5 @@
 "use client"
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 
 var G  = "#f0c84a"
 var T  = {
@@ -156,6 +156,13 @@ export default function SmartCommand({ contact, conversationId, onRefresh, place
     setConfirming(true)
   }
 
+  // Scroll draft into view when it appears
+  useEffect(function(){
+    if (draft && draftRef.current) {
+      setTimeout(function(){ draftRef.current && draftRef.current.scrollIntoView({ behavior:"smooth", block:"nearest" }) }, 100)
+    }
+  }, [draft])
+
   async function confirm() {
     setConfirming(false)
     setRunning(true)
@@ -278,7 +285,7 @@ export default function SmartCommand({ contact, conversationId, onRefresh, place
       )}
       {/* Email draft preview */}
       {draft && (
-        <div style={{margin:"0 16px 16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,overflow:"hidden"}}>
+        <div ref={draftRef} style={{margin:"0 16px 16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,overflow:"hidden"}}>
           <div style={{padding:"10px 14px",borderBottom:"1px solid rgba(255,255,255,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div style={{fontSize:10,letterSpacing:2,color:G,textTransform:"uppercase",fontWeight:600}}>Email Draft</div>
             <button onClick={function(){setDraft(null)}} style={{background:"transparent",border:"none",color:T.dim,cursor:"pointer",fontSize:14}}>×</button>
