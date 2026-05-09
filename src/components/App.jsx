@@ -4,6 +4,7 @@ import FollowUp from "@/components/FollowUp";
 import LinkedInMessages from "@/components/LinkedInMessages";
 import SmartCommand from "@/components/SmartCommand";
 import DraftEmail from "@/components/DraftEmail";
+import CopyPromptButton from "@/components/CopyPromptButton";
 import Files from "@/components/Files";
 import EmailMessages from "@/components/EmailMessages";
 import Templates from "@/components/Templates";
@@ -1085,35 +1086,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
               <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(12,21,32,0.8)",flexShrink:0}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div style={{fontSize:10,color:"#3a5a74",letterSpacing:2,textTransform:"uppercase"}}>Context Loaded</div><div style={{display:"flex",gap:8}}>
                   <button onClick={function(){setDraftOpen(true)}} style={{padding:"5px 14px",background:"rgba(46,204,113,0.1)",border:"1px solid rgba(46,204,113,0.25)",color:"#2ecc71",borderRadius:5,cursor:"pointer",fontSize:11,fontWeight:700}}>+ Draft Email</button>
-                  <button onClick={function(){
-                    var commsText = comms.slice(0,10).reverse().map(function(m){
-                      var dir = (m.direction==='OUT'||m.direction==='outbound') ? 'Dalen' : data.firstName;
-                      var dt = m.occurred_at ? new Date(m.occurred_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
-                      return '['+dt+' '+dir+']: '+(m.body||m.step_label||'').slice(0,400);
-                    }).join('
-');
-                    var lines = [
-                      'CONTACT',
-                      data.firstName+' '+data.lastName+' | '+(data.title||'')+' | '+(data.company||''),
-                      'Email: '+(data.email||'not on file'),
-                      'Stage: '+(data.pipelineStage||'unknown'),
-                      '',
-                      'ABOUT DALEN',
-                      'Dalen Lawrence, Chapter Director, CFO Circle Los Angeles',
-                      'CFO Circle is a confidential monthly peer advisory group for CFOs of privately held 20M-500M revenue companies.',
-                      'Dalen email: dalen.lawrence@cfo-circle.com',
-                      'Sponsor discovery call: https://calendly.com/cfocirclela/cfo-circle-sponsor-discovery-call',
-                      'CFO fit call: https://calendly.com/cfocirclela/cfo-circle-fit-chat',
-                    ];
-                    if (commsText) { lines.push(''); lines.push('COMMUNICATION HISTORY'); lines.push(commsText); }
-                    lines.push(''); lines.push('TASK');
-                    lines.push('Write a short direct peer-to-peer email from Dalen to '+data.firstName+'. Reference the history. No fluff.');
-                    navigator.clipboard.writeText(lines.join('
-')).then(function(){
-                      var b = document.getElementById('copy-prompt-btn');
-                      if(b){ b.textContent='Copied!'; setTimeout(function(){ b.textContent='Copy AI Prompt'; },2000); }
-                    });
-                  }} id="copy-prompt-btn" style={{padding:"5px 14px",background:"rgba(240,200,74,0.1)",border:"1px solid rgba(240,200,74,0.25)",color:"#f0c84a",borderRadius:5,cursor:"pointer",fontSize:11,fontWeight:700}}>Copy AI Prompt</button>
+                  <CopyPromptButton data={data} comms={comms}/>
                 </div></div>
                 <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
                   <span style={{fontSize:12,color:"#7a9bb8"}}><b style={{color:"#e8f2ff"}}>{data.firstName} {data.lastName}</b> · {data.title||"—"} · {data.company||"—"}</span>
