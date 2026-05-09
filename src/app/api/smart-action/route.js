@@ -170,5 +170,6 @@ Write a concise, direct, peer-to-peer email. No fluff. Return ONLY valid JSON: {
     }).eq('id', commandId)
   }
 
+  console.log("smart-action result:", JSON.stringify({hasDraft:!!results.draft_email, confirmation:results.confirmation, errors:results.errors}))
   return Response.json(results)
 }
