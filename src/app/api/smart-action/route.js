@@ -178,8 +178,9 @@ Write a concise, direct, peer-to-peer email. No fluff. Return ONLY valid JSON: {
           body: JSON.stringify(message)
         })
         if (draftRes.ok) {
-          results.summary.push('Draft saved to Outlook — check Outlook Drafts to review and send')
+          results.summary.push('Draft saved to Outlook Drafts')
           results.draft_saved = true
+          results.draft_email = Object.assign({}, composed, { attachments, already_saved: true })
         } else {
           const errText = await draftRes.text()
           console.error('Outlook draft error:', errText)

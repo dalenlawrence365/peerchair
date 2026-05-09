@@ -308,7 +308,7 @@ export default function SmartCommand({ contact, conversationId, onRefresh, place
           )}
           <div style={{padding:"10px 14px",borderTop:"1px solid rgba(255,255,255,0.06)",display:"flex",gap:8}}>
             <button onClick={saveDraft} disabled={savingDraft} style={{flex:1,padding:"8px",background:"rgba(46,204,113,0.12)",border:"1px solid rgba(46,204,113,0.3)",color:T.green,borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:700}}>
-              {savingDraft ? "Saving…" : "📥 Save to Outlook Drafts" + (draft.attachments?.length > 0 ? " ("+draft.attachments.length+" attachment)" : "")}
+              {savingDraft ? "Saving…" : draft.already_saved ? "✓ Saved to Outlook Drafts" : "📥 Save to Outlook Drafts" + (draft.attachments?.length > 0 ? " ("+draft.attachments.length+" attachment)" : "")}
             </button>
           </div>
         </div>
