@@ -147,12 +147,54 @@ Write a concise, direct, peer-to-peer email. No fluff. Return ONLY valid JSON: {
       const composeData = await composeRes.json()
       const composeText = (composeData.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("")
       const composed = JSON.parse(composeText.replace(/```json|```/g,"").trim())
-      composed.attachments = (parsed.attach_files || []).map(function(name){ return { name } })
-      results.draft_email = composed
-      results.summary.push("Email drafted — review and save to Outlook Drafts")
+      const attachments = (parsed.attach_files || []).map(function(name){ return { name } })
+      // Save directly to Outlook Drafts from server
+      try {
+        const { getAccessToken } = await import('@/lib/microsoft-auth')
+        const token = await getAccessToken()
+        const { createClient } = await import('@supabase/supabase-js')
+        const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+        // Resolve attachments
+        const resolvedAttachments = []
+        for (const att of attachments) {
+          const { data: row } = await sb.from('files').select('*').ilike('name','%'+att.name+'%').limit(1).single().catch(()=>({data:null}))
+          if (row) {
+            const { data: fileData } = await sb.storage.from('peerchair-files').download(row.storage_path)
+            if (fileData) {
+              const buf = Buffer.from(await fileData.arrayBuffer())
+              resolvedAttachments.push({ "@odata.type":"#microsoft.graph.fileAttachment", name:row.filename, contentType:row.mime_type, contentBytes:buf.toString('base64') })
+            }
+          }
+        }
+        const message = {
+          subject: composed.subject,
+          body: { contentType:'Text', content: composed.body },
+          toRecipients: composed.to ? [{ emailAddress:{ address:composed.to } }] : [],
+          ...(resolvedAttachments.length > 0 ? { attachments: resolvedAttachments } : {})
+        }
+        const draftRes = await fetch('https://graph.microsoft.com/v1.0/me/messages', {
+          method:'POST',
+          headers:{ 'Authorization':'Bearer '+token, 'Content-Type':'application/json' },
+          body: JSON.stringify(message)
+        })
+        if (draftRes.ok) {
+          results.summary.push('Draft saved to Outlook — check Outlook Drafts to review and send')
+          results.draft_saved = true
+        } else {
+          const errText = await draftRes.text()
+          console.error('Outlook draft error:', errText)
+          results.draft_email = Object.assign({}, composed, { attachments })
+          results.summary.push('Email composed — token may need refresh. Visit /api/auth/microsoft to reconnect.')
+        }
+      } catch(outlookErr) {
+        console.error('Outlook save error:', outlookErr.message)
+        results.draft_email = Object.assign({}, composed, { attachments })
+        results.summary.push('Email composed (Outlook save failed: ' + outlookErr.message + ')')
+      }
     } catch(e) {
+      console.error('Draft compose error:', e.message)
       results.errors = results.errors || []
-      results.errors.push("Draft compose error: " + e.message)
+      results.errors.push('Draft compose error: ' + e.message)
     }
   }
 
