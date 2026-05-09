@@ -743,6 +743,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
     .filter(function(c){ return tlFilter==="All" || c.channel===tlFilter; });
 
   return (
+    <>
     {draftOpen && <DraftEmail contact={{id:data.id,email:data.email,firstName:data.firstName,lastName:data.lastName}} onClose={function(){setDraftOpen(false)}} onSaved={function(){setDraftOpen(false);loadComms();}}/>}
 
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",fontFamily:"'Palatino Linotype','Book Antiqua',Palatino,serif",color:T.text}}>
