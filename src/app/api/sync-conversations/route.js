@@ -50,7 +50,8 @@ export async function GET(request) {
     }
     results.heyreach_available = true
     results.conversations_checked = allConversations.length
-    console.log(`HeyReach: ${allConversations.length} conversations`)
+    const sampleItem = allConversations[0] ? JSON.stringify(allConversations[0]).slice(0,300) : 'NONE'
+    console.log(`HeyReach: ${allConversations.length} conversations, sample: ${sampleItem}`)
   } catch(e) {
     results.errors.push("HeyReach fetch failed: " + e.message)
     return Response.json({ ...results, summary: "HeyReach unavailable" })
