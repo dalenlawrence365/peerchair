@@ -13,7 +13,7 @@ import Meetings        from "@/components/Meetings"
 import Files           from "@/components/Files"
 import SponsorCompanion from "@/components/SponsorCompanion"
 import LiveCallCompanion from "@/components/LiveCallCompanion"
-import { NavItem, G, T, BG, BG2, BG3 }     from "@/lib/appShared"
+import { NavItem, G, T, BG, BG2, BG3, sbFetch } from "@/lib/appShared"
 
 export default function CFOCircleApp() {
   var [screen,setScreen]             = useState("dashboard");
