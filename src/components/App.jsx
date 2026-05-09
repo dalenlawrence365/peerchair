@@ -782,7 +782,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
           {/* Quick Actions */}
           <div style={{borderTop:"1px solid "+T.border,paddingTop:12,marginBottom:12}}>
             <div style={{fontSize:9,letterSpacing:2,color:T.dim,textTransform:"uppercase",marginBottom:8}}>Quick Actions</div>
-            {(isSponsor ? [["📞 Discovery Call",T.purple],["📎 Send One Pager",T.blue],["✎ Add Note",T.green]] : [["🔴 Start Fit Call",T.gold],["📅 Schedule Fit Call",G],["✉ Send Assessment",T.blue],["📨 Event Invite",T.purple],["✎ Add Note",T.green],["📋 Reserve Pool",T.orange]]]).map(function(item){
+            {(isSponsor ? [["Discovery Call",T.purple],["Send One Pager",T.blue],["Add Note",T.green]] : [["Start Fit Call",T.gold],["Schedule Fit Call",G],["Send Assessment",T.blue],["Event Invite",T.purple],["Add Note",T.green],["Reserve Pool",T.orange]]).map(function(item){
               return <button key={item[0]} onClick={function(){if(item[0].indexOf("Note")>-1){setAddingNote(true);setTab("timeline");}
                     else if(item[0].indexOf("Start Fit Call")>-1 && onStartFitCall){onStartFitCall({id:data.id,firstName:data.firstName,lastName:data.lastName,title:data.title,company:data.company,email:data.email,linkedinUrl:data.linkedinUrl,fit_call_date:data.fitCallDate});}}} style={{display:"block",width:"100%",marginBottom:5,padding:"7px 10px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,color:item[1],borderRadius:5,cursor:"pointer",fontSize:11,textAlign:"left"}}>{item[0]}</button>;
             })}
