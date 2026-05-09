@@ -1083,7 +1083,37 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
 
               {/* Context summary strip */}
               <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(12,21,32,0.8)",flexShrink:0}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div style={{fontSize:10,color:"#3a5a74",letterSpacing:2,textTransform:"uppercase"}}>Context Loaded</div><button onClick={function(){setDraftOpen(true)}} style={{padding:"5px 14px",background:"rgba(46,204,113,0.1)",border:"1px solid rgba(46,204,113,0.25)",color:"#2ecc71",borderRadius:5,cursor:"pointer",fontSize:11,fontWeight:700}}>+ Draft Email</button></div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div style={{fontSize:10,color:"#3a5a74",letterSpacing:2,textTransform:"uppercase"}}>Context Loaded</div><div style={{display:"flex",gap:8}}>
+                  <button onClick={function(){setDraftOpen(true)}} style={{padding:"5px 14px",background:"rgba(46,204,113,0.1)",border:"1px solid rgba(46,204,113,0.25)",color:"#2ecc71",borderRadius:5,cursor:"pointer",fontSize:11,fontWeight:700}}>+ Draft Email</button>
+                  <button onClick={function(){
+                    var commsText = comms.slice(0,10).reverse().map(function(m){
+                      var dir = (m.direction==="OUT"||m.direction==="outbound") ? "Dalen" : data.firstName;
+                      var dt = m.occurred_at ? new Date(m.occurred_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
+                      return "["+dt+" "+dir+"]: "+(m.body||m.step_label||"").slice(0,400);
+                    }).join("
+");
+                    var prompt = "CONTACT
+"+data.firstName+" "+data.lastName+" | "+(data.title||"")+" | "+(data.company||"")+"
+Email: "+(data.email||"—")+"
+Stage: "+(data.pipelineStage||"—")+"
+
+ABOUT DALEN
+Dalen Lawrence, Chapter Director, CFO Circle Los Angeles — a confidential monthly peer advisory group exclusively for CFOs of privately held 0M–00M companies.
+Email: dalen.lawrence@cfo-circle.com
+Calendly (CFO fit): https://calendly.com/cfocirclela/cfo-circle-fit-chat
+Calendly (Sponsor discovery): https://calendly.com/cfocirclela/cfo-circle-sponsor-discovery-call
+"+(commsText?"
+COMMUNICATION HISTORY
+"+commsText+"
+":"")+"
+INSTRUCTION
+Write a short, direct, peer-to-peer email from Dalen to "+data.firstName+". Reference the communication history above. No fluff, no generic openers. Match the tone of the relationship.";
+                    navigator.clipboard.writeText(prompt).then(function(){
+                      var btn = document.getElementById("copy-prompt-btn");
+                      if(btn){ btn.textContent="Copied!"; setTimeout(function(){ btn.textContent="Copy AI Prompt"; },2000); }
+                    });
+                  }} id="copy-prompt-btn" style={{padding:"5px 14px",background:"rgba(240,200,74,0.1)",border:"1px solid rgba(240,200,74,0.25)",color:"#f0c84a",borderRadius:5,cursor:"pointer",fontSize:11,fontWeight:700}}>Copy AI Prompt</button>
+                </div></div>
                 <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
                   <span style={{fontSize:12,color:"#7a9bb8"}}><b style={{color:"#e8f2ff"}}>{data.firstName} {data.lastName}</b> · {data.title||"—"} · {data.company||"—"}</span>
                   <span style={{fontSize:12,color:"#7a9bb8"}}>Stage: <b style={{color:"#f0c84a"}}>{data.pipelineStage||"—"}</b></span>
