@@ -1095,7 +1095,19 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                     conversationId={null}
                     onRefresh={function(){ loadComms(); loadContact(); }}
                     placeholder={"What do you want to do with " + (data.firstName||"this contact") + "? e.g. Draft a follow-up email, Snooze until June 1, Move to Event Waitlist"}
-                    systemContext={"Contact: " + data.firstName + " " + data.lastName + " | Company: " + (data.company||"?") + " | Title: " + (data.title||"?") + " | Stage: " + (data.pipelineStage||"?") + " | Email: " + (data.email||"none") + " | Messages: " + comms.length + " logged | Last activity: " + (comms[0]?.occurred_at?new Date(comms[0].occurred_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"unknown")}
+                    systemContext={(function(){
+                      var base = "Contact: "+data.firstName+" "+data.lastName+" | Company: "+(data.company||"?")+" | Title: "+(data.title||"?")+" | Stage: "+(data.pipelineStage||"?")+" | Email: "+(data.email||"none")+" | Location: "+(data.location||"?")
+                      var thread = comms.slice(0,10).reverse().map(function(m){
+                        var dir = (m.direction==="OUT"||m.direction==="outbound") ? "Dalen" : data.firstName
+                        var date = m.occurred_at ? new Date(m.occurred_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : ""
+                        return "["+date+" "+dir+"]: "+(m.body||m.step_label||"").slice(0,300)
+                      }).join("
+")
+                      return base + (thread ? "
+
+Message history:
+"+thread : "")
+                    })()}
                   />
                 </div>
               </div>
