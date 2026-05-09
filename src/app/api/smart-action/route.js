@@ -16,6 +16,14 @@ export async function POST(request) {
 
   if (!command) return Response.json({ error: 'No command' }, { status: 400 })
 
+  // Pre-check: detect draft intent directly without Haiku
+  const cmdLower = command.toLowerCase()
+  const isDraftCmd = cmdLower.includes('draft') || (cmdLower.includes('write') && cmdLower.includes('email')) || (cmdLower.includes('compose') && cmdLower.includes('email'))
+  const attachMatches = []
+  if (cmdLower.includes('one pager') || cmdLower.includes('1 page') || cmdLower.includes('sponsor 1')) attachMatches.push({name:'CFO Sponsor 1 Page'})
+  if (cmdLower.includes('sponsorship deck') || cmdLower.includes('sponsor deck')) attachMatches.push({name:'Sponsorship Deck'})
+  if (cmdLower.includes('membership')) attachMatches.push({name:'CFO Circle One Pager'})
+
   // Parse intent with Haiku
   let parsed = null
   try {
@@ -50,8 +58,13 @@ Rules:
     parsed = JSON.parse(text.replace(/```json|```/g, '').trim())
   } catch(e) {
     console.error('Haiku parse error:', e.message)
-    // Fallback — treat whole thing as a task note
-    parsed = { send_now: null, schedule_message: null, create_task: { note: command, due_at: null, priority: 'normal' } }
+    parsed = { send_now: null, schedule_message: null, create_task: null }
+  }
+
+  // Apply pre-check overrides
+  if (isDraftCmd) {
+    parsed.draft_email = true
+    if (!parsed.attach_files || parsed.attach_files.length === 0) parsed.attach_files = attachMatches.map(a => a.name)
   }
 
   const results = { sent: false, scheduled: false, task_created: false, summary: [] }
