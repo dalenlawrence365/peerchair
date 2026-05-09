@@ -743,10 +743,8 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
     .filter(function(c){ return tlFilter==="All" || c.channel===tlFilter; });
 
   return (
-    <>
-    {draftOpen && <DraftEmail contact={{id:data.id,email:data.email,firstName:data.firstName,lastName:data.lastName}} onClose={function(){setDraftOpen(false)}} onSaved={function(){setDraftOpen(false);loadComms();}}/>}
-
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",fontFamily:"'Palatino Linotype','Book Antiqua',Palatino,serif",color:T.text}}>
+      {draftOpen && <DraftEmail contact={{id:data.id,email:data.email,firstName:data.firstName,lastName:data.lastName}} onClose={function(){setDraftOpen(false)}} onSaved={function(){setDraftOpen(false);loadComms();}}/>}
 
       {/* PROFILE HEADER */}
       <div style={{background:"linear-gradient(135deg,#0f1e30 0%,#132840 60%,#0f1a28 100%)",borderBottom:"1px solid "+G+"18",padding:"16px 24px",flexShrink:0,position:"relative"}}>
@@ -788,7 +786,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
           <div style={{borderTop:"1px solid "+T.border,paddingTop:12,marginBottom:12}}>
             <div style={{fontSize:9,letterSpacing:2,color:T.dim,textTransform:"uppercase",marginBottom:8}}>Quick Actions</div>
             {(isSponsor ? [["Discovery Call",T.purple],["Send One Pager",T.blue],["Add Note",T.green]] : [["Start Fit Call",T.gold],["Schedule Fit Call",G],["Send Assessment",T.blue],["Event Invite",T.purple],["Add Note",T.green],["Reserve Pool",T.orange]]).map(function(item){
-              return <button key={item[0]} onClick={function(){if(item[0].indexOf("Draft Email")>-1){setDraftOpen(true);} else if(item[0].indexOf("Note")>-1){setAddingNote(true);setTab("timeline");}
+              return <button key={item[0]} onClick={function(){if(item[0].indexOf("Note")>-1){setAddingNote(true);setTab("timeline");}
                     else if(item[0].indexOf("Start Fit Call")>-1 && onStartFitCall){onStartFitCall({id:data.id,firstName:data.firstName,lastName:data.lastName,title:data.title,company:data.company,email:data.email,linkedinUrl:data.linkedinUrl,fit_call_date:data.fitCallDate});}}} style={{display:"block",width:"100%",marginBottom:5,padding:"7px 10px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,color:item[1],borderRadius:5,cursor:"pointer",fontSize:11,textAlign:"left"}}>{item[0]}</button>;
             })}
           </div>
@@ -1085,10 +1083,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
 
               {/* Context summary strip */}
               <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(12,21,32,0.8)",flexShrink:0}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div style={{fontSize:10,color:"#3a5a74",letterSpacing:2,textTransform:"uppercase"}}>Context Loaded</div><div style={{display:"flex",gap:8}}>
-                  <button onClick={function(){setDraftOpen(true)}} style={{padding:"5px 14px",background:"rgba(46,204,113,0.1)",border:"1px solid rgba(46,204,113,0.25)",color:"#2ecc71",borderRadius:5,cursor:"pointer",fontSize:11,fontWeight:700}}>+ Draft Email</button>
-                  <CopyPromptButton data={data} comms={comms}/>
-                </div></div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div style={{fontSize:10,color:"#3a5a74",letterSpacing:2,textTransform:"uppercase"}}>Context Loaded</div><div style={{display:"flex",gap:8}}><CopyPromptButton data={data} comms={comms}/><button onClick={function(){setDraftOpen(true)}} style={{padding:"5px 14px",background:"rgba(46,204,113,0.1)",border:"1px solid rgba(46,204,113,0.25)",color:"#2ecc71",borderRadius:5,cursor:"pointer",fontSize:11,fontWeight:700}}>Draft Email</button></div></div>
                 <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
                   <span style={{fontSize:12,color:"#7a9bb8"}}><b style={{color:"#e8f2ff"}}>{data.firstName} {data.lastName}</b> · {data.title||"—"} · {data.company||"—"}</span>
                   <span style={{fontSize:12,color:"#7a9bb8"}}>Stage: <b style={{color:"#f0c84a"}}>{data.pipelineStage||"—"}</b></span>
