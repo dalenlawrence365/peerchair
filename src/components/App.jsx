@@ -1087,30 +1087,31 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                   <button onClick={function(){setDraftOpen(true)}} style={{padding:"5px 14px",background:"rgba(46,204,113,0.1)",border:"1px solid rgba(46,204,113,0.25)",color:"#2ecc71",borderRadius:5,cursor:"pointer",fontSize:11,fontWeight:700}}>+ Draft Email</button>
                   <button onClick={function(){
                     var commsText = comms.slice(0,10).reverse().map(function(m){
-                      var dir = (m.direction==="OUT"||m.direction==="outbound") ? "Dalen" : data.firstName;
-                      var dt = m.occurred_at ? new Date(m.occurred_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
-                      return "["+dt+" "+dir+"]: "+(m.body||m.step_label||"").slice(0,400);
-                    }).join("
-");
-                    var prompt = "CONTACT
-"+data.firstName+" "+data.lastName+" | "+(data.title||"")+" | "+(data.company||"")+"
-Email: "+(data.email||"—")+"
-Stage: "+(data.pipelineStage||"—")+"
-
-ABOUT DALEN
-Dalen Lawrence, Chapter Director, CFO Circle Los Angeles — a confidential monthly peer advisory group exclusively for CFOs of privately held 0M–00M companies.
-Email: dalen.lawrence@cfo-circle.com
-Calendly (CFO fit): https://calendly.com/cfocirclela/cfo-circle-fit-chat
-Calendly (Sponsor discovery): https://calendly.com/cfocirclela/cfo-circle-sponsor-discovery-call
-"+(commsText?"
-COMMUNICATION HISTORY
-"+commsText+"
-":"")+"
-INSTRUCTION
-Write a short, direct, peer-to-peer email from Dalen to "+data.firstName+". Reference the communication history above. No fluff, no generic openers. Match the tone of the relationship.";
-                    navigator.clipboard.writeText(prompt).then(function(){
-                      var btn = document.getElementById("copy-prompt-btn");
-                      if(btn){ btn.textContent="Copied!"; setTimeout(function(){ btn.textContent="Copy AI Prompt"; },2000); }
+                      var dir = (m.direction==='OUT'||m.direction==='outbound') ? 'Dalen' : data.firstName;
+                      var dt = m.occurred_at ? new Date(m.occurred_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+                      return '['+dt+' '+dir+']: '+(m.body||m.step_label||'').slice(0,400);
+                    }).join('
+');
+                    var lines = [
+                      'CONTACT',
+                      data.firstName+' '+data.lastName+' | '+(data.title||'')+' | '+(data.company||''),
+                      'Email: '+(data.email||'not on file'),
+                      'Stage: '+(data.pipelineStage||'unknown'),
+                      '',
+                      'ABOUT DALEN',
+                      'Dalen Lawrence, Chapter Director, CFO Circle Los Angeles',
+                      'CFO Circle is a confidential monthly peer advisory group for CFOs of privately held 20M-500M revenue companies.',
+                      'Dalen email: dalen.lawrence@cfo-circle.com',
+                      'Sponsor discovery call: https://calendly.com/cfocirclela/cfo-circle-sponsor-discovery-call',
+                      'CFO fit call: https://calendly.com/cfocirclela/cfo-circle-fit-chat',
+                    ];
+                    if (commsText) { lines.push(''); lines.push('COMMUNICATION HISTORY'); lines.push(commsText); }
+                    lines.push(''); lines.push('TASK');
+                    lines.push('Write a short direct peer-to-peer email from Dalen to '+data.firstName+'. Reference the history. No fluff.');
+                    navigator.clipboard.writeText(lines.join('
+')).then(function(){
+                      var b = document.getElementById('copy-prompt-btn');
+                      if(b){ b.textContent='Copied!'; setTimeout(function(){ b.textContent='Copy AI Prompt'; },2000); }
                     });
                   }} id="copy-prompt-btn" style={{padding:"5px 14px",background:"rgba(240,200,74,0.1)",border:"1px solid rgba(240,200,74,0.25)",color:"#f0c84a",borderRadius:5,cursor:"pointer",fontSize:11,fontWeight:700}}>Copy AI Prompt</button>
                 </div></div>
