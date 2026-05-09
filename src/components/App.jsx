@@ -744,7 +744,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
 
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",fontFamily:"'Palatino Linotype','Book Antiqua',Palatino,serif",color:T.text}}>
-      {draftOpen && <DraftEmail contact={{id:data.id,email:data.email,firstName:data.firstName,lastName:data.lastName}} onClose={function(){setDraftOpen(false)}} onSaved={function(){setDraftOpen(false);loadComms();}}/>}
+      {draftOpen && data && <DraftEmail contact={{id:data.id||null,email:data.email||null,firstName:data.firstName||null,lastName:data.lastName||null}} onClose={function(){setDraftOpen(false)}} onSaved={function(){setDraftOpen(false);loadComms();}}/>}
 
       {/* PROFILE HEADER */}
       <div style={{background:"linear-gradient(135deg,#0f1e30 0%,#132840 60%,#0f1a28 100%)",borderBottom:"1px solid "+G+"18",padding:"16px 24px",flexShrink:0,position:"relative"}}>
