@@ -241,6 +241,7 @@ function CompanyDetail(props) {
   var deals = props.deals || [];
   var contacts = props.contacts || [];
   var onUpdate = props.onUpdate;
+  var onNavigate = props.onNavigate;
   var [saving, setSaving] = useState(false);
   var [journeyOpen, setJourneyOpen] = useState(true);
 
@@ -588,7 +589,7 @@ export default function Sponsors(props) {
             return <CompanyCard key={co.id} company={co} deals={getDeals(co.id)} contacts={getContacts(co.id)} selected={selected===co.id} groupFilter={groupFilter} onClick={function(){ setSelected(co.id); }}/>;
           })}
         </div>
-        <CompanyDetail company={selectedCo} deals={selectedCo?getDeals(selectedCo.id):[]} contacts={selectedCo?getContacts(selectedCo.id):[]} onUpdate={load} onStartDiscovery={props.onStartDiscovery}/>
+        <CompanyDetail company={selectedCo} deals={selectedCo?getDeals(selectedCo.id):[]} contacts={selectedCo?getContacts(selectedCo.id):[]} onUpdate={load} onStartDiscovery={props.onStartDiscovery} onNavigate={props.onNavigate}/>
       </div>
     </div>
   );

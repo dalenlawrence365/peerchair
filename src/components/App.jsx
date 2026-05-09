@@ -2021,7 +2021,7 @@ export default function CFOCircleApp() {
           {screen==="meetings"  && <Meetings onNavigate={navigate}/>}
           {screen==="templates" && <Templates/>}
           {screen==="claude"    && <AskClaude initialQ={claudeQ} onQuestionConsumed={function(){setClaudeQ("");}}/>}
-          {screen==="sponsors"  && <Sponsors onStartDiscovery={function(co,contact,deal){setSponsorContact(Object.assign({},contact||{},{company:co.name,company_id:co.id,category:co.category}));setSponsorDeal(deal);setScreen("sponsor_call");}}/>}
+          {screen==="sponsors"  && <Sponsors onNavigate={navigate} onStartDiscovery={function(co,contact,deal){setSponsorContact(Object.assign({},contact||{},{company:co.name,company_id:co.id,category:co.category}));setSponsorDeal(deal);setScreen("sponsor_call");}}/>}
           {screen==="followup"      && <FollowUp onNavigate={navigate}/>}
           {screen==="linkedin_msgs" && <LinkedInMessages onNavigate={navigate}/>}
           {screen==="email_msgs"    && <EmailMessages onNavigate={navigate}/>}
