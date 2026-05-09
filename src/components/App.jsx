@@ -846,7 +846,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                     sbFetch("/communications",{method:"POST",body:JSON.stringify({contact_id:data.id,occurred_at:iso,channel:"App",direction:"INTERNAL",step_label:"Stage Change",body:body,source:"App",logged_by:"Dalen Lawrence"})}).catch(function(e){console.error("log:",e);});
                   }
                 }}/>
-              </Section>
+              </Section>}
 
               <Section title="Identity" icon="◎" defaultOpen={true} onEdit={function(){setDrawer("identity");}}>
                 <Grid2>
@@ -907,7 +907,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                   <div><FL label="Assessment Completed"/><FV val={data.assessmentCompleted}/></div>
                   <div><FL label="Completed Date"/><FV val={data.assessmentDate}/></div>
                 </Grid2>
-              </Section>
+              </Section>}
 
               <Section title="Event & Conversion" icon="✦" onEdit={function(){setDrawer("event");}}>
                 <Grid2>
