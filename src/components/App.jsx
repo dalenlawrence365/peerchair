@@ -50,6 +50,7 @@ function dbToLocal(row) {
     referredBy:           row.referred_by||"",
     campaign:             row.heyreach_campaign||"",
     connectedDate:        fmt(row.linkedin_connected_date),
+    contactType:          row.contact_type||"CFO_PROSPECT",
     pipelineStage:        row.pipeline_stage||"Connected",
     memberStatus:         row.member_status||"Prospect",
     lastActivity:         fmt(row.last_activity_date||row.updated_at),
@@ -730,6 +731,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
     </div>
   );
 
+  var isSponsor = data.contactType === "SPONSOR_CONTACT" || data.contactType === "REFERRAL_PARTNER";
   var sc = stageColor(data.pipelineStage);
   var channels = ["All","LinkedIn","Email","Phone","Calendly","App","Note"];
   // Tab definitions including new communication tabs
@@ -750,7 +752,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
             <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:3}}>
               <h2 style={{fontSize:20,fontWeight:600,color:"#fff",margin:0}}>{data.firstName} {data.lastName}</h2>
               <Pill label={data.pipelineStage} color={sc}/>
-              <Pill label={data.memberStatus} color={data.memberStatus==="Active"?T.green:data.memberStatus==="Not a Fit"?T.red:data.memberStatus==="Inactive / Churned"?T.orange:T.blue}/>
+              {isSponsor ? <Pill label="Sponsor Contact" color={T.purple}/> : <Pill label={data.memberStatus} color={data.memberStatus==="Active"?T.green:data.memberStatus==="Not a Fit"?T.red:data.memberStatus==="Inactive / Churned"?T.orange:T.blue}/>}
               {data.fitCallOutcome?<Pill label={data.fitCallOutcome} color={data.fitCallOutcome==="Strong Fit"?T.green:data.fitCallOutcome==="Not a Fit"?T.red:G}/>:null}
             </div>
             <div style={{fontSize:12,color:"#9ac4dc",marginBottom:4}}>{data.title} · {data.company}</div>
@@ -812,7 +814,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
           {tab==="summary"
             ?<div style={{overflowY:"auto",flex:1}}>
 
-              <Section title="Circle Journey" icon="→" defaultOpen={true}>
+              {!isSponsor && <Section title="Circle Journey" icon="→" defaultOpen={true}>
                 <CircleJourney data={data} onNodeClick={function(stage, idx){
                   var prevStage = data.pipelineStage;
                   if(prevStage === stage) return;
@@ -885,7 +887,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                 </Grid2>
               </Section>
 
-              <Section title="Fit Call" icon="☎" defaultOpen={!!data.fitCallOutcome} onEdit={function(){setDrawer("fitcall");}} badge={data.fitCallOutcome||""}>
+              {!isSponsor && <Section title="Fit Call" icon="☎" defaultOpen={!!data.fitCallOutcome} onEdit={function(){setDrawer("fitcall");}} badge={data.fitCallOutcome||""}>
                 <Grid2>
                   <div><FL label="Fit Call Date"/><FV val={data.fitCallDate}/></div>
                   <div><FL label="Outcome"/>{data.fitCallOutcome?<div style={{marginTop:3}}><Pill label={data.fitCallOutcome} color={data.fitCallOutcome==="Strong Fit"?T.green:data.fitCallOutcome==="Not a Fit"?T.red:G}/></div>:<FV val=""/>}</div>
@@ -898,7 +900,8 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                 {data.fitCallNotes?<div><FL label="Notes"/><div style={{fontSize:13,color:"#c0dcf0",lineHeight:1.75,padding:"8px 12px",background:"rgba(255,255,255,0.02)",borderRadius:5,borderLeft:"2px solid rgba(255,255,255,0.1)"}}>{data.fitCallNotes}</div></div>:null}
               </Section>
 
-              <Section title="Assessment" icon="◈" badge={data.assessmentCompleted==="Yes"?"Completed":data.assessmentOffered==="Yes"?"Offered":""}>
+              }
+              {!isSponsor && <Section title="Assessment" icon="◈" badge={data.assessmentCompleted==="Yes"?"Completed":data.assessmentOffered==="Yes"?"Offered":""}>
                 <Grid2>
                   <div><FL label="Assessment Offered"/><FV val={data.assessmentOffered}/></div>
                   <div><FL label="Assessment Completed"/><FV val={data.assessmentCompleted}/></div>
