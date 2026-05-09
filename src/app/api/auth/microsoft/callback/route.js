@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 // GET /api/auth/microsoft/callback
 // Exchanges OAuth code for access + refresh tokens, stores in Supabase
 

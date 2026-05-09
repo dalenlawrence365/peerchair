@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 // GET /api/follow-up-queue/thread?conversationId=xxx&linkedInAccountId=185228&contactId=uuid
 // Database is the source of truth.
 // Reads from conversation_messages + communications merged.

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 // LinkedIn Conversation Sync
 // Writes ALL messages to conversation_messages (source of truth)
 // Incremental: only syncs conversations with new messages since last sync

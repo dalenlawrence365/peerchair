@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 // GET  /api/files         — list all files
 // POST /api/files         — upload a new file
 // DELETE /api/files?id=xx — delete a file

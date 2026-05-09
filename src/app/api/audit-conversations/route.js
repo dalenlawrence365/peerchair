@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 // GET /api/audit-conversations
 // Compares HeyReach message counts vs database per conversation
 // Flags drift and triggers re-sync for mismatched conversations
