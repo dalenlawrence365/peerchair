@@ -34,9 +34,24 @@ export default function Files() {
   var [description, setDescription] = useState("")
   var [selectedFile,setSelectedFile]= useState(null)
   var [showUpload,  setShowUpload]  = useState(false)
+  var [preview,     setPreview]     = useState(null)  // {url, name, mime_type}
   var fileRef = useRef(null)
 
   useEffect(function(){ loadFiles() }, [])
+
+  async function openPreview(f) {
+    var sb_url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    var sb_key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    // Get signed URL from Supabase storage
+    var res = await fetch(sb_url + "/storage/v1/object/sign/peerchair-files/" + encodeURIComponent(f.storage_path), {
+      method: "POST",
+      headers: { "apikey": sb_key, "Authorization": "Bearer " + sb_key, "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: 300 })
+    })
+    var d = await res.json()
+    var signedUrl = d.signedURL ? (sb_url + "/storage/v1" + d.signedURL) : null
+    if (signedUrl) setPreview({ url: signedUrl, name: f.name, filename: f.filename, mime_type: f.mime_type })
+  }
 
   async function loadFiles() {
     setLoading(true)
@@ -171,7 +186,7 @@ export default function Files() {
 
         {files.map(function(f){
           return (
-            <div key={f.id} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,marginBottom:8}}>
+            <div key={f.id} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,marginBottom:8,cursor:"pointer"}} onClick={function(){openPreview(f)}}>
               <div style={{fontSize:28,flexShrink:0}}>{fileIcon(f.mime_type)}</div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:14,fontWeight:600,color:T.text,marginBottom:2}}>{f.name}</div>
@@ -196,6 +211,40 @@ export default function Files() {
           )
         })}
       </div>
+      {/* Preview modal */}
+      {preview && (
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",zIndex:1000,display:"flex",flexDirection:"column"}} onClick={function(){setPreview(null)}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 20px",background:"rgba(12,21,32,0.95)",flexShrink:0}} onClick={function(e){e.stopPropagation()}}>
+            <div>
+              <div style={{fontSize:14,fontWeight:600,color:"#fff"}}>{preview.name}</div>
+              <div style={{fontSize:11,color:"#3a5a74"}}>{preview.filename}</div>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <a href={preview.url} target="_blank" rel="noreferrer" style={{padding:"6px 14px",background:"rgba(74,154,186,0.1)",border:"1px solid rgba(74,154,186,0.25)",color:"#4a9eba",borderRadius:5,fontSize:12,textDecoration:"none",fontWeight:600}}>
+                Open in new tab ↗
+              </a>
+              <button onClick={function(){setPreview(null)}} style={{width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",color:"#7a9bb8",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+            </div>
+          </div>
+          <div style={{flex:1,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={function(e){e.stopPropagation()}}>
+            {preview.mime_type.includes("pdf") && (
+              <iframe src={preview.url} style={{width:"100%",height:"100%",border:"none",borderRadius:6,background:"#fff"}} title={preview.name}/>
+            )}
+            {preview.mime_type.includes("image") && (
+              <img src={preview.url} style={{maxWidth:"100%",maxHeight:"100%",borderRadius:6,objectFit:"contain"}} alt={preview.name}/>
+            )}
+            {!preview.mime_type.includes("pdf") && !preview.mime_type.includes("image") && (
+              <div style={{textAlign:"center",color:"#7a9bb8"}}>
+                <div style={{fontSize:48,marginBottom:16}}>📄</div>
+                <div style={{fontSize:14,marginBottom:12}}>{preview.name}</div>
+                <a href={preview.url} target="_blank" rel="noreferrer" style={{padding:"10px 24px",background:"rgba(74,154,186,0.1)",border:"1px solid rgba(74,154,186,0.25)",color:"#4a9eba",borderRadius:6,fontSize:13,textDecoration:"none",fontWeight:600}}>
+                  Download to preview ↓
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
