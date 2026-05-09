@@ -475,7 +475,25 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
 
   useEffect(function(){
     if(!contactId) {
-      // No ID — use contactData prop if available
+      // No ID — try email lookup first, then fall back to contactData prop
+      var email = contactData?.email || contactData?.contact_email;
+      if (email) {
+        try {
+          var rows = await sbFetch("/contacts?email=eq."+encodeURIComponent(email)+"&limit=1");
+          if (rows && rows.length > 0) {
+            setData(dbToLocal(rows[0]));
+            setLoading(false);
+            // Now load comms with the found ID
+            var foundId = rows[0].id;
+            try {
+              var commRows = await sbFetch("/communications?contact_id=eq."+foundId+"&order=occurred_at.desc&limit=100");
+              setComms(commRows||[]);
+            } catch(e) {}
+            setCommsLoading(false);
+            return;
+          }
+        } catch(e) { console.error("email lookup error:", e); }
+      }
       if(contactData) {
         setData({
           id: null,
@@ -483,9 +501,11 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
           lastName: contactData.last_name || contactData.lastName || "",
           title: contactData.title || "",
           company: contactData.company_name || contactData.company || "",
+          email: contactData.email || "",
           linkedinUrl: contactData.linkedin_url || contactData.linkedinUrl || "",
-          pipelineStage: contactData.pipeline_stage || "Connected",
+          pipelineStage: contactData.pipeline_stage || "Target",
           memberStatus: "Prospect",
+          contactType: contactData.contact_type || "SPONSOR_CONTACT",
         });
       }
       setLoading(false);
