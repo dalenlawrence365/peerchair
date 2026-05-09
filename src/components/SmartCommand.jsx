@@ -16,6 +16,8 @@ export default function SmartCommand({ contact, conversationId, onRefresh, place
   var [result,     setResult]     = useState("")
   var [resultOk,   setResultOk]   = useState(true)
   var [commandId,  setCommandId]  = useState(null)
+  var [draft,      setDraft]      = useState(null)
+  var [savingDraft,setSavingDraft]= useState(false)
   var recRef     = useRef(null)
   var streamRef  = useRef(null)
   var chunksRef  = useRef([])
@@ -117,6 +119,37 @@ export default function SmartCommand({ contact, conversationId, onRefresh, place
     }
   }
 
+  async function saveDraft() {
+    if (!draft) return
+    setSavingDraft(true)
+    try {
+      var res = await fetch("/api/email/draft", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          to:         draft.to || (contact?.email || ""),
+          subject:    draft.subject,
+          text:       draft.body,
+          contact_id: contact?.id || null
+        })
+      })
+      var d = await res.json()
+      if (d.success) {
+        setResult("✓ Saved to Outlook Drafts")
+        setResultOk(true)
+        setDraft(null)
+      } else {
+        setResult("Draft save failed: " + d.error)
+        setResultOk(false)
+      }
+    } catch(e) {
+      setResult("Error: " + e.message)
+      setResultOk(false)
+    }
+    setSavingDraft(false)
+    setTimeout(function(){ setResult("") }, 6000)
+  }
+
   function handleGo() {
     if (!cmd.trim() || running || confirming) return
     setConfirming(true)
@@ -143,6 +176,7 @@ export default function SmartCommand({ contact, conversationId, onRefresh, place
       setResultOk(true)
       setCmd("")
       setCommandId(null)
+      if (d.draft_email) setDraft(d.draft_email)
       if (onRefresh) onRefresh()
     } catch(e) {
       setResult("Error — " + e.message)
@@ -239,6 +273,28 @@ export default function SmartCommand({ contact, conversationId, onRefresh, place
       {result && (
         <div style={{margin:"0 16px 12px",padding:"10px 14px",background:resultOk?"rgba(46,204,113,0.08)":"rgba(231,76,60,0.08)",border:"1px solid "+(resultOk?"rgba(46,204,113,0.2)":"rgba(231,76,60,0.2)"),borderRadius:6,fontSize:13,color:resultOk?T.green:T.red}}>
           {resultOk?"✓":"✗"} {result}
+        </div>
+      )}
+      {/* Email draft preview */}
+      {draft && (
+        <div style={{margin:"0 16px 16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,overflow:"hidden"}}>
+          <div style={{padding:"10px 14px",borderBottom:"1px solid rgba(255,255,255,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontSize:10,letterSpacing:2,color:G,textTransform:"uppercase",fontWeight:600}}>Email Draft</div>
+            <button onClick={function(){setDraft(null)}} style={{background:"transparent",border:"none",color:T.dim,cursor:"pointer",fontSize:14}}>×</button>
+          </div>
+          <div style={{padding:"12px 14px"}}>
+            <div style={{fontSize:11,color:T.dim,marginBottom:3}}>TO</div>
+            <div style={{fontSize:13,color:T.muted,marginBottom:10}}>{draft.to || (contact?.email || "—")}</div>
+            <div style={{fontSize:11,color:T.dim,marginBottom:3}}>SUBJECT</div>
+            <div style={{fontSize:13,color:T.text,fontWeight:600,marginBottom:10}}>{draft.subject}</div>
+            <div style={{fontSize:11,color:T.dim,marginBottom:3}}>BODY</div>
+            <div style={{fontSize:13,color:T.text,lineHeight:1.7,whiteSpace:"pre-wrap",maxHeight:200,overflowY:"auto"}}>{draft.body}</div>
+          </div>
+          <div style={{padding:"10px 14px",borderTop:"1px solid rgba(255,255,255,0.06)",display:"flex",gap:8}}>
+            <button onClick={saveDraft} disabled={savingDraft} style={{flex:1,padding:"8px",background:"rgba(46,204,113,0.12)",border:"1px solid rgba(46,204,113,0.3)",color:T.green,borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:700}}>
+              {savingDraft ? "Saving…" : "📥 Save to Outlook Drafts"}
+            </button>
+          </div>
         </div>
       )}
     </div>

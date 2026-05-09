@@ -29,10 +29,12 @@ export async function POST(request) {
 Return ONLY valid JSON with this shape:
 {
   "send_now": "message to send immediately, or null",
+  "draft_email": "true if they want to draft/compose/write an email, false otherwise",
   "schedule_message": { "body": "message text", "send_at": "ISO date", "mode": "auto_send or resurface" } or null,
   "create_task": { "note": "what to do", "due_at": "ISO date or null", "priority": "high/normal/low" } or null
 }
 Rules:
+- If they say "draft", "compose", "write an email", "send an email" set draft_email to true
 - If they say "send:" or "reply:" extract that as send_now
 - If they say "remind me on X" or "follow up X" or "resurface X date" create a task
 - If they say "schedule a message for X" create a schedule_message
@@ -107,6 +109,36 @@ Rules:
   }
 
   results.parsed = parsed
+  // Handle draft_email intent — compose with Sonnet using full contact context
+  if (parsed.draft_email && contact) {
+    try {
+      const sysCtx = body.systemContext || ""
+      const contactDesc = contact ? `Contact: ${contact.firstName} ${contact.lastName} | Company: ${contact.company||"?"} | ${sysCtx}` : ""
+      const composeRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type":"application/json", "x-api-key":process.env.ANTHROPIC_API_KEY, "anthropic-version":"2023-06-01" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: `You are writing a professional email for Dalen Lawrence, Chapter Director of CFO Circle Los Angeles. CFO Circle is a confidential monthly peer advisory group for CFOs of privately held companies ($20M-$500M revenue). Dalen's email is dalen.lawrence@cfo-circle.com.
+
+Contact context: ${contactDesc}
+
+Write a concise, direct, peer-to-peer email. No fluff. Return ONLY valid JSON: {"subject":"...","body":"...","to":"${contact.email||""}"}`,
+          messages: [{ role:"user", content: command }]
+        })
+      })
+      const composeData = await composeRes.json()
+      const composeText = (composeData.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("")
+      const composed = JSON.parse(composeText.replace(/```json|```/g,"").trim())
+      results.draft_email = composed
+      results.summary.push("Email drafted — review and save to Outlook Drafts")
+    } catch(e) {
+      results.errors = results.errors || []
+      results.errors.push("Draft compose error: " + e.message)
+    }
+  }
+
   results.confirmation = results.summary.join(' · ') || 'Done'
 
   // Log result back to voice_commands if this came from a voice input
