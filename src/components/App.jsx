@@ -1958,7 +1958,7 @@ export default function CFOCircleApp() {
 
   function navigate(s,contact,q){setScreen(s);if(contact)setContact(contact);if(q)setClaudeQ(q);}
 
-  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:String(followUpCount)},{id:"linkedin_msgs",icon:"◈",label:"LinkedIn",badge:""},{id:"email_msgs",icon:"✦",label:"Email",badge:""},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors",badge:sponsorCompanyCount>0?String(sponsorCompanyCount):""},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"meetings",icon:"📅",label:"Meetings",badge:""},{id:"templates",icon:"✉",label:"Templates"},{id:"claude",icon:"★",label:"Ask Claude"}];
+  var NAV=[{id:"dashboard",icon:"⌂",label:"Dashboard"},{id:"followup",icon:"✉",label:"Follow-Up",badge:String(followUpCount)},{id:"linkedin_msgs",icon:"◈",label:"LinkedIn",badge:""},{id:"email_msgs",icon:"✦",label:"Email",badge:""},{id:"pipeline",icon:"◎",label:"CFO Pipeline",badge:statsLoading?"…":String(pipelineTotal)},{id:"sponsors",icon:"$",label:"Sponsors",badge:sponsorCompanyCount>0?String(sponsorCompanyCount):""},{id:"events",icon:"✦",label:"Events",badge:"0"},{id:"meetings",icon:"📅",label:"Meetings",badge:""},{id:"templates",icon:"✉",label:"Templates"},{id:"files",icon:"📎",label:"Files"},{id:"claude",icon:"★",label:"Ask Claude"}];
 
   var screenLabel={dashboard:"Dashboard",pipeline:"Pipeline",events:"Events",templates:"Templates",claude:"Ask Claude",profile:selectedContact?((selectedContact.first_name||"")+" "+(selectedContact.last_name||"")):"Contact",sponsors:"Sponsors",followup:"Follow-Up Queue",meetings:"Meetings",stalliant:"Sponsors"}[screen]||screen;
 
