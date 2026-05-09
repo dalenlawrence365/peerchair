@@ -2016,12 +2016,12 @@ export default function CFOCircleApp() {
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
           {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts} sponsorStageCounts={sponsorStageCounts} pipelineTotal={pipelineTotal} fitCallContacts={fitCallContacts} onStartFitCall={function(ct){setFitCallContact({id:ct.id,firstName:ct.first_name,lastName:ct.last_name,title:ct.title,company:ct.company_name,email:ct.email,linkedinUrl:ct.linkedin_url,fit_call_date:ct.fit_call_date});setScreen("fitcall");}} onNavigateToBucket={function(stage){navigate("pipeline");}} onStartDiscovery={function(co,contact,deal){setSponsorContact(Object.assign({},contact||{},{company:co.name||"",company_id:co.id,category:co.category}));setSponsorDeal(deal);setScreen("sponsor_call");}}/>}
           {screen==="pipeline"  && <Pipeline  onNavigate={navigate}/>}
-          {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} contactData={selectedContact} onBack={function(){navigate("pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
+          {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact.id} contactData={selectedContact} onBack={function(){navigate(prevScreen||"pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
           {screen==="events"    && <Placeholder icon="✦" title="Events" description="Manage your Experience Events — attendee lists, confirmations, and post-event follow-up."/>}
           {screen==="meetings"  && <Meetings onNavigate={navigate}/>}
           {screen==="templates" && <Templates/>}
           {screen==="claude"    && <AskClaude initialQ={claudeQ} onQuestionConsumed={function(){setClaudeQ("");}}/>}
-          {screen==="sponsors"  && <Sponsors onNavigate={navigate} onStartDiscovery={function(co,contact,deal){setSponsorContact(Object.assign({},contact||{},{company:co.name,company_id:co.id,category:co.category}));setSponsorDeal(deal);setScreen("sponsor_call");}}/>}
+          {screen==="sponsors"  && <Sponsors onNavigate={function(sc,d){ if(sc==="profile"){ setSelectedContact(d); setPrevScreen("sponsors"); setScreen("profile"); } else navigate(sc,d); }} onStartDiscovery={function(co,contact,deal){setSponsorContact(Object.assign({},contact||{},{company:co.name,company_id:co.id,category:co.category}));setSponsorDeal(deal);setScreen("sponsor_call");}}/>}
           {screen==="followup"      && <FollowUp onNavigate={navigate}/>}
           {screen==="linkedin_msgs" && <LinkedInMessages onNavigate={navigate}/>}
           {screen==="email_msgs"    && <EmailMessages onNavigate={navigate}/>}

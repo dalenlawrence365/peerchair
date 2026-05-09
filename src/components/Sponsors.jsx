@@ -343,6 +343,20 @@ function CompanyDetail(props) {
                 <div style={{display:"flex",gap:6,alignItems:"center"}}>
                   {ct.warmth==="Met in person"&&<Badge label="Met in person" color={T.green} small={true}/>}
                   {ct.warmth==="Warm"&&<Badge label="Warm" color={G} small={true}/>}
+                  {onNavigate && ct.email && (
+                    <button onClick={async function(){
+                      var U=process.env.NEXT_PUBLIC_SUPABASE_URL, K=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+                      var res = await fetch(U+"/rest/v1/contacts?email=eq."+encodeURIComponent(ct.email)+"&select=id,first_name,last_name,company_name&limit=1",{headers:{"apikey":K,"Authorization":"Bearer "+K}});
+                      var d = await res.json();
+                      if (d && d[0]) {
+                        onNavigate("profile", d[0]);
+                      } else {
+                        onNavigate("profile", {first_name:ct.first_name||ct.full_name.split(" ")[0], last_name:ct.last_name||ct.full_name.split(" ").slice(1).join(" "), company_name:co.name, email:ct.email});
+                      }
+                    }} style={{padding:"3px 10px",background:"rgba(240,200,74,0.1)",border:"1px solid rgba(240,200,74,0.25)",color:"#f0c84a",borderRadius:4,cursor:"pointer",fontSize:10,fontWeight:600,whiteSpace:"nowrap"}}>
+                      Open Profile
+                    </button>
+                  )}
                   <button onClick={function(){if(props.onStartDiscovery){var contactWithCo=Object.assign({},ct,{company:co.name,company_id:co.id,category:co.category});props.onStartDiscovery(co,contactWithCo,deals[0]||null);}}}
                     style={{padding:"3px 10px",background:"rgba(155,89,182,0.15)",border:"1px solid rgba(155,89,182,0.35)",color:"#9b59b6",borderRadius:4,cursor:"pointer",fontSize:10,fontWeight:600,whiteSpace:"nowrap"}}>
                     Start Call
