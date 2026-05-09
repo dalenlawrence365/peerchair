@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react"
 import SmartCommand from "@/components/SmartCommand"
 import DraftEmail from "@/components/DraftEmail"
 import CopyPromptButton from "@/components/CopyPromptButton"
-import { sbFetch, dbToLocal, localToDb, G, BG, BG2, T, stageColor, chColor, chIcon, PIPELINE, STATUSES, OUTCOMES, OWNERSHIP, RPT, IND, REV, EMP, FIN, PRESSURE, CUES, FLAGS, MEMB_T, JOURNEY, STAGE_TO_NODE, Pill, Avatar, Drawer, DField, DSelect, DMulti, Section, FL, FV, Grid2, Tags, HRPopup, CircleJourney } from "@/lib/appShared"
+import { sbFetch, dbToLocal, localToDb, G, BG, BG2, BG3, T, stageColor, chColor, chIcon, PIPELINE, STATUSES, OUTCOMES, OWNERSHIP, RPT, IND, REV, EMP, FIN, PRESSURE, CUES, FLAGS, MEMB_T, JOURNEY, STAGE_TO_NODE, CHAPTERS, SOURCES, Pill, Avatar, Drawer, DField, DSelect, DMulti, Section, FL, FV, Grid2, Tags, HRPopup, CircleJourney } from "@/lib/appShared"
 
 function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
   var [data,setData]           = useState(null);

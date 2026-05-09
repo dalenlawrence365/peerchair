@@ -1,6 +1,5 @@
 "use client"
 import { useState, useEffect } from "react"
-import { G, BG, BG2, T, sbFetch, stageColor } from "@/lib/appShared"
 import ContactProfile  from "@/components/ContactProfile"
 import Dashboard       from "@/components/Dashboard"
 import Pipeline        from "@/components/Pipeline"
@@ -14,7 +13,7 @@ import Meetings        from "@/components/Meetings"
 import Files           from "@/components/Files"
 import SponsorCompanion from "@/components/SponsorCompanion"
 import LiveCallCompanion from "@/components/LiveCallCompanion"
-import { NavItem }     from "@/lib/appShared"
+import { NavItem, G, T, BG, BG2, BG3 }     from "@/lib/appShared"
 
 export default function CFOCircleApp() {
   var [screen,setScreen]             = useState("dashboard");

@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { sbFetch, G, BG, BG2, T, stageColor, Pill, Avatar } from "@/lib/appShared"
+import { sbFetch, G, BG, BG2, BG3, T, stageColor, Pill, Avatar } from "@/lib/appShared"
 
 function Pipeline({onNavigate}) {
   var [contacts,setContacts]=useState([]);var [loading,setLoading]=useState(true);var [error,setError]=useState(null);var [search,setSearch]=useState("");var [stageFilter,setStageFilter]=useState("All");var [total,setTotal]=useState(0);
