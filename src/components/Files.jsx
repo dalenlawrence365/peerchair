@@ -42,15 +42,13 @@ export default function Files() {
   async function openPreview(f) {
     var sb_url = process.env.NEXT_PUBLIC_SUPABASE_URL
     var sb_key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    // Get signed URL from Supabase storage
-    var res = await fetch(sb_url + "/storage/v1/object/sign/peerchair-files/" + encodeURIComponent(f.storage_path), {
-      method: "POST",
-      headers: { "apikey": sb_key, "Authorization": "Bearer " + sb_key, "Content-Type": "application/json" },
-      body: JSON.stringify({ expiresIn: 300 })
-    })
-    var d = await res.json()
-    var signedUrl = d.signedURL ? (sb_url + "/storage/v1" + d.signedURL) : null
-    if (signedUrl) setPreview({ url: signedUrl, name: f.name, filename: f.filename, mime_type: f.mime_type })
+    // Use public URL via API route instead of signed URL
+    var res = await fetch("/api/files/download?id=" + f.id)
+    var d   = await res.json()
+    if (d.base64) {
+      var dataUrl = "data:" + d.mime_type + ";base64," + d.base64
+      setPreview({ url: dataUrl, name: f.name, filename: f.filename, mime_type: d.mime_type })
+    }
   }
 
   async function loadFiles() {

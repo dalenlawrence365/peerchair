@@ -1,5 +1,4 @@
-export const dynamic = "force-dynamic"
-
+export const dynamic = 'force-dynamic'
 import { createClient } from "@supabase/supabase-js"
 
 export async function GET(request) {
@@ -8,6 +7,7 @@ export async function GET(request) {
   const name = searchParams.get("name")
   if (!id && !name) return Response.json({ error:"No id or name" }, {status:400})
 
+  // Use service role key to bypass RLS for storage reads
   const sb = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
