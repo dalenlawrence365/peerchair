@@ -1102,12 +1102,8 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                         var dir = (m.direction==="OUT"||m.direction==="outbound") ? "Dalen" : data.firstName
                         var date = m.occurred_at ? new Date(m.occurred_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : ""
                         return "["+date+" "+dir+"]: "+(m.body||m.step_label||"").slice(0,300)
-                      }).join("
-")
-                      return base + (thread ? "
-
-Message history:
-"+thread : "")
+                      }).join("\n")
+                      return base + (thread ? "\n\nMessage history:\n"+thread : "")
                     })()}
                   />
                 </div>
