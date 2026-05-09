@@ -127,10 +127,11 @@ export default function SmartCommand({ contact, conversationId, onRefresh, place
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body: JSON.stringify({
-          to:         draft.to || (contact?.email || ""),
-          subject:    draft.subject,
-          text:       draft.body,
-          contact_id: contact?.id || null
+          to:          draft.to || (contact?.email || ""),
+          subject:     draft.subject,
+          text:        draft.body,
+          contact_id:  contact?.id || null,
+          attachments: draft.attachments || []
         })
       })
       var d = await res.json()
@@ -290,9 +291,17 @@ export default function SmartCommand({ contact, conversationId, onRefresh, place
             <div style={{fontSize:11,color:T.dim,marginBottom:3}}>BODY</div>
             <div style={{fontSize:13,color:T.text,lineHeight:1.7,whiteSpace:"pre-wrap",maxHeight:200,overflowY:"auto"}}>{draft.body}</div>
           </div>
+          {draft.attachments && draft.attachments.length > 0 && (
+            <div style={{padding:"6px 14px",borderTop:"1px solid rgba(255,255,255,0.04)"}}>
+              <div style={{fontSize:10,color:T.dim,marginBottom:4}}>ATTACHMENTS</div>
+              {draft.attachments.map(function(a,i){
+                return <div key={i} style={{fontSize:12,color:T.muted,padding:"2px 0"}}>📎 {a.name}</div>
+              })}
+            </div>
+          )}
           <div style={{padding:"10px 14px",borderTop:"1px solid rgba(255,255,255,0.06)",display:"flex",gap:8}}>
             <button onClick={saveDraft} disabled={savingDraft} style={{flex:1,padding:"8px",background:"rgba(46,204,113,0.12)",border:"1px solid rgba(46,204,113,0.3)",color:T.green,borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:700}}>
-              {savingDraft ? "Saving…" : "📥 Save to Outlook Drafts"}
+              {savingDraft ? "Saving…" : "📥 Save to Outlook Drafts" + (draft.attachments?.length > 0 ? " ("+draft.attachments.length+" attachment)" : "")}
             </button>
           </div>
         </div>

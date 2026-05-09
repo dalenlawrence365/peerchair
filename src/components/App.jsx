@@ -3,6 +3,7 @@ import Sponsors from "@/components/Sponsors";
 import FollowUp from "@/components/FollowUp";
 import LinkedInMessages from "@/components/LinkedInMessages";
 import SmartCommand from "@/components/SmartCommand";
+import Files from "@/components/Files";
 import EmailMessages from "@/components/EmailMessages";
 import Templates from "@/components/Templates";
 import Meetings from "@/components/Meetings";
@@ -2028,6 +2029,7 @@ export default function CFOCircleApp() {
           {screen==="followup"      && <FollowUp onNavigate={navigate}/>}
           {screen==="linkedin_msgs" && <LinkedInMessages onNavigate={navigate}/>}
           {screen==="email_msgs"    && <EmailMessages onNavigate={navigate}/>}
+          {screen==="files"         && <Files/>}
           {screen==="sponsor_call" && <SponsorCompanion contact={sponsorContact||{}} deal={sponsorDeal} onBack={function(){navigate("sponsors");}} onEnd={function(){navigate("sponsors");}}/>}
           {screen==="fitcall" && fitCallContact && <LiveCallCompanion contact={fitCallContact} onEnd={function(){ setScreen("profile"); }} onBack={function(){ setScreen("profile"); }}/>}
         </div>

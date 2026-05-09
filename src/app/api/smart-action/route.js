@@ -30,11 +30,13 @@ Return ONLY valid JSON with this shape:
 {
   "send_now": "message to send immediately, or null",
   "draft_email": "true if they want to draft/compose/write an email, false otherwise",
+  "attach_files": ["list of file names to attach, e.g. one pager, sponsorship deck, membership benefits"] or [],
   "schedule_message": { "body": "message text", "send_at": "ISO date", "mode": "auto_send or resurface" } or null,
   "create_task": { "note": "what to do", "due_at": "ISO date or null", "priority": "high/normal/low" } or null
 }
 Rules:
 - If they say "draft", "compose", "write an email", "send an email" set draft_email to true
+- If they mention attaching a file, one pager, deck, document, or PDF extract the name into attach_files
 - If they say "send:" or "reply:" extract that as send_now
 - If they say "remind me on X" or "follow up X" or "resurface X date" create a task
 - If they say "schedule a message for X" create a schedule_message
@@ -131,6 +133,7 @@ Write a concise, direct, peer-to-peer email. No fluff. Return ONLY valid JSON: {
       const composeData = await composeRes.json()
       const composeText = (composeData.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("")
       const composed = JSON.parse(composeText.replace(/```json|```/g,"").trim())
+      composed.attachments = (parsed.attach_files || []).map(function(name){ return { name } })
       results.draft_email = composed
       results.summary.push("Email drafted — review and save to Outlook Drafts")
     } catch(e) {
