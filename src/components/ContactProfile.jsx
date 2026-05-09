@@ -24,6 +24,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
   var [drawer,setDrawer]       = useState(null);
   var [tlFilter,setTlFilter]   = useState("All");
   var [addingNote,setAddingNote] = useState(false);
+  var [draftOpen,setDraftOpen] = useState(false);
   var [noteText,setNoteText]   = useState("");
   var [editEmail,setEditEmail] = useState(false);
   var [editPhone,setEditPhone] = useState(false);
