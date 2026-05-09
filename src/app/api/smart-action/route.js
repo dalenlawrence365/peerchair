@@ -125,6 +125,7 @@ Rules:
 
   results.parsed = parsed
   // Handle draft_email intent — compose with Sonnet using full contact context
+  console.log('draft_email flag:', parsed.draft_email, 'contact:', contact ? contact.firstName : 'none')
   if (parsed.draft_email) {
     try {
       const sysCtx = body.systemContext || ""
@@ -133,7 +134,7 @@ Rules:
         method: "POST",
         headers: { "Content-Type":"application/json", "x-api-key":process.env.ANTHROPIC_API_KEY, "anthropic-version":"2023-06-01" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: "claude-sonnet-4-6",
           max_tokens: 1000,
           system: `You are writing a professional email for Dalen Lawrence, Chapter Director of CFO Circle Los Angeles. CFO Circle is a confidential monthly peer advisory group for CFOs of privately held companies ($20M-$500M revenue). Dalen's email is dalen.lawrence@cfo-circle.com.
 
