@@ -40,14 +40,13 @@ export default function Files() {
   useEffect(function(){ loadFiles() }, [])
 
   async function openPreview(f) {
-    var sb_url = process.env.NEXT_PUBLIC_SUPABASE_URL
-    var sb_key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    // Use public URL via API route instead of signed URL
     var res = await fetch("/api/files/download?id=" + f.id)
     var d   = await res.json()
     if (d.base64) {
       var dataUrl = "data:" + d.mime_type + ";base64," + d.base64
-      setPreview({ url: dataUrl, name: f.name, filename: f.filename, mime_type: d.mime_type })
+      var w = window.open()
+      w.document.write("<iframe src='" + dataUrl + "' style='width:100%;height:100vh;border:none' />")
+      w.document.close()
     }
   }
 
