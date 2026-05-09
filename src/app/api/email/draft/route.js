@@ -1,6 +1,16 @@
 import { getAccessToken } from "@/lib/microsoft-auth"
 import { createClient }   from "@supabase/supabase-js"
 
+export async function OPTIONS() {
+  return new Response(null, {
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    }
+  })
+}
+
 export async function POST(request) {
   const { to, subject, html, text, contact_id, attachments } = await request.json()
   if (!subject || (!html && !text)) return Response.json({ error:"Missing subject or body" }, {status:400})
@@ -63,5 +73,7 @@ export async function POST(request) {
     })
   }
 
-  return Response.json({ success:true, draft_id:draft.id, attachments_added:resolvedAttachments.length })
+  return new Response(JSON.stringify({ success:true, draft_id:draft.id, attachments_added:resolvedAttachments.length }), {
+    headers: { 'Content-Type':'application/json', 'Access-Control-Allow-Origin':'*' }
+  })
 }
