@@ -478,6 +478,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
       // No ID — try email lookup first, then fall back to contactData prop
       var email = contactData?.email || contactData?.contact_email;
       if (email) {
+        (async function() {
         try {
           var rows = await sbFetch("/contacts?email=eq."+encodeURIComponent(email)+"&limit=1");
           if (rows && rows.length > 0) {
@@ -493,6 +494,8 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
             return;
           }
         } catch(e) { console.error("email lookup error:", e); }
+        })();
+        return;
       }
       if(contactData) {
         setData({
