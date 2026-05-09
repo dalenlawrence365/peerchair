@@ -125,7 +125,7 @@ Rules:
 
   results.parsed = parsed
   // Handle draft_email intent — compose with Sonnet using full contact context
-  if (parsed.draft_email && contact) {
+  if (parsed.draft_email) {
     try {
       const sysCtx = body.systemContext || ""
       const contactDesc = contact ? `Contact: ${contact.firstName} ${contact.lastName} | Company: ${contact.company||"?"} | ${sysCtx}` : ""

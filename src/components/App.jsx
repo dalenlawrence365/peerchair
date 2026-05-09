@@ -1118,7 +1118,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                 <div style={{fontSize:10,color:"#3a5a74",letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Actions</div>
                 <div style={{background:"rgba(12,21,32,0.6)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,overflow:"hidden"}}>
                   <SmartCommand
-                    contact={data.id ? {id:data.id, firstName:data.firstName, lastName:data.lastName, company:data.company, type:"CFO_PROSPECT"} : null}
+                    contact={{id:data.id||null, firstName:data.firstName, lastName:data.lastName, company:data.company, email:data.email, type:data.contactType||"CFO_PROSPECT"}}
                     conversationId={null}
                     onRefresh={function(){ loadComms(); loadContact(); }}
                     placeholder={"What do you want to do with " + (data.firstName||"this contact") + "? e.g. Draft a follow-up email, Snooze until June 1, Move to Event Waitlist"}
