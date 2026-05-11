@@ -3,6 +3,7 @@ import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { createClient } from "@supabase/supabase-js"
 
 export async function GET(request) {
+  try {
   if (!verifyGptActionKey(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
@@ -128,4 +129,8 @@ export async function GET(request) {
       calendly_sponsor: "https://calendly.com/cfocirclela/cfo-circle-sponsor-discovery-call"
     }
   })
+  } catch(e) {
+    console.error('contact-context error:', e.message, e.stack)
+    return Response.json({ status: 'error', error: e.message }, { status: 500 })
+  }
 }
