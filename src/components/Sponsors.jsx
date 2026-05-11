@@ -394,7 +394,7 @@ function AddCompanyModal(props) {
     if (!form.name.trim()) return;
     setSaving(true);
     try {
-      var companies = await SBpost("sponsor_companies", {
+      var companies = await SBpost("companies", {
         name: form.name.trim(),
         sponsor_type: form.sponsor_type,
         host_viable: form.host_viable,
@@ -411,7 +411,7 @@ function AddCompanyModal(props) {
       // Add contact if provided
       if (form.contact_name.trim()) {
         var parts = form.contact_name.trim().split(" ");
-        await SBpost("sponsor_contacts", {
+        await SBpost("contacts", {
           company_id: co.id,
           first_name: parts[0]||"",
           last_name: parts.slice(1).join(" ")||"",
@@ -519,9 +519,9 @@ export default function Sponsors(props) {
   async function load() {
     setLoading(true);
     try {
-      var cos = await SBfetch("sponsor_companies?order=name.asc&limit=200");
+      var cos = await SBfetch("companies?is_sponsor=eq.true&order=name.asc&limit=200");
       var ds  = await SBfetch("sponsor_deals?order=created_at.asc&limit=500");
-      var cs  = await SBfetch("sponsor_contacts?order=last_name.asc&limit=500");
+      var cs  = await SBfetch("contacts?contact_type=eq.SPONSOR_CONTACT&order=last_name.asc&limit=500");
       setCompanies(Array.isArray(cos)?cos:[]);
       setDeals(Array.isArray(ds)?ds:[]);
       setContacts(Array.isArray(cs)?cs:[]);
