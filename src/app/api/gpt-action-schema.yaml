@@ -155,3 +155,20 @@ paths:
           description: Unauthorized
         "404":
           description: Contact not found
+
+  /api/gpt-echo:
+    post:
+      operationId: gptEcho
+      summary: Test endpoint to verify POST requests reach PeerChair
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                test:
+                  type: string
+      responses:
+        "200":
+          description: Echo response
