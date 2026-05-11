@@ -181,7 +181,7 @@ function StageBuckets(props) {
     <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8,padding:"0 0 4px"}}>
       {stagesWithColor.map(function(item) {
         var relevantDeals = deals.filter(function(d){
-          var matchGroup = groupFilter === "All" || d.group_name === groupFilter;
+          var matchGroup = groupFilter === "All" || d.chapter === groupFilter;
           return d.stage === item.stage && matchGroup;
         });
         var count = relevantDeals.length;
@@ -212,8 +212,8 @@ function CompanyCard(props) {
   var selected = props.selected;
   var onClick = props.onClick;
   var groupFilter = props.groupFilter;
-  var laDeals = deals.filter(function(d){ return d.group_name === "Los Angeles"; });
-  var sfvDeals = deals.filter(function(d){ return d.group_name === "San Fernando Valley"; });
+  var laDeals = deals.filter(function(d){ return d.chapter === "Los Angeles"; });
+  var sfvDeals = deals.filter(function(d){ return d.chapter === "San Fernando Valley"; });
   var laStage = laDeals[0] ? laDeals[0].stage : null;
   var sfvStage = sfvDeals[0] ? sfvDeals[0].stage : null;
   return (
@@ -221,9 +221,9 @@ function CompanyCard(props) {
       <div style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:5}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:13,fontWeight:600,color:selected?G:T.text,marginBottom:2}}>{co.name}</div>
-          <div style={{fontSize:11,color:CategoryColor(co.category)}}>{co.category}</div>
+          <div style={{fontSize:11,color:CategoryColor(co.sponsor_type)}}>{co.sponsor_type}</div>
         </div>
-        <HostBadge tier={co.host_tier} viable={co.host_viable}/>
+        <HostBadge tier={co.hosting_type} viable={co.host_viable}/>
       </div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
         {laStage&&(groupFilter==="All"||groupFilter==="Los Angeles")&&<span style={{fontSize:10,color:StageColor(laStage),background:StageColor(laStage)+"14",border:"1px solid "+StageColor(laStage)+"30",padding:"1px 6px",borderRadius:10}}>LA: {laStage}</span>}
@@ -261,7 +261,7 @@ function CompanyDetail(props) {
 
   async function addGroup(groupName) {
     setSaving(true);
-    await SBpost("sponsor_deals", {company_id:co.id,group_name:groupName,stage:"Prospect",category_seat:co.category,annual_fee:5000,host_assignment:co.host_tier==="Meeting Host"});
+    await SBpost("sponsor_deals", {company_id:co.id,chapter:groupName,stage:"Prospect",category_seat:co.sponsor_type,annual_fee:5000,host_assignment:co.hosting_type==="Meeting Host"});
     if (onUpdate) onUpdate();
     setSaving(false);
   }
@@ -273,8 +273,8 @@ function CompanyDetail(props) {
     setSaving(false);
   }
 
-  var laDeals = deals.filter(function(d){ return d.group_name === "Los Angeles"; });
-  var sfvDeals = deals.filter(function(d){ return d.group_name === "San Fernando Valley"; });
+  var laDeals = deals.filter(function(d){ return d.chapter === "Los Angeles"; });
+  var sfvDeals = deals.filter(function(d){ return d.chapter === "San Fernando Valley"; });
 
   return (
     <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",background:BG}}>
@@ -318,15 +318,15 @@ function CompanyDetail(props) {
           <div style={{flex:1}}>
             <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:6}}>{co.name}</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              <Badge label={co.category||"Uncategorized"} color={CategoryColor(co.category)}/>
-              <HostBadge tier={co.host_tier} viable={co.host_viable}/>
+              <Badge label={co.sponsor_type||"Uncategorized"} color={CategoryColor(co.sponsor_type)}/>
+              <HostBadge tier={co.hosting_type} viable={co.host_viable}/>
             </div>
           </div>
 
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-          {co.address_la&&<div><div style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>LA Address</div><div style={{fontSize:12,color:T.muted,lineHeight:1.5}}>{co.address_la}</div>{co.area_la&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{co.area_la}</div>}</div>}
-          {co.address_sfv&&<div><div style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>SFV Address</div><div style={{fontSize:12,color:T.muted,lineHeight:1.5}}>{co.address_sfv}</div>{co.area_sfv&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{co.area_sfv}</div>}</div>}
+          {co.address_la&&<div><div style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>LA Address</div><div style={{fontSize:12,color:T.muted,lineHeight:1.5}}>{co.address_la}</div>{co.neighborhood_la&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{co.neighborhood_la}</div>}</div>}
+          {co.address_sfv&&<div><div style={{fontSize:9,color:T.dim,letterSpacing:2,textTransform:"uppercase",marginBottom:3}}>SFV Address</div><div style={{fontSize:12,color:T.muted,lineHeight:1.5}}>{co.address_sfv}</div>{co.neighborhood_sfv&&<div style={{fontSize:10,color:T.dim,marginTop:2}}>{co.neighborhood_sfv}</div>}</div>}
         </div>
         {co.notes&&<div style={{marginBottom:10,fontSize:12,color:T.muted,lineHeight:1.6,padding:"8px 12px",background:"rgba(255,255,255,0.02)",borderRadius:5,borderLeft:"2px solid "+G+"40"}}>{co.notes}</div>}
       </div>
@@ -341,8 +341,8 @@ function CompanyDetail(props) {
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
                 <div style={{fontSize:13,fontWeight:600,color:T.text}}>{ct.full_name}</div>
                 <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                  {ct.warmth==="Met in person"&&<Badge label="Met in person" color={T.green} small={true}/>}
-                  {ct.warmth==="Warm"&&<Badge label="Warm" color={G} small={true}/>}
+                  {ct.relationship_strength==="Met in person"&&<Badge label="Met in person" color={T.green} small={true}/>}
+                  {ct.relationship_strength==="Warm"&&<Badge label="Warm" color={G} small={true}/>}
                   {onNavigate && (
                     <button onClick={function(){
                       onNavigate("profile", {
@@ -358,7 +358,7 @@ function CompanyDetail(props) {
                       Open Profile
                     </button>
                   )}
-                  <button onClick={function(){if(props.onStartDiscovery){var contactWithCo=Object.assign({},ct,{company:co.name,company_id:co.id,category:co.category});props.onStartDiscovery(co,contactWithCo,deals[0]||null);}}}
+                  <button onClick={function(){if(props.onStartDiscovery){var contactWithCo=Object.assign({},ct,{company:co.name,company_id:co.id,sponsor_type:co.sponsor_type});props.onStartDiscovery(co,contactWithCo,deals[0]||null);}}}
                     style={{padding:"3px 10px",background:"rgba(155,89,182,0.15)",border:"1px solid rgba(155,89,182,0.35)",color:"#9b59b6",borderRadius:4,cursor:"pointer",fontSize:10,fontWeight:600,whiteSpace:"nowrap"}}>
                     Start Call
                   </button>
@@ -381,9 +381,9 @@ function AddCompanyModal(props) {
   var onCreated = props.onCreated;
   var CATS = ["Accounting/Advisory","Commercial Banking","Law Firm","Executive Search","HR/Payroll","Insurance","Technology","Commercial Real Estate","Advisory/M&A","Other"];
   var [form, setForm] = useState({
-    name:"", category:"Accounting/Advisory", host_viable:"Unknown",
-    address_la:"", area_la:"", notes:"",
-    contact_name:"", contact_title:"", contact_email:"", contact_warmth:"Cold",
+    name:"", sponsor_type:"Accounting/Advisory", host_viable:"Unknown",
+    address_la:"", neighborhood_la:"", notes:"",
+    contact_name:"", contact_title:"", contact_email:"", contact_relationship_strength:"Cold",
     group_la:true, group_sfv:false
   });
   var [saving, setSaving] = useState(false);
@@ -396,12 +396,12 @@ function AddCompanyModal(props) {
     try {
       var companies = await SBpost("sponsor_companies", {
         name: form.name.trim(),
-        category: form.category,
+        sponsor_type: form.sponsor_type,
         host_viable: form.host_viable,
-        host_tier: "TBD",
+        hosting_type: "TBD",
         address_la: form.address_la,
-        area_la: form.area_la,
-        viability_la: form.address_la ? "Viable" : "Unknown",
+        neighborhood_la: form.neighborhood_la,
+        host_viable: form.address_la ? "Viable" : "Unknown",
         notes: form.notes,
         source: "Manual"
       });
@@ -418,14 +418,14 @@ function AddCompanyModal(props) {
           full_name: form.contact_name.trim(),
           title: form.contact_title,
           email: form.contact_email,
-          warmth: form.contact_warmth,
-          event_source: "Manual"
+          relationship_strength: form.contact_relationship_strength,
+          source: "Manual"
         });
       }
 
       // Create deals
-      if (form.group_la) await SBpost("sponsor_deals", {company_id:co.id,group_name:"Los Angeles",stage:"Prospect",category_seat:form.category,annual_fee:5000});
-      if (form.group_sfv) await SBpost("sponsor_deals", {company_id:co.id,group_name:"San Fernando Valley",stage:"Prospect",category_seat:form.category,annual_fee:5000});
+      if (form.group_la) await SBpost("sponsor_deals", {company_id:co.id,chapter:"Los Angeles",stage:"Prospect",category_seat:form.sponsor_type,annual_fee:5000});
+      if (form.group_sfv) await SBpost("sponsor_deals", {company_id:co.id,chapter:"San Fernando Valley",stage:"Prospect",category_seat:form.sponsor_type,annual_fee:5000});
 
       if (onCreated) onCreated(co.id);
     } catch(e) { console.error(e); }
@@ -445,7 +445,7 @@ function AddCompanyModal(props) {
           </div>
           <div>
             <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Category</div>
-            <select value={form.category} onChange={function(e){set("category",e.target.value);}} style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",cursor:"pointer"}}>
+            <select value={form.sponsor_type} onChange={function(e){set("sponsor_type",e.target.value);}} style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",cursor:"pointer"}}>
               {CATS.map(function(c){return <option key={c}>{c}</option>;})}
             </select>
           </div>
@@ -481,7 +481,7 @@ function AddCompanyModal(props) {
           </div>
           <div>
             <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Warmth</div>
-            <select value={form.contact_warmth} onChange={function(e){set("contact_warmth",e.target.value);}} style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",cursor:"pointer"}}>
+            <select value={form.contact_relationship_strength} onChange={function(e){set("contact_relationship_strength",e.target.value);}} style={{width:"100%",background:BG2,border:"1px solid "+T.border,color:T.text,padding:"7px 10px",borderRadius:5,fontSize:13,outline:"none",cursor:"pointer"}}>
               {["Cold","Warm","Met in person","Referred"].map(function(v){return <option key={v}>{v}</option>;})}
             </select>
           </div>
@@ -544,17 +544,17 @@ export default function Sponsors(props) {
       });
       if (!nameMatch && !contactMatch) return false;
     }
-    if (categoryFilter !== "All" && co.category !== categoryFilter) return false;
+    if (categoryFilter !== "All" && co.sponsor_type !== categoryFilter) return false;
     if (hostOnly && co.host_viable !== "Yes") return false;
     if (stageFilter !== "All") {
       var coDeals = getDeals(co.id);
-      var relevantDeals = groupFilter==="All" ? coDeals : coDeals.filter(function(d){ return d.group_name===groupFilter; });
+      var relevantDeals = groupFilter==="All" ? coDeals : coDeals.filter(function(d){ return d.chapter===groupFilter; });
       if (!relevantDeals.some(function(d){ return d.stage===stageFilter; })) return false;
     }
     if (groupFilter !== "All") {
       var coDealsAll = getDeals(co.id);
       // Companies with NO deals yet should always show (newly added prospects)
-      if (coDealsAll.length > 0 && !coDealsAll.some(function(d){ return d.group_name===groupFilter; })) return false;
+      if (coDealsAll.length > 0 && !coDealsAll.some(function(d){ return d.chapter===groupFilter; })) return false;
     }
     return true;
   }

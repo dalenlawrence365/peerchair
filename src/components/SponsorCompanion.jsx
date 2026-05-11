@@ -107,8 +107,8 @@ export default function SponsorCompanion(props) {
   var [cues,      setCues]      = useState([]);
   var [flags,     setFlags]     = useState([]);
   var [hostViable,setHostViable]= useState("");
-  var [warmth,    setWarmth]    = useState("");
-  var [catSeat,   setCatSeat]   = useState(contact.category || deal.category_seat || "");
+  var [relationship_strength,    setWarmth]    = useState("");
+  var [catSeat,   setCatSeat]   = useState(contact.sponsor_type || deal.sponsor_type_seat || "");
   var [notes,     setNotes]     = useState("");
   var [outcome,   setOutcome]   = useState("");
   var [live,      setLive]      = useState(false);
@@ -194,7 +194,7 @@ export default function SponsorCompanion(props) {
         <STitle label="How They Work With CFOs"/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
           <Sel label="Category Seat" val={catSeat} set={setCatSeat} opts={CATEGORY_OPTS} highlight={true}/>
-          <Sel label="Relationship Warmth" val={warmth} set={setWarmth} opts={WARMTH_OPTS}/>
+          <Sel label="Relationship Warmth" val={relationship_strength} set={setWarmth} opts={WARMTH_OPTS}/>
         </div>
         <STitle label="Interest Cues — Check As They Talk" color={T.green}/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,flex:1,alignContent:"start"}}>
@@ -311,7 +311,7 @@ export default function SponsorCompanion(props) {
       if (companyId) {
         await fetch(SBU+"/rest/v1/sponsor_companies?id=eq."+companyId, {
           method:"PATCH", headers:h,
-          body:JSON.stringify({host_viable:hostViable||undefined,category:catSeat||undefined})
+          body:JSON.stringify({host_viable:hostViable||undefined,sponsor_type:catSeat||undefined})
         });
       }
       await fetch(SBU+"/rest/v1/sponsor_activities", {
