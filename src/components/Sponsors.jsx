@@ -552,7 +552,9 @@ export default function Sponsors(props) {
       if (!relevantDeals.some(function(d){ return d.stage===stageFilter; })) return false;
     }
     if (groupFilter !== "All") {
-      if (!getDeals(co.id).some(function(d){ return d.group_name===groupFilter; })) return false;
+      var coDealsAll = getDeals(co.id);
+      // Companies with NO deals yet should always show (newly added prospects)
+      if (coDealsAll.length > 0 && !coDealsAll.some(function(d){ return d.group_name===groupFilter; })) return false;
     }
     return true;
   }
