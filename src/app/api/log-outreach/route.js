@@ -62,15 +62,15 @@ export async function POST(request) {
   }
 
   // Log to communications
-  await sb.from("communications").insert({
+  const { error: insertError } = await sb.from("communications").insert({
     contact_id,
     direction: "OUT",
     channel,
     body: subject ? `Subject: ${subject}\n\n${message}` : message,
-    status: "sent",
     occurred_at: new Date().toISOString(),
     step_label: `${channel} Outreach (ChatGPT)`
   })
+  if (insertError) console.error("communications insert error:", insertError.message)
 
   // Update pipeline stage if appropriate
   const newStage = STAGE_AFTER_OUTREACH[outreach_type] || null
