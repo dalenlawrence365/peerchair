@@ -1,0 +1,109 @@
+openapi: 3.1.0
+info:
+  title: PeerChair Email Assistant
+  description: Lets ChatGPT look up contact context and save email drafts to Outlook on behalf of Dalen Lawrence.
+  version: 1.0.0
+servers:
+  - url: https://www.peerchair.com
+paths:
+  /api/contact-context:
+    get:
+      operationId: getContactContext
+      summary: Look up a contact by name and return their full context and communication history
+      description: >
+        Call this before drafting any email. Returns contact details, relationship history,
+        and recent communications. If multiple matches are found, returns candidates for
+        Dalen to clarify. Always call this first — never draft without context.
+      parameters:
+        - name: name
+          in: query
+          required: false
+          description: Full or partial name of the contact, e.g. "Anand Chokshi" or just "Anand"
+          schema:
+            type: string
+        - name: contact_id
+          in: query
+          required: false
+          description: Exact contact UUID if already known from a previous lookup
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Contact found or candidates returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [single_match, multiple_matches, no_match]
+                  contact:
+                    type: object
+                    description: Full contact record with history (present when status is single_match)
+                  candidates:
+                    type: array
+                    description: List of possible matches (present when status is multiple_matches)
+                  sender:
+                    type: object
+                    description: Dalen's info to use in email signatures and Calendly links
+        "401":
+          description: Unauthorized
+
+  /api/save-draft:
+    post:
+      operationId: saveDraft
+      summary: Save a finalized email draft to Outlook Drafts and log it in PeerChair
+      description: >
+        Call this only after Dalen has approved the draft. Creates the draft in Outlook
+        and logs it to the PeerChair communications database. Never sends the email —
+        Dalen always sends manually from Outlook.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - contact_id
+                - subject
+                - body
+              properties:
+                contact_id:
+                  type: string
+                  description: UUID of the contact from getContactContext
+                subject:
+                  type: string
+                  description: Email subject line
+                body:
+                  type: string
+                  description: Plain text email body
+                attachment_name:
+                  type: string
+                  description: >
+                    Optional. Name of a file stored in PeerChair to attach.
+                    Use plain descriptive names like "sponsor one pager" or "membership overview".
+      responses:
+        "200":
+          description: Draft saved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  to:
+                    type: string
+                  subject:
+                    type: string
+                  attachment_included:
+                    type: boolean
+                  attachment_note:
+                    type: string
+        "401":
+          description: Unauthorized
+        "404":
+          description: Contact not found
