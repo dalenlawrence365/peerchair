@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
+import { corsResponse, handleOptions, CORS_HEADERS } from "@/lib/cors"
 import { createClient } from "@supabase/supabase-js"
 
 // Stage progression map — what stage to move to when logging outreach
@@ -13,9 +14,11 @@ const STAGE_AFTER_OUTREACH = {
   "general_follow_up": null, // no stage change
 }
 
+export async function OPTIONS() { return handleOptions() }
+
 export async function POST(request) {
   if (!verifyGptActionKey(request)) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
+    return corsResponse({ error: "Unauthorized" }, { status: 401 })
   }
 
   const body = await request.json()
@@ -28,7 +31,7 @@ export async function POST(request) {
   } = body
 
   if (!contact_id || !message || !channel) {
-    return Response.json({ error: "contact_id, message, and channel are required" }, { status: 400 })
+    return corsResponse({ error: "contact_id, message, and channel are required" }, { status: 400 })
   }
 
   const sb = createClient(
@@ -44,7 +47,7 @@ export async function POST(request) {
     .single()
 
   if (!contact) {
-    return Response.json({ error: "Contact not found" }, { status: 404 })
+    return corsResponse({ error: "Contact not found" }, { status: 404 })
   }
 
   // Log to communications
@@ -79,7 +82,7 @@ export async function POST(request) {
       .eq("id", contact_id)
   }
 
-  return Response.json({
+  return corsResponse({
     success: true,
     message: `Logged ${channel} outreach to ${contact.first_name} ${contact.last_name}.${stageUpdated ? ` Stage updated to "${newStage}".` : ""} PeerChair is up to date.`,
     contact_name: `${contact.first_name} ${contact.last_name}`,

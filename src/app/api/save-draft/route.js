@@ -1,19 +1,22 @@
 export const dynamic = "force-dynamic"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
+import { corsResponse, handleOptions } from "@/lib/cors"
 import { createClient } from "@supabase/supabase-js"
 
 const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024 // 3MB
 
+export async function OPTIONS() { return handleOptions() }
+
 export async function POST(request) {
   if (!verifyGptActionKey(request)) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
+    return corsResponse({ error: "Unauthorized" }, { status: 401 })
   }
 
   const body = await request.json()
   const { contact_id, subject, body: emailBody, attachment_name } = body
 
   if (!contact_id || !subject || !emailBody) {
-    return Response.json({ error: "contact_id, subject, and body are required" }, { status: 400 })
+    return corsResponse({ error: "contact_id, subject, and body are required" }, { status: 400 })
   }
 
   const sb = createClient(
@@ -24,13 +27,13 @@ export async function POST(request) {
   // Resolve contact
   const { data: contact } = await sb.from("contacts").select("id, first_name, last_name, email").eq("id", contact_id).single()
   if (!contact || !contact.email) {
-    return Response.json({ error: "Contact not found or has no email address" }, { status: 404 })
+    return corsResponse({ error: "Contact not found or has no email address" }, { status: 404 })
   }
 
   // Get Microsoft token
   const { data: tokenRow } = await sb.from("microsoft_tokens").select("*").eq("id", "dalen").single()
   if (!tokenRow) {
-    return Response.json({ error: "Microsoft token not found. Visit peerchair.com/api/auth/microsoft to reconnect." }, { status: 401 })
+    return corsResponse({ error: "Microsoft token not found. Visit peerchair.com/api/auth/microsoft to reconnect." }, { status: 401 })
   }
 
   // Refresh token if expired
@@ -123,7 +126,7 @@ export async function POST(request) {
 
   if (!draftRes.ok) {
     const err = await draftRes.text()
-    return Response.json({ error: "Outlook draft failed: " + err }, { status: 500 })
+    return corsResponse({ error: "Outlook draft failed: " + err }, { status: 500 })
   }
 
   const draft = await draftRes.json()
@@ -139,7 +142,7 @@ export async function POST(request) {
     step_label: "Email Draft (ChatGPT)"
   })
 
-  return Response.json({
+  return corsResponse({
     success: true,
     message: `Draft saved to Outlook for ${contact.first_name} ${contact.last_name} (${contact.email}).${attachmentNote ? " Note: " + attachmentNote : ""} Open Outlook to review and send.`,
     draft_id: draft.id,
