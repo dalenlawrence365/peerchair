@@ -81,7 +81,7 @@ export async function GET(request) {
   // Pull last 20 communications
   const { data: comms } = await sb
     .from("communications")
-    .select("occurred_at, direction, channel, body, step_label, outcome")
+    .select("occurred_at, direction, channel, body, step_label, subject")
     .eq("contact_id", contact.id)
     .order("occurred_at", { ascending: false })
     .limit(20)
