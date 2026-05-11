@@ -538,7 +538,8 @@ export default function Sponsors(props) {
       var nameMatch = co.name.toLowerCase().includes(q);
       // Also search contacts linked to this company
       var contactMatch = getContacts(co.id).some(function(ct){
-        return (ct.full_name||"").toLowerCase().includes(q) ||
+        var fullName = ((ct.full_name||"") || ((ct.first_name||"")+" "+(ct.last_name||""))).trim();
+               return fullName.toLowerCase().includes(q) ||
                (ct.title||"").toLowerCase().includes(q) ||
                (ct.email||"").toLowerCase().includes(q);
       });
