@@ -17,11 +17,22 @@ const STAGE_AFTER_OUTREACH = {
 export async function OPTIONS() { return handleOptions() }
 
 export async function POST(request) {
+  console.log('log-outreach POST called')
+  let rawBody = null
+  try {
+    rawBody = await request.text()
+    console.log('log-outreach body:', rawBody.slice(0, 500))
+  } catch(e) {
+    console.error('log-outreach body parse error:', e.message)
+    return corsResponse({ error: 'Could not read request body' }, { status: 400 })
+  }
+
   if (!verifyGptActionKey(request)) {
     return corsResponse({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const body = await request.json()
+  let body
+  try { body = JSON.parse(rawBody) } catch(e) { return corsResponse({ error: "Invalid JSON" }, { status: 400 }) }
   const {
     contact_id,
     message,       // the message text
