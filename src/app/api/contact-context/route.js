@@ -31,7 +31,7 @@ export async function GET(request) {
   // Fuzzy name search
   if (!contact && name) {
     const { data: matches, error: rpcError } = await sb.rpc("search_contacts_fuzzy", {
-      query: name,
+      search_term: name,
       max_results: 5
     })
 
