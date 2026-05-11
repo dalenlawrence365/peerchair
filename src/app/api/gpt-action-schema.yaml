@@ -107,3 +107,51 @@ paths:
           description: Unauthorized
         "404":
           description: Contact not found
+
+  /api/log-outreach:
+    post:
+      operationId: logOutreach
+      summary: Log a sent message to PeerChair and optionally update the contact's pipeline stage
+      description: >
+        Call this when Dalen confirms he has sent or is about to send a message (LinkedIn, email, phone, etc).
+        Logs the message to the PeerChair communications timeline and updates the pipeline stage if appropriate.
+        Use outreach_type to trigger the right stage update:
+        - fit_call_link_sent: moves CFO prospect to "Fit Invite Sent"
+        - fit_call_scheduled: moves to "Fit Call Scheduled"
+        - sponsor_discovery_link_sent: moves sponsor to "Discovery Sched."
+        - general_follow_up: logs message, no stage change
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - contact_id
+                - message
+                - channel
+              properties:
+                contact_id:
+                  type: string
+                  description: UUID from getContactContext
+                message:
+                  type: string
+                  description: The full message text that was sent
+                channel:
+                  type: string
+                  enum: [LinkedIn, Email, Phone, Note]
+                  description: How the message was sent
+                outreach_type:
+                  type: string
+                  enum: [fit_call_link_sent, fit_call_scheduled, fit_call_completed, sponsor_discovery_link_sent, sponsor_discovery_scheduled, sponsor_discovery_completed, general_follow_up]
+                  description: Type of outreach — determines whether to update pipeline stage
+                subject:
+                  type: string
+                  description: Optional subject line for email outreach
+      responses:
+        "200":
+          description: Outreach logged successfully
+        "401":
+          description: Unauthorized
+        "404":
+          description: Contact not found

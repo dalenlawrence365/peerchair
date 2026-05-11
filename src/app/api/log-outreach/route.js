@@ -1,0 +1,91 @@
+export const dynamic = "force-dynamic"
+import { verifyGptActionKey } from "@/lib/gpt-auth"
+import { createClient } from "@supabase/supabase-js"
+
+// Stage progression map — what stage to move to when logging outreach
+const STAGE_AFTER_OUTREACH = {
+  "fit_call_link_sent": "Fit Invite Sent",
+  "fit_call_scheduled": "Fit Call Scheduled",
+  "fit_call_completed": "Fit Call Completed",
+  "sponsor_discovery_link_sent": "Discovery Sched.",
+  "sponsor_discovery_scheduled": "Discovery Sched.",
+  "sponsor_discovery_completed": "Discovery Done",
+  "general_follow_up": null, // no stage change
+}
+
+export async function POST(request) {
+  if (!verifyGptActionKey(request)) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const body = await request.json()
+  const {
+    contact_id,
+    message,       // the message text
+    channel,       // LinkedIn | Email | Phone | Note
+    outreach_type, // fit_call_link_sent | sponsor_discovery_link_sent | general_follow_up etc
+    subject,       // optional, for email
+  } = body
+
+  if (!contact_id || !message || !channel) {
+    return Response.json({ error: "contact_id, message, and channel are required" }, { status: 400 })
+  }
+
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+
+  // Verify contact exists
+  const { data: contact } = await sb
+    .from("contacts")
+    .select("id, first_name, last_name, pipeline_stage, contact_type")
+    .eq("id", contact_id)
+    .single()
+
+  if (!contact) {
+    return Response.json({ error: "Contact not found" }, { status: 404 })
+  }
+
+  // Log to communications
+  await sb.from("communications").insert({
+    contact_id,
+    direction: "OUT",
+    channel,
+    body: subject ? `Subject: ${subject}\n\n${message}` : message,
+    status: "sent",
+    occurred_at: new Date().toISOString(),
+    step_label: `${channel} Outreach (ChatGPT)`
+  })
+
+  // Update pipeline stage if appropriate
+  const newStage = STAGE_AFTER_OUTREACH[outreach_type] || null
+  let stageUpdated = false
+
+  if (newStage) {
+    await sb
+      .from("contacts")
+      .update({
+        pipeline_stage: newStage,
+        last_activity_date: new Date().toISOString()
+      })
+      .eq("id", contact_id)
+    stageUpdated = true
+  } else {
+    // Still update last activity
+    await sb
+      .from("contacts")
+      .update({ last_activity_date: new Date().toISOString() })
+      .eq("id", contact_id)
+  }
+
+  return Response.json({
+    success: true,
+    message: `Logged ${channel} outreach to ${contact.first_name} ${contact.last_name}.${stageUpdated ? ` Stage updated to "${newStage}".` : ""} PeerChair is up to date.`,
+    contact_name: `${contact.first_name} ${contact.last_name}`,
+    channel,
+    stage_updated: stageUpdated,
+    new_stage: newStage || contact.pipeline_stage,
+    previous_stage: contact.pipeline_stage
+  })
+}
