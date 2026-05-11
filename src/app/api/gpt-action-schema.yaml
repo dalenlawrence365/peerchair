@@ -157,9 +157,15 @@ paths:
           description: Contact not found
 
   /api/gpt-echo:
+    get:
+      operationId: gptEchoGet
+      summary: Test GET — verify GET requests reach PeerChair
+      responses:
+        "200":
+          description: Echo response
     post:
-      operationId: gptEcho
-      summary: Test endpoint to verify POST requests reach PeerChair
+      operationId: gptEchoPost
+      summary: Test POST — verify POST requests reach PeerChair
       requestBody:
         required: true
         content:
