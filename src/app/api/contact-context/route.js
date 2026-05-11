@@ -30,10 +30,20 @@ export async function GET(request) {
 
   // Fuzzy name search
   if (!contact && name) {
-    const { data: matches } = await sb.rpc("search_contacts_fuzzy", {
+    const { data: matches, error: rpcError } = await sb.rpc("search_contacts_fuzzy", {
       query: name,
       max_results: 5
     })
+
+    console.log("RPC result:", JSON.stringify({ matches, rpcError }))
+
+    if (rpcError) {
+      return Response.json({
+        status: "no_match",
+        message: `CRM search error: ${rpcError.message}`,
+        debug: rpcError
+      })
+    }
 
     if (!matches || matches.length === 0) {
       return Response.json({
