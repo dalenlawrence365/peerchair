@@ -51,6 +51,20 @@ function SponsorMetrics(props) {
 
   return (
     <div style={{marginBottom:16}}>
+      <div style={{display:"flex",gap:10}}>
+        {items.map(function(item){
+          var isOpen = openStage === item.stage;
+          return (
+            <div key={item.label} onClick={function(){if(item.clickable)loadStageDeals(item.stage);}}
+              style={{flex:1,background:isOpen?item.color+"14":BG3,border:"1px solid "+(isOpen?item.color+"50":item.color+"25"),borderTop:"2px solid "+item.color+(isOpen?"":"70"),borderRadius:7,padding:"10px 12px",cursor:item.clickable?"pointer":"default",transition:"all 0.15s"}}>
+              <div style={{fontSize:10,color:item.color,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>{item.label}</div>
+              <div style={{fontSize:24,fontWeight:700,color:item.color}}>{item.val}</div>
+              {item.clickable&&<div style={{fontSize:9,color:T.dim,marginTop:2}}>click for list</div>}
+            </div>
+          );
+        })}
+      </div>
+
       {openStage&&<div style={{background:BG3,border:"1px solid "+T.border,borderRadius:7,padding:"14px 18px",marginTop:10}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
           <div style={{fontSize:12,fontWeight:600,color:"#9b59b6"}}>{openStage} — {stageDeals.length} {stageDeals.length===1?"company":"companies"}</div>
@@ -186,19 +200,6 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
           </div>
         </div>
       )}
-      <div style={{display:"flex",gap:10}}>
-        {items.map(function(item){
-          var isOpen = openStage === item.stage;
-          return (
-            <div key={item.label} onClick={function(){if(item.clickable)loadStageDeals(item.stage);}}
-              style={{flex:1,background:isOpen?item.color+"14":BG3,border:"1px solid "+(isOpen?item.color+"50":item.color+"25"),borderTop:"2px solid "+item.color+(isOpen?"":"70"),borderRadius:7,padding:"10px 12px",cursor:item.clickable?"pointer":"default",transition:"all 0.15s"}}>
-              <div style={{fontSize:10,color:item.color,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>{item.label}</div>
-              <div style={{fontSize:24,fontWeight:700,color:item.color}}>{item.val}</div>
-              {item.clickable&&<div style={{fontSize:9,color:T.dim,marginTop:2}}>click for list</div>}
-            </div>
-          );
-        })}
-      </div>
 
       <div style={{marginBottom:24}}>
         <div style={{fontSize:11,color:T.muted,letterSpacing:3,textTransform:"uppercase",marginBottom:6}}>{today}</div>
