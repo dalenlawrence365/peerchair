@@ -51,47 +51,6 @@ function SponsorMetrics(props) {
 
   return (
     <div style={{marginBottom:16}}>
-      {showReferrals && (
-        <div onClick={function(){setShowReferrals(false)}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <div onClick={function(e){e.stopPropagation()}} style={{background:"#0c1520",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,width:"100%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
-            <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontSize:11,letterSpacing:3,color:T.blue,textTransform:"uppercase",fontWeight:600}}>Referral Partners ({referralCount})</div>
-              <button onClick={function(){setShowReferrals(false)}} style={{background:"transparent",border:"none",color:T.muted,cursor:"pointer",fontSize:20}}>×</button>
-            </div>
-            <div style={{overflowY:"auto",padding:"8px 0"}}>
-              {referralContacts.length === 0 && <div style={{padding:"20px",color:T.muted,fontSize:13}}>No referral partners yet.</div>}
-              {referralContacts.map(function(c){
-                return (
-                  <div key={c.id} style={{padding:"12px 20px",borderBottom:"1px solid rgba(255,255,255,0.04)",display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:32,height:32,borderRadius:"50%",background:"rgba(74,158,186,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:T.blue,flexShrink:0}}>
-                      {(c.first_name||"?")[0].toUpperCase()}
-                    </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:13,color:"#e8f2ff",fontWeight:600}}>{c.first_name} {c.last_name}</div>
-                      <div style={{fontSize:11,color:T.muted}}>{c.company_name||""}{c.email ? " · "+c.email : ""}</div>
-                    </div>
-                    <div style={{fontSize:10,color:T.dim}}>{c.lead_source||""}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-      <div style={{display:"flex",gap:10}}>
-        {items.map(function(item){
-          var isOpen = openStage === item.stage;
-          return (
-            <div key={item.label} onClick={function(){if(item.clickable)loadStageDeals(item.stage);}}
-              style={{flex:1,background:isOpen?item.color+"14":BG3,border:"1px solid "+(isOpen?item.color+"50":item.color+"25"),borderTop:"2px solid "+item.color+(isOpen?"":"70"),borderRadius:7,padding:"10px 12px",cursor:item.clickable?"pointer":"default",transition:"all 0.15s"}}>
-              <div style={{fontSize:10,color:item.color,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>{item.label}</div>
-              <div style={{fontSize:24,fontWeight:700,color:item.color}}>{item.val}</div>
-              {item.clickable&&<div style={{fontSize:9,color:T.dim,marginTop:2}}>click for list</div>}
-            </div>
-          );
-        })}
-      </div>
-
       {openStage&&<div style={{background:BG3,border:"1px solid "+T.border,borderRadius:7,padding:"14px 18px",marginTop:10}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
           <div style={{fontSize:12,fontWeight:600,color:"#9b59b6"}}>{openStage} — {stageDeals.length} {stageDeals.length===1?"company":"companies"}</div>
@@ -200,6 +159,47 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
   function getCount(label){if(label==="Fit Scheduled")return stageCounts["Fit Call Scheduled"]||0;if(label==="Fit Completed")return stageCounts["Fit Call Completed"]||0;return stageCounts[label]||0;}
   return (
     <div style={{padding:"28px 32px",overflowY:"auto",flex:1}}>
+      {showReferrals && (
+        <div onClick={function(){setShowReferrals(false)}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={function(e){e.stopPropagation()}} style={{background:"#0c1520",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,width:"100%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
+            <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontSize:11,letterSpacing:3,color:T.blue,textTransform:"uppercase",fontWeight:600}}>Referral Partners ({referralCount})</div>
+              <button onClick={function(){setShowReferrals(false)}} style={{background:"transparent",border:"none",color:T.muted,cursor:"pointer",fontSize:20}}>×</button>
+            </div>
+            <div style={{overflowY:"auto",padding:"8px 0"}}>
+              {referralContacts.length === 0 && <div style={{padding:"20px",color:T.muted,fontSize:13}}>No referral partners yet.</div>}
+              {referralContacts.map(function(c){
+                return (
+                  <div key={c.id} style={{padding:"12px 20px",borderBottom:"1px solid rgba(255,255,255,0.04)",display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:32,height:32,borderRadius:"50%",background:"rgba(74,158,186,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:T.blue,flexShrink:0}}>
+                      {(c.first_name||"?")[0].toUpperCase()}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,color:"#e8f2ff",fontWeight:600}}>{c.first_name} {c.last_name}</div>
+                      <div style={{fontSize:11,color:T.muted}}>{c.company_name||""}{c.email ? " · "+c.email : ""}</div>
+                    </div>
+                    <div style={{fontSize:10,color:T.dim}}>{c.lead_source||""}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+      <div style={{display:"flex",gap:10}}>
+        {items.map(function(item){
+          var isOpen = openStage === item.stage;
+          return (
+            <div key={item.label} onClick={function(){if(item.clickable)loadStageDeals(item.stage);}}
+              style={{flex:1,background:isOpen?item.color+"14":BG3,border:"1px solid "+(isOpen?item.color+"50":item.color+"25"),borderTop:"2px solid "+item.color+(isOpen?"":"70"),borderRadius:7,padding:"10px 12px",cursor:item.clickable?"pointer":"default",transition:"all 0.15s"}}>
+              <div style={{fontSize:10,color:item.color,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>{item.label}</div>
+              <div style={{fontSize:24,fontWeight:700,color:item.color}}>{item.val}</div>
+              {item.clickable&&<div style={{fontSize:9,color:T.dim,marginTop:2}}>click for list</div>}
+            </div>
+          );
+        })}
+      </div>
+
       <div style={{marginBottom:24}}>
         <div style={{fontSize:11,color:T.muted,letterSpacing:3,textTransform:"uppercase",marginBottom:6}}>{today}</div>
         <h1 style={{fontSize:26,fontWeight:600,color:T.text,margin:0}}>{(function(){var h=new Date().getHours();return h<12?"Good morning":h<17?"Good afternoon":"Good evening";})()}, Dalen.</h1>
