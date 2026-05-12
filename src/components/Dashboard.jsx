@@ -51,6 +51,33 @@ function SponsorMetrics(props) {
 
   return (
     <div style={{marginBottom:16}}>
+      {showReferrals && (
+        <div onClick={function(){setShowReferrals(false)}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={function(e){e.stopPropagation()}} style={{background:"#0c1520",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,width:"100%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
+            <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontSize:11,letterSpacing:3,color:T.blue,textTransform:"uppercase",fontWeight:600}}>Referral Partners ({referralCount})</div>
+              <button onClick={function(){setShowReferrals(false)}} style={{background:"transparent",border:"none",color:T.muted,cursor:"pointer",fontSize:20}}>×</button>
+            </div>
+            <div style={{overflowY:"auto",padding:"8px 0"}}>
+              {referralContacts.length === 0 && <div style={{padding:"20px",color:T.muted,fontSize:13}}>No referral partners yet.</div>}
+              {referralContacts.map(function(c){
+                return (
+                  <div key={c.id} style={{padding:"12px 20px",borderBottom:"1px solid rgba(255,255,255,0.04)",display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:32,height:32,borderRadius:"50%",background:"rgba(74,158,186,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:T.blue,flexShrink:0}}>
+                      {(c.first_name||"?")[0].toUpperCase()}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,color:"#e8f2ff",fontWeight:600}}>{c.first_name} {c.last_name}</div>
+                      <div style={{fontSize:11,color:T.muted}}>{c.company_name||""}{c.email ? " · "+c.email : ""}</div>
+                    </div>
+                    <div style={{fontSize:10,color:T.dim}}>{c.lead_source||""}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{display:"flex",gap:10}}>
         {items.map(function(item){
           var isOpen = openStage === item.stage;
@@ -107,8 +134,22 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
   var [snapshots,setSnapshots] = useState([]);
   var [hrStats,setHrStats] = useState({sent:187,accepted:63,msgSent:65,replies:22,acceptRate:34,replyRate:34,campaigns:[]});
   var [meetingStats,setMeetingStats] = useState(null);
+  var [referralCount,setReferralCount] = useState(0);
+  var [referralContacts,setReferralContacts] = useState([]);
+  var [showReferrals,setShowReferrals] = useState(false);
 
-  useEffect(function(){ loadSnapshots(); loadHeyReach(); loadMeetingStats(); },[]);
+  useEffect(function(){ loadSnapshots(); loadHeyReach(); loadMeetingStats(); loadReferralPartners(); },[]);
+
+  async function loadReferralPartners(){
+    try {
+      var SBU = process.env.NEXT_PUBLIC_SUPABASE_URL
+      var SBK = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      var h = { apikey: SBK, Authorization: "Bearer "+SBK }
+      var res = await fetch(SBU+"/rest/v1/contacts?contact_type=eq.REFERRAL_PARTNER&select=id,first_name,last_name,company_name,email,lead_source,personal_notes&order=last_name.asc", {headers:h})
+      var data = await res.json()
+      if (Array.isArray(data)) { setReferralCount(data.length); setReferralContacts(data); }
+    } catch(e) { console.error(e) }
+  }
 
   async function loadMeetingStats(){
     try{
@@ -165,7 +206,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
         <div style={{fontSize:14,color:T.muted,marginTop:4}}>Here's where things stand with your Los Angeles chapter.</div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14,marginBottom:16}}>
-        {[{label:"Days to Next Event",val:"—",sub:"no event scheduled",color:T.purple,icon:"✦",action:null},{label:"Active Members",val:String(getCount("Active Member")||0),sub:"in chapter",color:T.green,icon:"★",action:function(){navigate("pipeline");}}].map(function(k){
+        {[{label:"Days to Next Event",val:"—",sub:"no event scheduled",color:T.purple,icon:"✦",action:null},{label:"Active Members",val:String(getCount("Active Member")||0),sub:"in chapter",color:T.green,icon:"★",action:function(){navigate("pipeline");}},{label:"Referral Partners",val:String(referralCount),sub:"in network",color:T.blue,icon:"◈",action:function(){setShowReferrals(true);}}].map(function(k){
           return <div key={k.label} onClick={k.action||undefined} style={{background:BG3,border:"1px solid "+T.border,borderTop:"2px solid "+k.color+"40",borderRadius:8,padding:"18px 20px",cursor:k.action?"pointer":"default",transition:"all 0.15s"}}
             onMouseOver={function(e){if(k.action)e.currentTarget.style.borderColor=k.color+"40";}}
             onMouseOut={function(e){if(k.action)e.currentTarget.style.borderColor=T.border;}}>
