@@ -22,10 +22,10 @@ function SponsorMetrics(props) {
         if (!Array.isArray(deals)) { setLoadingDeals(false); return; }
         var ids = deals.map(function(d){return d.company_id;}).filter(Boolean);
         if (ids.length === 0) { setStageDeals([]); setLoadingDeals(false); return; }
-        fetch(SBU+"/rest/v1/sponsor_companies?id=in.("+ids.join(",")+")"+"&select=id,name,category,host_viable,host_tier&limit=50", {headers:h})
+        fetch(SBU+"/rest/v1/companies?id=in.("+ids.join(",")+")"+"&select=id,name,category,host_viable,host_tier&limit=50", {headers:h})
           .then(function(r){return r.json();})
           .then(function(companies){
-            fetch(SBU+"/rest/v1/sponsor_contacts?company_id=in.("+ids.join(",")+")"+"&select=id,full_name,title,email,company_id&order=created_at.asc&limit=100", {headers:h})
+            fetch(SBU+"/rest/v1/contacts?contact_type=eq.SPONSOR_CONTACT&?company_id=in.("+ids.join(",")+")"+"&select=id,full_name,title,email,company_id&order=created_at.asc&limit=100", {headers:h})
               .then(function(r){return r.json();})
               .then(function(contacts){
                 var enriched = deals.map(function(deal){
