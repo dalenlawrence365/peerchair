@@ -309,7 +309,7 @@ export default function SponsorCompanion(props) {
         });
       }
       if (companyId) {
-        await fetch(SBU+"/rest/v1/sponsor_companies?id=eq."+companyId, {
+        await fetch(SBU+"/rest/v1/companies?id=eq."+companyId, {
           method:"PATCH", headers:h,
           body:JSON.stringify({host_viable:hostViable||undefined,sponsor_type:catSeat||undefined})
         });

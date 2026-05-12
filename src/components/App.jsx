@@ -77,7 +77,7 @@ export default function CFOCircleApp() {
       setStageCounts(counts);setTotal(tot);setPipelineTotal(pipelineTot);
 
       // Load sponsor company count
-      var sCompanies = await sbFetch("/sponsor_companies?select=id&limit=500");
+      var sCompanies = await sbFetch("/companies?is_sponsor=eq.true&select=id&limit=500");
       setSponsorCompanyCount(Array.isArray(sCompanies)?sCompanies.length:0);
     }catch(e){console.error("Stats error:",e);}
     setStatsLoading(false);
