@@ -119,7 +119,7 @@ export default function CFOCircleApp() {
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:BG2}}>
         <div style={{height:48,borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",padding:"0 24px",flexShrink:0,background:BG,gap:10}}>
           {screen==="profile"&&<button onClick={function(){navigate("pipeline");}} style={{background:"transparent",border:"none",color:T.blue,cursor:"pointer",fontSize:13,padding:0,marginRight:8}}>← Pipeline</button>}
-          <GlobalSearch onSelectContact={function(c){ setSelectedContact({id:c.id,contactId:c.id,firstName:(c.name||" ").split(" ")[0],lastName:(c.name||" ").split(" ").slice(1).join(" "),type:c.type,contactType:c.type,company:c.company,title:c.title}); setScreen("profile"); }} onSelectCompany={function(){ setScreen("sponsors"); }} />
+          <div style={{fontSize:13,color:T.muted,flex:1}}>{screenLabel}</div>
           <div style={{display:"flex",gap:7,alignItems:"center"}}>
             <div style={{width:7,height:7,borderRadius:"50%",background:T.green,boxShadow:"0 0 6px "+T.green}}/>
             <span style={{fontSize:10,color:T.dim,letterSpacing:1,textTransform:"uppercase"}}>Live · Supabase</span>
@@ -145,6 +145,9 @@ export default function CFOCircleApp() {
           </div>
         </div>
         <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+          <div style={{padding:"8px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(8,15,26,0.95)",flexShrink:0}}>
+            <GlobalSearch onSelectContact={function(c){ setSelectedContact({id:c.id,contactId:c.id,firstName:(c.name||" ").split(" ")[0],lastName:(c.name||" ").split(" ").slice(1).join(" "),type:c.type,contactType:c.type,company:c.company,title:c.title}); setScreen("profile"); }} onSelectCompany={function(){ setScreen("sponsors"); }} />
+          </div>
           {screen==="dashboard" && <Dashboard onNavigate={navigate} totalContacts={totalContacts} stageCounts={stageCounts} sponsorStageCounts={sponsorStageCounts} pipelineTotal={pipelineTotal} fitCallContacts={fitCallContacts} onStartFitCall={function(ct){setFitCallContact({id:ct.id,firstName:ct.first_name,lastName:ct.last_name,title:ct.title,company:ct.company_name,email:ct.email,linkedinUrl:ct.linkedin_url,fit_call_date:ct.fit_call_date});setScreen("fitcall");}} onNavigateToBucket={function(stage){navigate("pipeline");}} onStartDiscovery={function(co,contact,deal){setSponsorContact(Object.assign({},contact||{},{company:co.name||"",company_id:co.id,category:co.category}));setSponsorDeal(deal);setScreen("sponsor_call");}}/>}
           {screen==="pipeline"  && <Pipeline  onNavigate={navigate}/>}
           {screen==="profile"   && selectedContact && <ContactProfile contactId={selectedContact?selectedContact.id:null} contactData={selectedContact} onBack={function(){navigate(prevScreen||"pipeline");}} onStartFitCall={function(d){ setFitCallContact(d); setScreen("fitcall"); }}/>}
