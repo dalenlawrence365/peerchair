@@ -184,7 +184,7 @@ function Dashboard({onNavigate,totalContacts,stageCounts,sponsorStageCounts,pipe
               {referralContacts.length === 0 && <div style={{padding:"20px",color:T.muted,fontSize:13}}>No referral partners yet.</div>}
               {referralContacts.map(function(c){
                 return (
-                  <div key={c.id} style={{padding:"12px 20px",borderBottom:"1px solid rgba(255,255,255,0.04)",display:"flex",alignItems:"center",gap:12}}>
+                  <div key={c.id} onClick={function(){if(onNavigate){setShowReferrals(false);onNavigate("profile",{id:c.id,contactId:c.id,first_name:c.first_name,last_name:c.last_name,contact_type:"REFERRAL_PARTNER",company_name:c.company_name,title:c.title,email:c.email});}}} style={{padding:"12px 20px",borderBottom:"1px solid rgba(255,255,255,0.04)",display:"flex",alignItems:"center",gap:12,cursor:"pointer"}} onMouseEnter={function(e){e.currentTarget.style.background="rgba(255,255,255,0.04)";}} onMouseLeave={function(e){e.currentTarget.style.background="transparent";}}>  
                     <div style={{width:32,height:32,borderRadius:"50%",background:"rgba(74,158,186,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:T.blue,flexShrink:0}}>
                       {(c.first_name||"?")[0].toUpperCase()}
                     </div>
