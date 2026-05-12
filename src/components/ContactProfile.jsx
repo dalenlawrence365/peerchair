@@ -298,6 +298,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
   );
 
   var isSponsor = data.contactType === "SPONSOR_CONTACT" || data.contactType === "REFERRAL_PARTNER";
+  var isReferralPartner = data.contactType === "REFERRAL_PARTNER";
   var sc = stageColor(data.pipelineStage);
   var channels = ["All","LinkedIn","Email","Phone","Calendly","App","Note"];
   // Tab definitions including new communication tabs
@@ -319,7 +320,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
             <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:3}}>
               <h2 style={{fontSize:20,fontWeight:600,color:"#fff",margin:0}}>{data.firstName} {data.lastName}</h2>
               <Pill label={data.pipelineStage} color={sc}/>
-              {isSponsor ? <Pill label="Sponsor Contact" color={T.purple}/> : <Pill label={data.memberStatus} color={data.memberStatus==="Active"?T.green:data.memberStatus==="Not a Fit"?T.red:data.memberStatus==="Inactive / Churned"?T.orange:T.blue}/>}
+              {data.contactType==="REFERRAL_PARTNER" ? <Pill label="Referral Partner" color={T.green}/> : isSponsor ? <Pill label="Sponsor Contact" color={T.purple}/> : <Pill label={data.memberStatus} color={data.memberStatus==="Active"?T.green:data.memberStatus==="Not a Fit"?T.red:data.memberStatus==="Inactive / Churned"?T.orange:T.blue}/>}
               {data.fitCallOutcome?<Pill label={data.fitCallOutcome} color={data.fitCallOutcome==="Strong Fit"?T.green:data.fitCallOutcome==="Not a Fit"?T.red:G}/>:null}
             </div>
             <div style={{fontSize:12,color:"#9ac4dc",marginBottom:4}}>{data.title} · {data.company}</div>
@@ -349,7 +350,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
           {/* Quick Actions */}
           <div style={{borderTop:"1px solid "+T.border,paddingTop:12,marginBottom:12}}>
             <div style={{fontSize:9,letterSpacing:2,color:T.dim,textTransform:"uppercase",marginBottom:8}}>Quick Actions</div>
-            {(isSponsor ? [["Discovery Call",T.purple],["Send One Pager",T.blue],["Add Note",T.green]] : [["Start Fit Call",T.gold],["Schedule Fit Call",G],["Send Assessment",T.blue],["Event Invite",T.purple],["Add Note",T.green],["Reserve Pool",T.orange]]).map(function(item){
+            {(data.contactType==="REFERRAL_PARTNER" ? [["Draft Email",T.green],["Log Call",T.blue],["Add Note",T.gold]] : isSponsor ? [["Discovery Call",T.purple],["Send One Pager",T.blue],["Add Note",T.green]] : [["Start Fit Call",T.gold],["Schedule Fit Call",G],["Send Assessment",T.blue],["Event Invite",T.purple],["Add Note",T.green],["Reserve Pool",T.orange]]).map(function(item){
               return <button key={item[0]} onClick={function(){if(item[0].indexOf("Note")>-1){setAddingNote(true);setTab("timeline");}
                     else if(item[0].indexOf("Start Fit Call")>-1 && onStartFitCall){onStartFitCall({id:data.id,firstName:data.firstName,lastName:data.lastName,title:data.title,company:data.company,email:data.email,linkedinUrl:data.linkedinUrl,fit_call_date:data.fitCallDate});}}} style={{display:"block",width:"100%",marginBottom:5,padding:"7px 10px",background:"rgba(255,255,255,0.02)",border:"1px solid "+T.border,color:item[1],borderRadius:5,cursor:"pointer",fontSize:11,textAlign:"left"}}>{item[0]}</button>;
             })}
@@ -381,6 +382,13 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
           {tab==="summary"
             ?<div style={{overflowY:"auto",flex:1}}>
 
+              {isReferralPartner && <Section title="Referral Notes" icon="◈" defaultOpen={true}>
+                <Grid2>
+                  <FL label="How We Met"><FV>{data.howWeMet||"—"}</FV></FL>
+                  <FL label="Source"><FV>{data.leadSource||"—"}</FV></FL>
+                </Grid2>
+                <FL label="Notes"><FV>{data.personalNotes||"—"}</FV></FL>
+              </Section>}
               {!isSponsor && <Section title="Circle Journey" icon="→" defaultOpen={true}>
                 <CircleJourney data={data} onNodeClick={function(stage, idx){
                   var prevStage = data.pipelineStage;
@@ -441,7 +449,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                 </Grid2>
               </Section>
 
-              <Section title="Firmographic" icon="🏢" onEdit={function(){setDrawer("firmographic");}}>
+              {!isReferralPartner && <Section title="Firmographic" icon="🏢" onEdit={function(){setDrawer("firmographic");}}>
                 <Grid2>
                   <div><FL label="Industry"/><FV val={data.industry}/></div>
                   <div><FL label="Annual Revenue"/><FV val={data.revenue}/></div>
@@ -452,7 +460,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                   <div><FL label="Website"/><FV val={data.companyWebsite}/></div>
                   <div><FL label="City / State"/><FV val={data.companyCity}/></div>
                 </Grid2>
-              </Section>
+              </Section>}
 
               {!isSponsor && <Section title="Fit Call" icon="☎" defaultOpen={!!data.fitCallOutcome} onEdit={function(){setDrawer("fitcall");}} badge={data.fitCallOutcome||""}>
                 <Grid2>
