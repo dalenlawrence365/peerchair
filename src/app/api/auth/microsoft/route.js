@@ -10,6 +10,7 @@ export async function GET() {
     "https://graph.microsoft.com/Mail.Read",
     "https://graph.microsoft.com/Mail.Send",
     "https://graph.microsoft.com/Mail.ReadWrite",
+    "https://graph.microsoft.com/Contacts.ReadWrite",
     "offline_access",
     "openid",
     "profile",

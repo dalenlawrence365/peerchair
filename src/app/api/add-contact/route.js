@@ -91,7 +91,7 @@ export async function POST(request) {
             body: new URLSearchParams({
               client_id: process.env.AZURE_CLIENT_ID, client_secret: process.env.AZURE_CLIENT_SECRET,
               refresh_token: tokenRow.refresh_token, grant_type: "refresh_token",
-              scope: "https://graph.microsoft.com/Contacts.ReadWrite offline_access"
+              scope: "https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Contacts.ReadWrite offline_access"
             })
           })
           if (r.ok) { const t = await r.json(); accessToken = t.access_token }
