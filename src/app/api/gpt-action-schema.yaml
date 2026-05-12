@@ -178,3 +178,39 @@ paths:
       responses:
         "200":
           description: Echo response
+
+  /api/add-note:
+    post:
+      operationId: addNote
+      summary: Add an internal note to a PeerChair contact profile
+      description: Call this when Dalen asks to add, save, remember, or log a note about a person. Always call getContactContext first to get the contact_id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - contact_id
+                - note
+              properties:
+                contact_id:
+                  type: string
+                  description: The PeerChair contact ID returned by getContactContext
+                note:
+                  type: string
+                  description: The note to save to the contact profile
+                source:
+                  type: string
+                  description: Source of the note such as voice, manual, call, meeting, or GPT
+                note_type:
+                  type: string
+                  description: Type of note such as conversation_note, meeting_note, reminder, or context_note
+      responses:
+        "200":
+          description: Note added
+        "401":
+          description: Unauthorized
+        "404":
+          description: Contact not found
