@@ -5,7 +5,7 @@ import { G, T, BG2, BG3 } from "@/lib/appShared"
 var TYPE_LABEL = {
   CFO_PROSPECT:    { label: "CFO",      color: T.gold },
   SPONSOR_CONTACT: { label: "Sponsor",  color: T.purple },
-  REFERRAL_PARTNER:{ label: "Referral", color: T.green },
+  REFERRAL_PARTNER:{ label: "Referral Partner", color: T.green },
 }
 
 export default function GlobalSearch({ onSelectContact, onSelectCompany }) {
