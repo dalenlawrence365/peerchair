@@ -27,7 +27,7 @@ export async function POST(request) {
   )
 
   // Check if already in PeerChair
-  const { data: existing } = await sb.from("contacts").select("id").eq("email", email).single().catch(() => ({ data: null }))
+  const { data: existing } = await sb.from("contacts").select("id").eq("email", email).maybeSingle()
   // If already in PeerChair, just add to Outlook if requested
   if (existing) {
     if (add_to_outlook !== false) {
