@@ -28,7 +28,38 @@ export async function POST(request) {
 
   // Check if already in PeerChair
   const { data: existing } = await sb.from("contacts").select("id").eq("email", email).single().catch(() => ({ data: null }))
-  if (existing) return corsResponse({ error: "Contact with this email already exists in PeerChair", contact_id: existing.id }, { status: 409 })
+  // If already in PeerChair, just add to Outlook if requested
+  if (existing) {
+    if (add_to_outlook !== false) {
+      // Still add to Outlook
+      try {
+        const { data: tokenRow } = await sb.from("microsoft_tokens").select("access_token, expires_at, refresh_token").eq("id", "dalen").single()
+        if (tokenRow) {
+          let accessToken = tokenRow.access_token
+          const outlookContact = {
+            givenName: first_name, surname: last_name || "",
+            emailAddresses: [{ address: email, name: (first_name + " " + (last_name||"")).trim() }],
+            ...(company ? { companyName: company } : {}),
+            ...(title ? { jobTitle: title } : {})
+          }
+          const oRes = await fetch("https://graph.microsoft.com/v1.0/me/contacts", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" },
+            body: JSON.stringify(outlookContact)
+          })
+          const outlookOk = oRes.ok
+          return corsResponse({
+            success: true,
+            message: first_name + " " + (last_name||"") + " was already in PeerChair" + (outlookOk ? " and has been added to Outlook contacts." : " but Outlook add failed."),
+            contact_id: existing.id,
+            outlook_added: outlookOk,
+            already_existed: true
+          })
+        }
+      } catch(e) { console.error("Outlook add for existing contact failed:", e.message) }
+    }
+    return corsResponse({ success: true, message: first_name + " already exists in PeerChair.", contact_id: existing.id, already_existed: true })
+  }
 
   // Add to PeerChair
   const { data: newContact, error: pcError } = await sb.from("contacts").insert({
