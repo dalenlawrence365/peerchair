@@ -279,3 +279,17 @@ paths:
           description: Unauthorized
         "409":
           description: Contact already exists
+
+  /api/sync-sent:
+    get:
+      operationId: syncSentEmails
+      summary: Sync recently sent Outlook emails to PeerChair contact timelines
+      description: >
+        Call this after Dalen confirms he sent an email from Outlook.
+        Scans Sent Items for the last 2 hours and logs any emails to known
+        PeerChair contacts. Always call this after saveDraft confirms Dalen sent.
+      responses:
+        "200":
+          description: Sync complete
+        "401":
+          description: Unauthorized
