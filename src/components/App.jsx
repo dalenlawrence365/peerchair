@@ -14,6 +14,7 @@ import Files           from "@/components/Files"
 import SponsorCompanion from "@/components/SponsorCompanion"
 import LiveCallCompanion from "@/components/LiveCallCompanion"
 import { NavItem, G, T, BG, BG2, BG3, sbFetch } from "@/lib/appShared"
+import GlobalSearch from "@/components/GlobalSearch"
 
 export default function CFOCircleApp() {
   var [screen,setScreen]             = useState("dashboard");
@@ -118,7 +119,7 @@ export default function CFOCircleApp() {
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:BG2}}>
         <div style={{height:48,borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",padding:"0 24px",flexShrink:0,background:BG,gap:10}}>
           {screen==="profile"&&<button onClick={function(){navigate("pipeline");}} style={{background:"transparent",border:"none",color:T.blue,cursor:"pointer",fontSize:13,padding:0,marginRight:8}}>← Pipeline</button>}
-          <div style={{fontSize:13,color:T.muted,flex:1}}>{screenLabel}</div>
+          <GlobalSearch onSelectContact={function(c){ setSelectedContact({id:c.id,contactId:c.id,firstName:(c.name||" ").split(" ")[0],lastName:(c.name||" ").split(" ").slice(1).join(" "),type:c.type,contactType:c.type,company:c.company,title:c.title}); setScreen("profile"); }} onSelectCompany={function(){ setScreen("sponsors"); }} />
           <div style={{display:"flex",gap:7,alignItems:"center"}}>
             <div style={{width:7,height:7,borderRadius:"50%",background:T.green,boxShadow:"0 0 6px "+T.green}}/>
             <span style={{fontSize:10,color:T.dim,letterSpacing:1,textTransform:"uppercase"}}>Live · Supabase</span>
