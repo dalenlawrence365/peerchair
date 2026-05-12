@@ -44,7 +44,7 @@ export async function POST(request) {
       audit_type: 'webhook_received',
       summary: 'HeyReach webhook: ' + eventType,
       errors: [JSON.stringify(body).slice(0, 2000)]
-    }).catch(() => {})
+    }).then(() => {}).catch(() => {})
 
     const profile = extractProfile(body)
 
@@ -164,7 +164,7 @@ export async function POST(request) {
               contact_id: ct.id,
               sent_at: msgTimestamp,
               channel: sequenceKey.split('-')[0],
-            }).catch(e => console.warn('seq perf log failed:', e.message))
+            }).then(() => {}).catch(e => console.warn('seq perf log failed:', e.message))
           }
           console.log(stepLabel + ':', ct.first_name, ct.last_name)
           return Response.json({ status: 'logged', step: stepLabel, contact: ct.id })
