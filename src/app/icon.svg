@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Seat back -->
+  <rect x="6" y="4" width="20" height="12" rx="2" fill="#cc2200"/>
+  <!-- Seat -->
+  <rect x="5" y="17" width="22" height="5" rx="2" fill="#cc2200"/>
+  <!-- Left front leg -->
+  <rect x="7" y="22" width="3" height="8" rx="1.5" fill="#aa1a00"/>
+  <!-- Right front leg -->
+  <rect x="22" y="22" width="3" height="8" rx="1.5" fill="#aa1a00"/>
+  <!-- Left back leg -->
+  <rect x="7" y="14" width="3" height="4" rx="1" fill="#aa1a00"/>
+  <!-- Right back leg -->
+  <rect x="22" y="14" width="3" height="4" rx="1" fill="#aa1a00"/>
+  <!-- Seat highlight -->
+  <rect x="5" y="17" width="22" height="2" rx="1" fill="#dd3311" opacity="0.5"/>
+</svg>
