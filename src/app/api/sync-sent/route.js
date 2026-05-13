@@ -52,7 +52,7 @@ export async function GET(request) {
   if (!res.ok) return corsResponse({ error: "Outlook fetch failed" }, { status: 500 })
 
   const { value: messages } = await res.json()
-  if (!messages?.length) return corsResponse({ synced: 0, message: "No sent messages in last 2 hours" })
+  if (!messages?.length) return corsResponse({ synced: 0, message: "No sent messages in last " + hours + " hours" })
 
   // Get all recipient emails
   const allEmails = [...new Set(
