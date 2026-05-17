@@ -1,109 +1,131 @@
-import { createClient } from '@supabase/supabase-js'
-import { alertFitCallBooked, alertFitCallCanceled } from '@/lib/notify'
+export const dynamic = "force-dynamic"
+import { createClient } from "@supabase/supabase-js"
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
-
-export async function POST(request) {
-  try {
-    const body = await request.json()
-    const event    = body.event
-    const invitee  = body.payload?.invitee || {}
-    const eventDet = body.payload?.event || {}
-    const name      = invitee.name || ''
-    const email     = invitee.email || ''
-    const startTime = eventDet.start_time || ''
-    const eventName = body.payload?.event_type?.name || 'Fit Call'
-
-    if (!email && !name) return Response.json({ status: 'skipped' })
-
-    let contact = null
-    if (email) {
-      const { data } = await supabase.from('contacts').select('id,first_name,last_name,pipeline_stage').ilike('email', email).limit(1)
-      if (data && data.length > 0) contact = data[0]
-    }
-    if (!contact && name) {
-      const parts = name.trim().split(' ')
-      const { data } = await supabase.from('contacts').select('id,first_name,last_name,pipeline_stage').ilike('first_name', parts[0]).ilike('last_name', parts.slice(1).join(' ')).limit(1)
-      if (data && data.length > 0) contact = data[0]
-    }
-    // If still no match, try first name only as last resort
-    if (!contact && name) {
-      const parts = name.trim().split(' ')
-      const { data } = await supabase.from('contacts').select('id,first_name,last_name,pipeline_stage,email')
-        .ilike('first_name', parts[0]).limit(5)
-      if (data && data.length === 1) contact = data[0]
-    }
-    if (!contact) {
-      // Log unmatched booking so it can be manually assigned
-      await supabase.from('communications').insert({
-        contact_id: null,
-        occurred_at: iso,
-        channel: 'Calendly',
-        direction: 'IN',
-        step_label: 'UNMATCHED Calendly Booking',
-        body: 'Could not match Calendly booking to a contact. Name: ' + name + ' | Email: ' + email + ' | Event: ' + eventName + (startTime ? ' | Date: ' + new Date(startTime).toLocaleString() : '') + ' | NOTE: May be booked by an EA on behalf of a prospect.',
-        source: 'Calendly',
-        logged_by: 'system',
-      }).catch(() => {})
-      return Response.json({ status: 'no_match', name, email, logged: true })
-    }
-
-    // If matched by name and contact has no email, update it now
-    if (email && !contact.email) {
-      await supabase.from('contacts').update({ email, email_type: 'Personal' }).eq('id', contact.id)
-    }
-
-    const iso = new Date().toISOString()
-    const dateStr = startTime ? new Date(startTime).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : ''
-
-    if (event === 'invitee.created') {
-      // Route to correct stage based on event type slug
-      const eventSlug = body.payload?.event_type?.slug || ''
-      let newStage = 'Fit Call Scheduled'
-      let stepLabel = 'Fit Call Booked'
-      if (eventSlug.includes('sponsor') || eventSlug.includes('discovery')) {
-        newStage = 'Discovery Scheduled'
-        stepLabel = 'Sponsor Discovery Call Booked'
-      }
-
-      await supabase.from('contacts').update({
-        pipeline_stage: newStage,
-        fit_call_date: eventSlug.includes('sponsor') ? null : (startTime || iso),
-        last_activity_date: iso,
-        updated_at: iso
-      }).eq('id', contact.id)
-
-      await supabase.from('communications').insert({
-        contact_id: contact.id, occurred_at: iso, channel: 'Calendly', direction: 'IN',
-        step_label: stepLabel,
-        body: name + ' booked a ' + eventName + (dateStr ? ' for ' + dateStr : '') + ' via Calendly. Event type: ' + (eventSlug || 'unknown'),
-        source: 'Calendly', logged_by: 'system',
-      })
-      await alertFitCallBooked(name, dateStr)
-      return Response.json({ status: 'updated', stage: newStage, eventSlug })
-    }
-
-    if (event === 'invitee.canceled') {
-      await supabase.from('contacts').update({ pipeline_stage: 'Engaged' }).eq('id', contact.id)
-      await supabase.from('communications').insert({
-        contact_id: contact.id, occurred_at: iso, channel: 'Calendly', direction: 'IN',
-        step_label: 'Fit Call Canceled', body: name + ' canceled their ' + eventName + ' via Calendly.',
-        source: 'Calendly', logged_by: 'system',
-      })
-      await alertFitCallCanceled(name)
-      return Response.json({ status: 'updated', stage: 'Engaged' })
-    }
-
-    return Response.json({ status: 'ignored', event })
-  } catch (err) {
-    console.error('Calendly webhook error:', err)
-    return Response.json({ status: 'error', message: err.message }, { status: 500 })
-  }
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+  })
 }
 
-export async function GET() {
-  return Response.json({ status: 'PeerChair Calendly webhook active' })
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, Calendly-Webhook-Signature"
+    }
+  })
+}
+
+export async function POST(request) {
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+
+  let body
+  try { body = await request.json() } catch(e) {
+    return json({ error: "Invalid JSON" }, 400)
+  }
+
+  const eventType = body.event || ""
+  const payload = body.payload || {}
+
+  console.log(`Calendly webhook: ${eventType}`)
+
+  // Only handle invitee.created (new booking)
+  if (eventType !== "invitee.created") {
+    return json({ ok: true, skipped: true, reason: "Not a booking event" })
+  }
+
+  const invitee = payload.invitee || {}
+  const event = payload.event || {}
+  const email = invitee.email?.toLowerCase() || ""
+  const name = invitee.name || ""
+  const startTime = event.start_time || payload.scheduled_event?.start_time || ""
+  const eventName = payload.event_type?.name || event.name || ""
+
+  console.log(`Booking: ${name} (${email}) — ${eventName} at ${startTime}`)
+
+  if (!email) return json({ error: "No email in payload" }, 400)
+
+  // Determine which type of meeting was booked
+  const isFitCall = eventName.toLowerCase().includes("fit") || 
+                    eventName.toLowerCase().includes("cfo circle")
+  const isSponsor = eventName.toLowerCase().includes("sponsor")
+
+  // Find contact by email
+  let contact = null
+  const { data: byEmail } = await sb.from("contacts")
+    .select("id, first_name, last_name, contact_type, pipeline_stage")
+    .eq("email", email)
+    .maybeSingle()
+
+  if (byEmail) {
+    contact = byEmail
+  } else {
+    // Try name match
+    const parts = name.trim().split(" ")
+    const firstName = parts[0] || ""
+    const lastName = parts.slice(1).join(" ") || ""
+    if (firstName) {
+      const { data: byName } = await sb.from("contacts")
+        .select("id, first_name, last_name, contact_type, pipeline_stage")
+        .ilike("first_name", firstName)
+        .ilike("last_name", `%${lastName}%`)
+        .maybeSingle()
+      if (byName) contact = byName
+    }
+  }
+
+  if (!contact) {
+    // Log unmatched booking
+    console.log(`Unmatched Calendly booking: ${name} (${email})`)
+    await sb.from("webhook_unmatched").insert({
+      event_type: "calendly_booking",
+      lead_name: name,
+      lead_linkedin_url: null,
+      lead_company: null,
+      lead_position: null,
+      message_body: `Booked: ${eventName} at ${startTime}`,
+      raw_payload: body
+    })
+    return json({ ok: true, matched: false, message: "Logged to unmatched" })
+  }
+
+  // Determine new stage
+  let newStage = contact.pipeline_stage
+  if (isFitCall) newStage = "Fit Call Scheduled"
+  else if (isSponsor) newStage = "Discovery Sched."
+
+  // Update contact stage and activity
+  await sb.from("contacts").update({
+    pipeline_stage: newStage,
+    last_activity_date: new Date().toISOString()
+  }).eq("id", contact.id)
+
+  // Log the booking
+  await sb.from("communications").insert({
+    contact_id: contact.id,
+    direction: "IN",
+    channel: "Calendly",
+    body: `${eventName} booked for ${startTime ? new Date(startTime).toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "medium", timeStyle: "short" }) : "TBD"}`,
+    occurred_at: new Date().toISOString(),
+    step_label: isFitCall ? "Fit Call Scheduled" : isSponsor ? "Sponsor Discovery Scheduled" : "Meeting Scheduled",
+    source: "Calendly"
+  })
+
+  console.log(`${contact.first_name} ${contact.last_name} moved to ${newStage}`)
+
+  return json({
+    ok: true,
+    matched: true,
+    contact_id: contact.id,
+    name: `${contact.first_name} ${contact.last_name}`,
+    new_stage: newStage,
+    event: eventName,
+    scheduled_for: startTime
+  })
 }
