@@ -42,9 +42,15 @@ export async function GET(request) {
         headers: { "Content-Type": "application/json", "X-API-KEY": HR_KEY },
         body: JSON.stringify({ linkedInAccountIds: [185228], limit: 100, offset })
       })
-      if (!res.ok) break
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "<unreadable>")
+        console.error(`HeyReach ${res.status} at offset=${offset}: ${errBody.slice(0, 400)}`)
+        results.errors.push(`HeyReach ${res.status} at offset=${offset}: ${errBody.slice(0, 200)}`)
+        break
+      }
       const data = await res.json()
       const items = data.items || []
+      console.log(`HeyReach offset=${offset}: returned ${items.length} items, totalCount=${data.totalCount}`)
       allConversations = allConversations.concat(items)
       if (items.length < 100) break
     }
