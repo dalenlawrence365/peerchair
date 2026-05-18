@@ -125,8 +125,32 @@ export async function GET(request) {
       name: "Dalen Lawrence",
       title: "Chapter Director, CFO Circle Los Angeles",
       email: "dalen.lawrence@cfo-circle.com",
-      calendly_fit: "https://calendly.com/cfocirclela/cfo-circle-fit-chat",
-      calendly_sponsor: "https://calendly.com/cfocirclela/cfo-circle-sponsor-discovery-call"
+      calendly_links: {
+        fit_chat: {
+          url: "https://calendly.com/cfo-circle/cfo-circle-fit-chat",
+          duration_min: 15,
+          changes_journey: true,
+          use_for: "FIRST conversation with a CFO prospect ONLY. Sending this link advances them to the 'Fit Call Scheduled' stage. Never send to someone who has already had their fit chat — use the_15_min link instead."
+        },
+        sponsor_discovery: {
+          url: "https://calendly.com/cfo-circle/cfo-circle-sponsor-discovery-call",
+          duration_min: 30,
+          changes_journey: true,
+          use_for: "FIRST conversation with a sponsor prospect ONLY. Sending this link advances them to the 'Discovery Sched.' stage. Never send to a sponsor who has already had their discovery call — use the_30_min link instead."
+        },
+        the_15_min: {
+          url: "https://calendly.com/cfo-circle/cfo-circle-15-minute-chat",
+          duration_min: 15,
+          changes_journey: false,
+          use_for: "Generic 15-minute slot for ANYONE — referral partners, ProVisors contacts, repeat conversations with CFO prospects who already had a fit chat, sponsors who already had discovery, members, or any second/third touchpoint. Does NOT change pipeline stage."
+        },
+        the_30_min: {
+          url: "https://calendly.com/cfo-circle/cfo-circle-30-minute",
+          duration_min: 30,
+          changes_journey: false,
+          use_for: "Generic 30-minute slot for ANYONE needing a longer conversation. Same rules as the_15_min — use for any second touchpoint, referral partners, member check-ins, or non-pitch sponsor conversations. Does NOT change pipeline stage."
+        }
+      }
     }
   })
   } catch(e) {

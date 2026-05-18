@@ -33,7 +33,7 @@ async function sendHeyReach(conversationId, linkedInAccountId, message) {
 
 async function generateTouch2(firstName, title, company) {
   var key = process.env.ANTHROPIC_API_KEY;
-  var prompt = "You are Dalen Lawrence, Chapter Director of CFO Circle Los Angeles. You sent " + firstName + " (" + title + " at " + company + ") a LinkedIn message about CFO Circle 5 business days ago and haven't heard back. Write a single short paragraph resurfacing the conversation — acknowledge they're busy, remind them CFO Circle is a curated monthly peer group for CFOs of privately held LA companies, and invite them to grab 15 minutes if the timing is right: https://calendly.com/cfocirclela/cfo-circle-fit-chat. Sign as Dalen. Warm but not pushy. No em dashes. Under 60 words.";
+  var prompt = "You are Dalen Lawrence, Chapter Director of CFO Circle Los Angeles. You sent " + firstName + " (" + title + " at " + company + ") a LinkedIn message about CFO Circle 5 business days ago and haven't heard back. Write a single short paragraph resurfacing the conversation — acknowledge they're busy, remind them CFO Circle is a curated monthly peer group for CFOs of privately held LA companies, and invite them to grab 15 minutes if the timing is right: https://calendly.com/cfo-circle/cfo-circle-fit-chat. Sign as Dalen. Warm but not pushy. No em dashes. Under 60 words.";
   var res = await fetch("https://api.anthropic.com/v1/messages", {
     method:"POST",
     headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","x-api-key":key},

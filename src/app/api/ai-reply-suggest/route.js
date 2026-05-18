@@ -14,7 +14,7 @@ export async function POST(request) {
       return Response.json({ reply: "" })
     }
 
-    var calendly = "https://calendly.com/cfocirclela/cfo-circle-fit-chat"
+    var calendly = "https://calendly.com/cfo-circle/cfo-circle-fit-chat"
 
     // Build thread summary for context
     var threadContext = ""
