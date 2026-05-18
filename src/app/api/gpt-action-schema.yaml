@@ -113,13 +113,10 @@ paths:
       operationId: logOutreach
       summary: Log a sent message to PeerChair and optionally update the contact's pipeline stage
       description: >
-        Call this when Dalen confirms he has sent or is about to send a message (LinkedIn, email, phone, etc).
-        Logs the message to the PeerChair communications timeline and updates the pipeline stage if appropriate.
-        Use outreach_type to trigger the right stage update:
-        - fit_call_link_sent: moves CFO prospect to "Fit Invite Sent"
-        - fit_call_scheduled: moves to "Fit Call Scheduled"
-        - sponsor_discovery_link_sent: moves sponsor to "Discovery Sched."
-        - general_follow_up: logs message, no stage change
+        Call this when Dalen confirms he sent or is about to send a message via
+        LinkedIn, email, or phone. Logs to the PeerChair communications timeline
+        and updates pipeline stage based on outreach_type. Pick the outreach_type
+        that matches what was sent.
       requestBody:
         required: true
         content:
@@ -220,11 +217,10 @@ paths:
       operationId: inboxSummary
       summary: Scan Outlook inbox for messages from known PeerChair contacts and flag unrecognized senders
       description: >
-        Call this when Dalen asks what came in today, who emailed him, what needs a reply,
-        or for a morning brief. Returns known contacts who messaged him, team messages,
-        and unrecognized senders who may need to be added to PeerChair. Each entry
-        includes a message_id and a 150-char preview only — to read the full body of
-        a specific message, follow up with getEmailBody using that message_id.
+        Call this for morning briefs or when Dalen asks what came in, who emailed
+        him, or what needs a reply. Returns known contacts, team messages, and
+        unrecognized senders. Each entry has a message_id and 150-char preview
+        only — call getEmailBody with the message_id for the full body.
       parameters:
         - name: hours
           in: query
@@ -243,12 +239,10 @@ paths:
       operationId: getEmailBody
       summary: Get the full body of a specific email by message_id
       description: >
-        Use this after inboxSummary when Dalen wants to know what an email actually
-        says — to read the full content before deciding whether to reply, summarize,
-        or take action. Returns the cleaned plain-text body, subject, sender, and
-        contact context (if the sender is in PeerChair). Pulls from the local
-        Supabase cache when available and falls back to Microsoft Graph for messages
-        from unknown senders.
+        Use after inboxSummary when Dalen wants to read the full content of a
+        specific email before replying or acting. Returns the cleaned plain-text
+        body, subject, sender, and contact context if known. Pulls from local
+        cache first, falls back to Microsoft Graph for unknown senders.
       parameters:
         - name: message_id
           in: query
