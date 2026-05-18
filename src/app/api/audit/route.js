@@ -36,7 +36,7 @@ export async function GET(request) {
   // ── AUDIT 1: Connection Gap Check ────────────────────────────────────────
   // Pull all HeyReach conversations, find contacts missing from Supabase
   try {
-    const hrRes = await fetch(`${HR_BASE}/v2/conversation/GetAllConversations`, {
+    const hrRes = await fetch(`${HR_BASE}/inbox/GetConversationsV2`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-API-KEY': HR_KEY },
       body: JSON.stringify({ linkedInAccountIds: [185228], limit: 100, offset: 0 })

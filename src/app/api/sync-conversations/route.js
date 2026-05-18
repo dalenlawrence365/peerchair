@@ -37,7 +37,7 @@ export async function GET(request) {
   try {
     // HeyReach returns max 100 per call — fetch up to 300 total
     for (let offset = 0; offset < 300; offset += 100) {
-      const res = await fetch(`${HR_BASE}/v2/conversation/GetAllConversations`, {
+      const res = await fetch(`${HR_BASE}/inbox/GetConversationsV2`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-API-KEY": HR_KEY },
         body: JSON.stringify({ linkedInAccountIds: [185228], limit: 100, offset })
@@ -50,7 +50,6 @@ export async function GET(request) {
       }
       const data = await res.json()
       const items = data.items || []
-      console.log(`HeyReach offset=${offset}: returned ${items.length} items, totalCount=${data.totalCount}`)
       allConversations = allConversations.concat(items)
       if (items.length < 100) break
     }

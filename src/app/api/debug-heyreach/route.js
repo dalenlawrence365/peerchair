@@ -6,7 +6,7 @@ export async function GET() {
   const results = {}
 
   try {
-    const r1 = await fetch(`${HR_BASE}/v2/conversation/GetAllConversations`, {
+    const r1 = await fetch(`${HR_BASE}/inbox/GetConversationsV2`, {
       method: "POST", headers: { "Content-Type": "application/json", "X-API-KEY": HR_KEY },
       body: JSON.stringify({ linkedInAccountIds: [185228], limit: 5, offset: 0 })
     })
@@ -14,7 +14,7 @@ export async function GET() {
   } catch(e) { results.with_filter = { error: e.message } }
 
   try {
-    const r2 = await fetch(`${HR_BASE}/v2/conversation/GetAllConversations`, {
+    const r2 = await fetch(`${HR_BASE}/inbox/GetConversationsV2`, {
       method: "POST", headers: { "Content-Type": "application/json", "X-API-KEY": HR_KEY },
       body: JSON.stringify({ limit: 5, offset: 0 })
     })

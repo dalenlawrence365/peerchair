@@ -34,7 +34,7 @@ export async function GET(request) {
   let hrConversations = []
   try {
     for (let offset = 0; offset < 300; offset += 100) {
-      const res = await fetch(`${HR_BASE}/v2/conversation/GetAllConversations`, {
+      const res = await fetch(`${HR_BASE}/inbox/GetConversationsV2`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-API-KEY": HR_KEY },
         body: JSON.stringify({ linkedInAccountIds: [185228], limit: 100, offset })

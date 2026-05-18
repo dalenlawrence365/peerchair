@@ -108,7 +108,7 @@ export async function GET() {
     // Enrich with HeyReach data (real conversation IDs, photos, newer messages)
     try {
       var convRes = await fetch(
-        "https://api.heyreach.io/api/public/v2/conversation/GetAllConversations",
+        "https://api.heyreach.io/api/public/inbox/GetConversationsV2",
         {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-API-KEY": hrKey },
