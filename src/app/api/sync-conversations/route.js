@@ -165,6 +165,7 @@ export async function GET(request) {
             last_message_direction: conv.lastMessageSender === "ME" ? "OUT" : "IN",
             last_message_body: (conv.lastMessageText || "").slice(0, 500),
             last_sender: conv.lastMessageSender || "",
+            total_messages: conv.totalMessages ?? null,
             unread: conv.lastMessageSender !== "ME",
             linkedin_account_id: conv.linkedInAccountId || 185228,
             updated_at: new Date().toISOString()
@@ -184,6 +185,7 @@ export async function GET(request) {
             last_message_direction: conv.lastMessageSender === "ME" ? "OUT" : "IN",
             last_message_body: (conv.lastMessageText || "").slice(0, 500),
             last_sender: conv.lastMessageSender || "",
+            total_messages: conv.totalMessages ?? null,
             unread: conv.lastMessageSender !== "ME",
             linkedin_account_id: conv.linkedInAccountId || 185228,
             updated_at: new Date().toISOString()
