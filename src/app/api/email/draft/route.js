@@ -22,7 +22,7 @@ export async function POST(request) {
   // Resolve attachments — fetch base64 for each named file
   const resolvedAttachments = []
   if (attachments && attachments.length > 0) {
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
     for (const att of attachments) {
       let row
       if (att.id) {
@@ -63,7 +63,7 @@ export async function POST(request) {
   const draft = await res.json()
 
   if (contact_id) {
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
     await sb.from("communications").insert({
       contact_id, occurred_at:new Date().toISOString(),
       channel:"email", direction:"outbound",

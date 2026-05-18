@@ -222,7 +222,9 @@ paths:
       description: >
         Call this when Dalen asks what came in today, who emailed him, what needs a reply,
         or for a morning brief. Returns known contacts who messaged him, team messages,
-        and unrecognized senders who may need to be added to PeerChair.
+        and unrecognized senders who may need to be added to PeerChair. Each entry
+        includes a message_id and a 150-char preview only — to read the full body of
+        a specific message, follow up with getEmailBody using that message_id.
       parameters:
         - name: hours
           in: query
@@ -235,6 +237,34 @@ paths:
           description: Inbox summary returned
         "401":
           description: Unauthorized
+
+  /api/email-body:
+    get:
+      operationId: getEmailBody
+      summary: Get the full body of a specific email by message_id
+      description: >
+        Use this after inboxSummary when Dalen wants to know what an email actually
+        says — to read the full content before deciding whether to reply, summarize,
+        or take action. Returns the cleaned plain-text body, subject, sender, and
+        contact context (if the sender is in PeerChair). Pulls from the local
+        Supabase cache when available and falls back to Microsoft Graph for messages
+        from unknown senders.
+      parameters:
+        - name: message_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The Outlook message id, exactly as returned by inboxSummary.
+      responses:
+        "200":
+          description: Full email body returned
+        "400":
+          description: message_id missing
+        "401":
+          description: Unauthorized or Microsoft token missing
+        "404":
+          description: Message not found in Outlook
 
   /api/add-contact:
     post:

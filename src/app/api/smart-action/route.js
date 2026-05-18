@@ -8,7 +8,7 @@ import { createClient } from '@supabase/supabase-js'
 export async function POST(request) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )
 
   const body = await request.json()
@@ -205,7 +205,7 @@ Write a concise, direct, peer-to-peer email. No fluff. Return ONLY valid JSON: {
   const commandId = body.command_id || null
   if (commandId) {
     const { createClient } = await import('@supabase/supabase-js')
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
     await sb.from('voice_commands').update({
       action_taken: command,
       status:       results.errors && results.errors.length ? 'failed' : 'executed',

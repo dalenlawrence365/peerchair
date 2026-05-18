@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 export async function getAccessToken() {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )
   const { data: row } = await supabase.from("microsoft_tokens").select("*").eq("id","dalen").single()
   if (!row) throw new Error("No Microsoft token. Visit /api/auth/microsoft to authorize.")
