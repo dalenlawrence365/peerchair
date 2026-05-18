@@ -119,6 +119,8 @@ export async function GET(request) {
         contactId = contactBySlug[slug].id
       } else if (slug) {
         const iso = new Date().toISOString()
+        // If HeyReach reports 2+ messages, Step 2 (welcome) has fired or contact replied — start them in Engaged
+        const initialStage = (conv.totalMessages && conv.totalMessages >= 2) ? "Engaged" : "Connected"
         const { data: newCt } = await supabase
           .from("contacts")
           .upsert({
@@ -129,7 +131,7 @@ export async function GET(request) {
             linkedin_url: profileUrl,
             linkedin_location: profile.location || "",
             contact_type: "CFO_PROSPECT",
-            pipeline_stage: "Connected",
+            pipeline_stage: initialStage,
             member_status: "Prospect",
             lead_source: "LinkedIn / HeyReach",
             heyreach_campaign: "CFO Circle - CFO",
