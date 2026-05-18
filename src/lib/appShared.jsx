@@ -136,6 +136,7 @@ var JOURNEY  = [
   {id:"fit_invite", label:"Fit Invite Sent",date:"",                   stage:"Fit Invite Sent"},
   {id:"fit_sched",  label:"Fit Scheduled",  date:"fitCallDate",         stage:"Fit Call Scheduled"},
   {id:"fit_done",   label:"Fit Completed",  date:"fitCallDate",         stage:"Fit Call Completed"},
+  {id:"waitlist",   label:"Event Waitlist", date:"eventWaitlistDate",   stage:"Event Waitlist"},
   {id:"event_inv",  label:"Event Invited",  date:"eventInvitedDate",    stage:"Event Invited"},
   {id:"event_conf", label:"Event Confirmed",date:"eventInvitedDate",    stage:"Event Confirmed"},
   {id:"event_att",  label:"Attended",       date:"eventAttended",       stage:"Event Attended"},
@@ -145,6 +146,7 @@ var JOURNEY  = [
 ];
 
 // Stage → Journey node index (primary driver of Circle Journey display)
+// Indices correspond to JOURNEY array positions (0-based)
 var STAGE_TO_NODE = {
   "Connected":0,"Engaged":0,"Requested":0,
   "Fit Invite Sent":1,
@@ -152,15 +154,15 @@ var STAGE_TO_NODE = {
   "Fit Call Completed":3,"Strong Fit":3,"Possible Fit":3,"Bad Timing":3,
   "Event Waitlist":4,
   "Event Invited":5,
-  "Event Confirmed":5,
-  "Event Attended":6,"No Show":6,
-  "Membership Conversation Scheduled":7,"Membership Conversation Completed":7,
-  "Verbal Commitment":8,
-  "Active Member":9
+  "Event Confirmed":6,
+  "Event Attended":7,"No Show":7,
+  "Membership Conversation Scheduled":8,"Membership Conversation Completed":8,
+  "Verbal Commitment":9,
+  "Active Member":10
 };
 var CHAPTERS = ["Los Angeles","San Fernando Valley"];
 var SOURCES  = ["LinkedIn / HeyReach","Sponsor","Networking","Referral"];
-var PIPELINE = ["Target","Requested","Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Bad Timing","Not a Fit","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member","Lost — Bad Timing","Lost — Not a Fit","Reserve Pool"];
+var PIPELINE = ["Target","Requested","Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Bad Timing","Not a Fit","Event Waitlist","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member","Lost — Bad Timing","Lost — Not a Fit","Reserve Pool"];
 var STATUSES = ["Prospect","Active","Inactive / Churned","No Response","Not a Fit"];
 var OUTCOMES = ["Strong Fit","Possible Fit","Bad Timing","Not a Fit","No Show"];
 var OWNERSHIP= ["Privately Held","PE-Backed","Founder-Led","Family-Owned","Public","Non-Profit"];
