@@ -669,7 +669,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                 <div style={{padding:"14px 20px 0",flexShrink:0}}>
                   <div style={{fontSize:10,color:"#3a5a74",letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Recent Activity</div>
                   <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:280,overflowY:"auto"}}>
-                    {comms.slice(0,6).reverse().map(function(msg){
+                    {comms.slice(0,6).map(function(msg){
                       var isOut = msg.direction==="OUT"||msg.direction==="outbound"
                       var isIn  = msg.direction==="IN"||msg.direction==="inbound"
                       if (!msg.body) return null
