@@ -265,15 +265,19 @@ export async function GET(request) {
 
   // ── Write audit log ───────────────────────────────────────────────────────
   const summary = `${results.mode} · ${results.conversations_synced} convos · ${results.messages_written} messages · ${results.contacts_created} created${hasMore ? ` · next offset: ${nextOffset}` : ""}`
-  await supabase.from("audit_log").insert({
-    run_at: results.run_at,
-    audit_type: "linkedin_sync",
-    contacts_checked: results.conversations_checked,
-    contacts_created: results.contacts_created,
-    heyreach_available: true,
-    summary,
-    errors: results.errors
-  }).catch(() => {})
+  try {
+    await supabase.from("audit_log").insert({
+      run_at: results.run_at,
+      audit_type: "linkedin_sync",
+      contacts_checked: results.conversations_checked,
+      contacts_created: results.contacts_created,
+      heyreach_available: true,
+      summary,
+      errors: results.errors
+    })
+  } catch(e) {
+    console.error("audit_log insert failed:", e.message)
+  }
 
   console.log(summary)
   return Response.json({
