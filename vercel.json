@@ -11,6 +11,10 @@
     {
       "path": "/api/sync-conversations",
       "schedule": "15 * * * *"
+    },
+    {
+      "path": "/api/scheduled-send",
+      "schedule": "0 16,20 * * *"
     }
   ]
 }
