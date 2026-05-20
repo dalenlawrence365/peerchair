@@ -45,6 +45,28 @@ export async function POST(request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )
 
+  // Compute contactability server-side: look up which of these URLs already exist in contacts
+  const urls = rows.map(r => r.linkedin_url).filter(Boolean)
+  const pcUrlSet = new Set()
+  if (urls.length > 0) {
+    const { data: existing } = await sb.from("contacts")
+      .select("linkedin_url")
+      .in("linkedin_url", urls)
+    for (const row of (existing || [])) {
+      if (row.linkedin_url) pcUrlSet.add(row.linkedin_url.toLowerCase().replace(/\/$/, ""))
+    }
+  }
+
+  // Apply contactability if not already set by client
+  for (const r of rows) {
+    if (!r.contactability) {
+      const norm = (r.linkedin_url || "").toLowerCase().replace(/\/$/, "")
+      if (pcUrlSet.has(norm)) r.contactability = "in_peerchair"
+      else if (r.heyreach_auto_tag) r.contactability = "prior_attempt_no_response"
+      else r.contactability = "new"
+    }
+  }
+
   // Upsert via PostgREST: rows must have linkedin_url as the conflict target
   const { data, error } = await sb.from("pool")
     .upsert(rows, { onConflict: "linkedin_url", ignoreDuplicates: false })
@@ -55,5 +77,5 @@ export async function POST(request) {
     return json({ error: error.message }, 500)
   }
 
-  return json({ ok: true, inserted_or_updated: (data || []).length })
+  return json({ ok: true, inserted_or_updated: (data || []).length, in_peerchair_matched: pcUrlSet.size })
 }
