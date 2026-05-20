@@ -13,6 +13,7 @@ import Meetings        from "@/components/Meetings"
 import Files           from "@/components/Files"
 import SponsorCompanion from "@/components/SponsorCompanion"
 import LiveCallCompanion from "@/components/LiveCallCompanion"
+import ContactPicker from "@/components/ContactPicker"
 import { NavItem, G, T, BG, BG2, BG3, sbFetch } from "@/lib/appShared"
 import GlobalSearch from "@/components/GlobalSearch"
 
@@ -24,6 +25,7 @@ export default function CFOCircleApp() {
   var [sponsorCompanyCount,setSponsorCompanyCount] = useState(0);
   var [sponsorContact,setSponsorContact] = useState(null);
   var [sponsorDeal,setSponsorDeal] = useState(null);
+  var [pickerKind,setPickerKind] = useState(null);  // null | "fitcall" | "discovery"
 
   var [selectedContact,setContact]   = useState(null);
   var [prevScreen,setPrevScreen]      = useState("pipeline");
@@ -105,6 +107,23 @@ export default function CFOCircleApp() {
           </div>
         </div>
         <div style={{flex:1,display:"flex",flexDirection:"column",gap:2,overflowY:"auto"}}>
+
+          {/* Quick action buttons — start a call directly */}
+          <div style={{padding:"4px 0 10px",borderBottom:"1px solid "+T.border,marginBottom:8,display:"flex",flexDirection:"column",gap:6}}>
+            <button
+              onClick={function(){setPickerKind("fitcall");}}
+              style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"rgba(240,200,74,0.08)",border:"1px solid "+G+"50",color:G,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600,letterSpacing:0.5,textAlign:"left",fontFamily:"inherit"}}>
+              <span style={{fontSize:14}}>◉</span>
+              <span>Start Fit Call</span>
+            </button>
+            <button
+              onClick={function(){setPickerKind("discovery");}}
+              style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"rgba(155,89,182,0.10)",border:"1px solid "+T.purple+"60",color:T.purple,borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600,letterSpacing:0.5,textAlign:"left",fontFamily:"inherit"}}>
+              <span style={{fontSize:14}}>$</span>
+              <span>Start Discovery Call</span>
+            </button>
+          </div>
+
           {NAV.map(function(n){return <NavItem key={n.id} icon={n.icon} label={n.label} badge={n.badge} active={screen===n.id} onClick={function(){navigate(n.id);}}/>;  })}
 
         </div>
@@ -164,6 +183,29 @@ export default function CFOCircleApp() {
           {screen==="fitcall" && fitCallContact && <LiveCallCompanion contact={fitCallContact} onEnd={function(){ setScreen("profile"); }} onBack={function(){ setScreen("profile"); }}/>}
         </div>
       </div>
+
+      {/* Quick-action picker overlay */}
+      {pickerKind && (
+        <ContactPicker
+          kind={pickerKind}
+          onClose={function(){setPickerKind(null);}}
+          onSelect={function(arg1, arg2, arg3){
+            if(pickerKind==="fitcall"){
+              // arg1 is the formatted fitCallContact
+              setFitCallContact(arg1);
+              setPickerKind(null);
+              setScreen("fitcall");
+            } else {
+              // arg1=company, arg2=contact, arg3=deal
+              var co=arg1||{}, contact=arg2||{}, deal=arg3||null;
+              setSponsorContact(Object.assign({},contact,{company:co.name||"",company_id:co.id,category:co.category}));
+              setSponsorDeal(deal);
+              setPickerKind(null);
+              setScreen("sponsor_call");
+            }
+          }}
+        />
+      )}
 
     </div>
 
