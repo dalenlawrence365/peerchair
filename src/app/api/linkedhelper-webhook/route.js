@@ -100,6 +100,11 @@ export async function POST(request) {
   const seedBatchTag = findSeedBatchTag(tags)
 
   console.log(`LinkedHelper webhook [${event}]: ${lead.fullName || (lead.firstName + " " + lead.lastName)} | ${lead.profileUrl} | tags=${tags.join(",")}`)
+  // Diagnostic: log full payload keys + their values (truncated) so we can see what LH is sending
+  try {
+    const keysDump = Object.entries(root).map(([k,v]) => `${k}=${String(v).slice(0,40).replace(/\n/g," ")}`).join(" || ")
+    console.log(`LH-RAW-KEYS [${event}]: ${keysDump.slice(0, 2500)}`)
+  } catch(e) {}
 
   try {
     if (event === "sent") {
