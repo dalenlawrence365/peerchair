@@ -121,58 +121,96 @@ export async function POST(request) {
   }
 }
 
-async function findOrCreateContact(sb, lead, seedBatchTag, eventLabel) {
+// Look up pool record first — pool is the source of truth for who we targeted.
+// Returns the pool row (or null), used to populate contact fields on creation.
+async function findPoolRecord(sb, profileUrl) {
+  if (!profileUrl) return null
+  const { data: poolRow } = await sb.from("pool")
+    .select("linkedin_url, first_name, last_name, full_name, title, company, location, geo_segment, title_type, seed_batch_id, contact_id, internal_tags")
+    .eq("linkedin_url", profileUrl)
+    .maybeSingle()
+  return poolRow || null
+}
+
+async function findOrCreateContact(sb, lead, seedBatchTag, eventLabel, poolRow) {
   if (!lead.profileUrl && !lead.firstName) return null
 
-  // Find existing by URL
+  // 1. If pool record is already promoted, follow the FK
+  if (poolRow && poolRow.contact_id) {
+    const { data: linked } = await sb.from("contacts")
+      .select("id, first_name, last_name, pipeline_stage, contact_type")
+      .eq("id", poolRow.contact_id)
+      .maybeSingle()
+    if (linked) return { ...linked, _alreadyExisted: true }
+  }
+
+  // 2. Find existing contact by URL
   if (lead.profileUrl) {
     const { data: existing } = await sb.from("contacts")
       .select("id, first_name, last_name, pipeline_stage, contact_type")
       .eq("linkedin_url", lead.profileUrl)
       .maybeSingle()
-    if (existing) return existing
+    if (existing) return { ...existing, _alreadyExisted: true }
   }
 
-  // Find by name as fallback (less reliable but useful when URL formatting drifts)
+  // 3. Find by name as fallback
   if (lead.firstName && lead.lastName) {
     const { data: byName } = await sb.from("contacts")
       .select("id, first_name, last_name, pipeline_stage, contact_type")
       .ilike("first_name", lead.firstName)
       .ilike("last_name", lead.lastName)
       .maybeSingle()
-    if (byName) return byName
+    if (byName) return { ...byName, _alreadyExisted: true }
   }
 
-  // Create new
-  const { data: newContact, error } = await sb.from("contacts").insert({
-    first_name: lead.firstName || (lead.fullName.split(" ")[0] || ""),
-    last_name: lead.lastName || lead.fullName.split(" ").slice(1).join(" ") || "",
-    company_name: lead.company || null,
-    title: lead.position || null,
-    linkedin_url: lead.profileUrl || null,
+  // 4. Create new — POOL DATA IS PRIMARY, webhook payload fills gaps
+  const insertRow = {
+    first_name: (poolRow && poolRow.first_name) || lead.firstName || (lead.fullName.split(" ")[0] || ""),
+    last_name: (poolRow && poolRow.last_name) || lead.lastName || lead.fullName.split(" ").slice(1).join(" ") || "",
+    company_name: (poolRow && poolRow.company) || lead.company || null,
+    title: (poolRow && poolRow.title) || lead.position || null,
+    linkedin_url: lead.profileUrl || (poolRow && poolRow.linkedin_url) || null,
     email: lead.email || null,
-    linkedin_location: lead.location || null,
+    linkedin_location: (poolRow && poolRow.location) || lead.location || null,
     contact_type: "CFO_PROSPECT",
     lead_source: "LinkedIn / LinkedHelper",
     pipeline_stage: eventLabel,
     last_activity_date: new Date().toISOString()
-  }).select("id, pipeline_stage").single()
+  }
+  const { data: newContact, error } = await sb.from("contacts").insert(insertRow).select("id, pipeline_stage").single()
 
   if (error) {
     console.error("Contact insert error:", error.message)
     return null
   }
+  return { ...newContact, _alreadyExisted: false }
+}
 
-  // Mark pool record as touched (if we can match by linkedin_url)
-  if (lead.profileUrl) {
-    try {
-      await sb.from("pool").update({
-        updated_at: new Date().toISOString()
-      }).eq("linkedin_url", lead.profileUrl)
-    } catch(e) { /* pool update best-effort */ }
+// Update pool record with engagement state: last event, count, contact_id link
+async function updatePool(sb, profileUrl, eventType, contactId) {
+  if (!profileUrl) return
+  try {
+    // Get current event_count to increment
+    const { data: cur } = await sb.from("pool")
+      .select("event_count, contact_id")
+      .eq("linkedin_url", profileUrl)
+      .maybeSingle()
+
+    const patch = {
+      last_event_type: eventType,
+      last_event_at: new Date().toISOString(),
+      event_count: ((cur && cur.event_count) || 0) + 1,
+      updated_at: new Date().toISOString()
+    }
+    // Set contact_id only if not already set
+    if (contactId && (!cur || !cur.contact_id)) {
+      patch.contact_id = contactId
+    }
+    await sb.from("pool").update(patch).eq("linkedin_url", profileUrl)
+  } catch(e) {
+    console.error("Pool update error:", e.message)
   }
-
-  return newContact
+}
 }
 
 async function logUnmatched(sb, eventType, lead, messageBody, rawPayload) {
@@ -188,7 +226,8 @@ async function logUnmatched(sb, eventType, lead, messageBody, rawPayload) {
 }
 
 async function handleSent(sb, lead, tags, seedBatchTag, raw) {
-  const contact = await findOrCreateContact(sb, lead, seedBatchTag, "Requested")
+  const poolRow = await findPoolRecord(sb, lead.profileUrl)
+  const contact = await findOrCreateContact(sb, lead, seedBatchTag, "Requested", poolRow)
   if (!contact) {
     await logUnmatched(sb, "sent", lead, null, raw)
     return
@@ -216,10 +255,14 @@ async function handleSent(sb, lead, tags, seedBatchTag, raw) {
     step_label: "Connection Request Sent",
     source: "LinkedHelper"
   })
+
+  // Update pool with event state + contact link
+  await updatePool(sb, lead.profileUrl, "sent", contact.id)
 }
 
 async function handleConnected(sb, lead, tags, seedBatchTag, raw) {
-  const contact = await findOrCreateContact(sb, lead, seedBatchTag, "Connected")
+  const poolRow = await findPoolRecord(sb, lead.profileUrl)
+  const contact = await findOrCreateContact(sb, lead, seedBatchTag, "Connected", poolRow)
   if (!contact) {
     await logUnmatched(sb, "connected", lead, null, raw)
     return
@@ -244,11 +287,14 @@ async function handleConnected(sb, lead, tags, seedBatchTag, raw) {
     step_label: "Connection Accepted",
     source: "LinkedHelper"
   })
+
+  await updatePool(sb, lead.profileUrl, "connected", contact.id)
 }
 
 async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
   const replyText = lead.lastReply || lead.lastMessage || ""
-  const contact = await findOrCreateContact(sb, lead, seedBatchTag, "Engaged")
+  const poolRow = await findPoolRecord(sb, lead.profileUrl)
+  const contact = await findOrCreateContact(sb, lead, seedBatchTag, "Engaged", poolRow)
   if (!contact) {
     await logUnmatched(sb, "replied", lead, replyText, raw)
     return
@@ -289,4 +335,6 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
     step_label: "Reply Received",
     source: "LinkedHelper"
   })
+
+  await updatePool(sb, lead.profileUrl, "replied", contact.id)
 }
