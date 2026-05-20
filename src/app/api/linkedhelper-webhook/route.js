@@ -211,7 +211,6 @@ async function updatePool(sb, profileUrl, eventType, contactId) {
     console.error("Pool update error:", e.message)
   }
 }
-}
 
 async function logUnmatched(sb, eventType, lead, messageBody, rawPayload) {
   await sb.from("webhook_unmatched").insert({
