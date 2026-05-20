@@ -211,7 +211,7 @@ function TemplateEditor(props) {
           </div>
         )}
 
-        {!isScript && (
+        {!(isScript && current && current.steps) && (
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             <div>
               <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:5}}>Variant Name</div>
@@ -227,7 +227,7 @@ function TemplateEditor(props) {
 
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase"}}>{isLinkedIn?"Message Body":"Email Body"}</div>
+                <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase"}}>{isLinkedIn?"Message Body":isScript?"Script Body":"Email Body"}</div>
                 {current&&current.variables&&(
                   <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                     {(Array.isArray(current.variables)?current.variables:JSON.parse(current.variables||"[]")).map(function(v){
