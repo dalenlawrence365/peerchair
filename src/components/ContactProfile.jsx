@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react"
 import SmartCommand from "@/components/SmartCommand"
 import DraftEmail from "@/components/DraftEmail"
 import CopyPromptButton from "@/components/CopyPromptButton"
-import { sbFetch, dbToLocal, localToDb, G, BG, BG2, BG3, T, stageColor, chColor, chIcon, PIPELINE, STATUSES, OUTCOMES, OWNERSHIP, RPT, IND, REV, EMP, FIN, PRESSURE, CUES, FLAGS, MEMB_T, JOURNEY, STAGE_TO_NODE, CHAPTERS, SOURCES, Pill, Avatar, Drawer, DField, DSelect, DMulti, Section, FL, FV, Grid2, Tags, HRPopup, CircleJourney } from "@/lib/appShared"
+import { sbFetch, dbToLocal, localToDb, G, BG, BG2, BG3, T, stageColor, chColor, chIcon, PIPELINE, STATUSES, OUTCOMES, OWNERSHIP, RPT, IND, REV, EMP, FIN, PRESSURE, CUES, FLAGS, MEMB_T, JOURNEY, STAGE_TO_NODE, CHAPTERS, SOURCES, CONTACT_TYPES, Pill, Avatar, Drawer, DField, DSelect, DMulti, Section, FL, FV, Grid2, Tags, HRPopup, CircleJourney } from "@/lib/appShared"
 
 function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
   var [data,setData]           = useState(null);
@@ -717,6 +717,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
 
       {/* DRAWERS */}
       <Drawer title="Edit Identity" open={drawer==="identity"} onClose={function(){setDrawer(null);}} onSave={saveContact}>
+        <DSelect label="Contact Type" val={data.contactType} set={set("contactType")} opts={CONTACT_TYPES}/>
         <DField label="First Name" val={data.firstName} set={set("firstName")}/>
         <DField label="Last Name" val={data.lastName} set={set("lastName")}/>
         <DField label="Title / Role" val={data.title} set={set("title")}/>

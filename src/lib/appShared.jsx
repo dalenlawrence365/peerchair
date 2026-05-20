@@ -83,6 +83,7 @@ function localToDb(d) {
     last_name:           d.lastName,
     title:               d.title,
     company_name:        d.company,
+    contact_type:        d.contactType,
     email:               d.email,
     email_type:          d.emailType,
     email2:              d.email2,
@@ -162,6 +163,7 @@ var STAGE_TO_NODE = {
 };
 var CHAPTERS = ["Los Angeles","San Fernando Valley"];
 var SOURCES  = ["LinkedIn / HeyReach","Sponsor","Networking","Referral"];
+var CONTACT_TYPES = ["CFO_PROSPECT","SPONSOR_CONTACT","REFERRAL_PARTNER"];
 var PIPELINE = ["Target","Requested","Connected","Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Bad Timing","Not a Fit","Event Waitlist","Event Invited","Event Confirmed","Event Attended","No Show","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment","Active Member","Lost — Bad Timing","Lost — Not a Fit","Reserve Pool"];
 var STATUSES = ["Prospect","Active","Inactive / Churned","No Response","Not a Fit"];
 var OUTCOMES = ["Strong Fit","Possible Fit","Bad Timing","Not a Fit","No Show"];
@@ -438,6 +440,6 @@ async function SBpatch(table, id, data) {
 
 export { sbFetch, SBpatch, dbToLocal, localToDb }
 export { G, BG, BG2, BG3, T }
-export { JOURNEY, STAGE_TO_NODE, CHAPTERS, SOURCES, PIPELINE, STATUSES, OUTCOMES, OWNERSHIP, RPT, IND, REV, EMP, FIN, PRESSURE, CUES, FLAGS, MEMB_T }
+export { JOURNEY, STAGE_TO_NODE, CHAPTERS, SOURCES, CONTACT_TYPES, PIPELINE, STATUSES, OUTCOMES, OWNERSHIP, RPT, IND, REV, EMP, FIN, PRESSURE, CUES, FLAGS, MEMB_T }
 export { stageColor, chColor, chIcon }
 export { Pill, Avatar, NavItem, HRPopup, Drawer, DField, DSelect, DMulti, Section, FL, FV, Grid2, Tags, CircleJourney }
