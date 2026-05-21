@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
 import { corsResponse, handleOptions } from "@/lib/cors"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
+import { getAccessToken } from "@/lib/microsoft-auth"
 
 export async function OPTIONS() { return handleOptions() }
 
@@ -34,26 +35,12 @@ export async function GET(request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )
 
-  // Get Microsoft token
-  const { data: tokenRow } = await sb.from("microsoft_tokens").select("*").eq("id", "dalen").single()
-  if (!tokenRow) return corsResponse({ error: "Microsoft token not found" }, { status: 401 })
-
-  let accessToken = tokenRow.access_token
-  if (new Date(tokenRow.expires_at) < new Date(Date.now() + 60000)) {
-    try {
-      const r = await fetch(`https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/oauth2/v2.0/token`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          client_id: process.env.AZURE_CLIENT_ID,
-          client_secret: process.env.AZURE_CLIENT_SECRET,
-          refresh_token: tokenRow.refresh_token,
-          grant_type: "refresh_token",
-          scope: "https://graph.microsoft.com/Calendars.Read offline_access"
-        })
-      })
-      if (r.ok) { const t = await r.json(); accessToken = t.access_token }
-    } catch(e) { console.error("Token refresh failed:", e.message) }
+  // Get Microsoft access token (helper handles fetch + refresh + persist)
+  let accessToken
+  try {
+    accessToken = await getAccessToken()
+  } catch (e) {
+    return corsResponse({ error: e.message }, { status: 401 })
   }
 
   // Calculate 8-25 day window in PST

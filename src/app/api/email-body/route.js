@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { corsResponse, handleOptions } from "@/lib/cors"
 import { createClient } from "@supabase/supabase-js"
+import { getAccessToken } from "@/lib/microsoft-auth"
 
 // Strip HTML and decode the most common entities, then collapse whitespace.
 function htmlToText(html) {
@@ -21,36 +22,6 @@ function htmlToText(html) {
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim()
-}
-
-async function refreshTokenIfNeeded(sb, tokenRow) {
-  if (new Date(tokenRow.expires_at) >= new Date(Date.now() + 60000)) {
-    return tokenRow.access_token
-  }
-  const r = await fetch(
-    `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/oauth2/v2.0/token`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: process.env.AZURE_CLIENT_ID,
-        client_secret: process.env.AZURE_CLIENT_SECRET,
-        refresh_token: tokenRow.refresh_token,
-        grant_type: "refresh_token",
-        scope: "https://graph.microsoft.com/Mail.Read offline_access"
-      })
-    }
-  )
-  if (!r.ok) throw new Error("Token refresh failed: " + (await r.text()))
-  const t = await r.json()
-  await sb.from("microsoft_tokens").upsert({
-    id: "dalen",
-    access_token: t.access_token,
-    refresh_token: t.refresh_token || tokenRow.refresh_token,
-    expires_at: new Date(Date.now() + t.expires_in * 1000).toISOString(),
-    updated_at: new Date().toISOString()
-  })
-  return t.access_token
 }
 
 export async function OPTIONS() { return handleOptions() }
@@ -109,19 +80,9 @@ export async function GET(request) {
   // 2) Fallback: pull live from Microsoft Graph. This covers messages from
   //    unknown senders (not yet in PeerChair) and anything the sync hasn't
   //    picked up yet.
-  const { data: tokenRow } = await sb
-    .from("microsoft_tokens")
-    .select("*")
-    .eq("id", "dalen")
-    .maybeSingle()
-
-  if (!tokenRow) {
-    return corsResponse({ error: "Microsoft token not found. Visit /api/auth/microsoft to authorize." }, { status: 401 })
-  }
-
   let accessToken
   try {
-    accessToken = await refreshTokenIfNeeded(sb, tokenRow)
+    accessToken = await getAccessToken()
   } catch (e) {
     return corsResponse({ error: e.message }, { status: 401 })
   }

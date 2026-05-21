@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { corsResponse, handleOptions } from "@/lib/cors"
 import { createClient } from "@supabase/supabase-js"
+import { getAccessToken } from "@/lib/microsoft-auth"
 
 const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024 // 3MB
 
@@ -30,44 +31,12 @@ export async function POST(request) {
     return corsResponse({ error: "Contact not found or has no email address" }, { status: 404 })
   }
 
-  // Get Microsoft token
-  const { data: tokenRow } = await sb.from("microsoft_tokens").select("*").eq("id", "dalen").single()
-  if (!tokenRow) {
-    return corsResponse({ error: "Microsoft token not found. Visit peerchair.com/api/auth/microsoft to reconnect." }, { status: 401 })
-  }
-
-  // Refresh token if expired
-  let accessToken = tokenRow.access_token
-  if (new Date(tokenRow.expires_at) < new Date(Date.now() + 60000)) {
-    try {
-      const refreshRes = await fetch(
-        `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/oauth2/v2.0/token`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            client_id: process.env.AZURE_CLIENT_ID,
-            client_secret: process.env.AZURE_CLIENT_SECRET,
-            refresh_token: tokenRow.refresh_token,
-            grant_type: "refresh_token",
-            scope: "https://graph.microsoft.com/Mail.ReadWrite offline_access"
-          })
-        }
-      )
-      if (refreshRes.ok) {
-        const tokens = await refreshRes.json()
-        accessToken = tokens.access_token
-        await sb.from("microsoft_tokens").upsert({
-          id: "dalen",
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token || tokenRow.refresh_token,
-          expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-          updated_at: new Date().toISOString()
-        })
-      }
-    } catch(e) {
-      console.error("Token refresh failed:", e.message)
-    }
+  // Get Microsoft access token (helper handles fetch + refresh + persist)
+  let accessToken
+  try {
+    accessToken = await getAccessToken()
+  } catch (e) {
+    return corsResponse({ error: e.message }, { status: 401 })
   }
 
   // Resolve attachment if requested

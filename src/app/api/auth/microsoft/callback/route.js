@@ -34,7 +34,7 @@ export async function GET(request) {
         code,
         redirect_uri:  redirect,
         grant_type:    "authorization_code",
-        scope:         "https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.ReadWrite offline_access openid profile",
+        scope:         "https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Contacts.ReadWrite https://graph.microsoft.com/Calendars.Read offline_access openid profile",
       })
     }
   )
