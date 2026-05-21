@@ -15,7 +15,7 @@ export async function getAccessToken() {
       body: new URLSearchParams({
         client_id:process.env.AZURE_CLIENT_ID, client_secret:process.env.AZURE_CLIENT_SECRET,
         refresh_token:row.refresh_token, grant_type:"refresh_token",
-        scope:"https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.ReadWrite offline_access"
+        scope:"https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Contacts.ReadWrite https://graph.microsoft.com/Calendars.Read offline_access"
       })
     }
   )
