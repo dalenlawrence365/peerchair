@@ -117,6 +117,14 @@ export default function StageWorkspace({ stage }) {
   var [statusTagsByPerson, setStatusTagsByPerson] = useState({})
   var [loading, setLoading] = useState(true)
   var [error, setError] = useState(null)
+  var [filter, setFilter] = useState(null)
+
+  // Clear filter when navigating between stages
+  useEffect(function() { setFilter(null) }, [stage])
+
+  function toggleFilter(key) {
+    setFilter(function(prev) { return prev === key ? null : key })
+  }
 
   useEffect(function() {
     if (!STAGE_CONFIG[stage]) {
@@ -217,6 +225,20 @@ export default function StageWorkspace({ stage }) {
     return { fitScheduled, staleList, active }
   }, [enriched])
 
+  // Derive the filtered list when a filter is active
+  var filteredList = useMemo(function() {
+    if (!filter) return null
+    return enriched.filter(function(p) {
+      if (filter === "scheduled_fit")    return p.hasFitScheduled
+      if (filter === "fit_done")         return p.hasFitCompleted
+      if (filter === "missing_brochure") return !p.hasBrochure
+      if (filter === "missing_invite")   return !p.hasEventInvite
+      if (filter === "stale")            return p.isStale
+      if (filter === "cold")             return p.isCold
+      return true
+    })
+  }, [enriched, filter])
+
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: T.bg, fontFamily: FONT_FAMILY, color: T.textPrimary, fontSize: 14, lineHeight: 1.5 }}>
 
@@ -251,9 +273,9 @@ export default function StageWorkspace({ stage }) {
 
         {!loading && !error && (
           <>
-            <MiniKpis stage={stage} kpis={kpis} />
+            <MiniKpis stage={stage} kpis={kpis} activeFilter={filter} onToggle={toggleFilter} />
             <SuggestedMoves stage={stage} kpis={kpis} enriched={enriched} />
-            <InventoryList stage={stage} sections={sections} />
+            <InventoryList stage={stage} sections={sections} filteredList={filteredList} activeFilter={filter} onClearFilter={function(){ setFilter(null) }} />
           </>
         )}
 
@@ -350,42 +372,68 @@ function StageTabs({ activeStage }) {
 }
 
 // ─── Mini KPIs ────────────────────────────────────────────────────────────────
-function MiniKpis({ stage, kpis }) {
+function MiniKpis({ stage, kpis, activeFilter, onToggle }) {
   var cards = []
   if (stage === "prospect") {
     cards = [
-      { label: "Scheduled fit call", value: kpis.fitSched, tone: kpis.fitSched > 0 ? "warm" : "neutral", meta: kpis.fitSched > 0 ? "Prep needed" : "None scheduled" },
-      { label: "Fit calls completed", value: kpis.fitDone, tone: "neutral", meta: "Ready to promote" },
-      { label: "Missing brochure", value: kpis.noBrochure, tone: kpis.noBrochure > 0 ? "urgent" : "ok", meta: kpis.noBrochure > 0 ? "of " + kpis.total : "All have it" },
-      { label: "Stale (>14 days)", value: kpis.stale, tone: kpis.stale > 0 ? "warm" : "ok", meta: "No contact in 14+ days" },
-      { label: "Cold (>20 days)", value: kpis.cold, tone: kpis.cold > 0 ? "urgent" : "ok", meta: "Re-engage urgently" },
+      { label: "Scheduled fit call", value: kpis.fitSched, tone: kpis.fitSched > 0 ? "warm" : "neutral", meta: kpis.fitSched > 0 ? "Prep needed" : "None scheduled", filterKey: kpis.fitSched > 0 ? "scheduled_fit" : null },
+      { label: "Fit calls completed", value: kpis.fitDone, tone: "neutral", meta: "Ready to promote", filterKey: kpis.fitDone > 0 ? "fit_done" : null },
+      { label: "Missing brochure", value: kpis.noBrochure, tone: kpis.noBrochure > 0 ? "urgent" : "ok", meta: kpis.noBrochure > 0 ? "of " + kpis.total : "All have it", filterKey: kpis.noBrochure > 0 ? "missing_brochure" : null },
+      { label: "Stale (>14 days)", value: kpis.stale, tone: kpis.stale > 0 ? "warm" : "ok", meta: "No contact in 14+ days", filterKey: kpis.stale > 0 ? "stale" : null },
+      { label: "Cold (>20 days)", value: kpis.cold, tone: kpis.cold > 0 ? "urgent" : "ok", meta: "Re-engage urgently", filterKey: kpis.cold > 0 ? "cold" : null },
     ]
   } else if (stage === "qualified") {
     cards = [
-      { label: "Event runway", value: "22d", tone: "warm", meta: "Until Jun 12 event" },
-      { label: "Capacity gap", value: Math.max(0, 20 - kpis.eventInvited), tone: "urgent", meta: kpis.eventInvited + " of 20 invited" },
-      { label: "Missing brochure", value: kpis.noBrochure, tone: kpis.noBrochure > 0 ? "urgent" : "ok", meta: kpis.noBrochure > 0 ? "of " + kpis.total : "All have it" },
-      { label: "Fit calls done", value: kpis.fitDone, tone: "neutral", meta: kpis.fitDone + " of " + kpis.total },
-      { label: "Cold (>20 days)", value: kpis.cold, tone: kpis.cold > 0 ? "warm" : "ok", meta: "Re-engage" },
+      { label: "Event runway", value: "22d", tone: "warm", meta: "Until Jun 12 event", filterKey: null },
+      { label: "Capacity gap", value: Math.max(0, 20 - kpis.eventInvited), tone: "urgent", meta: kpis.eventInvited + " of 20 invited", filterKey: kpis.total - kpis.eventInvited > 0 ? "missing_invite" : null },
+      { label: "Missing brochure", value: kpis.noBrochure, tone: kpis.noBrochure > 0 ? "urgent" : "ok", meta: kpis.noBrochure > 0 ? "of " + kpis.total : "All have it", filterKey: kpis.noBrochure > 0 ? "missing_brochure" : null },
+      { label: "Fit calls done", value: kpis.fitDone, tone: "neutral", meta: kpis.fitDone + " of " + kpis.total, filterKey: kpis.fitDone > 0 ? "fit_done" : null },
+      { label: "Cold (>20 days)", value: kpis.cold, tone: kpis.cold > 0 ? "warm" : "ok", meta: "Re-engage", filterKey: kpis.cold > 0 ? "cold" : null },
     ]
   } else {
     cards = [
-      { label: "Total in stage", value: kpis.total, tone: "neutral", meta: "" },
-      { label: "Stale (>14d)", value: kpis.stale, tone: kpis.stale > 0 ? "warm" : "ok", meta: "" },
+      { label: "Total in stage", value: kpis.total, tone: "neutral", meta: "", filterKey: null },
+      { label: "Stale (>14d)", value: kpis.stale, tone: kpis.stale > 0 ? "warm" : "ok", meta: "", filterKey: kpis.stale > 0 ? "stale" : null },
     ]
   }
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(" + cards.length + ", 1fr)", gap: 14, marginBottom: 20 }}>
       {cards.map(function(c, i) {
         var toneStyles = {
-          urgent: { bg: T.dangerBg, border: "rgba(220,38,38,0.15)", text: T.danger },
-          warm: { bg: T.warningBg, border: "rgba(217,119,6,0.15)", text: T.warning },
-          ok: { bg: T.successBg, border: "rgba(22,163,74,0.15)", text: T.success },
-          neutral: { bg: T.cardBg, border: T.border, text: T.textPrimary },
-        }[c.tone] || { bg: T.cardBg, border: T.border, text: T.textPrimary }
+          urgent:  { bg: T.dangerBg,  border: "rgba(220,38,38,0.15)",  text: T.danger,      activeBorder: T.danger },
+          warm:    { bg: T.warningBg, border: "rgba(217,119,6,0.15)",  text: T.warning,     activeBorder: T.warning },
+          ok:      { bg: T.successBg, border: "rgba(22,163,74,0.15)",  text: T.success,     activeBorder: T.success },
+          neutral: { bg: T.cardBg,    border: T.border,                text: T.textPrimary, activeBorder: T.textPrimary },
+        }[c.tone] || { bg: T.cardBg, border: T.border, text: T.textPrimary, activeBorder: T.textPrimary }
+
+        var isClickable = !!c.filterKey
+        var isActive = isClickable && activeFilter === c.filterKey
+        var borderColor = isActive ? toneStyles.activeBorder : toneStyles.border
+        var borderWidth = isActive ? 2 : 1
+        var padding = isActive ? "13px 15px" : "14px 16px" // compensate for thicker border so layout doesn't shift
+
         return (
-          <div key={i} style={{ background: toneStyles.bg, border: "1px solid " + toneStyles.border, borderRadius: 10, padding: "14px 16px" }}>
-            <div style={{ fontSize: 11, color: toneStyles.text === T.textPrimary ? T.textSecondary : toneStyles.text, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 500, marginBottom: 6 }}>{c.label}</div>
+          <div
+            key={i}
+            onClick={isClickable ? function() { onToggle(c.filterKey) } : undefined}
+            style={{
+              background: toneStyles.bg,
+              border: borderWidth + "px solid " + borderColor,
+              borderRadius: 10,
+              padding: padding,
+              cursor: isClickable ? "pointer" : "default",
+              transition: "border-color 0.15s ease, transform 0.05s ease",
+              position: "relative",
+              userSelect: "none",
+            }}
+            onMouseDown={isClickable ? function(e) { e.currentTarget.style.transform = "scale(0.99)" } : undefined}
+            onMouseUp={isClickable ? function(e) { e.currentTarget.style.transform = "scale(1)" } : undefined}
+            onMouseLeave={isClickable ? function(e) { e.currentTarget.style.transform = "scale(1)" } : undefined}
+          >
+            <div style={{ fontSize: 11, color: toneStyles.text === T.textPrimary ? T.textSecondary : toneStyles.text, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 500, marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>{c.label}</span>
+              {isClickable && <span style={{ fontSize: 9, opacity: isActive ? 1 : 0.4, fontWeight: 500 }}>{isActive ? "● FILTERED" : "FILTER"}</span>}
+            </div>
             <div style={{ fontSize: 24, fontWeight: 600, lineHeight: 1, letterSpacing: -0.3, color: toneStyles.text }}>{c.value}</div>
             {c.meta && <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 6 }}>{c.meta}</div>}
           </div>
@@ -461,15 +509,48 @@ function SuggestedMoves({ stage, kpis, enriched }) {
 }
 
 // ─── Inventory list ───────────────────────────────────────────────────────────
-function InventoryList({ stage, sections }) {
+function InventoryList({ stage, sections, filteredList, activeFilter, onClearFilter }) {
   var total = sections.fitScheduled.length + sections.staleList.length + sections.active.length
+  var isFiltered = !!filteredList
+  var FILTER_LABELS = {
+    scheduled_fit:    "with fit call scheduled",
+    fit_done:         "with completed fit call",
+    missing_brochure: "missing brochure",
+    missing_invite:   "missing event invite",
+    stale:            "stale (>14 days)",
+    cold:             "cold (>20 days)",
+  }
+  var filterLabel = FILTER_LABELS[activeFilter] || activeFilter
+
+  // Determine row tone for flat (filtered) view
+  function flatTone(p) {
+    if (p.hasFitScheduled) return "scheduled"
+    if (p.isCold || p.isStale) return "stale"
+    return "active"
+  }
 
   return (
     <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: "22px 24px" }}>
       <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: -0.2 }}>{total} {stage === "qualified" ? "qualified" : "prospects"} — inventory view</div>
+        <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: -0.2 }}>
+          {isFiltered
+            ? "Showing " + filteredList.length + " of " + total + " — " + filterLabel
+            : total + " " + (stage === "qualified" ? "qualified" : "prospects") + " — inventory view"
+          }
+        </div>
         <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 2 }}>What each person has received so far &middot; click any row to open the full profile</div>
       </div>
+
+      {/* Active filter banner */}
+      {isFiltered && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: T.bg, borderRadius: 8, marginBottom: 14, fontSize: 12 }}>
+          <span style={{ color: T.textSecondary }}>Filter active:</span>
+          <span style={{ fontWeight: 500, color: T.textPrimary }}>{filterLabel}</span>
+          <span style={{ marginLeft: "auto" }}>
+            <button onClick={onClearFilter} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 6, background: "white", border: "1px solid " + T.border, cursor: "pointer", color: T.textPrimary, fontFamily: "inherit", fontWeight: 500 }}>Clear filter ×</button>
+          </span>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 14, padding: "12px 16px", background: T.bg, borderRadius: 8, marginBottom: 12, fontSize: 11, color: T.textSecondary, flexWrap: "wrap", alignItems: "center" }}>
         <Legend bg={T.memberBg} border={T.memberText} label="Has the item" />
@@ -477,24 +558,43 @@ function InventoryList({ stage, sections }) {
         <Legend bg="rgba(220,38,38,0.04)" border="rgba(220,38,38,0.3)" label="Critical gap" />
       </div>
 
-      {sections.fitScheduled.length > 0 && (
+      {/* Filtered (flat) view */}
+      {isFiltered && (
         <>
-          <SectionHeader label="Fit call scheduled" count={sections.fitScheduled.length} />
-          {sections.fitScheduled.map(function(p) { return <InventoryRow key={p.id} person={p} stage={stage} tone="scheduled" /> })}
+          {filteredList.length === 0 && (
+            <div style={{ padding: 32, textAlign: "center", color: T.textTertiary, fontSize: 13 }}>
+              No matches for &ldquo;{filterLabel}&rdquo;.
+            </div>
+          )}
+          {filteredList.map(function(p) {
+            return <InventoryRow key={p.id} person={p} stage={stage} tone={flatTone(p)} />
+          })}
         </>
       )}
 
-      {sections.staleList.length > 0 && (
+      {/* Sectioned (unfiltered) view */}
+      {!isFiltered && (
         <>
-          <SectionHeader label="Stale — needs re-engagement" count={sections.staleList.length} />
-          {sections.staleList.map(function(p) { return <InventoryRow key={p.id} person={p} stage={stage} tone="stale" /> })}
-        </>
-      )}
+          {sections.fitScheduled.length > 0 && (
+            <>
+              <SectionHeader label="Fit call scheduled" count={sections.fitScheduled.length} />
+              {sections.fitScheduled.map(function(p) { return <InventoryRow key={p.id} person={p} stage={stage} tone="scheduled" /> })}
+            </>
+          )}
 
-      {sections.active.length > 0 && (
-        <>
-          <SectionHeader label={stage === "qualified" ? "Qualified — active" : "Active prospects"} count={sections.active.length} />
-          {sections.active.map(function(p) { return <InventoryRow key={p.id} person={p} stage={stage} tone="active" /> })}
+          {sections.staleList.length > 0 && (
+            <>
+              <SectionHeader label="Stale — needs re-engagement" count={sections.staleList.length} />
+              {sections.staleList.map(function(p) { return <InventoryRow key={p.id} person={p} stage={stage} tone="stale" /> })}
+            </>
+          )}
+
+          {sections.active.length > 0 && (
+            <>
+              <SectionHeader label={stage === "qualified" ? "Qualified — active" : "Active prospects"} count={sections.active.length} />
+              {sections.active.map(function(p) { return <InventoryRow key={p.id} person={p} stage={stage} tone="active" /> })}
+            </>
+          )}
         </>
       )}
     </div>
