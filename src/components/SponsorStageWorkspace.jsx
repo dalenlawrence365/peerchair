@@ -89,7 +89,8 @@ export default function SponsorStageWorkspace({ stage }) {
       if (contactIds.length > 0) {
         comms = await sbFetch("/communications?contact_id=in.(" + contactIds.join(",") + ")&select=id,contact_id,channel,direction,body,occurred_at,step_label&order=occurred_at.desc&limit=50")
       }
-      setWorkbench({ company, deals: dealRows, gateways, communications: comms })
+      var locs = await sbFetch("/company_locations?company_id=eq." + companyId + "&select=*&order=created_at.asc")
+      setWorkbench({ company, deals: dealRows, gateways, communications: comms, locations: locs })
     } catch(err) {
       setError(err.message || String(err))
     }
@@ -155,6 +156,45 @@ export default function SponsorStageWorkspace({ stage }) {
     })
   }
 
+  function createLocation(data) {
+    if (!workbench || !workbench.company) return Promise.reject(new Error("No company"))
+    var body = Object.assign({ company_id: workbench.company.id }, data)
+    return sbFetch("/company_locations", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }).then(function(rows){
+      var newLoc = Array.isArray(rows) ? rows[0] : rows
+      setWorkbench(function(prev){
+        if (!prev) return prev
+        return Object.assign({}, prev, { locations: (prev.locations || []).concat([newLoc]) })
+      })
+    })
+  }
+
+  function updateLocation(id, patch) {
+    return sbFetch("/company_locations?id=eq." + id, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }).then(function(){
+      setWorkbench(function(prev){
+        if (!prev) return prev
+        var newLocs = (prev.locations || []).map(function(l){
+          return l.id === id ? Object.assign({}, l, patch) : l
+        })
+        return Object.assign({}, prev, { locations: newLocs })
+      })
+    })
+  }
+
+  function deleteLocation(id) {
+    return sbFetch("/company_locations?id=eq." + id, { method: "DELETE" }).then(function(){
+      setWorkbench(function(prev){
+        if (!prev) return prev
+        return Object.assign({}, prev, { locations: (prev.locations || []).filter(function(l){ return l.id !== id }) })
+      })
+    })
+  }
+
   // Derived: stage counts
   var counts = useMemo(function() {
     var c = {}
@@ -213,6 +253,9 @@ export default function SponsorStageWorkspace({ stage }) {
           loading={workbenchLoading}
           onUpdate={updateCompanyField}
           onSaveNote={saveNote}
+          onCreateLocation={createLocation}
+          onUpdateLocation={updateLocation}
+          onDeleteLocation={deleteLocation}
           onClose={function(){ handleSelectCompany(null) }}
         />
       </div>
@@ -379,7 +422,7 @@ function HostDot({ value }) {
 }
 
 // ─── Right workbench pane ─────────────────────────────────────────────────────
-function CompanyWorkbench({ companyId, workbench, loading, onUpdate, onSaveNote, onClose }) {
+function CompanyWorkbench({ companyId, workbench, loading, onUpdate, onSaveNote, onCreateLocation, onUpdateLocation, onDeleteLocation, onClose }) {
   if (!companyId) {
     return (
       <div style={{ flex: 1, background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: T.textTertiary, fontSize: 13 }}>
@@ -414,11 +457,8 @@ function CompanyWorkbench({ companyId, workbench, loading, onUpdate, onSaveNote,
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginBottom: 4, letterSpacing: -0.3 }}>{c.name}</div>
           <div style={{ fontSize: 12, color: T.textSecondary, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            {c.sponsor_type && <span>{c.sponsor_type}</span>}
-            {c.industry && c.industry !== c.sponsor_type && <span>· {c.industry}</span>}
-            {c.city && <span>· {c.city}, {c.state}</span>}
+            {c.sponsor_type ? <span>{c.sponsor_type}</span> : <span style={{ fontStyle: "italic", color: T.textTertiary }}>uncategorized</span>}
             {lastTouch && <span>· Last activity: {new Date(lastTouch).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
-            {!c.is_sponsor && <span style={{ background: T.bg, color: T.textTertiary, padding: "2px 7px", borderRadius: 4, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 500 }}>not pursuing</span>}
           </div>
         </div>
         <button onClick={onClose} style={{ background: "transparent", border: "1px solid " + T.border, color: T.textSecondary, fontSize: 12, padding: "4px 10px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>Close ×</button>
@@ -432,6 +472,15 @@ function CompanyWorkbench({ companyId, workbench, loading, onUpdate, onSaveNote,
 
       <div style={{ padding: "0 22px 22px" }}>
         <FactsBlock company={c} onUpdate={onUpdate} />
+      </div>
+
+      <div style={{ padding: "0 22px 22px" }}>
+        <LocationsBlock
+          locations={workbench.locations || []}
+          onCreate={onCreateLocation}
+          onUpdate={onUpdateLocation}
+          onDelete={onDeleteLocation}
+        />
       </div>
 
       <div style={{ padding: "0 22px 22px" }}>
@@ -519,18 +568,7 @@ function GatewaysBlock({ gateways, deals }) {
 // ─── Facts block (inline editable) ────────────────────────────────────────────
 function FactsBlock({ company, onUpdate }) {
   var fields = [
-    { key: "sponsor_type",      label: "Sponsor type",       type: "select", options: SPONSOR_TYPE_OPTIONS },
-    { key: "host_viable",       label: "Host viable",        type: "select", options: HOST_VIABLE_OPTIONS },
-    { key: "hosting_type",      label: "Hosting type",       type: "select", options: HOSTING_TYPE_OPTIONS },
-    { key: "neighborhood_la",   label: "LA neighborhood",    type: "text" },
-    { key: "neighborhood_sfv",  label: "SFV neighborhood",   type: "text" },
-    { key: "city",              label: "City",               type: "text" },
-    { key: "state",             label: "State",              type: "text" },
-    { key: "industry",          label: "Industry",           type: "text" },
-    { key: "employee_count",    label: "Employees",          type: "text" },
-    { key: "annual_revenue",    label: "Annual revenue",     type: "text" },
-    { key: "ownership_type",    label: "Ownership",          type: "text" },
-    { key: "is_sponsor",        label: "Pursuing as sponsor",type: "boolean" },
+    { key: "sponsor_type",  label: "Sponsor type",  type: "select", options: SPONSOR_TYPE_OPTIONS },
   ]
   return (
     <div>
@@ -542,6 +580,111 @@ function FactsBlock({ company, onUpdate }) {
       </div>
     </div>
   )
+}
+
+// ─── Locations block ──────────────────────────────────────────────────────────
+function LocationsBlock({ locations, onCreate, onUpdate, onDelete }) {
+  var [adding, setAdding] = useState(false)
+
+  function handleAdd(data) {
+    return Promise.resolve(onCreate(data)).then(function(){ setAdding(false) })
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <SectionLabel mb={0}>Locations</SectionLabel>
+        {!adding && (
+          <button onClick={function(){ setAdding(true) }} style={{ background: "transparent", border: "none", color: T.accent, fontSize: 12, cursor: "pointer", fontFamily: "inherit", padding: 0, fontWeight: 500 }}>+ Add location</button>
+        )}
+      </div>
+      {locations.length === 0 && !adding && (
+        <div style={{ fontSize: 12, color: T.textTertiary, fontStyle: "italic", padding: "8px 0" }}>
+          No locations on record. Add one to mark host viability.
+        </div>
+      )}
+      {locations.map(function(loc){
+        return <LocationRow key={loc.id} loc={loc} onUpdate={onUpdate} onDelete={onDelete} />
+      })}
+      {adding && <LocationRow loc={null} isNew={true} onCreate={handleAdd} onCancelNew={function(){ setAdding(false) }} />}
+    </div>
+  )
+}
+
+function LocationRow({ loc, isNew, onUpdate, onDelete, onCreate, onCancelNew }) {
+  var [editing, setEditing] = useState(!!isNew)
+  var [neighborhood, setNeighborhood] = useState(loc?.neighborhood || "")
+  var [hostViable, setHostViable] = useState(loc?.host_viable || "Unknown")
+  var [hostType, setHostType] = useState(loc?.host_type || "TBD")
+  var [saving, setSaving] = useState(false)
+
+  function save() {
+    setSaving(true)
+    var data = { neighborhood: neighborhood, host_viable: hostViable, host_type: hostType }
+    var p = isNew ? onCreate(data) : onUpdate(loc.id, data)
+    Promise.resolve(p).then(function(){ setSaving(false); setEditing(false) }).catch(function(){ setSaving(false) })
+  }
+
+  function cancel() {
+    if (isNew) { onCancelNew && onCancelNew(); return }
+    setNeighborhood(loc.neighborhood || "")
+    setHostViable(loc.host_viable || "Unknown")
+    setHostType(loc.host_type || "TBD")
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div style={{ background: T.bg, border: "1px solid " + T.accent, borderRadius: 8, padding: 12, marginBottom: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 500, marginBottom: 3 }}>Neighborhood</div>
+            <input autoFocus value={neighborhood} onChange={function(e){ setNeighborhood(e.target.value) }} placeholder="e.g. Woodland Hills" style={{ width: "100%", padding: "5px 8px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 5, fontFamily: "inherit", outline: "none", background: "white" }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 500, marginBottom: 3 }}>Host viable</div>
+            <select value={hostViable} onChange={function(e){ setHostViable(e.target.value) }} style={{ width: "100%", padding: "5px 8px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 5, fontFamily: "inherit", outline: "none", background: "white" }}>
+              {HOST_VIABLE_OPTIONS.map(function(o){ return <option key={o} value={o}>{o}</option> })}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 500, marginBottom: 3 }}>Host type</div>
+            <select value={hostType} onChange={function(e){ setHostType(e.target.value) }} style={{ width: "100%", padding: "5px 8px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 5, fontFamily: "inherit", outline: "none", background: "white" }}>
+              {HOSTING_TYPE_OPTIONS.map(function(o){ return <option key={o} value={o}>{o}</option> })}
+            </select>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button disabled={saving || !neighborhood.trim()} onClick={save} style={{ padding: "5px 12px", background: T.accent, color: "white", border: "none", borderRadius: 5, fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 500, opacity: neighborhood.trim() ? 1 : 0.5 }}>{saving ? "Saving…" : "Save"}</button>
+          <button disabled={saving} onClick={cancel} style={{ padding: "5px 12px", background: "white", color: T.textPrimary, border: "1px solid " + T.border, borderRadius: 5, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ background: T.bg, borderRadius: 8, padding: "10px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: T.textPrimary }}>{loc.neighborhood || <span style={{ fontStyle: "italic", color: T.textTertiary }}>(unnamed location)</span>}</div>
+        {loc.host_type && loc.host_type !== "TBD" && loc.host_type !== "N/A" && (
+          <div style={{ fontSize: 11, color: T.textSecondary, marginTop: 2 }}>{loc.host_type}</div>
+        )}
+      </div>
+      <HostBadgeLarge value={loc.host_viable} />
+      <button onClick={function(){ setEditing(true) }} style={{ background: "transparent", border: "none", color: T.accent, fontSize: 11, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Edit</button>
+      <button onClick={function(){ if (confirm("Delete this location?")) onDelete(loc.id) }} style={{ background: "transparent", border: "none", color: T.textTertiary, fontSize: 11, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Delete</button>
+    </div>
+  )
+}
+
+function HostBadgeLarge({ value }) {
+  if (value === "Yes") {
+    return <span style={{ fontSize: 11, padding: "3px 9px", background: T.successBg, color: T.success, borderRadius: 999, fontWeight: 500 }}>✓ Host viable</span>
+  }
+  if (value === "No") {
+    return <span style={{ fontSize: 11, padding: "3px 9px", background: T.bg, color: T.textTertiary, borderRadius: 999, fontWeight: 500, border: "1px solid " + T.border }}>✗ Won't host</span>
+  }
+  return <span style={{ fontSize: 11, padding: "3px 9px", background: "transparent", color: T.textTertiary, borderRadius: 999, fontWeight: 500, border: "1px dashed " + T.border }}>Host: TBD</span>
 }
 
 // ─── Notes block (inline editable) ────────────────────────────────────────────
@@ -585,9 +728,26 @@ function NotesBlock({ company, onUpdate }) {
 }
 
 // ─── Activity timeline ────────────────────────────────────────────────────────
+function isNote(comm) {
+  if (!comm) return false
+  var d = (comm.direction || "").toUpperCase()
+  if (d === "INTERNAL") return true
+  var lbl = (comm.step_label || "").toLowerCase()
+  if (lbl.indexOf("note") >= 0) return true
+  return false
+}
+
+function normalizeDirection(d) {
+  if (!d) return ""
+  var up = d.toUpperCase()
+  if (up === "IN" || up === "INBOUND") return "Inbound"
+  if (up === "OUT" || up === "OUTBOUND") return "Outbound"
+  if (up === "INTERNAL") return ""  // notes don't show direction
+  return d.charAt(0).toUpperCase() + d.slice(1).toLowerCase()
+}
+
 function ActivityTimeline({ communications, gateways, deals, onSaveNote }) {
-  var [channelFilter, setChannelFilter] = useState("All")
-  var [directionFilter, setDirectionFilter] = useState("All")
+  var [filter, setFilter] = useState("All")
   var [adding, setAdding] = useState(false)
   var [noteDraft, setNoteDraft] = useState("")
   var [noteSaving, setNoteSaving] = useState(false)
@@ -603,18 +763,16 @@ function ActivityTimeline({ communications, gateways, deals, onSaveNote }) {
   var byPersonId = {}
   gateways.forEach(function(p){ byPersonId[p.id] = p })
 
-  // Available channels in this data (always include core ones)
-  var channelsPresent = Array.from(new Set(communications.map(function(c){return c.channel}).filter(Boolean)))
-  var channelChoices = ["All"].concat(["LinkedIn", "Email", "Phone", "Calendly", "App"].filter(function(ch){
-    return channelsPresent.indexOf(ch) >= 0
-  }))
-  if (channelChoices.length === 1) channelChoices = ["All"]  // no data yet
-
   var filtered = communications.filter(function(c){
-    if (channelFilter !== "All" && c.channel !== channelFilter) return false
-    if (directionFilter === "Inbound"  && c.direction !== "IN"       && c.direction !== "INBOUND")  return false
-    if (directionFilter === "Outbound" && c.direction !== "OUT"      && c.direction !== "OUTBOUND") return false
-    if (directionFilter === "Internal" && c.direction !== "INTERNAL") return false
+    if (filter === "All") return true
+    var dir = (c.direction || "").toUpperCase()
+    var ch  = (c.channel   || "").toUpperCase()
+    if (filter === "Inbound")  return dir === "IN" || dir === "INBOUND"
+    if (filter === "Outbound") return dir === "OUT" || dir === "OUTBOUND"
+    if (filter === "Notes")    return isNote(c)
+    if (filter === "Email")    return ch === "EMAIL"
+    if (filter === "LinkedIn") return ch === "LINKEDIN"
+    if (filter === "Phone")    return ch === "PHONE"
     return true
   })
 
@@ -687,13 +845,25 @@ function ActivityTimeline({ communications, gateways, deals, onSaveNote }) {
         </div>
       )}
 
-      {/* Filter row */}
+      {/* Single-row filter */}
       {communications.length > 0 && (
-        <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid " + T.borderSoft }}>
-          <FilterGroup label="Direction" value={directionFilter} options={["All","Inbound","Outbound","Internal"]} onChange={setDirectionFilter} />
-          {channelChoices.length > 1 && (
-            <FilterGroup label="Channel" value={channelFilter} options={channelChoices} onChange={setChannelFilter} />
-          )}
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid " + T.borderSoft }}>
+          {["All","Inbound","Outbound","Email","LinkedIn","Notes","Phone"].map(function(opt){
+            var isActive = filter === opt
+            return (
+              <button
+                key={opt}
+                onClick={function(){ setFilter(opt) }}
+                style={{
+                  fontSize: 11, padding: "4px 10px", borderRadius: 999,
+                  background: isActive ? T.textPrimary : "transparent",
+                  color: isActive ? "white" : T.textSecondary,
+                  border: "1px solid " + (isActive ? T.textPrimary : T.border),
+                  cursor: "pointer", fontFamily: "inherit", fontWeight: 500,
+                }}
+              >{opt}</button>
+            )
+          })}
           <span style={{ fontSize: 11, color: T.textTertiary, marginLeft: "auto" }}>
             Showing {filtered.length} of {communications.length}
           </span>
@@ -714,57 +884,30 @@ function ActivityTimeline({ communications, gateways, deals, onSaveNote }) {
   )
 }
 
-function FilterGroup({ label, value, options, onChange }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <span style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 500, marginRight: 4 }}>{label}</span>
-      {options.map(function(opt){
-        var isActive = value === opt
-        return (
-          <button
-            key={opt}
-            onClick={function(){ onChange(opt) }}
-            style={{
-              fontSize: 11, padding: "3px 9px", borderRadius: 999,
-              background: isActive ? T.textPrimary : "transparent",
-              color: isActive ? "white" : T.textSecondary,
-              border: "1px solid " + (isActive ? T.textPrimary : T.border),
-              cursor: "pointer", fontFamily: "inherit", fontWeight: 500,
-            }}
-          >{opt}</button>
-        )
-      })}
-    </div>
-  )
-}
-
 function TimelineEntry({ comm, who }) {
   var [expanded, setExpanded] = useState(false)
   var body = comm.body || ""
   var isLong = body.length > 600
   var displayBody = (isLong && !expanded) ? body.substring(0, 600) : body
 
-  // Direction label normalization
-  var dirLabel = comm.direction === "IN" || comm.direction === "INBOUND" ? "Inbound"
-              : comm.direction === "OUT" || comm.direction === "OUTBOUND" ? "Outbound"
-              : comm.direction === "INTERNAL" ? "Internal note"
-              : comm.direction
+  var note = isNote(comm)
+  var dirLabel = normalizeDirection(comm.direction)
+  var channelLabel = note ? "NOTE" : (comm.channel || "").toUpperCase()
 
-  // Tone the entry left-border by direction
-  var leftBorder = comm.direction === "IN" || comm.direction === "INBOUND" ? T.success
-                : comm.direction === "OUT" || comm.direction === "OUTBOUND" ? T.accent
-                : comm.direction === "INTERNAL" ? T.warning
-                : T.border
+  // Tone the entry left-border by kind
+  var leftBorder = note ? T.warning
+                : (comm.direction || "").toUpperCase() === "IN" || (comm.direction || "").toUpperCase() === "INBOUND" ? T.success
+                : T.accent
 
   return (
-    <div style={{ padding: "12px 14px", borderBottom: "1px solid " + T.borderSoft, borderLeft: "3px solid " + leftBorder, marginBottom: 2, background: comm.direction === "INTERNAL" ? T.warningBg + "55" : "transparent" }}>
+    <div style={{ padding: "12px 14px", borderBottom: "1px solid " + T.borderSoft, borderLeft: "3px solid " + leftBorder, marginBottom: 2, background: note ? T.warningBg + "55" : "transparent" }}>
       <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ fontWeight: 600, color: T.textSecondary, padding: "2px 8px", background: T.bg, borderRadius: 4, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>{comm.channel}</span>
-        <span style={{ fontWeight: 500 }}>{dirLabel}</span>
+        <span style={{ fontWeight: 600, color: note ? T.warning : T.textSecondary, padding: "2px 8px", background: note ? T.warningBg : T.bg, borderRadius: 4, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>{channelLabel}</span>
+        {!note && dirLabel && <span style={{ fontWeight: 500 }}>{dirLabel}</span>}
         {who && <><span>·</span><span>{who.full_name}</span></>}
         <span>·</span>
         <span>{comm.occurred_at ? new Date(comm.occurred_at).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}) : "—"}</span>
-        {comm.step_label && comm.step_label !== comm.channel && <><span>·</span><span style={{ fontStyle: "italic" }}>{comm.step_label}</span></>}
+        {comm.step_label && comm.step_label.toLowerCase() !== "note" && <><span>·</span><span style={{ fontStyle: "italic" }}>{comm.step_label}</span></>}
       </div>
       <div style={{ fontSize: 13, color: T.textPrimary, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.6 }}>
         {displayBody}
