@@ -538,7 +538,7 @@ function InventoryList({ stage, sections, filteredList, activeFilter, onClearFil
             : total + " " + (stage === "qualified" ? "qualified" : "prospects") + " — inventory view"
           }
         </div>
-        <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 2 }}>What each person has received so far &middot; click any row to open the full profile</div>
+        <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 2 }}>What each person has received so far &middot; click any row to open their LinkedIn profile</div>
       </div>
 
       {/* Active filter banner */}
@@ -552,10 +552,19 @@ function InventoryList({ stage, sections, filteredList, activeFilter, onClearFil
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 14, padding: "12px 16px", background: T.bg, borderRadius: 8, marginBottom: 12, fontSize: 11, color: T.textSecondary, flexWrap: "wrap", alignItems: "center" }}>
-        <Legend bg={T.memberBg} border={T.memberText} label="Has the item" />
-        <Legend bg="transparent" border={T.border} label="Missing" />
-        <Legend bg="rgba(220,38,38,0.04)" border="rgba(220,38,38,0.3)" label="Critical gap" />
+      <div style={{ display: "flex", gap: 18, padding: "12px 16px", background: T.bg, borderRadius: 8, marginBottom: 12, fontSize: 11, color: T.textSecondary, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 999, fontSize: 10, background: T.audienceBg, color: T.audienceText, fontWeight: 500 }}><span style={{ color: T.success, fontWeight: 700 }}>✓</span> Example</span>
+          <span>Has the item</span>
+        </span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 999, fontSize: 10, background: "transparent", color: T.textTertiary, border: "1px dashed " + T.border, fontWeight: 500 }}>Example</span>
+          <span>Missing</span>
+        </span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 999, fontSize: 10, background: "transparent", color: T.textTertiary, border: "1px dashed " + T.border, fontWeight: 500 }}><span style={{ color: T.danger, fontWeight: 700 }}>⚠</span> Example</span>
+          <span>Critical gap</span>
+        </span>
       </div>
 
       {/* Filtered (flat) view */}
@@ -638,7 +647,14 @@ function InventoryRow({ person, stage, tone }) {
   })
 
   return (
-    <div style={{ padding: "14px 16px", borderBottom: "1px solid " + T.borderSoft, background: rowBg, cursor: "pointer" }}>
+    <div
+      onClick={function() {
+        if (person.linkedin_url) {
+          window.open(person.linkedin_url, "_blank", "noopener,noreferrer")
+        }
+      }}
+      style={{ padding: "14px 16px", borderBottom: "1px solid " + T.borderSoft, background: rowBg, cursor: person.linkedin_url ? "pointer" : "default" }}
+    >
       {/* Row 1: avatar + name + meta + touch + action */}
       <div style={{ display: "grid", gridTemplateColumns: "36px 1fr 110px auto", gap: 16, alignItems: "center" }}>
         <div style={{ width: 32, height: 32, borderRadius: 50, background: avatarBg, color: avatarText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600 }}>{initials(person.full_name)}</div>
@@ -665,7 +681,7 @@ function InventoryRow({ person, stage, tone }) {
 
 function InventoryBubble({ item, has }) {
   if (has) {
-    // Has the item — colored badge
+    // Has the item — colored pill with checkmark
     var colorMap = {
       audience: { bg: T.audienceBg, text: T.audienceText },
       prospect: { bg: T.prospectBg, text: T.prospectText },
@@ -675,19 +691,21 @@ function InventoryBubble({ item, has }) {
     var c = colorMap[item.color] || colorMap.audience
     return (
       <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 9px", borderRadius: 999, fontSize: 11, fontWeight: 500, background: c.bg, color: c.text }}>
-        ✓ {item.label}
+        <span style={{ color: T.success, fontWeight: 700 }}>✓</span> {item.label}
       </span>
     )
   }
-  // Missing
+  // Missing — gray outlined pill, no fill regardless of criticality
+  // Critical items get a small ⚠ prefix so urgency reads without changing the whole pill color
   var isCritical = !!item.critical
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 9px", borderRadius: 999, fontSize: 11, fontWeight: 500,
-      background: isCritical ? "rgba(220,38,38,0.04)" : "transparent",
-      color: isCritical ? T.danger : T.textTertiary,
-      border: "1px solid " + (isCritical ? "rgba(220,38,38,0.3)" : T.border),
+      background: "transparent",
+      color: T.textTertiary,
+      border: "1px dashed " + T.border,
     }}>
+      {isCritical && <span style={{ color: T.danger, fontWeight: 700, fontSize: 12, lineHeight: 1 }}>⚠</span>}
       {item.label}
     </span>
   )
