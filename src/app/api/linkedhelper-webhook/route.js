@@ -232,8 +232,8 @@ async function handleSent(sb, lead, tags, seedBatchTag, raw) {
     return
   }
 
-  // Move to Requested only if currently at Target or empty stage
-  if (!contact.pipeline_stage || contact.pipeline_stage === "Target") {
+  // Move to Requested only if currently at pool or empty stage
+  if (!contact.pipeline_stage || contact.pipeline_stage === "pool") {
     await sb.from("contacts").update({
       pipeline_stage: "Requested",
       last_activity_date: new Date().toISOString()
@@ -317,7 +317,7 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
   }
 
   // Advance to Engaged if at Connected or earlier
-  const preEngagedStages = ["", "Target", "Requested", "Connected"]
+  const preEngagedStages = ["", "pool", "Requested", "Connected"]
   const shouldAdvance = preEngagedStages.indexOf(contact.pipeline_stage || "") > -1
 
   await sb.from("contacts").update({

@@ -73,7 +73,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
           company: contactData.company_name || contactData.company || "",
           email: contactData.email || "",
           linkedinUrl: contactData.linkedin_url || contactData.linkedinUrl || "",
-          pipelineStage: contactData.pipeline_stage || "Target",
+          pipelineStage: contactData.pipeline_stage || "pool",
           memberStatus: "Prospect",
           contactType: contactData.contact_type || "SPONSOR_CONTACT",
         });
