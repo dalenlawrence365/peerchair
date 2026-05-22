@@ -195,13 +195,25 @@ export default function SponsorStageWorkspace({ stage }) {
     })
   }
 
-  // Derived: stage counts
+  // Derived: stage counts (UNIQUE COMPANIES at each stage, filtered to is_sponsor=true)
+  // Counts companies, not deals — so a company with two deals at the same stage
+  // is counted once. Matches the semantics of the left list.
   var counts = useMemo(function() {
     var c = {}
     STAGES.forEach(function(s){ c[s] = 0 })
-    allDeals.forEach(function(d){ if (c[d.stage] !== undefined) c[d.stage]++ })
+    var sponsorCoSet = new Set(allSponsorCompanies.map(function(co){ return co.id }))
+    var seenByStage = {}
+    STAGES.forEach(function(s){ seenByStage[s] = new Set() })
+    allDeals.forEach(function(d){
+      if (!sponsorCoSet.has(d.company_id)) return
+      var s = d.stage
+      if (seenByStage[s] && !seenByStage[s].has(d.company_id)) {
+        seenByStage[s].add(d.company_id)
+        c[s]++
+      }
+    })
     return c
-  }, [allDeals])
+  }, [allDeals, allSponsorCompanies])
 
   // Derived: tile metrics
   var tiles = useMemo(function() {
@@ -346,6 +358,11 @@ function FunnelCards({ counts, activeStage }) {
 
 // ─── Left list pane ───────────────────────────────────────────────────────────
 function CompanyListPane({ stage, companies, primaryPersonsById, allDeals, selectedId, onSelect, loading }) {
+  var [searchQuery, setSearchQuery] = useState("")
+
+  // Reset search when stage changes
+  useEffect(function(){ setSearchQuery("") }, [stage])
+
   // Build company→primary person map via deals at current stage
   var personByCoId = useMemo(function(){
     var m = {}
@@ -357,22 +374,69 @@ function CompanyListPane({ stage, companies, primaryPersonsById, allDeals, selec
     return m
   }, [allDeals, stage, primaryPersonsById])
 
+  // Filter by search
+  var filtered = useMemo(function(){
+    if (!searchQuery.trim()) return companies
+    var q = searchQuery.toLowerCase()
+    return companies.filter(function(c){
+      var name = (c.name || "").toLowerCase()
+      var type = (c.sponsor_type || "").toLowerCase()
+      var hood = (c.neighborhood_la || c.neighborhood_sfv || c.city || "").toLowerCase()
+      return name.indexOf(q) >= 0 || type.indexOf(q) >= 0 || hood.indexOf(q) >= 0
+    })
+  }, [companies, searchQuery])
+
+  var stageLabel = STAGE_CONFIG[stage]?.label || stage
+  var headerText = loading
+    ? "Loading…"
+    : searchQuery.trim()
+      ? filtered.length + " of " + companies.length + " · " + stageLabel
+      : companies.length + " " + (companies.length === 1 ? "company" : "companies") + " at " + stageLabel
+
   return (
     <div style={{
       width: 380, flexShrink: 0,
       background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10,
       display: "flex", flexDirection: "column", overflow: "hidden",
     }}>
-      <div style={{ padding: "12px 14px", borderBottom: "1px solid " + T.border, fontSize: 12, color: T.textSecondary, fontWeight: 500 }}>
-        {loading ? "Loading…" : companies.length + " companies at " + (STAGE_CONFIG[stage]?.label || stage)}
+      {/* Search bar */}
+      <div style={{ padding: "10px 12px", borderBottom: "1px solid " + T.borderSoft, position: "relative" }}>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={function(e){ setSearchQuery(e.target.value) }}
+          placeholder="Search company, type, or neighborhood…"
+          style={{
+            width: "100%",
+            padding: "7px 10px 7px 28px",
+            fontSize: 13,
+            border: "1px solid " + T.border,
+            borderRadius: 6,
+            fontFamily: "inherit",
+            outline: "none",
+            background: "white",
+            color: T.textPrimary,
+          }}
+        />
+        <span style={{ position: "absolute", left: 22, top: "50%", transform: "translateY(-50%)", color: T.textTertiary, fontSize: 13, pointerEvents: "none" }}>⌕</span>
+        {searchQuery && (
+          <button
+            onClick={function(){ setSearchQuery("") }}
+            style={{ position: "absolute", right: 18, top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: T.textTertiary, fontSize: 14, cursor: "pointer", padding: 4, lineHeight: 1 }}
+          >×</button>
+        )}
+      </div>
+
+      <div style={{ padding: "10px 14px", borderBottom: "1px solid " + T.border, fontSize: 12, color: T.textSecondary, fontWeight: 500 }}>
+        {headerText}
       </div>
       <div style={{ overflow: "auto", flex: 1 }}>
-        {companies.length === 0 && !loading && (
+        {filtered.length === 0 && !loading && (
           <div style={{ padding: 32, textAlign: "center", color: T.textTertiary, fontSize: 12 }}>
-            No companies at this stage.
+            {searchQuery ? "No matches for \"" + searchQuery + "\"." : "No companies at this stage."}
           </div>
         )}
-        {companies.map(function(c){
+        {filtered.map(function(c){
           var isSelected = c.id === selectedId
           var person = personByCoId[c.id]
           return (
