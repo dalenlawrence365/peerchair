@@ -636,7 +636,7 @@ function ContactProfile({contactId,contactData,onBack,onStartFitCall}) {
                               <div style={{width:8,height:8,borderRadius:"50%",background:G,flexShrink:0}}/>
                               <div style={{fontSize:12,color:G+"cc",fontWeight:500}}>{msg.body}</div>
                             </div>
-                            :<div style={{background:isNote?"rgba(240,200,74,0.05)":isIn?"rgba(46,204,113,0.05)":"rgba(74,154,186,0.05)",border:"1px solid "+(isNote?G+"20":isIn?"rgba(46,204,113,0.12)":"rgba(74,154,186,0.1)"),borderRadius:8,padding:"9px 13px",fontSize:13,color:"#d8eeff",lineHeight:1.75}}>
+                            :<div style={{background:isNote?"rgba(240,200,74,0.05)":isIn?"rgba(46,204,113,0.05)":"rgba(74,154,186,0.05)",border:"1px solid "+(isNote?G+"20":isIn?"rgba(46,204,113,0.12)":"rgba(74,154,186,0.1)"),borderRadius:8,padding:"9px 13px",fontSize:13,color:"#d8eeff",lineHeight:1.75,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
                               {msg.body}
                             </div>
                           }
