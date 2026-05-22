@@ -133,6 +133,28 @@ export default function SponsorStageWorkspace({ stage }) {
     })
   }
 
+  function saveNote(contactId, noteText) {
+    if (!contactId || !noteText || !noteText.trim()) return Promise.reject(new Error("Missing contact_id or body"))
+    return sbFetch("/communications", {
+      method: "POST",
+      body: JSON.stringify({
+        contact_id: contactId,
+        channel: "App",
+        direction: "INTERNAL",
+        body: noteText.trim(),
+        step_label: "Note",
+        occurred_at: new Date().toISOString(),
+        source: "manual",
+      }),
+    }).then(function(rows) {
+      var newComm = Array.isArray(rows) ? rows[0] : rows
+      setWorkbench(function(prev){
+        if (!prev) return prev
+        return Object.assign({}, prev, { communications: [newComm].concat(prev.communications || []) })
+      })
+    })
+  }
+
   // Derived: stage counts
   var counts = useMemo(function() {
     var c = {}
@@ -190,6 +212,7 @@ export default function SponsorStageWorkspace({ stage }) {
           workbench={workbench}
           loading={workbenchLoading}
           onUpdate={updateCompanyField}
+          onSaveNote={saveNote}
           onClose={function(){ handleSelectCompany(null) }}
         />
       </div>
@@ -356,7 +379,7 @@ function HostDot({ value }) {
 }
 
 // ─── Right workbench pane ─────────────────────────────────────────────────────
-function CompanyWorkbench({ companyId, workbench, loading, onUpdate, onClose }) {
+function CompanyWorkbench({ companyId, workbench, loading, onUpdate, onSaveNote, onClose }) {
   if (!companyId) {
     return (
       <div style={{ flex: 1, background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: T.textTertiary, fontSize: 13 }}>
@@ -378,6 +401,12 @@ function CompanyWorkbench({ companyId, workbench, loading, onUpdate, onClose }) 
 
   var c = workbench.company
 
+  // Compute last meaningful touch across all gateways for the header pill
+  var lastTouch = null
+  ;(workbench.gateways || []).forEach(function(g){
+    if (g.last_meaningful_touch && (!lastTouch || g.last_meaningful_touch > lastTouch)) lastTouch = g.last_meaningful_touch
+  })
+
   return (
     <div style={{ flex: 1, background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, overflow: "auto", minWidth: 0 }}>
       {/* Header */}
@@ -388,6 +417,7 @@ function CompanyWorkbench({ companyId, workbench, loading, onUpdate, onClose }) 
             {c.sponsor_type && <span>{c.sponsor_type}</span>}
             {c.industry && c.industry !== c.sponsor_type && <span>· {c.industry}</span>}
             {c.city && <span>· {c.city}, {c.state}</span>}
+            {lastTouch && <span>· Last activity: {new Date(lastTouch).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
             {!c.is_sponsor && <span style={{ background: T.bg, color: T.textTertiary, padding: "2px 7px", borderRadius: 4, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 500 }}>not pursuing</span>}
           </div>
         </div>
@@ -409,7 +439,7 @@ function CompanyWorkbench({ companyId, workbench, loading, onUpdate, onClose }) 
       </div>
 
       <div style={{ padding: "0 22px 22px" }}>
-        <ActivityTimeline communications={workbench.communications} gateways={workbench.gateways} />
+        <ActivityTimeline communications={workbench.communications} gateways={workbench.gateways} deals={workbench.deals} onSaveNote={onSaveNote} />
       </div>
     </div>
   )
@@ -555,32 +585,200 @@ function NotesBlock({ company, onUpdate }) {
 }
 
 // ─── Activity timeline ────────────────────────────────────────────────────────
-function ActivityTimeline({ communications, gateways }) {
+function ActivityTimeline({ communications, gateways, deals, onSaveNote }) {
+  var [channelFilter, setChannelFilter] = useState("All")
+  var [directionFilter, setDirectionFilter] = useState("All")
+  var [adding, setAdding] = useState(false)
+  var [noteDraft, setNoteDraft] = useState("")
+  var [noteSaving, setNoteSaving] = useState(false)
+  var [noteError, setNoteError] = useState(null)
+
+  // Primary gateway = deal's primary_person_id, or first gateway if no primary
+  var primaryId = null
+  if (deals && deals.length > 0 && deals[0].primary_person_id) primaryId = deals[0].primary_person_id
+  else if (gateways && gateways.length > 0) primaryId = gateways[0].id
+  var [noteAttachTo, setNoteAttachTo] = useState(primaryId)
+  useEffect(function(){ setNoteAttachTo(primaryId) }, [primaryId])
+
   var byPersonId = {}
   gateways.forEach(function(p){ byPersonId[p.id] = p })
+
+  // Available channels in this data (always include core ones)
+  var channelsPresent = Array.from(new Set(communications.map(function(c){return c.channel}).filter(Boolean)))
+  var channelChoices = ["All"].concat(["LinkedIn", "Email", "Phone", "Calendly", "App"].filter(function(ch){
+    return channelsPresent.indexOf(ch) >= 0
+  }))
+  if (channelChoices.length === 1) channelChoices = ["All"]  // no data yet
+
+  var filtered = communications.filter(function(c){
+    if (channelFilter !== "All" && c.channel !== channelFilter) return false
+    if (directionFilter === "Inbound"  && c.direction !== "IN"       && c.direction !== "INBOUND")  return false
+    if (directionFilter === "Outbound" && c.direction !== "OUT"      && c.direction !== "OUTBOUND") return false
+    if (directionFilter === "Internal" && c.direction !== "INTERNAL") return false
+    return true
+  })
+
+  function handleSaveNote() {
+    if (!noteDraft.trim()) return
+    if (!noteAttachTo) { setNoteError("No gateway available to attach the note to. Add a gateway first."); return }
+    setNoteSaving(true); setNoteError(null)
+    Promise.resolve(onSaveNote(noteAttachTo, noteDraft))
+      .then(function(){
+        setNoteDraft("")
+        setAdding(false)
+        setNoteSaving(false)
+      })
+      .catch(function(err){
+        setNoteError(err.message || "Failed to save note")
+        setNoteSaving(false)
+      })
+  }
+
   return (
     <div>
-      <SectionLabel>Activity timeline</SectionLabel>
-      {communications.length === 0 && <div style={{ fontSize: 12, color: T.textTertiary, fontStyle: "italic" }}>No logged activity yet.</div>}
-      {communications.map(function(comm){
-        var who = byPersonId[comm.contact_id]
-        return (
-          <div key={comm.id} style={{ padding: "10px 0", borderBottom: "1px solid " + T.borderSoft }}>
-            <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 4, display: "flex", gap: 10 }}>
-              <span style={{ fontWeight: 500 }}>{comm.channel}</span>
-              <span>·</span>
-              <span>{comm.direction}</span>
-              {who && <><span>·</span><span>{who.full_name}</span></>}
-              <span>·</span>
-              <span>{comm.occurred_at ? new Date(comm.occurred_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}</span>
-            </div>
-            <div style={{ fontSize: 13, color: T.textPrimary, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5 }}>
-              {(comm.body || "").substring(0, 280)}
-              {(comm.body || "").length > 280 && <span style={{ color: T.textTertiary }}>… (truncated)</span>}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <SectionLabel mb={0}>Activity timeline</SectionLabel>
+        {!adding && (
+          <button
+            disabled={!primaryId}
+            title={!primaryId ? "Add a gateway first" : ""}
+            onClick={function(){ setAdding(true) }}
+            style={{
+              fontSize: 12, padding: "5px 12px",
+              background: primaryId ? T.accent : T.bg,
+              color: primaryId ? "white" : T.textTertiary,
+              border: "none", borderRadius: 6,
+              cursor: primaryId ? "pointer" : "not-allowed",
+              fontFamily: "inherit", fontWeight: 500,
+            }}
+          >+ Add note</button>
+        )}
+      </div>
+
+      {/* Add Note inline editor */}
+      {adding && (
+        <div style={{ background: T.bg, border: "1px solid " + T.accent, borderRadius: 8, padding: 12, marginBottom: 14 }}>
+          <textarea
+            autoFocus
+            value={noteDraft}
+            onChange={function(e){ setNoteDraft(e.target.value) }}
+            placeholder="Note about the gateway or the relationship…"
+            style={{ width: "100%", minHeight: 90, padding: 10, fontSize: 13, lineHeight: 1.6, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none", resize: "vertical", color: T.textPrimary, background: "white" }}
+          />
+          {noteError && <div style={{ fontSize: 12, color: T.danger, marginTop: 6 }}>{noteError}</div>}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: T.textTertiary }}>About:</span>
+            <select
+              value={noteAttachTo || ""}
+              onChange={function(e){ setNoteAttachTo(e.target.value) }}
+              style={{ fontSize: 12, padding: "4px 8px", border: "1px solid " + T.border, borderRadius: 5, fontFamily: "inherit", background: "white", color: T.textPrimary }}
+            >
+              {gateways.map(function(g){
+                return <option key={g.id} value={g.id}>{g.full_name}{g.id === primaryId ? " (primary)" : ""}</option>
+              })}
+            </select>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+              <button disabled={noteSaving || !noteDraft.trim()} onClick={handleSaveNote} style={{ padding: "5px 14px", background: T.accent, color: "white", border: "none", borderRadius: 6, fontSize: 12, cursor: noteSaving ? "default" : "pointer", fontFamily: "inherit", fontWeight: 500, opacity: noteDraft.trim() ? 1 : 0.5 }}>
+                {noteSaving ? "Saving…" : "Save note"}
+              </button>
+              <button disabled={noteSaving} onClick={function(){ setNoteDraft(""); setAdding(false); setNoteError(null) }} style={{ padding: "5px 14px", background: "white", color: T.textPrimary, border: "1px solid " + T.border, borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Filter row */}
+      {communications.length > 0 && (
+        <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid " + T.borderSoft }}>
+          <FilterGroup label="Direction" value={directionFilter} options={["All","Inbound","Outbound","Internal"]} onChange={setDirectionFilter} />
+          {channelChoices.length > 1 && (
+            <FilterGroup label="Channel" value={channelFilter} options={channelChoices} onChange={setChannelFilter} />
+          )}
+          <span style={{ fontSize: 11, color: T.textTertiary, marginLeft: "auto" }}>
+            Showing {filtered.length} of {communications.length}
+          </span>
+        </div>
+      )}
+
+      {communications.length === 0 && !adding && (
+        <div style={{ fontSize: 12, color: T.textTertiary, fontStyle: "italic", padding: "16px 0" }}>
+          No logged activity yet.
+        </div>
+      )}
+
+      {filtered.map(function(comm){
+        var who = byPersonId[comm.contact_id]
+        return <TimelineEntry key={comm.id} comm={comm} who={who} />
+      })}
+    </div>
+  )
+}
+
+function FilterGroup({ label, value, options, onChange }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <span style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 500, marginRight: 4 }}>{label}</span>
+      {options.map(function(opt){
+        var isActive = value === opt
+        return (
+          <button
+            key={opt}
+            onClick={function(){ onChange(opt) }}
+            style={{
+              fontSize: 11, padding: "3px 9px", borderRadius: 999,
+              background: isActive ? T.textPrimary : "transparent",
+              color: isActive ? "white" : T.textSecondary,
+              border: "1px solid " + (isActive ? T.textPrimary : T.border),
+              cursor: "pointer", fontFamily: "inherit", fontWeight: 500,
+            }}
+          >{opt}</button>
         )
       })}
+    </div>
+  )
+}
+
+function TimelineEntry({ comm, who }) {
+  var [expanded, setExpanded] = useState(false)
+  var body = comm.body || ""
+  var isLong = body.length > 600
+  var displayBody = (isLong && !expanded) ? body.substring(0, 600) : body
+
+  // Direction label normalization
+  var dirLabel = comm.direction === "IN" || comm.direction === "INBOUND" ? "Inbound"
+              : comm.direction === "OUT" || comm.direction === "OUTBOUND" ? "Outbound"
+              : comm.direction === "INTERNAL" ? "Internal note"
+              : comm.direction
+
+  // Tone the entry left-border by direction
+  var leftBorder = comm.direction === "IN" || comm.direction === "INBOUND" ? T.success
+                : comm.direction === "OUT" || comm.direction === "OUTBOUND" ? T.accent
+                : comm.direction === "INTERNAL" ? T.warning
+                : T.border
+
+  return (
+    <div style={{ padding: "12px 14px", borderBottom: "1px solid " + T.borderSoft, borderLeft: "3px solid " + leftBorder, marginBottom: 2, background: comm.direction === "INTERNAL" ? T.warningBg + "55" : "transparent" }}>
+      <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ fontWeight: 600, color: T.textSecondary, padding: "2px 8px", background: T.bg, borderRadius: 4, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>{comm.channel}</span>
+        <span style={{ fontWeight: 500 }}>{dirLabel}</span>
+        {who && <><span>·</span><span>{who.full_name}</span></>}
+        <span>·</span>
+        <span>{comm.occurred_at ? new Date(comm.occurred_at).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}) : "—"}</span>
+        {comm.step_label && comm.step_label !== comm.channel && <><span>·</span><span style={{ fontStyle: "italic" }}>{comm.step_label}</span></>}
+      </div>
+      <div style={{ fontSize: 13, color: T.textPrimary, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.6 }}>
+        {displayBody}
+        {isLong && !expanded && (
+          <span onClick={function(){ setExpanded(true) }} style={{ color: T.accent, cursor: "pointer", marginLeft: 6, fontSize: 12, fontWeight: 500 }}>
+            … show more
+          </span>
+        )}
+        {isLong && expanded && (
+          <span onClick={function(){ setExpanded(false) }} style={{ color: T.accent, cursor: "pointer", marginLeft: 6, fontSize: 12, fontWeight: 500 }}>
+            show less
+          </span>
+        )}
+      </div>
     </div>
   )
 }
