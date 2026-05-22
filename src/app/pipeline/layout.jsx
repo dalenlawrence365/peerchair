@@ -91,8 +91,8 @@ function Sidebar({ pathname }) {
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.6, color: T.sidebarSectionLabel, padding: "0 8px 8px", fontWeight: 500 }}>Workspace</div>
         <SidebarLink href="/" label="Dashboard" />
-        <SidebarLink href="/pipeline/cfo/prospect" label="Pipeline" count="55" active={isActive("/pipeline")} />
-        <SidebarLink href="/" label="Sponsors" count="119" />
+        <SidebarLink href="/pipeline/cfo/prospect" label="CFO Pipeline" count="55" active={isActive("/pipeline/cfo")} />
+        <SidebarLink href="/pipeline/sponsor/pool" label="Sponsors" count="75" active={isActive("/pipeline/sponsor")} />
         <SidebarLink href="/" label="Events" />
         <SidebarLink href="/" label="Today" />
         <SidebarLink href="/" label="Find a person" />
