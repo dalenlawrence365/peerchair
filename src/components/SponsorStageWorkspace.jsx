@@ -653,16 +653,34 @@ function GatewaysBlock({ gateways, deals }) {
       {gateways.map(function(p){
         var isPrimary = primaryIds.has(p.id)
         return (
-          <div key={p.id} onClick={function(){ if (p.linkedin_url) window.open(p.linkedin_url, "_blank", "noopener,noreferrer") }}
-            style={{ marginBottom: 8, padding: "10px 12px", background: T.bg, borderRadius: 8, cursor: p.linkedin_url ? "pointer" : "default" }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: T.textPrimary, marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
-              {p.full_name}
-              {isPrimary && <span style={{ fontSize: 9, padding: "1px 6px", background: T.accent, color: "white", borderRadius: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>Primary</span>}
+          <div key={p.id}
+            onClick={function(){ window.open("/?contact=" + p.id, "_blank", "noopener,noreferrer") }}
+            style={{ marginBottom: 8, padding: "10px 12px", background: T.bg, borderRadius: 8, cursor: "pointer", transition: "background 0.1s" }}
+            onMouseEnter={function(e){ e.currentTarget.style.background = "#f0f3f7" }}
+            onMouseLeave={function(e){ e.currentTarget.style.background = T.bg }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: T.textPrimary, marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                  {p.full_name}
+                  {isPrimary && <span style={{ fontSize: 9, padding: "1px 6px", background: T.accent, color: "white", borderRadius: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>Primary</span>}
+                </div>
+                <div style={{ fontSize: 11, color: T.textSecondary }}>{p.title || "—"}</div>
+                {p.roles && p.roles.length > 1 && (
+                  <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 3 }}>Also: {p.roles.filter(function(r){return r !== "sponsor_contact"}).join(", ")}</div>
+                )}
+              </div>
+              {p.linkedin_url && (
+                <a
+                  href={p.linkedin_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={function(e){ e.stopPropagation() }}
+                  title="Open LinkedIn profile"
+                  style={{ flexShrink: 0, fontSize: 11, color: T.textTertiary, textDecoration: "none", padding: "3px 8px", border: "1px solid " + T.border, borderRadius: 5, background: "white" }}
+                >in ↗</a>
+              )}
             </div>
-            <div style={{ fontSize: 11, color: T.textSecondary }}>{p.title || "—"}</div>
-            {p.roles && p.roles.length > 1 && (
-              <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 3 }}>Also: {p.roles.filter(function(r){return r !== "sponsor_contact"}).join(", ")}</div>
-            )}
           </div>
         )
       })}

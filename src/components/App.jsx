@@ -37,6 +37,22 @@ export default function CFOCircleApp() {
 
   useEffect(function(){loadStats();loadFitCalls();loadFollowUpCount();},[]);
 
+  // Deep-link: ?contact=<id> on mount → jump directly to that contact's profile.
+  // Used by the sponsor workbench (and any other surface) to send users to the
+  // full ContactProfile without rebuilding it. Opens in current tab; callers
+  // that want to preserve their state should open in a new tab.
+  useEffect(function(){
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var contactId = params.get("contact");
+      if (contactId) {
+        setContact({ id: contactId });
+        setPrevScreen("dashboard");
+        setScreen("profile");
+      }
+    } catch(e) { /* ignore */ }
+  }, []);
+
   async function loadFollowUpCount(){
     try{
       var res=await fetch("/api/follow-up-queue");
