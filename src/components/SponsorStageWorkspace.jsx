@@ -54,15 +54,32 @@ export default function SponsorStageWorkspace({ stage }) {
       setAllSponsorCompanies(allCos)
       var coById = {}; allCos.forEach(function(c){ coById[c.id] = c })
 
-      // Companies at this stage (via deals with this stage)
-      var stageDealRows = deals.filter(function(d){ return d.stage === stage })
-      var stageCoIds = Array.from(new Set(stageDealRows.map(function(d){return d.company_id}).filter(Boolean)))
-      var stageList = stageCoIds.map(function(cid){ return coById[cid] }).filter(Boolean)
+      // Companies at this stage — same most-advanced-stage-wins semantics as funnel cards
+      // so the left-list count reconciles with the funnel card count.
+      var STAGE_RANK_LOAD = { pool: 0, audience: 1, discovery: 2, proposal: 3, active: 4 }
+      var coMostAdvanced = {}
+      deals.forEach(function(d){
+        if (!d.company_id || !coById[d.company_id]) return
+        if (STAGE_RANK_LOAD[d.stage] === undefined) return
+        var prev = coMostAdvanced[d.company_id]
+        if (prev === undefined || STAGE_RANK_LOAD[d.stage] > STAGE_RANK_LOAD[prev.stage]) {
+          coMostAdvanced[d.company_id] = { stage: d.stage, primary_person_id: d.primary_person_id }
+        }
+      })
+      var stageList = Object.keys(coMostAdvanced)
+        .filter(function(coId){ return coMostAdvanced[coId].stage === stage })
+        .map(function(coId){ return coById[coId] })
+        .filter(Boolean)
       stageList.sort(function(a,b){ return (a.name || "").localeCompare(b.name || "") })
       setStageCompanies(stageList)
 
-      // Primary persons for stage deals (for left-list line 2 if needed later)
-      var personIds = Array.from(new Set(stageDealRows.map(function(d){return d.primary_person_id}).filter(Boolean)))
+      // Primary persons for the deals associated with companies at this stage
+      var personIds = Array.from(new Set(
+        Object.keys(coMostAdvanced)
+          .filter(function(coId){ return coMostAdvanced[coId].stage === stage })
+          .map(function(coId){ return coMostAdvanced[coId].primary_person_id })
+          .filter(Boolean)
+      ))
       if (personIds.length > 0) {
         var ppl = await sbFetch("/people?id=in.(" + personIds.join(",") + ")&select=id,full_name,first_name,last_name,title,linkedin_url")
         var pMap = {}; ppl.forEach(function(p){ pMap[p.id] = p })
@@ -195,24 +212,41 @@ export default function SponsorStageWorkspace({ stage }) {
     })
   }
 
-  // Derived: stage counts (UNIQUE COMPANIES at each stage, filtered to is_sponsor=true)
-  // Counts companies, not deals — so a company with two deals at the same stage
-  // is counted once. Matches the semantics of the left list.
+  // Derived: stage counts — UNIQUE COMPANIES at their MOST-ADVANCED stage.
+  // Reconciles the funnel sum with the company total: a company with 2 deals
+  // at pool counts once; a company with deals at both pool AND discovery
+  // counts once at discovery (the more-advanced stage wins). Sum of funnel
+  // is always ≤ total sponsor pool.
+  var STAGE_RANK = { pool: 0, audience: 1, discovery: 2, proposal: 3, active: 4 }
   var counts = useMemo(function() {
-    var c = {}
-    STAGES.forEach(function(s){ c[s] = 0 })
     var sponsorCoSet = new Set(allSponsorCompanies.map(function(co){ return co.id }))
-    var seenByStage = {}
-    STAGES.forEach(function(s){ seenByStage[s] = new Set() })
+    var companyMostAdvanced = {}
     allDeals.forEach(function(d){
       if (!sponsorCoSet.has(d.company_id)) return
-      var s = d.stage
-      if (seenByStage[s] && !seenByStage[s].has(d.company_id)) {
-        seenByStage[s].add(d.company_id)
-        c[s]++
+      if (STAGE_RANK[d.stage] === undefined) return  // skip 'lost' and unknown stages
+      var prev = companyMostAdvanced[d.company_id]
+      if (prev === undefined || STAGE_RANK[d.stage] > STAGE_RANK[prev]) {
+        companyMostAdvanced[d.company_id] = d.stage
       }
     })
+    var c = {}
+    STAGES.forEach(function(s){ c[s] = 0 })
+    Object.keys(companyMostAdvanced).forEach(function(coId){
+      var s = companyMostAdvanced[coId]
+      if (c[s] !== undefined) c[s]++
+    })
     return c
+  }, [allDeals, allSponsorCompanies])
+
+  // Companies outside the active funnel: in sponsor pool but no active-stage deal
+  // (either no deal at all, or only lost deals). Used for the reconciliation footnote.
+  var outsideFunnel = useMemo(function() {
+    var inFunnel = new Set()
+    var sponsorCoSet = new Set(allSponsorCompanies.map(function(co){ return co.id }))
+    allDeals.forEach(function(d){
+      if (sponsorCoSet.has(d.company_id) && STAGE_RANK[d.stage] !== undefined) inFunnel.add(d.company_id)
+    })
+    return allSponsorCompanies.filter(function(c){ return !inFunnel.has(c.id) }).length
   }, [allDeals, allSponsorCompanies])
 
   // Derived: tile metrics
@@ -241,7 +275,7 @@ export default function SponsorStageWorkspace({ stage }) {
       <Breadcrumb stage={stage} />
 
       <TileStrip tiles={tiles} loading={loading} />
-      <FunnelCards counts={counts} activeStage={stage} />
+      <FunnelCards counts={counts} activeStage={stage} outsideFunnel={outsideFunnel} totalSponsorPool={allSponsorCompanies.length} />
 
       {error && (
         <div style={{ background: T.dangerBg, border: "1px solid " + T.danger, borderRadius: 10, padding: "12px 16px", color: T.danger, marginBottom: 16, fontSize: 13 }}>
@@ -319,39 +353,49 @@ function TileStrip({ tiles, loading }) {
 }
 
 // ─── Funnel cards ─────────────────────────────────────────────────────────────
-function FunnelCards({ counts, activeStage }) {
+function FunnelCards({ counts, activeStage, outsideFunnel, totalSponsorPool }) {
+  var funnelSum = STAGES.reduce(function(acc, s){ return acc + (counts[s] || 0) }, 0)
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 18 }}>
-      {STAGES.map(function(s){
-        var cfg = STAGE_CONFIG[s]
-        var isActive = s === activeStage
-        var count = counts[s] || 0
-        return (
-          <Link
-            key={s}
-            href={"/pipeline/sponsor/" + s}
-            style={{
-              background: isActive ? cfg.bg : T.cardBg,
-              border: "1px solid " + (isActive ? cfg.accent : T.border),
-              borderRadius: 10,
-              padding: "14px 16px",
-              textDecoration: "none",
-              display: "block",
-              transition: "all 0.15s",
-              position: "relative",
-              boxShadow: isActive ? "0 0 0 2px " + cfg.accent + "20" : "none",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: isActive ? cfg.color : T.textSecondary }}>{cfg.label}</span>
-            </div>
-            <div style={{ fontSize: 30, fontWeight: 600, lineHeight: 1, letterSpacing: -0.5, color: isActive ? cfg.color : T.textPrimary, marginBottom: 4 }}>
-              {count}
-            </div>
-            <div style={{ fontSize: 11, color: T.textTertiary, lineHeight: 1.3 }}>{cfg.desc}</div>
-          </Link>
-        )
-      })}
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+        {STAGES.map(function(s){
+          var cfg = STAGE_CONFIG[s]
+          var isActive = s === activeStage
+          var count = counts[s] || 0
+          return (
+            <Link
+              key={s}
+              href={"/pipeline/sponsor/" + s}
+              style={{
+                background: isActive ? cfg.bg : T.cardBg,
+                border: "1px solid " + (isActive ? cfg.accent : T.border),
+                borderRadius: 10,
+                padding: "14px 16px",
+                textDecoration: "none",
+                display: "block",
+                transition: "all 0.15s",
+                position: "relative",
+                boxShadow: isActive ? "0 0 0 2px " + cfg.accent + "20" : "none",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: isActive ? cfg.color : T.textSecondary }}>{cfg.label}</span>
+              </div>
+              <div style={{ fontSize: 30, fontWeight: 600, lineHeight: 1, letterSpacing: -0.5, color: isActive ? cfg.color : T.textPrimary, marginBottom: 4 }}>
+                {count}
+              </div>
+              <div style={{ fontSize: 11, color: T.textTertiary, lineHeight: 1.3 }}>{cfg.desc}</div>
+            </Link>
+          )
+        })}
+      </div>
+      {totalSponsorPool > 0 && (
+        <div style={{ marginTop: 8, fontSize: 11, color: T.textTertiary, display: "flex", gap: 14, justifyContent: "flex-end" }}>
+          <span><strong style={{ color: T.textSecondary, fontWeight: 600 }}>{funnelSum}</strong> in funnel</span>
+          {outsideFunnel > 0 && <span><strong style={{ color: T.textSecondary, fontWeight: 600 }}>{outsideFunnel}</strong> outside (no deal or lost)</span>}
+          <span><strong style={{ color: T.textSecondary, fontWeight: 600 }}>{totalSponsorPool}</strong> total sponsor pool</span>
+        </div>
+      )}
     </div>
   )
 }
