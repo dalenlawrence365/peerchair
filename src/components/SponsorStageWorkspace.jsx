@@ -34,7 +34,7 @@ export default function SponsorStageWorkspace({ stage }) {
     setError(null)
     try {
       // Pull all deals so we can compute counts per stage for the tabs
-      var allDeals = await sbFetch("/rest/v1/sponsor_deals?select=id,stage,chapter,company_id,primary_person_id,annual_fee,lost_reason,host_assignment,discovery_date&order=discovery_date.desc.nullslast")
+      var allDeals = await sbFetch("/sponsor_deals?select=id,stage,chapter,company_id,primary_person_id,annual_fee,lost_reason,host_assignment,discovery_date&order=discovery_date.desc.nullslast")
       var stageDeals = allDeals.filter(function(d) { return d.stage === stage })
 
       // Resolve company + person details for current stage
@@ -43,14 +43,14 @@ export default function SponsorStageWorkspace({ stage }) {
 
       var companies = []
       if (companyIds.length > 0) {
-        companies = await sbFetch("/rest/v1/companies?id=in.(" + companyIds.join(",") + ")&select=id,name,sponsor_type,host_viable,hosting_type,is_sponsor,city,state,neighborhood_la,neighborhood_sfv,employee_count,industry,notes")
+        companies = await sbFetch("/companies?id=in.(" + companyIds.join(",") + ")&select=id,name,sponsor_type,host_viable,hosting_type,is_sponsor,city,state,neighborhood_la,neighborhood_sfv,employee_count,industry,notes")
       }
       var coMap = {}
       companies.forEach(function(c){ coMap[c.id] = c })
 
       var people = []
       if (personIds.length > 0) {
-        people = await sbFetch("/rest/v1/people?id=in.(" + personIds.join(",") + ")&select=id,full_name,first_name,last_name,title,email,linkedin_url,last_meaningful_touch,sponsor_state")
+        people = await sbFetch("/people?id=in.(" + personIds.join(",") + ")&select=id,full_name,first_name,last_name,title,email,linkedin_url,last_meaningful_touch,sponsor_state")
       }
       var pMap = {}
       people.forEach(function(p){ pMap[p.id] = p })
@@ -59,7 +59,7 @@ export default function SponsorStageWorkspace({ stage }) {
       var dealIds = stageDeals.map(function(d){return d.id})
       var dcMap = {}
       if (dealIds.length > 0) {
-        var dealContacts = await sbFetch("/rest/v1/deal_contacts?deal_id=in.(" + dealIds.join(",") + ")&select=deal_id,person_id,role,is_primary")
+        var dealContacts = await sbFetch("/deal_contacts?deal_id=in.(" + dealIds.join(",") + ")&select=deal_id,person_id,role,is_primary")
         dealContacts.forEach(function(dc) {
           if (!dcMap[dc.deal_id]) dcMap[dc.deal_id] = []
           dcMap[dc.deal_id].push(dc)
