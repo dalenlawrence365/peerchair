@@ -2,63 +2,7 @@
 import { useEffect, useState, useMemo } from "react"
 import Link from "next/link"
 import { sbFetch } from "@/lib/appShared"
-
-// ─── Design tokens (light theme, mockup palette) ──────────────────────────────
-const T = {
-  // Sidebar
-  sidebarBg: "#0d1729",
-  sidebarBorder: "#1c2942",
-  sidebarText: "#94a3b8",
-  sidebarMuted: "#64748b",
-  sidebarActive: "#ffffff",
-  sidebarActiveBg: "#1c2942",
-  sidebarSectionLabel: "#475569",
-  // Surfaces
-  bg: "#f7f8fa",
-  cardBg: "#ffffff",
-  border: "#e7e8ec",
-  borderSoft: "#eff0f3",
-  // Text
-  textPrimary: "#0f172a",
-  textSecondary: "#475569",
-  textTertiary: "#94a3b8",
-  // Accents
-  accent: "#2563eb",
-  success: "#16a34a",
-  successBg: "#ecfdf5",
-  warning: "#d97706",
-  warningBg: "#fffbeb",
-  danger: "#dc2626",
-  dangerBg: "#fef2f2",
-  // Stage palette (pool, audience, prospect, qualified, member)
-  poolBg: "#f1f5f9", poolText: "#475569",
-  audienceBg: "#dbeafe", audienceText: "#1e40af",
-  prospectBg: "#fce7f3", prospectText: "#9d174d",
-  qualifiedBg: "#fef3c7", qualifiedText: "#92400e",
-  memberBg: "#d1fae5", memberText: "#065f46",
-}
-
-const FONT_FAMILY = '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-const FONT_SERIF = '"Instrument Serif", serif'
-
-// Inject Google Fonts once
-function useGoogleFonts() {
-  useEffect(function() {
-    if (typeof document === "undefined") return
-    if (document.getElementById("dmsans-fonts")) return
-    var preconnect1 = document.createElement("link")
-    preconnect1.rel = "preconnect"; preconnect1.href = "https://fonts.googleapis.com"
-    var preconnect2 = document.createElement("link")
-    preconnect2.rel = "preconnect"; preconnect2.href = "https://fonts.gstatic.com"; preconnect2.crossOrigin = "anonymous"
-    var link = document.createElement("link")
-    link.id = "dmsans-fonts"
-    link.rel = "stylesheet"
-    link.href = "https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Instrument+Serif&display=swap"
-    document.head.appendChild(preconnect1)
-    document.head.appendChild(preconnect2)
-    document.head.appendChild(link)
-  }, [])
-}
+import { T, FONT_FAMILY, FONT_SERIF } from "@/lib/pipelineTheme"
 
 // ─── Stage config ─────────────────────────────────────────────────────────────
 const STAGE_CONFIG = {
@@ -111,7 +55,6 @@ function touchColor(days) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function StageWorkspace({ stage }) {
-  useGoogleFonts()
   var [people, setPeople] = useState([])
   var [actionTagsByPerson, setActionTagsByPerson] = useState({})
   var [statusTagsByPerson, setStatusTagsByPerson] = useState({})
@@ -240,98 +183,45 @@ export default function StageWorkspace({ stage }) {
   }, [enriched, filter])
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: T.bg, fontFamily: FONT_FAMILY, color: T.textPrimary, fontSize: 14, lineHeight: 1.5 }}>
+    <main style={{ padding: "28px 32px 48px", maxWidth: 1600 }}>
 
-      <Sidebar activeStage={stage} kpis={kpis} />
+      <Breadcrumb stage={stage} />
+      <StageTabs activeStage={stage} />
 
-      <main style={{ flex: 1, minWidth: 0, padding: "28px 32px 48px", maxWidth: 1600 }}>
-
-        <Breadcrumb stage={stage} />
-        <StageTabs activeStage={stage} />
-
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
-          <div>
-            <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: -0.5, lineHeight: 1.1, display: "flex", alignItems: "center", gap: 12, margin: 0 }}>
-              {stageCfg.label}
-              <span style={{ fontSize: 11, padding: "4px 10px", borderRadius: 999, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.4, background: stageCfg.bg, color: stageCfg.color }}>
-                {loading ? "…" : kpis.total + " " + (stage === "qualified" ? "in waiting room" : "active")}
-              </span>
-            </h1>
-            <p style={{ color: T.textSecondary, fontSize: 14, marginTop: 6, maxWidth: 720 }}>{stageCfg.desc}</p>
-          </div>
-        </header>
-
-        {error && (
-          <div style={{ background: T.dangerBg, border: "1px solid " + T.danger, borderRadius: 10, padding: "12px 16px", color: T.danger, marginBottom: 20, fontSize: 13 }}>
-            ⚠ {error}
-          </div>
-        )}
-
-        {loading && (
-          <div style={{ padding: 40, textAlign: "center", color: T.textTertiary, fontSize: 13 }}>Loading…</div>
-        )}
-
-        {!loading && !error && (
-          <>
-            <MiniKpis stage={stage} kpis={kpis} activeFilter={filter} onToggle={toggleFilter} />
-            <SuggestedMoves stage={stage} kpis={kpis} enriched={enriched} />
-            <InventoryList stage={stage} sections={sections} filteredList={filteredList} activeFilter={filter} onClearFilter={function(){ setFilter(null) }} />
-          </>
-        )}
-
-        <div style={{ textAlign: "center", color: T.textTertiary, fontSize: 12, marginTop: 28, paddingTop: 20, borderTop: "1px solid " + T.border }}>
-          Live data from PeerChair · {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-        </div>
-      </main>
-    </div>
-  )
-}
-
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
-function Sidebar({ activeStage, kpis }) {
-  return (
-    <aside style={{ width: 240, flexShrink: 0, background: T.sidebarBg, color: T.sidebarText, display: "flex", flexDirection: "column", padding: "24px 16px", position: "sticky", top: 0, height: "100vh", overflowY: "auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 8px 24px", marginBottom: 16, borderBottom: "1px solid " + T.sidebarBorder }}>
-        <div style={{ width: 36, height: 36, background: "linear-gradient(135deg, #3b82f6, #1e40af)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontFamily: FONT_SERIF, fontSize: 18, fontStyle: "italic" }}>C</div>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
         <div>
-          <div style={{ fontFamily: FONT_SERIF, fontSize: 18, color: "white", lineHeight: 1 }}>CFO Circle</div>
-          <div style={{ fontSize: 11, color: T.sidebarMuted, letterSpacing: 0.5, textTransform: "uppercase", marginTop: 2 }}>Los Angeles</div>
+          <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: -0.5, lineHeight: 1.1, display: "flex", alignItems: "center", gap: 12, margin: 0 }}>
+            {stageCfg.label}
+            <span style={{ fontSize: 11, padding: "4px 10px", borderRadius: 999, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.4, background: stageCfg.bg, color: stageCfg.color }}>
+              {loading ? "…" : kpis.total + " " + (stage === "qualified" ? "in waiting room" : "active")}
+            </span>
+          </h1>
+          <p style={{ color: T.textSecondary, fontSize: 14, marginTop: 6, maxWidth: 720 }}>{stageCfg.desc}</p>
         </div>
-      </div>
+      </header>
 
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.6, color: T.sidebarSectionLabel, padding: "0 8px 8px", fontWeight: 500 }}>Workspace</div>
-        <SidebarLink href="/" label="Dashboard" />
-        <SidebarLink href="/pipeline/cfo/prospect" label="Pipeline" count="55" active />
-        <SidebarLink href="/" label="Sponsors" count="119" />
-        <SidebarLink href="/" label="Events" />
-        <SidebarLink href="/" label="Today" />
-        <SidebarLink href="/" label="Find a person" />
-      </div>
-
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.6, color: T.sidebarSectionLabel, padding: "0 8px 8px", fontWeight: 500 }}>Settings</div>
-        <SidebarLink href="/" label="Reports" />
-        <SidebarLink href="/" label="Settings" />
-      </div>
-
-      <div style={{ marginTop: "auto", padding: 12, background: T.sidebarActiveBg, borderRadius: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ width: 36, height: 36, borderRadius: 999, background: "linear-gradient(135deg, #f59e0b, #d97706)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 600, fontSize: 14 }}>DL</div>
-        <div>
-          <div style={{ color: "white", fontSize: 13, fontWeight: 500 }}>Dalen Lawrence</div>
-          <div style={{ color: T.sidebarMuted, fontSize: 11 }}>Chapter Director</div>
+      {error && (
+        <div style={{ background: T.dangerBg, border: "1px solid " + T.danger, borderRadius: 10, padding: "12px 16px", color: T.danger, marginBottom: 20, fontSize: 13 }}>
+          ⚠ {error}
         </div>
-      </div>
-    </aside>
-  )
-}
+      )}
 
-function SidebarLink({ href, label, count, active }) {
-  return (
-    <Link href={href} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 10px", color: active ? T.sidebarActive : T.sidebarText, borderRadius: 7, fontSize: 14, textDecoration: "none", background: active ? T.sidebarActiveBg : "transparent", fontWeight: active ? 500 : 400, marginBottom: 1 }}>
-      {label}
-      {count && <span style={{ marginLeft: "auto", fontSize: 11, background: active ? T.accent : T.sidebarBorder, color: active ? "white" : T.sidebarText, padding: "1px 7px", borderRadius: 999, fontWeight: 500 }}>{count}</span>}
-    </Link>
+      {loading && (
+        <div style={{ padding: 40, textAlign: "center", color: T.textTertiary, fontSize: 13 }}>Loading…</div>
+      )}
+
+      {!loading && !error && (
+        <>
+          <MiniKpis stage={stage} kpis={kpis} activeFilter={filter} onToggle={toggleFilter} />
+          <SuggestedMoves stage={stage} kpis={kpis} enriched={enriched} />
+          <InventoryList stage={stage} sections={sections} filteredList={filteredList} activeFilter={filter} onClearFilter={function(){ setFilter(null) }} />
+        </>
+      )}
+
+      <div style={{ textAlign: "center", color: T.textTertiary, fontSize: 12, marginTop: 28, paddingTop: 20, borderTop: "1px solid " + T.border }}>
+        Live data from PeerChair · {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+      </div>
+    </main>
   )
 }
 
