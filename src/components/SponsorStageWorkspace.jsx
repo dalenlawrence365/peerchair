@@ -50,34 +50,23 @@ export default function SponsorStageWorkspace({ stage }) {
       setAllDeals(deals)
 
       // All sponsor companies (for tile metrics)
-      var allCos = await sbFetch("/companies?is_sponsor=eq.true&select=id,name,sponsor_type,host_viable,hosting_type,city,state,neighborhood_la,neighborhood_sfv,is_sponsor")
+      var allCos = await sbFetch("/companies?is_sponsor=eq.true&select=id,name,sponsor_type,host_viable,hosting_type,city,state,neighborhood_la,neighborhood_sfv,is_sponsor,sponsor_state")
       setAllSponsorCompanies(allCos)
       var coById = {}; allCos.forEach(function(c){ coById[c.id] = c })
 
-      // Companies at this stage — same most-advanced-stage-wins semantics as funnel cards
-      // so the left-list count reconciles with the funnel card count.
-      var STAGE_RANK_LOAD = { pool: 0, audience: 1, discovery: 2, proposal: 3, active: 4 }
-      var coMostAdvanced = {}
-      deals.forEach(function(d){
-        if (!d.company_id || !coById[d.company_id]) return
-        if (STAGE_RANK_LOAD[d.stage] === undefined) return
-        var prev = coMostAdvanced[d.company_id]
-        if (prev === undefined || STAGE_RANK_LOAD[d.stage] > STAGE_RANK_LOAD[prev.stage]) {
-          coMostAdvanced[d.company_id] = { stage: d.stage, primary_person_id: d.primary_person_id }
-        }
-      })
-      var stageList = Object.keys(coMostAdvanced)
-        .filter(function(coId){ return coMostAdvanced[coId].stage === stage })
-        .map(function(coId){ return coById[coId] })
-        .filter(Boolean)
+      // Companies at this stage — driven by companies.sponsor_state (not deals).
+      // Under the new model, deals are user-created artifacts (typically at proposal)
+      // and pre-deal funnel stages live on the company itself.
+      var stageList = allCos.filter(function(c){ return (c.sponsor_state || 'pool') === stage })
       stageList.sort(function(a,b){ return (a.name || "").localeCompare(b.name || "") })
       setStageCompanies(stageList)
 
-      // Primary persons for the deals associated with companies at this stage
+      // Primary person lookup: for each company at this stage that has a deal with a
+      // primary_person_id, surface that person. (Most won't, post-cleanup.)
       var personIds = Array.from(new Set(
-        Object.keys(coMostAdvanced)
-          .filter(function(coId){ return coMostAdvanced[coId].stage === stage })
-          .map(function(coId){ return coMostAdvanced[coId].primary_person_id })
+        deals
+          .filter(function(d){ var co = coById[d.company_id]; return co && (co.sponsor_state || 'pool') === stage })
+          .map(function(d){ return d.primary_person_id })
           .filter(Boolean)
       ))
       if (personIds.length > 0) {
@@ -212,42 +201,44 @@ export default function SponsorStageWorkspace({ stage }) {
     })
   }
 
-  // Derived: stage counts — UNIQUE COMPANIES at their MOST-ADVANCED stage.
-  // Reconciles the funnel sum with the company total: a company with 2 deals
-  // at pool counts once; a company with deals at both pool AND discovery
-  // counts once at discovery (the more-advanced stage wins). Sum of funnel
-  // is always ≤ total sponsor pool.
-  var STAGE_RANK = { pool: 0, audience: 1, discovery: 2, proposal: 3, active: 4 }
-  var counts = useMemo(function() {
-    var sponsorCoSet = new Set(allSponsorCompanies.map(function(co){ return co.id }))
-    var companyMostAdvanced = {}
-    allDeals.forEach(function(d){
-      if (!sponsorCoSet.has(d.company_id)) return
-      if (STAGE_RANK[d.stage] === undefined) return  // skip 'lost' and unknown stages
-      var prev = companyMostAdvanced[d.company_id]
-      if (prev === undefined || STAGE_RANK[d.stage] > STAGE_RANK[prev]) {
-        companyMostAdvanced[d.company_id] = d.stage
-      }
+  function createDeal(data) {
+    if (!workbench || !workbench.company) return Promise.reject(new Error("No company"))
+    var body = Object.assign({ company_id: workbench.company.id }, data)
+    if (body.stage === "discovery" && !body.discovery_date) body.discovery_date = new Date().toISOString()
+    return sbFetch("/sponsor_deals", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }).then(function(rows){
+      var newDeal = Array.isArray(rows) ? rows[0] : rows
+      setWorkbench(function(prev){
+        if (!prev) return prev
+        return Object.assign({}, prev, { deals: (prev.deals || []).concat([newDeal]) })
+      })
+      setAllDeals(function(prev){ return prev.concat([newDeal]) })
+      // Also nudge company.sponsor_state to match if it's now earlier than the deal stage
+      var STAGE_ORDER = ["pool","audience","discovery","proposal","active"]
+      var cur = workbench.company.sponsor_state || "pool"
+      var dealRank = STAGE_ORDER.indexOf(body.stage)
+      var curRank = STAGE_ORDER.indexOf(cur)
+      if (dealRank > curRank) updateCompanyField("sponsor_state", body.stage)
     })
+  }
+
+  // Funnel counts — driven by companies.sponsor_state. Every sponsor company has
+  // exactly one state, so sum(funnel) == total_sponsor_pool. No "outside funnel"
+  // anymore — companies that used to fall outside (no deal, only lost) now have
+  // an explicit state on the company itself.
+  var counts = useMemo(function() {
     var c = {}
     STAGES.forEach(function(s){ c[s] = 0 })
-    Object.keys(companyMostAdvanced).forEach(function(coId){
-      var s = companyMostAdvanced[coId]
+    allSponsorCompanies.forEach(function(co){
+      var s = co.sponsor_state || 'pool'
       if (c[s] !== undefined) c[s]++
     })
     return c
-  }, [allDeals, allSponsorCompanies])
+  }, [allSponsorCompanies])
 
-  // Companies outside the active funnel: in sponsor pool but no active-stage deal
-  // (either no deal at all, or only lost deals). Used for the reconciliation footnote.
-  var outsideFunnel = useMemo(function() {
-    var inFunnel = new Set()
-    var sponsorCoSet = new Set(allSponsorCompanies.map(function(co){ return co.id }))
-    allDeals.forEach(function(d){
-      if (sponsorCoSet.has(d.company_id) && STAGE_RANK[d.stage] !== undefined) inFunnel.add(d.company_id)
-    })
-    return allSponsorCompanies.filter(function(c){ return !inFunnel.has(c.id) }).length
-  }, [allDeals, allSponsorCompanies])
+  var outsideFunnel = 0  // legacy variable kept for FunnelCards prop compatibility
 
   // Derived: tile metrics
   var tiles = useMemo(function() {
@@ -302,6 +293,7 @@ export default function SponsorStageWorkspace({ stage }) {
           onCreateLocation={createLocation}
           onUpdateLocation={updateLocation}
           onDeleteLocation={deleteLocation}
+          onCreateDeal={createDeal}
           onClose={function(){ handleSelectCompany(null) }}
         />
       </div>
@@ -530,7 +522,7 @@ function HostDot({ value }) {
 }
 
 // ─── Right workbench pane ─────────────────────────────────────────────────────
-function CompanyWorkbench({ companyId, workbench, loading, onUpdate, onSaveNote, onCreateLocation, onUpdateLocation, onDeleteLocation, onClose }) {
+function CompanyWorkbench({ companyId, workbench, loading, onUpdate, onSaveNote, onCreateLocation, onUpdateLocation, onDeleteLocation, onCreateDeal, onClose }) {
   if (!companyId) {
     return (
       <div style={{ flex: 1, background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: T.textTertiary, fontSize: 13 }}>
@@ -574,7 +566,7 @@ function CompanyWorkbench({ companyId, workbench, loading, onUpdate, onSaveNote,
 
       {/* Body */}
       <div style={{ padding: "18px 22px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22 }}>
-        <DealBlock deals={workbench.deals} />
+        <DealBlock deals={workbench.deals} companyId={c.id} companySponsorState={c.sponsor_state} onCreateDeal={onCreateDeal} />
         <GatewaysBlock gateways={workbench.gateways} deals={workbench.deals} />
       </div>
 
@@ -603,17 +595,80 @@ function CompanyWorkbench({ companyId, workbench, loading, onUpdate, onSaveNote,
 }
 
 // ─── Deal block ───────────────────────────────────────────────────────────────
-function DealBlock({ deals }) {
+function DealBlock({ deals, companyId, companySponsorState, onCreateDeal }) {
+  var [adding, setAdding] = useState(false)
+  var [chapter, setChapter] = useState("Los Angeles")
+  var [stage, setStage] = useState("proposal")
+  var [annualFee, setAnnualFee] = useState("")
+  var [saving, setSaving] = useState(false)
+  var [error, setError] = useState(null)
+
+  function handleCreate() {
+    if (!chapter.trim()) { setError("Chapter required"); return }
+    setSaving(true); setError(null)
+    var body = { chapter: chapter, stage: stage }
+    if (annualFee && !isNaN(parseFloat(annualFee))) body.annual_fee = parseFloat(annualFee)
+    Promise.resolve(onCreateDeal(body))
+      .then(function(){
+        setAdding(false); setChapter("Los Angeles"); setStage("proposal"); setAnnualFee("")
+        setSaving(false)
+      })
+      .catch(function(err){ setError(err.message || "Failed"); setSaving(false) })
+  }
+
   return (
     <div>
-      <SectionLabel>Deal</SectionLabel>
-      {deals.length === 0 && <div style={{ fontSize: 12, color: T.textTertiary, fontStyle: "italic" }}>No deals yet.</div>}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <SectionLabel mb={0}>Deals</SectionLabel>
+        {!adding && (
+          <button onClick={function(){ setAdding(true) }} style={{ background: "transparent", border: "none", color: T.accent, fontSize: 12, cursor: "pointer", fontFamily: "inherit", padding: 0, fontWeight: 500 }}>+ Add deal</button>
+        )}
+      </div>
+
+      {adding && (
+        <div style={{ background: T.bg, border: "1px solid " + T.accent, borderRadius: 8, padding: 12, marginBottom: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+            <div>
+              <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 500, marginBottom: 3 }}>Chapter</div>
+              <select value={chapter} onChange={function(e){ setChapter(e.target.value) }} style={{ width: "100%", padding: "5px 8px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 5, background: "white", fontFamily: "inherit" }}>
+                <option value="Los Angeles">Los Angeles</option>
+                <option value="San Fernando Valley">San Fernando Valley</option>
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 500, marginBottom: 3 }}>Stage</div>
+              <select value={stage} onChange={function(e){ setStage(e.target.value) }} style={{ width: "100%", padding: "5px 8px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 5, background: "white", fontFamily: "inherit" }}>
+                <option value="proposal">Proposal</option>
+                <option value="active">Active (signed)</option>
+                <option value="discovery">Discovery</option>
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 500, marginBottom: 3 }}>Annual fee (optional)</div>
+              <input type="text" value={annualFee} onChange={function(e){ setAnnualFee(e.target.value) }} placeholder="e.g. 25000" style={{ width: "100%", padding: "5px 8px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 5, background: "white", fontFamily: "inherit", outline: "none" }} />
+            </div>
+          </div>
+          {error && <div style={{ fontSize: 12, color: T.danger, marginBottom: 6 }}>{error}</div>}
+          <div style={{ display: "flex", gap: 6 }}>
+            <button disabled={saving} onClick={handleCreate} style={{ padding: "5px 12px", background: T.accent, color: "white", border: "none", borderRadius: 5, fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>{saving ? "Saving…" : "Create deal"}</button>
+            <button disabled={saving} onClick={function(){ setAdding(false); setError(null) }} style={{ padding: "5px 12px", background: "white", color: T.textPrimary, border: "1px solid " + T.border, borderRadius: 5, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {deals.length === 0 && !adding && (
+        <div style={{ fontSize: 12, color: T.textTertiary, fontStyle: "italic", padding: "10px 0" }}>
+          No deals yet. Stage is tracked on the company.
+        </div>
+      )}
+
       {deals.map(function(d, i){
         var isLost = d.stage === "lost"
         return (
           <div key={d.id} style={{ marginBottom: 12, padding: 12, background: T.bg, borderRadius: 8 }}>
             <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 500, marginBottom: 8 }}>
               Deal #{i+1} · {d.chapter}
+              {d.annual_fee > 0 && <span style={{ marginLeft: 8, color: T.textSecondary, textTransform: "none", letterSpacing: 0 }}>· ${d.annual_fee.toLocaleString()}/yr</span>}
               {isLost && d.lost_reason && <span style={{ marginLeft: 8, color: T.danger, textTransform: "none", letterSpacing: 0 }}>· Lost: {d.lost_reason}</span>}
             </div>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -694,7 +749,8 @@ function GatewaysBlock({ gateways, deals }) {
 // ─── Facts block (inline editable) ────────────────────────────────────────────
 function FactsBlock({ company, onUpdate }) {
   var fields = [
-    { key: "sponsor_type",  label: "Sponsor type",  type: "select", options: SPONSOR_TYPE_OPTIONS },
+    { key: "sponsor_type",   label: "Sponsor type",  type: "select", options: SPONSOR_TYPE_OPTIONS },
+    { key: "sponsor_state",  label: "Stage",         type: "select", options: STAGES },
   ]
   return (
     <div>
