@@ -29,7 +29,8 @@ export default function PoolLayout({ children }) {
         <SidebarLink href="/" label="Dashboard" />
         <SidebarLink href="/pipeline/cfo/pool" label="CFO Pipeline" active={isActive("/pipeline/cfo")} />
         <SidebarLink href="/pipeline/sponsor/pool" label="Sponsors" active={isActive("/pipeline/sponsor")} />
-        <SidebarLink href="/pool/import" label="Import pool" active={isActive("/pool")} />
+        <SidebarLink href="/pool/import" label="Import pool" active={pathname === "/pool/import"} />
+        <SidebarLink href="/pool/export" label="Export for LinkedHelper" active={pathname === "/pool/export"} />
       </aside>
       <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
     </div>
