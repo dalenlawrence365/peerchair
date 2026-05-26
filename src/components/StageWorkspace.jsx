@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react"
 import Link from "next/link"
 import { sbFetch } from "@/lib/appShared"
 import { T, FONT_FAMILY, FONT_SERIF } from "@/lib/pipelineTheme"
+import AddPersonModal from "@/components/AddPersonModal"
 
 // ─── Stage config ─────────────────────────────────────────────────────────────
 const STAGE_CONFIG = {
@@ -61,6 +62,7 @@ export default function StageWorkspace({ stage }) {
   var [loading, setLoading] = useState(true)
   var [error, setError] = useState(null)
   var [filter, setFilter] = useState(null)
+  var [addOpen, setAddOpen] = useState(false)
 
   // Clear filter when navigating between stages
   useEffect(function() { setFilter(null) }, [stage])
@@ -198,6 +200,9 @@ export default function StageWorkspace({ stage }) {
           </h1>
           <p style={{ color: T.textSecondary, fontSize: 14, marginTop: 6, maxWidth: 720 }}>{stageCfg.desc}</p>
         </div>
+        <button onClick={function(){ setAddOpen(true) }} style={{ padding: "8px 16px", background: T.accent, color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+          + Add person
+        </button>
       </header>
 
       {error && (
@@ -221,6 +226,13 @@ export default function StageWorkspace({ stage }) {
       <div style={{ textAlign: "center", color: T.textTertiary, fontSize: 12, marginTop: 28, paddingTop: 20, borderTop: "1px solid " + T.border }}>
         Live data from PeerChair · {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
       </div>
+
+      <AddPersonModal
+        open={addOpen}
+        onClose={function(){ setAddOpen(false) }}
+        defaultRoles={["cfo"]}
+        onAdded={function(p){ if (p && p.redirect_url) window.location.href = p.redirect_url; else loadData() }}
+      />
     </main>
   )
 }

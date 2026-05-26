@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { sbFetch } from "@/lib/appShared"
 import { T, FONT_FAMILY, FONT_SERIF } from "@/lib/pipelineTheme"
+import AddPersonModal from "@/components/AddPersonModal"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STAGE_CONFIG = {
@@ -30,6 +31,7 @@ export default function SponsorStageWorkspace({ stage }) {
   var [primaryPersonsById, setPrimaryPersonsById] = useState({})
   var [loading, setLoading] = useState(true)
   var [error, setError] = useState(null)
+  var [addOpen, setAddOpen] = useState(false)
 
   // Selected company state (synced to URL via ?company=<id>)
   var initialCompanyId = searchParams ? searchParams.get("company") : null
@@ -263,7 +265,12 @@ export default function SponsorStageWorkspace({ stage }) {
 
   return (
     <main style={{ padding: "24px 28px 32px", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <Breadcrumb stage={stage} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <Breadcrumb stage={stage} />
+        <button onClick={function(){ setAddOpen(true) }} style={{ padding: "8px 16px", background: T.accent, color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+          + Add person
+        </button>
+      </div>
 
       <TileStrip tiles={tiles} loading={loading} />
       <FunnelCards counts={counts} activeStage={stage} outsideFunnel={outsideFunnel} totalSponsorPool={allSponsorCompanies.length} />
@@ -297,6 +304,13 @@ export default function SponsorStageWorkspace({ stage }) {
           onClose={function(){ handleSelectCompany(null) }}
         />
       </div>
+
+      <AddPersonModal
+        open={addOpen}
+        onClose={function(){ setAddOpen(false) }}
+        defaultRoles={["sponsor_contact"]}
+        onAdded={function(p){ if (p && p.redirect_url) window.location.href = p.redirect_url; else loadStageData() }}
+      />
     </main>
   )
 }
