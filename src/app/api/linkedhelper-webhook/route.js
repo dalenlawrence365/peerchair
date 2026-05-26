@@ -255,6 +255,14 @@ async function handleSent(sb, lead, tags, seedBatchTag, raw) {
     source: "LinkedHelper"
   })
 
+  // Tag the person as connection_sent so cooldown / hygiene logic can find them.
+  // cfo_state stays at 'pool' (invite sent is NOT in-network — they have to accept first).
+  await sb.rpc("set_action_tag", {
+    p_person_id: contact.id,
+    p_action_type: "connection_sent",
+    p_set_by: "linkedhelper_webhook"
+  })
+
   // Update pool with event state + contact link
   await updatePool(sb, lead.profileUrl, "sent", contact.id)
 }
@@ -293,7 +301,9 @@ async function handleConnected(sb, lead, tags, seedBatchTag, raw) {
 async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
   const replyText = lead.lastReply || lead.lastMessage || ""
   const poolRow = await findPoolRecord(sb, lead.profileUrl)
-  const contact = await findOrCreateContact(sb, lead, seedBatchTag, "Engaged", poolRow)
+  // We pass "Connected" as the eventLabel for new-contact creation only — we do NOT
+  // promote existing contacts to a higher stage. The reply tag carries the signal.
+  const contact = await findOrCreateContact(sb, lead, seedBatchTag, "Connected", poolRow)
   if (!contact) {
     await logUnmatched(sb, "replied", lead, replyText, raw)
     return
@@ -316,12 +326,11 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
     }
   }
 
-  // Advance to Engaged if at Connected or earlier
-  const preEngagedStages = ["", "pool", "Requested", "Connected"]
-  const shouldAdvance = preEngagedStages.indexOf(contact.pipeline_stage || "") > -1
-
+  // KEY CHANGE (2026-05-22): do NOT auto-advance pipeline_stage on reply.
+  // The system can't read intent — a reply might be "thanks" or might be
+  // substantive. Dalen reviews the inbox and advances manually.
+  // We still update last_activity_date so the timeline sort surfaces this.
   await sb.from("contacts").update({
-    pipeline_stage: shouldAdvance ? "Engaged" : contact.pipeline_stage,
     last_activity_date: new Date().toISOString()
   }).eq("id", contact.id)
 
@@ -333,6 +342,15 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
     occurred_at: new Date().toISOString(),
     step_label: "Reply Received",
     source: "LinkedHelper"
+  })
+
+  // Tag the person as reply_received — drives the "replies to review" queue
+  // without changing their funnel position.
+  await sb.rpc("set_action_tag", {
+    p_person_id: contact.id,
+    p_action_type: "reply_received",
+    p_set_by: "linkedhelper_webhook",
+    p_notes: replyText ? replyText.slice(0, 200) : null
   })
 
   await updatePool(sb, lead.profileUrl, "replied", contact.id)
