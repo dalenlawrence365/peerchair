@@ -3,9 +3,16 @@ import { useState, useRef, useEffect } from "react"
 import { G, T, BG2, BG3 } from "@/lib/appShared"
 
 var TYPE_LABEL = {
+  // Legacy (contact_type) values — kept for backward compat
   CFO_PROSPECT:    { label: "CFO",      color: T.gold },
   SPONSOR_CONTACT: { label: "Sponsor",  color: T.purple },
   REFERRAL_PARTNER:{ label: "Referral Partner", color: T.green },
+  // New role-based values from the unified people table
+  "CFO":              { label: "CFO",              color: T.gold },
+  "Sponsor contact":  { label: "Sponsor",          color: T.purple },
+  "Referral partner": { label: "Referral Partner", color: T.green },
+  "CFO + Sponsor":    { label: "CFO + Sponsor",    color: T.gold },
+  "Person":           { label: "Person",           color: T.muted },
 }
 
 export default function GlobalSearch({ onSelectContact, onSelectCompany }) {
