@@ -17,22 +17,26 @@ export async function GET() {
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )
 
-  // CFO / sponsor / referral distributions
-  const { data: cfoStates }      = await sb.from("people").select("cfo_state").not("cfo_state", "is", null)
-  const { data: sponsorStates }  = await sb.from("people").select("sponsor_state").not("sponsor_state", "is", null)
-  const { data: referralStates } = await sb.from("people").select("referral_state").not("referral_state", "is", null)
+  // Distributions via COUNT queries per stage — NOT row-fetch-then-tally.
+  // Supabase .select() silently caps at 1000 rows, which made fetch-then-count
+  // report a hard ceiling of 1000 and a wrong stage split. head:true count
+  // queries transfer no rows and have no cap.
+  const CFO_STAGES = ["pool", "audience", "prospect", "qualified", "member"]
+  const SPONSOR_STAGES = ["pool", "audience", "discovery", "proposal", "active"]
+  const REFERRAL_STAGES = ["pool", "audience", "active"]
 
-  function tally(rows, field) {
+  async function distribution(field, stages) {
     const out = {}
-    ;(rows || []).forEach(function(r){
-      const v = r[field]
-      if (v) out[v] = (out[v] || 0) + 1
-    })
+    await Promise.all(stages.map(async function(stage){
+      const { count } = await sb.from("people").select("id", { count: "exact", head: true }).eq(field, stage)
+      out[stage] = count || 0
+    }))
     return out
   }
-  const cfoCounts      = tally(cfoStates, "cfo_state")
-  const sponsorCounts  = tally(sponsorStates, "sponsor_state")
-  const referralCounts = tally(referralStates, "referral_state")
+
+  const cfoCounts      = await distribution("cfo_state", CFO_STAGES)
+  const sponsorCounts  = await distribution("sponsor_state", SPONSOR_STAGES)
+  const referralCounts = await distribution("referral_state", REFERRAL_STAGES)
 
   // Totals + sponsor companies
   const { count: sponsorCompanies } = await sb.from("companies").select("id", { count: "exact", head: true }).eq("is_sponsor", true)

@@ -62,7 +62,7 @@ export default function DashboardPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
         <StatTile label="CFO pipeline" value={c.cfo_total} color={ROLE_COLOR.cfo} href="/pipeline/cfo/pool" />
         <StatTile label="Sponsor contacts" value={c.sponsor_total} color={ROLE_COLOR.sponsor_contact} href="/pipeline/sponsor/pool" />
-        <StatTile label="Referral partners" value={c.referral_total} color={ROLE_COLOR.referral_partner} />
+        <StatTile label="Referral partners" value={c.referral_total} color={ROLE_COLOR.referral_partner} href="/referral" />
         <StatTile label="Sponsor companies" value={c.sponsor_companies} color="#3b82f6" />
       </div>
 

@@ -13,6 +13,7 @@ const NAV = [
     { label: "Dashboard",       href: "/dashboard",        matches: function(p){ return p === "/" || p === "/dashboard" } },
     { label: "CFO Pipeline",    href: "/pipeline/cfo/prospect", matches: function(p){ return p.startsWith("/pipeline/cfo") } },
     { label: "Sponsors",        href: "/pipeline/sponsor/pool", matches: function(p){ return p.startsWith("/pipeline/sponsor") } },
+    { label: "Referral partners", href: "/referral",          matches: function(p){ return p.startsWith("/referral") } },
   ] },
   { section: "Inbox", items: [
     { label: "Follow-up queue", href: "/inbox/follow-up",  matches: function(p){ return p === "/inbox/follow-up" } },
