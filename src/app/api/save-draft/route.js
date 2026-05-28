@@ -25,8 +25,8 @@ export async function POST(request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )
 
-  // Resolve contact
-  const { data: contact } = await sb.from("contacts").select("id, first_name, last_name, email").eq("id", contact_id).single()
+  // Resolve person (people, not legacy contacts)
+  const { data: contact } = await sb.from("people").select("id, first_name, last_name, email").eq("id", contact_id).maybeSingle()
   if (!contact || !contact.email) {
     return corsResponse({ error: "Contact not found or has no email address" }, { status: 404 })
   }

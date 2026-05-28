@@ -14,6 +14,18 @@ const STAGE_AFTER_OUTREACH = {
   "general_follow_up": null, // no stage change
 }
 
+// Equivalent advance in the unified people model (role + per-role state).
+// Used so people-only records (no contacts row) still advance correctly.
+const PEOPLE_STATE_AFTER_OUTREACH = {
+  "fit_call_link_sent":          { role: "cfo", state: "prospect" },
+  "fit_call_scheduled":          { role: "cfo", state: "prospect" },
+  "fit_call_completed":          { role: "cfo", state: "prospect" },
+  "sponsor_discovery_link_sent": { role: "sponsor_contact", state: "discovery" },
+  "sponsor_discovery_scheduled": { role: "sponsor_contact", state: "discovery" },
+  "sponsor_discovery_completed": { role: "sponsor_contact", state: "discovery" },
+  "general_follow_up": null,
+}
+
 export async function OPTIONS() { return handleOptions() }
 
 export async function POST(request) {
@@ -50,19 +62,20 @@ export async function POST(request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )
 
-  // Verify contact exists
+  // Verify the person exists (people, not contacts)
   const { data: contact } = await sb
-    .from("contacts")
-    .select("id, first_name, last_name, pipeline_stage, contact_type")
+    .from("people")
+    .select("id, first_name, last_name, cfo_state, sponsor_state, roles")
     .eq("id", contact_id)
-    .single()
+    .maybeSingle()
 
   if (!contact) {
     return corsResponse({ error: "Contact not found" }, { status: 404 })
   }
 
-  // Log to communications
+  // Log to communications — dual-write person_id + contact_id
   const { error: insertError } = await sb.from("communications").insert({
+    person_id: contact_id,
     contact_id,
     direction: "OUT",
     channel,
@@ -72,25 +85,28 @@ export async function POST(request) {
   })
   if (insertError) console.error("communications insert error:", insertError.message)
 
-  // Update pipeline stage if appropriate
+  // Update stage if appropriate
   const newStage = STAGE_AFTER_OUTREACH[outreach_type] || null
+  const peopleAdvance = PEOPLE_STATE_AFTER_OUTREACH[outreach_type] || null
   let stageUpdated = false
 
+  // Legacy contacts update (no-ops for people-only rows; fires trigger for migrated rows)
   if (newStage) {
-    await sb
-      .from("contacts")
-      .update({
-        pipeline_stage: newStage,
-        last_activity_date: new Date().toISOString()
-      })
-      .eq("id", contact_id)
+    await sb.from("contacts").update({ pipeline_stage: newStage, last_activity_date: new Date().toISOString() }).eq("id", contact_id)
     stageUpdated = true
   } else {
-    // Still update last activity
-    await sb
-      .from("contacts")
-      .update({ last_activity_date: new Date().toISOString() })
-      .eq("id", contact_id)
+    await sb.from("contacts").update({ last_activity_date: new Date().toISOString() }).eq("id", contact_id)
+  }
+
+  // Unified people update — works for ALL records including people-only.
+  // Uses the centralized set_role_state function so supersession rules apply.
+  if (peopleAdvance) {
+    await sb.rpc("set_role_state", {
+      p_person_id: contact_id,
+      p_role: peopleAdvance.role,
+      p_new_state: peopleAdvance.state,
+      p_set_by: "log_outreach_gpt"
+    })
   }
 
   return corsResponse({

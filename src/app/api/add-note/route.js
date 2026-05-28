@@ -26,21 +26,24 @@ export async function POST(request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )
 
-  // Verify contact exists
+  // Verify the person exists (unified people table — was contacts, which
+  // missed anyone added via people-only paths like AddPersonModal / GPT add)
   const { data: contact } = await sb
-    .from("contacts")
+    .from("people")
     .select("id, first_name, last_name")
     .eq("id", contact_id)
-    .single()
+    .maybeSingle()
 
   if (!contact) {
     return corsResponse({ error: "Contact not found" }, { status: 404 })
   }
 
-  // Write to communications table
+  // Write to communications table — dual-write person_id + contact_id so both
+  // new (people-based) and legacy (contact-based) readers find the note
   const { data: comm, error } = await sb
     .from("communications")
     .insert({
+      person_id: contact_id,
       contact_id,
       direction: "INTERNAL",
       channel: "Note",
