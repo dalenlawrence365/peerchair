@@ -25,6 +25,30 @@ function fmtShort(iso) {
   try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) } catch(e) { return iso }
 }
 
+// Display-only: turn a notes blob into readable lines. Respects real line
+// breaks first; otherwise splits on sentence boundaries, protecting common
+// abbreviations so "incl. Exxon" / "Inc." / "e.g." don't fragment. Never
+// mutates the stored value.
+function formatNoteLines(text) {
+  if (!text) return []
+  const paras = String(text).split(/\n+/).map(function(s){ return s.trim() }).filter(Boolean)
+  const ABBR = /\b(incl|approx|est|no|vs|etc|e\.g|i\.e|Inc|Corp|Ltd|Co|St|Mr|Mrs|Ms|Dr|Jr|Sr|U\.S|a\.k\.a)\.$/i
+  const out = []
+  paras.forEach(function(para){
+    // tentative split on ". " before a capital letter, dollar sign, or digit
+    const chunks = para.split(/(?<=[.!?])\s+(?=[A-Z$0-9])/)
+    let buf = ""
+    chunks.forEach(function(c){
+      const piece = (buf ? buf + " " : "") + c
+      // if this chunk ended on a protected abbreviation, keep accumulating
+      if (ABBR.test(c.trim())) { buf = piece }
+      else { out.push(piece.trim()); buf = "" }
+    })
+    if (buf) out.push(buf.trim())
+  })
+  return out.filter(Boolean)
+}
+
 export default function PersonProfile() {
   const { id } = useParams()
   const [data, setData] = useState(null)
@@ -39,6 +63,24 @@ export default function PersonProfile() {
   const [showStateMenu, setShowStateMenu] = useState(false)
   const [showAvatarEdit, setShowAvatarEdit] = useState(false)
   const [avatarInput, setAvatarInput] = useState("")
+  const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+
+  async function uploadAvatarFile(file) {
+    if (!file) return
+    if (!/^image\//.test(file.type)) { setError("Please drop an image file (JPG, PNG, WEBP, or GIF)."); return }
+    setUploading(true); setError(null)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const r = await fetch(`/api/people/${id}/avatar`, { method: "POST", body: fd })
+      const j = await r.json()
+      if (!r.ok) { setError(j.error || "Upload failed") }
+      else { setShowAvatarEdit(false) }
+    } catch(e) { setError(e.message || String(e)) }
+    setUploading(false)
+    reload()
+  }
 
   function reload() {
     fetch(`/api/people/${id}`)
@@ -170,19 +212,38 @@ export default function PersonProfile() {
         {/* Avatar editor — toggled by clicking the photo */}
         {showAvatarEdit && (
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid " + T.borderSoft }}>
-            <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Photo URL</div>
-            <div style={{ fontSize: 12, color: T.textTertiary, marginBottom: 8 }}>
-              Paste an image URL (right-click their LinkedIn photo → &quot;Copy image address&quot;). Leave blank and save to clear.
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
+            {/* Drag & drop / click to upload */}
+            <label
+              onDragOver={function(e){ e.preventDefault(); setDragOver(true) }}
+              onDragLeave={function(){ setDragOver(false) }}
+              onDrop={function(e){ e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) uploadAvatarFile(f) }}
+              style={{
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "24px", border: "2px dashed " + (dragOver ? "#3b82f6" : T.border),
+                borderRadius: 10, background: dragOver ? "#eff6ff" : T.bg, cursor: "pointer", textAlign: "center"
+              }}>
+              <input type="file" accept="image/*" style={{ display: "none" }}
+                onChange={function(e){ const f = e.target.files && e.target.files[0]; if (f) uploadAvatarFile(f) }} />
+              <div style={{ fontSize: 22 }}>{uploading ? "⏳" : "📷"}</div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: T.textPrimary }}>
+                {uploading ? "Uploading…" : "Drag a photo here, or click to choose"}
+              </div>
+              <div style={{ fontSize: 11, color: T.textTertiary }}>JPG, PNG, WEBP or GIF · up to 5MB</div>
+            </label>
+
+            {/* URL fallback */}
+            <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>or paste URL</span>
               <input value={avatarInput} onChange={function(e){ setAvatarInput(e.target.value) }}
-                placeholder={p.avatar_url || "https://…"}
-                style={{ flex: 1, maxWidth: 520, padding: "8px 12px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
-              <button disabled={busy} onClick={function(){ postAction({ action: "set_avatar", avatar_url: avatarInput }); setShowAvatarEdit(false); setAvatarInput("") }}
-                style={{ padding: "8px 16px", fontSize: 12, borderRadius: 6, border: "none", background: "#3b82f6", color: "white", cursor: busy ? "not-allowed" : "pointer", fontWeight: 500, fontFamily: "inherit" }}>Save photo</button>
-              <button onClick={function(){ setShowAvatarEdit(false); setAvatarInput("") }}
-                style={{ padding: "8px 14px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                placeholder="https://…"
+                style={{ flex: 1, maxWidth: 420, padding: "7px 10px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
+              <button disabled={busy || !avatarInput.trim()} onClick={function(){ postAction({ action: "set_avatar", avatar_url: avatarInput }); setShowAvatarEdit(false); setAvatarInput("") }}
+                style={{ padding: "7px 12px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: avatarInput.trim() ? "#3b82f6" : "white", color: avatarInput.trim() ? "white" : T.textTertiary, cursor: avatarInput.trim() ? "pointer" : "not-allowed", fontFamily: "inherit" }}>Set</button>
             </div>
+            {p.avatar_url && (
+              <button onClick={function(){ postAction({ action: "set_avatar", avatar_url: "" }); setShowAvatarEdit(false) }}
+                style={{ marginTop: 10, padding: "5px 10px", fontSize: 11, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.danger, cursor: "pointer", fontFamily: "inherit" }}>Remove photo</button>
+            )}
           </div>
         )}
       </div>
@@ -207,8 +268,12 @@ export default function PersonProfile() {
           <ChipRow label="Red flags" items={p.firmographics.red_flags} color="#dc2626" />
           {p.firmographics.notes && (
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid " + T.borderSoft }}>
-              <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>Call notes</div>
-              <div style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{p.firmographics.notes}</div>
+              <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Call notes</div>
+              <ul style={{ margin: 0, paddingLeft: 18, maxWidth: 760, listStyle: "disc" }}>
+                {formatNoteLines(p.firmographics.notes).map(function(line, i){
+                  return <li key={i} style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.55, marginBottom: 7 }}>{line}</li>
+                })}
+              </ul>
             </div>
           )}
         </div>
