@@ -13,7 +13,7 @@ export default function PoolLayout({ children }) {
 
   useEffect(function(){
     if (typeof window === "undefined") return
-    if (localStorage.getItem("pc_auth") === "1") setAuthed(true)
+    if ((["ok","1"].indexOf(localStorage.getItem("pc_auth")) >= 0)) setAuthed(true)
     else router.replace("/")
     setChecked(true)
   }, [router])
