@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import { T, FONT_FAMILY } from "@/lib/pipelineTheme"
+import SidebarSearch from "@/components/SidebarSearch"
 
 export default function PoolLayout({ children }) {
   const router = useRouter()
@@ -25,7 +26,8 @@ export default function PoolLayout({ children }) {
   return (
     <div style={{ display: "flex", minHeight: "100vh", fontFamily: FONT_FAMILY, background: T.bg, color: T.textPrimary }}>
       <aside style={{ width: 220, background: T.sidebarBg, color: T.sidebarText, padding: "20px 14px", flexShrink: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1, marginBottom: 24, padding: "0 8px", color: "white" }}>CFO Circle LA</div>
+        <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1, marginBottom: 16, padding: "0 8px", color: "white" }}>CFO Circle LA</div>
+        <SidebarSearch />
         <SidebarLink href="/" label="Dashboard" />
         <SidebarLink href="/pipeline/cfo/pool" label="CFO Pipeline" active={isActive("/pipeline/cfo")} />
         <SidebarLink href="/pipeline/sponsor/pool" label="Sponsors" active={isActive("/pipeline/sponsor")} />

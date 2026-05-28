@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import { T, FONT_FAMILY, FONT_SERIF } from "@/lib/pipelineTheme"
+import SidebarSearch from "@/components/SidebarSearch"
 
 const KEY = "pc_auth"
 
@@ -88,14 +89,15 @@ function Sidebar({ pathname }) {
         </div>
       </div>
 
+      <SidebarSearch />
+
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.6, color: T.sidebarSectionLabel, padding: "0 8px 8px", fontWeight: 500 }}>Workspace</div>
         <SidebarLink href="/" label="Dashboard" />
         <SidebarLink href="/pipeline/cfo/prospect" label="CFO Pipeline" count="55" active={isActive("/pipeline/cfo")} />
         <SidebarLink href="/pipeline/sponsor/pool" label="Sponsors" count="75" active={isActive("/pipeline/sponsor")} />
-        <SidebarLink href="/" label="Events" />
-        <SidebarLink href="/" label="Today" />
-        <SidebarLink href="/" label="Find a person" />
+        <SidebarLink href="/queue/review" label="Review queue" active={isActive("/queue")} />
+        <SidebarLink href="/pool/import" label="Pool" active={isActive("/pool")} />
       </div>
 
       <div style={{ marginBottom: 20 }}>

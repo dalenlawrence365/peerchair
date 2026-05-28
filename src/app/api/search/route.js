@@ -68,6 +68,11 @@ export async function GET(request) {
         company: p.company || null,
         type: rolesToType(p.roles),
         stage: rolesToStage(p.roles, p.cfo_state, p.sponsor_state, p.referral_state),
+        // Routing data for the in-app search bar
+        roles: p.roles || [],
+        cfo_state: p.cfo_state || null,
+        sponsor_state: p.sponsor_state || null,
+        referral_state: p.referral_state || null,
       }
     }),
     companies: (companies || []).map(function(co){
