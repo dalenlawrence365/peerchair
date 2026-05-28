@@ -8,6 +8,7 @@ const CHANNEL_COLOR = { LinkedIn: "#0a66c2", Calendly: "#006bff", Email: "#16a34
 
 const CFO_STAGES = ["pool", "audience", "prospect", "qualified", "member"]
 const SPONSOR_STAGES = ["pool", "audience", "discovery", "proposal", "active"]
+const REFERRAL_STAGES = ["pool", "audience", "active"]
 
 function greeting() {
   const h = new Date().getHours()
@@ -82,6 +83,12 @@ export default function DashboardPage() {
       <div style={{ marginTop: 18 }}>
         <SectionHeader title="Sponsor pipeline by stage" />
         <PipelineBar stages={SPONSOR_STAGES} counts={c.sponsor} hrefBase="/pipeline/sponsor" color={ROLE_COLOR.sponsor_contact} />
+      </div>
+
+      {/* Referral pipeline distribution */}
+      <div style={{ marginTop: 18 }}>
+        <SectionHeader title="Referral partners by stage" />
+        <PipelineBar stages={REFERRAL_STAGES} counts={c.referral} hrefBase="/referral" color={ROLE_COLOR.referral_partner} referralMode />
       </div>
 
       {/* Two-column: Upcoming calls + Recent activity */}
@@ -175,20 +182,21 @@ function SectionHeader({ title }) {
   return <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.7, color: T.textTertiary, fontWeight: 600, margin: "8px 2px 10px" }}>{title}</div>
 }
 
-function PipelineBar({ stages, counts, hrefBase, color }) {
+function PipelineBar({ stages, counts, hrefBase, color, referralMode }) {
   const total = stages.reduce(function(s, k){ return s + (counts[k] || 0) }, 0) || 1
   return (
     <div style={{ display: "flex", gap: 8 }}>
       {stages.map(function(stage){
         const n = counts[stage] || 0
         const pct = Math.round((n / total) * 100)
+        const href = referralMode ? hrefBase : hrefBase + "/" + stage
         return (
-          <Link key={stage} href={hrefBase + "/" + stage} style={{ flex: Math.max(1, n), textDecoration: "none", minWidth: 80 }}>
+          <Link key={stage} href={href} style={{ flex: Math.max(1, n), textDecoration: "none", minWidth: 80 }}>
             <div style={{
               background: T.cardBg, border: "1px solid " + T.border, borderRadius: 8,
               padding: "12px 14px", borderLeft: "3px solid " + color, cursor: "pointer"
             }}>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.textPrimary, lineHeight: 1 }}>{n}</div>
+              <div style={{ fontSize: 22, fontWeight: 600, color: T.textPrimary, lineHeight: 1 }}>{n.toLocaleString()}</div>
               <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 4 }}>{stage}</div>
               <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 2 }}>{pct}%</div>
             </div>
