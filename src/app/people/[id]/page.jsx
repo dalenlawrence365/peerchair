@@ -82,6 +82,37 @@ export default function PersonProfile() {
     reload()
   }
 
+  // For images dragged straight off a web page (e.g. LinkedIn): the browser
+  // gives us a URL, not a file. Send the URL; the server fetches + stores it.
+  async function uploadAvatarFromUrl(url) {
+    if (!url) return
+    setUploading(true); setError(null)
+    try {
+      const r = await fetch(`/api/people/${id}/avatar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_url: url }),
+      })
+      const j = await r.json()
+      if (!r.ok) { setError(j.error || "Upload failed") }
+      else { setShowAvatarEdit(false) }
+    } catch(e) { setError(e.message || String(e)) }
+    setUploading(false)
+    reload()
+  }
+
+  // Pull an image URL out of a drop that carried no file.
+  function urlFromDrop(dt) {
+    let u = (dt.getData("text/uri-list") || "").split("\n").find(function(s){ return s && !s.startsWith("#") })
+    if (!u) {
+      const html = dt.getData("text/html")
+      const m = html && html.match(/<img[^>]+src=["']([^"']+)["']/i)
+      if (m) u = m[1]
+    }
+    if (!u) { const t = dt.getData("text/plain"); if (/^https?:\/\//i.test(t)) u = t.trim() }
+    return u || ""
+  }
+
   function reload() {
     fetch(`/api/people/${id}`)
       .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j } }) })
@@ -216,7 +247,7 @@ export default function PersonProfile() {
             <label
               onDragOver={function(e){ e.preventDefault(); setDragOver(true) }}
               onDragLeave={function(){ setDragOver(false) }}
-              onDrop={function(e){ e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) uploadAvatarFile(f) }}
+              onDrop={function(e){ e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) { uploadAvatarFile(f); return } const u = urlFromDrop(e.dataTransfer); if (u) { uploadAvatarFromUrl(u); return } setError("Couldn't read that drop. Try dragging the image file from your desktop, or click to choose a file.") }}
               style={{
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
                 padding: "24px", border: "2px dashed " + (dragOver ? "#3b82f6" : T.border),
@@ -228,7 +259,7 @@ export default function PersonProfile() {
               <div style={{ fontSize: 13, fontWeight: 500, color: T.textPrimary }}>
                 {uploading ? "Uploading…" : "Drag a photo here, or click to choose"}
               </div>
-              <div style={{ fontSize: 11, color: T.textTertiary }}>JPG, PNG, WEBP or GIF · up to 5MB</div>
+              <div style={{ fontSize: 11, color: T.textTertiary }}>Drag straight from LinkedIn, or a file · JPG/PNG/WEBP/GIF · up to 5MB</div>
             </label>
 
             {/* URL fallback */}
