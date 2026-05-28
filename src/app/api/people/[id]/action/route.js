@@ -89,5 +89,16 @@ export async function POST(request, { params }) {
     return Response.json({ ok: true })
   }
 
+  if (action === "set_avatar") {
+    // body.avatar_url is a URL string, or empty/null to clear it
+    const raw = (body.avatar_url || "").trim()
+    if (raw && !/^https?:\/\//i.test(raw)) {
+      return Response.json({ error: "avatar_url must be an http(s) URL" }, { status: 400 })
+    }
+    const { error } = await sb.from("people").update({ avatar_url: raw || null }).eq("id", id)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ ok: true })
+  }
+
   return Response.json({ error: "unknown action" }, { status: 400 })
 }

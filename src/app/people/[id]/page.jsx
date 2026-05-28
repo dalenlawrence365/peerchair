@@ -37,6 +37,8 @@ export default function PersonProfile() {
   const [busy, setBusy] = useState(false)
   const [newTag, setNewTag] = useState("")
   const [showStateMenu, setShowStateMenu] = useState(false)
+  const [showAvatarEdit, setShowAvatarEdit] = useState(false)
+  const [avatarInput, setAvatarInput] = useState("")
 
   function reload() {
     fetch(`/api/people/${id}`)
@@ -101,7 +103,11 @@ export default function PersonProfile() {
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 14, padding: 24, marginBottom: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24 }}>
           <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flex: 1, minWidth: 0 }}>
-            <Avatar name={p.full_name} src={p.avatar_url} size={56} />
+            <div onClick={function(){ setShowAvatarEdit(!showAvatarEdit) }} title="Click to change photo"
+              style={{ position: "relative", cursor: "pointer", flexShrink: 0 }}>
+              <Avatar name={p.full_name} src={p.avatar_url} size={56} />
+              <div style={{ position: "absolute", bottom: -2, right: -2, width: 20, height: 20, borderRadius: "50%", background: "#3b82f6", border: "2px solid white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "white" }}>✎</div>
+            </div>
             <div style={{ flex: 1, minWidth: 0 }}>
             <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: -0.4, margin: 0 }}>{p.full_name || "(no name)"}</h1>
             <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
@@ -160,6 +166,25 @@ export default function PersonProfile() {
           <Field label="Location" value={p.location} />
           <Field label="Source" value={p.source} />
         </div>
+
+        {/* Avatar editor — toggled by clicking the photo */}
+        {showAvatarEdit && (
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid " + T.borderSoft }}>
+            <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Photo URL</div>
+            <div style={{ fontSize: 12, color: T.textTertiary, marginBottom: 8 }}>
+              Paste an image URL (right-click their LinkedIn photo → &quot;Copy image address&quot;). Leave blank and save to clear.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={avatarInput} onChange={function(e){ setAvatarInput(e.target.value) }}
+                placeholder={p.avatar_url || "https://…"}
+                style={{ flex: 1, maxWidth: 520, padding: "8px 12px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
+              <button disabled={busy} onClick={function(){ postAction({ action: "set_avatar", avatar_url: avatarInput }); setShowAvatarEdit(false); setAvatarInput("") }}
+                style={{ padding: "8px 16px", fontSize: 12, borderRadius: 6, border: "none", background: "#3b82f6", color: "white", cursor: busy ? "not-allowed" : "pointer", fontWeight: 500, fontFamily: "inherit" }}>Save photo</button>
+              <button onClick={function(){ setShowAvatarEdit(false); setAvatarInput("") }}
+                style={{ padding: "8px 14px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Firmographics — captured on the fit call */}
