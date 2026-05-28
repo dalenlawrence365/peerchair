@@ -229,6 +229,16 @@ async function findOrCreateContact(sb, lead, seedBatchTag, eventLabel, poolRow) 
     console.error("Contact insert error:", error.message)
     return null
   }
+
+  // The contacts→people sync trigger (Phase 3) creates/updates a people row
+  // when a contact is inserted, but it does NOT propagate lead_source. Patch
+  // the resulting people row directly so the new app's people.source matches
+  // contacts.lead_source. Only sets if null so we never overwrite a more
+  // specific source set elsewhere.
+  try {
+    await sb.from("people").update({ source: "LinkedIn / LinkedHelper" }).eq("id", newContact.id).is("source", null)
+  } catch(e) { console.error("people.source patch failed:", e.message) }
+
   return { ...newContact, _alreadyExisted: false }
 }
 
