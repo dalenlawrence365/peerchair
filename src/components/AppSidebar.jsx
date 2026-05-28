@@ -24,6 +24,7 @@ const NAV = [
     { label: "Meetings",        href: "/meetings",         matches: function(p){ return p.startsWith("/meetings") } },
   ] },
   { section: "Tools", items: [
+    { label: "Data health",     href: "/health",           matches: function(p){ return p.startsWith("/health") } },
     { label: "Templates",       href: "/templates",        matches: function(p){ return p.startsWith("/templates") } },
     { label: "Pool import",     href: "/pool/import",      matches: function(p){ return p === "/pool/import" } },
     { label: "Pool export",     href: "/pool/export",      matches: function(p){ return p === "/pool/export" } },
