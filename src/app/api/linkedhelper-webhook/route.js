@@ -35,25 +35,57 @@ function normalizeProfileUrl(u) {
   return u.trim().replace(/\/$/, "").replace(/^https:\/\/linkedin\.com/, "https://www.linkedin.com")
 }
 
-// Extract the lead snapshot from common LinkedHelper field aliases
+// Extract the lead snapshot from common LinkedHelper field aliases.
+// 2026-05-28: corrected per LinkedHelper's official webhook payload docs —
+// we were never reading the right field names for replies, hence every
+// reply came in as "(no body included)". The correct primary fields are:
+//   replied_message_1_text     — the reply that triggered the webhook
+//   last_sent_message_text     — most recent message FROM the profile (incoming)
+//   full_messaging_history     — entire conversation history with timestamps
+//   campaign_messaging_history — conversation history within the campaign
+//   is_last_message_incoming   — boolean, who sent the last message
+//   has_unread_messages        — boolean, unread in LinkedHelper inbox
 function extractLead(payload) {
   return {
     profileUrl: normalizeProfileUrl(pick(payload, ["Profile URL", "profileUrl", "profileLink", "Profile link", "profile_url"])),
     firstName: pick(payload, ["First Name", "firstName", "first_name"]),
     lastName: pick(payload, ["Last Name", "lastName", "last_name"]),
     fullName: pick(payload, ["Full Name", "fullName", "Name", "full_name"]),
-    company: pick(payload, ["Company name", "Company Name", "companyName", "Current company", "company", "Company"]),
-    position: pick(payload, ["Position", "Current position", "position", "Title", "Job Title"]),
-    location: pick(payload, ["Location", "location"]),
+    company: pick(payload, ["Company name", "Company Name", "companyName", "Current company", "current_company", "company", "Company"]),
+    position: pick(payload, ["Position", "Current position", "current_company_position", "position", "Title", "Job Title"]),
+    location: pick(payload, ["Location", "location", "location_name"]),
     email: pick(payload, ["Email", "email", "Email Address", "emailAddress"]),
-    campaign: pick(payload, ["Campaign name", "Campaign", "campaignName", "campaign"]),
-    // Tags may arrive as array, comma-separated string, or single string
+    campaign: pick(payload, ["Campaign name", "Campaign", "campaignName", "campaign", "campaign_name"]),
     tagsRaw: payload.Tags || payload.tags || payload.tag || null,
-    // For reply events
-    lastReply: pick(payload, ["Last reply", "lastReply", "Last message body", "last_reply", "Reply", "reply"]),
+    // REPLY TEXT — preferred order: the triggering reply, then last incoming, then old/legacy aliases
+    lastReply: pick(payload, [
+      "replied_message_1_text", "repliedMessageText",
+      "last_sent_message_text", "lastSentMessageText",
+      "Last reply", "lastReply", "Last message body", "last_reply", "Reply", "reply"
+    ]),
+    repliedMessageFrom: pick(payload, ["replied_message_1_from", "repliedMessageFrom"]),
+    repliedMessageSendAtIso: pick(payload, ["replied_message_1_send_at_iso", "repliedMessageSendAtIso"]),
+    repliedMessageSendAt: pick(payload, ["replied_message_1_send_at", "repliedMessageSendAt"]),
+    // FULL CONVERSATION HISTORY — full preferred, campaign-scoped as fallback
+    threadHistory: pick(payload, ["full_messaging_history", "fullMessagingHistory", "campaign_messaging_history", "campaignMessagingHistory"]),
+    // INBOX SIGNALS — for the future "replies to review" queue
+    isLastMessageIncoming: parseBool(payload.is_last_message_incoming ?? payload.isLastMessageIncoming),
+    hasUnreadMessages: parseBool(payload.has_unread_messages ?? payload.hasUnreadMessages),
+    // Legacy alias kept for older callers
     lastMessage: pick(payload, ["Last message", "lastMessage", "last_message"]),
     messagingHistory: payload["Messaging history"] || payload.messagingHistory || payload.messaging_history || null
   }
+}
+
+// LinkedHelper sends booleans as actual booleans OR as strings "true"/"false"
+function parseBool(v) {
+  if (v === true || v === false) return v
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase()
+    if (s === "true") return true
+    if (s === "false") return false
+  }
+  return null
 }
 
 function tagsToArray(tagsRaw) {
@@ -105,6 +137,20 @@ export async function POST(request) {
     const keysDump = Object.entries(root).map(([k,v]) => `${k}=${String(v).slice(0,40).replace(/\n/g," ")}`).join(" || ")
     console.log(`LH-RAW-KEYS [${event}]: ${keysDump.slice(0, 2500)}`)
   } catch(e) {}
+
+  // Persistent raw-payload audit — written to audit_log every event so we can
+  // verify field names, debug regressions, and reconstruct events without
+  // relying on Vercel log retention.
+  try {
+    let rawJson = ""
+    try { rawJson = JSON.stringify(root) } catch(e) { rawJson = "(non-serializable payload)" }
+    await sb.from("audit_log").insert({
+      run_at: new Date().toISOString(),
+      audit_type: `linkedhelper_${event}`,
+      summary: `lead=${lead.fullName || "?"} url=${lead.profileUrl || "?"} | raw=${rawJson.slice(0, 8000)}`,
+      errors: []
+    })
+  } catch(e) { console.error("audit_log write failed:", e.message) }
 
   try {
     if (event === "sent") {
@@ -314,7 +360,7 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
     const cutoff = new Date(Date.now() - 7*24*60*60*1000).toISOString()
     const { data: existing } = await sb.from("communications")
       .select("id")
-      .eq("contact_id", contact.id)
+      .or(`person_id.eq.${contact.id},contact_id.eq.${contact.id}`)
       .eq("direction", "IN")
       .eq("channel", "LinkedIn")
       .ilike("body", `%${replyText.slice(0, 60).replace(/[%_]/g, "")}%`)
@@ -334,12 +380,27 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
     last_activity_date: new Date().toISOString()
   }).eq("id", contact.id)
 
+  // 2026-05-28: capture LinkedIn thread snapshot + inbox signals on the people row.
+  // LinkedHelper now sends full_messaging_history (entire thread w/ timestamps),
+  // is_last_message_incoming, and has_unread_messages — store them for fast lookup
+  // and to drive the future inbox/replies-to-review queue without scraping LinkedIn.
+  const peoplePatch = { last_meaningful_touch: new Date().toISOString() }
+  if (lead.threadHistory) {
+    peoplePatch.linkedin_thread_snapshot = lead.threadHistory
+    peoplePatch.linkedin_thread_updated_at = new Date().toISOString()
+  }
+  if (lead.isLastMessageIncoming !== null) peoplePatch.linkedin_last_message_incoming = lead.isLastMessageIncoming
+  if (lead.hasUnreadMessages !== null)    peoplePatch.linkedin_has_unread = lead.hasUnreadMessages
+  await sb.from("people").update(peoplePatch).eq("id", contact.id)
+
+  // Log the reply communication — dual-write person_id + contact_id
   await sb.from("communications").insert({
+    person_id: contact.id,
     contact_id: contact.id,
     direction: "IN",
     channel: "LinkedIn",
     body: replyText || "(LinkedHelper reported a reply but no body was included)",
-    occurred_at: new Date().toISOString(),
+    occurred_at: lead.repliedMessageSendAtIso || new Date().toISOString(),
     step_label: "Reply Received",
     source: "LinkedHelper"
   })
