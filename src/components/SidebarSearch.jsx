@@ -48,14 +48,8 @@ export default function SidebarSearch() {
   }, [])
 
   function routeFor(r) {
-    if (r.kind !== "person") return null
-    const roles = r.roles || []
-    // Pick the most-engaged role to route to
-    if (roles.includes("cfo") && r.cfo_state) return `/pipeline/cfo/${r.cfo_state}?person=${r.id}`
-    if (roles.includes("sponsor_contact") && r.sponsor_state) return `/pipeline/sponsor/${r.sponsor_state}?person=${r.id}`
-    if (roles.includes("referral_partner")) return `/pipeline/cfo/prospect?person=${r.id}`  // no dedicated route yet
-    // Fallback: try cfo pipeline at pool
-    return `/pipeline/cfo/pool?person=${r.id}`
+    if (r.kind === "person") return `/people/${r.id}`
+    return null   // companies — no detail page yet
   }
 
   function selectResult(r) {

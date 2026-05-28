@@ -106,7 +106,7 @@ export default function ReviewQueuePage() {
                     </button>
                   )
                 })}
-                <Link href={`/pipeline/cfo/${p.cfo_state || "prospect"}?person=${p.id}`} style={{ marginLeft: "auto", fontSize: 12, color: T.accent, textDecoration: "none" }}>Open profile →</Link>
+                <Link href={`/people/${p.id}`} style={{ marginLeft: "auto", fontSize: 12, color: T.accent, textDecoration: "none" }}>Open profile →</Link>
               </div>
             </div>
           )
