@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { T } from "@/lib/pipelineTheme"
+import Avatar from "@/components/Avatar"
 
 // Fit Call Companion — live script + firmographics capture for a CFO fit call.
 // Saves everything as a structured note to the person's timeline and advances
@@ -41,8 +42,8 @@ const OWN = ["Privately Held", "PE-Backed", "Founder-Led", "Family-Owned", "Publ
 const RPT = ["CEO", "Owner / Founder", "Board", "President / COO"]
 const IND = ["Entertainment / Media", "Technology", "Real Estate", "Healthcare", "Manufacturing", "Professional Services", "Financial Services", "Consumer / Retail", "Construction", "Non-Profit", "Other"]
 const PRESSURE = ["Cash & working capital", "Forecasting & KPIs", "Leadership accountability", "Talent & staffing", "Systems & reporting", "Managing up (CEO/Board)", "AI readiness & finance transformation"]
-const CUES = ["Isolation / lonely in the seat", "Wants to elevate to strategic", "Complexity outpacing systems", "Managing-up pressure", "PE / investor pressure", "Transaction / exit planning", "Talent gaps in finance", "KPI & forecasting discipline", "Reactive decision making"]
-const FLAGS = ["Won't commit to participation", "Sales intent / wants to pitch", "Dominant ego / knows-it-all", "Uncomfortable w/ confidentiality", "Not primary finance exec", "Company too small or large"]
+const CUES = ["Will commit the time", "Isolation / lonely in the seat", "Wants to elevate to strategic", "Complexity outpacing systems", "Managing-up pressure", "PE / investor pressure", "Transaction / exit planning", "Talent gaps in finance", "KPI & forecasting discipline", "Reactive decision making"]
+const FLAGS = ["Concerned about cost", "Won't commit to participation", "Sales intent / wants to pitch", "Dominant ego / knows-it-all", "Uncomfortable w/ confidentiality", "Not primary finance exec", "Company too small or large"]
 const OUTCOMES = [
   { v: "strong_fit", l: "Strong Fit", c: "#16a34a", state: "qualified" },
   { v: "possible_fit", l: "Possible Fit", c: "#d97706", state: "prospect" },
@@ -64,13 +65,26 @@ export default function FitCallPage() {
   const [cues, setCues] = useState([])
   const [flags, setFlags] = useState([])
   const [outcome, setOutcome] = useState("")
+  const [stage, setStage] = useState("")
   const [notes, setNotes] = useState("")
   const [done, setDone] = useState({})
 
   useEffect(function(){
     if (!id) return
     fetch(`/api/people/${id}`).then(r => r.json()).then(function(d){
-      if (d.error) setError(d.error); else setPerson(d.person)
+      if (d.error) setError(d.error)
+      else {
+        setPerson(d.person)
+        // Prefill from any existing firmographics so a re-do doesn't start blank
+        const fg = d.person && d.person.firmographics
+        if (fg) {
+          setF({ rev: fg.revenue || "", emp: fg.employees || "", fin: fg.finance_team || "", own: fg.ownership || "", rpt: fg.reports_to || "", ind: fg.industry || "" })
+          if (Array.isArray(fg.pressure_points)) setPressure(fg.pressure_points)
+          if (Array.isArray(fg.buying_cues)) setCues(fg.buying_cues)
+          if (Array.isArray(fg.red_flags)) setFlags(fg.red_flags)
+        }
+        if (d.person && d.person.cfo_state) setStage(d.person.cfo_state)
+      }
     }).catch(e => setError(e.message || String(e)))
   }, [id])
 
@@ -83,9 +97,16 @@ export default function FitCallPage() {
   async function save() {
     setSaving(true)
     const oc = OUTCOMES.find(o => o.v === outcome)
-    const body =
+    const today = new Date().toISOString().slice(0, 10)
+    const firmographics = {
+      revenue: f.rev, employees: f.emp, finance_team: f.fin,
+      ownership: f.own, reports_to: f.rpt, industry: f.ind,
+      pressure_points: pressure, buying_cues: cues, red_flags: flags,
+      last_fit_call: today, last_outcome: outcome || null, notes: notes || null,
+    }
+    const noteBody =
       `FIT CALL — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}\n` +
-      `Outcome: ${oc ? oc.l : "(not set)"}\n\n` +
+      `Outcome: ${oc ? oc.l : "(not set)"}${stage ? ` · Stage set to: ${stage}` : ""}\n\n` +
       `FIRMOGRAPHICS\n` +
       `· Revenue: ${f.rev || "—"}\n· Employees: ${f.emp || "—"}\n· Finance team: ${f.fin || "—"}\n` +
       `· Ownership: ${f.own || "—"}\n· Reports to: ${f.rpt || "—"}\n· Industry: ${f.ind || "—"}\n\n` +
@@ -94,10 +115,16 @@ export default function FitCallPage() {
       `RED FLAGS: ${flags.join(", ") || "—"}\n\n` +
       `NOTES\n${notes || "—"}`
     try {
-      await fetch(`/api/people/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "note", body }) })
-      if (oc && oc.state) {
-        await fetch(`/api/people/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "set_state", role: "cfo", state: oc.state }) })
+      // 1. Structured firmographics (so the profile can display them)
+      await fetch(`/api/people/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "set_firmographics", firmographics }) })
+      // 2. Timeline note (human-readable narrative)
+      await fetch(`/api/people/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "note", body: noteBody }) })
+      // 3. Stage — explicit choice wins; fall back to the outcome default
+      const targetStage = stage || (oc && oc.state)
+      if (targetStage) {
+        await fetch(`/api/people/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "set_state", role: "cfo", state: targetStage }) })
       }
+      // 4. Completed tag
       await fetch(`/api/people/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "add_tag", tag: "fit_call_completed", notes: oc ? oc.l : null }) })
       setSaved(true)
     } catch(e) { setError(e.message || String(e)) }
@@ -111,10 +138,13 @@ export default function FitCallPage() {
     <main style={{ padding: "20px 28px 80px", maxWidth: 1280 }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-        <div>
-          <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.6 }}>Fit Call</div>
-          <h1 style={{ fontSize: 24, fontWeight: 600, margin: "2px 0 0" }}>{person.full_name}</h1>
-          <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>{[person.title, person.company].filter(Boolean).join(" · ")}</div>
+        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+          <Avatar name={person.full_name} src={person.avatar_url} size={52} />
+          <div>
+            <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.6 }}>Fit Call</div>
+            <h1 style={{ fontSize: 24, fontWeight: 600, margin: "2px 0 0" }}>{person.full_name}</h1>
+            <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>{[person.title, person.company].filter(Boolean).join(" · ")}</div>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {person.linkedin_url && <a href={person.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, padding: "7px 12px", borderRadius: 6, background: "#0a66c2", color: "white", textDecoration: "none", fontWeight: 500 }}>LinkedIn ↗</a>}
@@ -169,7 +199,17 @@ export default function FitCallPage() {
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
             {OUTCOMES.map(function(o){
               const on = outcome === o.v
-              return <div key={o.v} onClick={function(){ setOutcome(o.v) }} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? o.c : T.border), background: on ? o.c : "white", color: on ? "white" : T.textSecondary, fontWeight: on ? 600 : 400 }}>{o.l}</div>
+              return <div key={o.v} onClick={function(){ setOutcome(o.v); if (o.state) setStage(o.state) }} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? o.c : T.border), background: on ? o.c : "white", color: on ? "white" : T.textSecondary, fontWeight: on ? 600 : 400 }}>{o.l}</div>
+            })}
+          </div>
+
+          {/* Explicit stage — defaults from outcome, but you can override.
+              (e.g. Possible Fit but still qualify her for an Experience Event) */}
+          <div style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, margin: "4px 0 6px" }}>Move to stage</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+            {["prospect", "qualified", "member"].map(function(s){
+              const on = stage === s
+              return <div key={s} onClick={function(){ setStage(s) }} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: "1px solid " + (on ? "#2563eb" : T.border), background: on ? "#2563eb" : "white", color: on ? "white" : T.textSecondary, fontWeight: on ? 600 : 400, textTransform: "capitalize" }}>{s}</div>
             })}
           </div>
 

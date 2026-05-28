@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { T } from "@/lib/pipelineTheme"
+import Avatar from "@/components/Avatar"
 
 const ROLE_LABEL = { cfo: "CFO", sponsor_contact: "Sponsor Contact", referral_partner: "Referral Partner" }
 const ROLE_COLOR = { cfo: "#d97706", sponsor_contact: "#a855f7", referral_partner: "#10b981" }
@@ -99,7 +100,9 @@ export default function PersonProfile() {
       {/* Header */}
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 14, padding: 24, marginBottom: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flex: 1, minWidth: 0 }}>
+            <Avatar name={p.full_name} src={p.avatar_url} size={56} />
+            <div style={{ flex: 1, minWidth: 0 }}>
             <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: -0.4, margin: 0 }}>{p.full_name || "(no name)"}</h1>
             <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
               {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
@@ -140,6 +143,7 @@ export default function PersonProfile() {
               )}
             </div>
           </div>
+          </div>
           {p.linkedin_url && (
             <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer" style={{
               fontSize: 12, padding: "7px 12px", borderRadius: 6,
@@ -157,6 +161,33 @@ export default function PersonProfile() {
           <Field label="Source" value={p.source} />
         </div>
       </div>
+
+      {/* Firmographics — captured on the fit call */}
+      {p.firmographics && (
+        <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>Firmographics</div>
+            {p.firmographics.last_fit_call && <div style={{ fontSize: 11, color: T.textTertiary }}>Fit call {fmtShort(p.firmographics.last_fit_call)}</div>}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 14 }}>
+            <Field label="Revenue" value={p.firmographics.revenue} />
+            <Field label="Employees" value={p.firmographics.employees} />
+            <Field label="Finance team" value={p.firmographics.finance_team} />
+            <Field label="Ownership" value={p.firmographics.ownership} />
+            <Field label="Reports to" value={p.firmographics.reports_to} />
+            <Field label="Industry" value={p.firmographics.industry} />
+          </div>
+          <ChipRow label="Pressure points" items={p.firmographics.pressure_points} color="#3b82f6" />
+          <ChipRow label="Buying cues" items={p.firmographics.buying_cues} color="#16a34a" />
+          <ChipRow label="Red flags" items={p.firmographics.red_flags} color="#dc2626" />
+          {p.firmographics.notes && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid " + T.borderSoft }}>
+              <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>Call notes</div>
+              <div style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{p.firmographics.notes}</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Status & action tags — always visible (editable) */}
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
@@ -275,6 +306,20 @@ function Field({ label, value }) {
     <div>
       <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{label}</div>
       <div style={{ fontSize: 13, color: value ? T.textPrimary : T.textTertiary }}>{value || "—"}</div>
+    </div>
+  )
+}
+
+function ChipRow({ label, items, color }) {
+  if (!items || items.length === 0) return null
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>{label}</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {items.map(function(it, i){
+          return <span key={i} style={{ fontSize: 12, padding: "3px 9px", borderRadius: 6, background: color + "15", color: color, border: "1px solid " + color + "40" }}>{it}</span>
+        })}
+      </div>
     </div>
   )
 }

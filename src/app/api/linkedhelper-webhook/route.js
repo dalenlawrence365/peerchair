@@ -55,6 +55,7 @@ function extractLead(payload) {
     position: pick(payload, ["Position", "Current position", "current_company_position", "position", "Title", "Job Title"]),
     location: pick(payload, ["Location", "location", "location_name"]),
     email: pick(payload, ["Email", "email", "Email Address", "emailAddress"]),
+    avatar: pick(payload, ["avatar", "avatar_url", "Avatar", "photo", "profile_picture"]),
     campaign: pick(payload, ["Campaign name", "Campaign", "campaignName", "campaign", "campaign_name"]),
     tagsRaw: payload.Tags || payload.tags || payload.tag || null,
     // REPLY TEXT — preferred order: the triggering reply, then last incoming, then old/legacy aliases
@@ -238,6 +239,13 @@ async function findOrCreateContact(sb, lead, seedBatchTag, eventLabel, poolRow) 
   try {
     await sb.from("people").update({ source: "LinkedIn / LinkedHelper" }).eq("id", newContact.id).is("source", null)
   } catch(e) { console.error("people.source patch failed:", e.message) }
+
+  // Capture LinkedIn avatar photo if LinkedHelper sent one and we don't have it yet
+  if (lead.avatar) {
+    try {
+      await sb.from("people").update({ avatar_url: lead.avatar }).eq("id", newContact.id).is("avatar_url", null)
+    } catch(e) { console.error("people.avatar_url patch failed:", e.message) }
+  }
 
   return { ...newContact, _alreadyExisted: false }
 }

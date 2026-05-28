@@ -79,5 +79,15 @@ export async function POST(request, { params }) {
     return Response.json({ ok: true })
   }
 
+  if (action === "set_firmographics") {
+    // body.firmographics is the full JSONB object
+    if (!body.firmographics || typeof body.firmographics !== "object") {
+      return Response.json({ error: "firmographics object required" }, { status: 400 })
+    }
+    const { error } = await sb.from("people").update({ firmographics: body.firmographics, last_meaningful_touch: new Date().toISOString() }).eq("id", id)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ ok: true })
+  }
+
   return Response.json({ error: "unknown action" }, { status: 400 })
 }

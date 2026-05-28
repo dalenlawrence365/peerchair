@@ -48,7 +48,7 @@ export async function GET(request) {
 
   const [{ data: people }, { data: companies }] = await Promise.all([
     sb.from("people")
-      .select("id, first_name, last_name, full_name, title, company, email, roles, cfo_state, sponsor_state, referral_state")
+      .select("id, first_name, last_name, full_name, title, company, email, roles, cfo_state, sponsor_state, referral_state, avatar_url")
       .or(`full_name.ilike.%${safe}%,first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,company.ilike.%${safe}%,email.ilike.%${safe}%`)
       .limit(8),
     sb.from("companies")
@@ -67,6 +67,7 @@ export async function GET(request) {
         title: p.title || null,
         company: p.company || null,
         type: rolesToType(p.roles),
+        avatar_url: p.avatar_url || null,
         stage: rolesToStage(p.roles, p.cfo_state, p.sponsor_state, p.referral_state),
         // Routing data for the in-app search bar
         roles: p.roles || [],

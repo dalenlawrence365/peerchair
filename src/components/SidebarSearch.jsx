@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { T } from "@/lib/pipelineTheme"
+import Avatar from "@/components/Avatar"
 
 // SidebarSearch — find any person from any page in the new app.
 // Routes to the right pipeline view + person query param so the workbench
@@ -128,6 +129,7 @@ export default function SidebarSearch() {
                   background: badge.color, color: "white", fontWeight: 600,
                   flexShrink: 0, minWidth: 32, textAlign: "center"
                 }}>{badge.label}</span>
+                {r.kind === "person" && <Avatar name={r.name} src={r.avatar_url} size={26} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
                   <div style={{ fontSize: 11, color: "#666", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
