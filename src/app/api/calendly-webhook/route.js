@@ -56,32 +56,33 @@ export async function POST(request) {
                     eventName.toLowerCase().includes("cfo circle")
   const isSponsor = eventName.toLowerCase().includes("sponsor")
 
-  // Find contact by email
+  // Find person by email (people, not legacy contacts)
   let contact = null
-  const { data: byEmail } = await sb.from("contacts")
-    .select("id, first_name, last_name, contact_type, pipeline_stage")
-    .eq("email", email)
-    .maybeSingle()
+  let matchedBy = null
+  if (email) {
+    const { data: byEmail } = await sb.from("people")
+      .select("id, first_name, last_name, full_name, roles, cfo_state, sponsor_state, email")
+      .ilike("email", email)
+      .maybeSingle()
+    if (byEmail) { contact = byEmail; matchedBy = "email" }
+  }
 
-  if (byEmail) {
-    contact = byEmail
-  } else {
-    // Try name match
+  if (!contact) {
+    // Fall back to name match
     const parts = name.trim().split(" ")
     const firstName = parts[0] || ""
     const lastName = parts.slice(1).join(" ") || ""
     if (firstName) {
-      const { data: byName } = await sb.from("contacts")
-        .select("id, first_name, last_name, contact_type, pipeline_stage")
+      const { data: byName } = await sb.from("people")
+        .select("id, first_name, last_name, full_name, roles, cfo_state, sponsor_state, email")
         .ilike("first_name", firstName)
         .ilike("last_name", `%${lastName}%`)
         .maybeSingle()
-      if (byName) contact = byName
+      if (byName) { contact = byName; matchedBy = "name" }
     }
   }
 
   if (!contact) {
-    // Log unmatched booking
     console.log(`Unmatched Calendly booking: ${name} (${email})`)
     await sb.from("webhook_unmatched").insert({
       event_type: "calendly_booking",
@@ -95,19 +96,40 @@ export async function POST(request) {
     return json({ ok: true, matched: false, message: "Logged to unmatched" })
   }
 
-  // Determine new stage
-  let newStage = contact.pipeline_stage
+  // If matched by name and the person had no email stored, backfill it so
+  // future Calendly events match by email directly.
+  if (matchedBy === "name" && email && !contact.email) {
+    await sb.from("people").update({ email }).eq("id", contact.id)
+  }
+
+  // Advance the appropriate per-role state via the centralized function.
+  // Fit call → CFO prospect; sponsor discovery → sponsor discovery.
+  // Booking a call is an explicit, unambiguous forward signal, so advancing
+  // here is consistent with the no-auto-promote-on-vague-intent rule.
+  if (isFitCall && (contact.roles || []).includes("cfo")) {
+    if (["pool", "audience"].includes(contact.cfo_state)) {
+      await sb.rpc("set_role_state", { p_person_id: contact.id, p_role: "cfo", p_new_state: "prospect", p_set_by: "calendly_webhook" })
+    }
+    await sb.rpc("set_action_tag", { p_person_id: contact.id, p_action_type: "fit_call_scheduled", p_set_by: "calendly_webhook", p_notes: `${eventName} @ ${startTime}` })
+  } else if (isSponsor && (contact.roles || []).includes("sponsor_contact")) {
+    if (["pool", "audience"].includes(contact.sponsor_state)) {
+      await sb.rpc("set_role_state", { p_person_id: contact.id, p_role: "sponsor_contact", p_new_state: "discovery", p_set_by: "calendly_webhook" })
+    }
+    await sb.rpc("set_action_tag", { p_person_id: contact.id, p_action_type: "sponsor_discovery_scheduled", p_set_by: "calendly_webhook", p_notes: `${eventName} @ ${startTime}` })
+  }
+
+  // Keep legacy contacts.pipeline_stage in sync for any migrated row (no-op for people-only)
+  let newStage = null
   if (isFitCall) newStage = "Fit Call Scheduled"
   else if (isSponsor) newStage = "Discovery Sched."
+  if (newStage) {
+    await sb.from("contacts").update({ pipeline_stage: newStage, last_activity_date: new Date().toISOString() }).eq("id", contact.id)
+  }
+  await sb.from("people").update({ last_meaningful_touch: new Date().toISOString() }).eq("id", contact.id)
 
-  // Update contact stage and activity
-  await sb.from("contacts").update({
-    pipeline_stage: newStage,
-    last_activity_date: new Date().toISOString()
-  }).eq("id", contact.id)
-
-  // Log the booking
+  // Log the booking — dual-write person_id + contact_id
   await sb.from("communications").insert({
+    person_id: contact.id,
     contact_id: contact.id,
     direction: "IN",
     channel: "Calendly",
@@ -117,14 +139,14 @@ export async function POST(request) {
     source: "Calendly"
   })
 
-  console.log(`${contact.first_name} ${contact.last_name} moved to ${newStage}`)
+  console.log(`${contact.full_name || contact.first_name} booking logged (matched by ${matchedBy})`)
 
   return json({
     ok: true,
     matched: true,
+    matched_by: matchedBy,
     contact_id: contact.id,
-    name: `${contact.first_name} ${contact.last_name}`,
-    new_stage: newStage,
+    name: contact.full_name || `${contact.first_name} ${contact.last_name}`,
     event: eventName,
     scheduled_for: startTime
   })
