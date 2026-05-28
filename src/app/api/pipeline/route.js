@@ -46,7 +46,7 @@ export async function GET(request) {
   let list = null
   if (stage && cfg.listable.indexOf(stage) >= 0) {
     const { data: people } = await sb.from("people")
-      .select("id, full_name, first_name, last_name, title, company, email, linkedin_url, " + cfg.field + ", last_meaningful_touch, next_action_date")
+      .select("id, full_name, first_name, last_name, title, company, email, linkedin_url, avatar_url, " + cfg.field + ", last_meaningful_touch, next_action_date")
       .eq(cfg.field, stage)
       .order("last_meaningful_touch", { ascending: false, nullsFirst: false })
       .limit(500)
@@ -54,6 +54,7 @@ export async function GET(request) {
       return {
         id: p.id, name: p.full_name || `${p.first_name||""} ${p.last_name||""}`.trim(),
         title: p.title, company: p.company, email: p.email, linkedin_url: p.linkedin_url,
+        avatar_url: p.avatar_url || null,
         stage: p[cfg.field], last_touch: p.last_meaningful_touch, next_action: p.next_action_date,
       }
     })

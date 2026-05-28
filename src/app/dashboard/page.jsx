@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { T, FONT_SERIF } from "@/lib/pipelineTheme"
+import Avatar from "@/components/Avatar"
 
 const ROLE_COLOR = { cfo: "#d97706", sponsor_contact: "#a855f7", referral_partner: "#10b981" }
 const CHANNEL_COLOR = { LinkedIn: "#0a66c2", Calendly: "#006bff", Email: "#16a34a", Note: "#6b7280", Phone: "#f97316" }
@@ -223,11 +224,14 @@ function Empty({ msg }) {
 function PersonRow({ person, subtitle, time }) {
   return (
     <Link href={`/people/${person.id}`} style={{ textDecoration: "none", color: T.textPrimary }}>
-      <div style={{ padding: "8px 0", borderBottom: "1px solid " + (T.borderSoft || "rgba(0,0,0,0.04)"), display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{person.full_name}</div>
-          <div style={{ fontSize: 11, color: T.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {[person.title, person.company].filter(Boolean).join(" · ") || subtitle}
+      <div style={{ padding: "8px 0", borderBottom: "1px solid " + (T.borderSoft || "rgba(0,0,0,0.04)"), display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+          <Avatar name={person.full_name} src={person.avatar_url} size={32} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{person.full_name}</div>
+            <div style={{ fontSize: 11, color: T.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {[person.title, person.company].filter(Boolean).join(" · ") || subtitle}
+            </div>
           </div>
         </div>
         <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{time}</div>

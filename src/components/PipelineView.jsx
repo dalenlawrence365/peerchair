@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { T } from "@/lib/pipelineTheme"
+import Avatar from "@/components/Avatar"
 
 const STAGE_LABEL = {
   pool: "Pool", audience: "Audience", prospect: "Prospect", qualified: "Qualified", member: "Member",
@@ -104,6 +105,7 @@ export default function PipelineView({ type, stage }) {
             return (
               <Link key={p.id} href={`/people/${p.id}`} style={{ textDecoration: "none", color: T.textPrimary }}>
                 <div style={{ padding: "12px 16px", borderBottom: i < data.list.length - 1 ? "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)") : "none", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+                  <Avatar name={p.name} src={p.avatar_url} size={36} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</div>
                     <div style={{ fontSize: 12, color: T.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

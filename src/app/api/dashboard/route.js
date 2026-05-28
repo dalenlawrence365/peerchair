@@ -65,7 +65,7 @@ export async function GET() {
 
   const fitPersonIds = (fitCallTags || []).map(t => t.person_id)
   const { data: fitPeople } = fitPersonIds.length > 0
-    ? await sb.from("people").select("id, full_name, title, company, cfo_state").in("id", fitPersonIds)
+    ? await sb.from("people").select("id, full_name, title, company, cfo_state, avatar_url").in("id", fitPersonIds)
     : { data: [] }
   const fitPersonById = {}
   ;(fitPeople || []).forEach(function(p){ fitPersonById[p.id] = p })
@@ -82,7 +82,7 @@ export async function GET() {
     .limit(20)
   const sdIds = (sdTags || []).map(t => t.person_id)
   const { data: sdPeople } = sdIds.length > 0
-    ? await sb.from("people").select("id, full_name, title, company, sponsor_state").in("id", sdIds)
+    ? await sb.from("people").select("id, full_name, title, company, sponsor_state, avatar_url").in("id", sdIds)
     : { data: [] }
   const sdById = {}
   ;(sdPeople || []).forEach(function(p){ sdById[p.id] = p })
@@ -98,7 +98,7 @@ export async function GET() {
 
   const actPersonIds = [...new Set((activityRaw || []).map(c => c.person_id || c.contact_id).filter(Boolean))]
   const { data: actPeople } = actPersonIds.length > 0
-    ? await sb.from("people").select("id, full_name").in("id", actPersonIds)
+    ? await sb.from("people").select("id, full_name, avatar_url").in("id", actPersonIds)
     : { data: [] }
   const actById = {}
   ;(actPeople || []).forEach(function(p){ actById[p.id] = p })
@@ -109,7 +109,7 @@ export async function GET() {
       id: c.id, occurred_at: c.occurred_at, channel: c.channel,
       direction: c.direction, step_label: c.step_label,
       body: c.body ? (c.body.length > 140 ? c.body.slice(0, 140) + "…" : c.body) : null,
-      person_id: id, person_name: p ? p.full_name : "(unknown)"
+      person_id: id, person_name: p ? p.full_name : "(unknown)", avatar_url: p ? p.avatar_url : null,
     }
   })
 
