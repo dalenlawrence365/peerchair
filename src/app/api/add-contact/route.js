@@ -4,11 +4,25 @@ import { corsResponse, handleOptions } from "@/lib/cors"
 import { createClient } from "@supabase/supabase-js"
 import { getAccessToken } from "@/lib/microsoft-auth"
 
+// GPT Action: add a contact (and optionally an Outlook contact).
+// CHANGED 2026-05-27: writes to unified `people` table instead of legacy
+// `contacts`. Previously GPT-added people landed in contacts only, making
+// them invisible to the app's people-based views (and vice-versa). Now a
+// single source of truth.
+
 export async function OPTIONS() { return handleOptions() }
 
+// Map GPT's legacy contact_type to the new roles array + the per-role state field
+function contactTypeToRole(ct) {
+  switch (ct) {
+    case "SPONSOR_CONTACT":  return "sponsor_contact"
+    case "REFERRAL_PARTNER": return "referral_partner"
+    case "CFO_PROSPECT":
+    default:                 return "cfo"
+  }
+}
+
 async function addToOutlook({ first_name, last_name, email, company, title, phone }) {
-  // Returns { ok: true } on success, { ok: false, reason } on failure.
-  // Never throws — callers can ignore the failure and still report PeerChair success.
   try {
     const accessToken = await getAccessToken()
     const outlookContact = {
@@ -46,7 +60,7 @@ export async function POST(request) {
     return corsResponse({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const { first_name, last_name, email, company, title, phone, contact_type, add_to_outlook } = body
+  const { first_name, last_name, email, company, title, phone, contact_type, add_to_outlook, stage } = body
 
   if (!email || !first_name) {
     return corsResponse({ error: "first_name and email are required" }, { status: 400 })
@@ -57,10 +71,10 @@ export async function POST(request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )
 
-  // Check if already in PeerChair
-  const { data: existing } = await sb.from("contacts").select("id").eq("email", email).maybeSingle()
+  // Dedup against people by email
+  const { data: existing } = await sb.from("people").select("id").ilike("email", email).maybeSingle()
 
-  // EXISTING CONTACT PATH
+  // EXISTING PERSON PATH
   if (existing) {
     if (add_to_outlook === false) {
       return corsResponse({
@@ -83,18 +97,26 @@ export async function POST(request) {
     })
   }
 
-  // NEW CONTACT PATH
-  const { data: newContact, error: pcError } = await sb.from("contacts").insert({
+  // NEW PERSON PATH — default state is 'pool' (safe; advance manually)
+  const role = contactTypeToRole(contact_type)
+  const safeStage = stage || "pool"
+  const insertRow = {
     first_name,
     last_name: last_name || "",
+    full_name: `${first_name} ${last_name || ""}`.trim(),
     email,
-    company_name: company || null,
+    company: company || null,
     title: title || null,
     phone: phone || null,
-    contact_type: contact_type || "CFO_PROSPECT",
-    lead_source: "Email Inbox",
-    created_at: new Date().toISOString()
-  }).select("id").single()
+    roles: [role],
+    cfo_state:      role === "cfo" ? safeStage : null,
+    sponsor_state:  role === "sponsor_contact" ? safeStage : null,
+    referral_state: role === "referral_partner" ? safeStage : null,
+    source: "gpt-add-from-inbox",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+  const { data: newPerson, error: pcError } = await sb.from("people").insert(insertRow).select("id").single()
 
   if (pcError) return corsResponse({ error: "PeerChair insert failed: " + pcError.message }, { status: 500 })
 
@@ -102,7 +124,7 @@ export async function POST(request) {
     return corsResponse({
       success: true,
       message: `${first_name} ${last_name || ""} added to PeerChair.`,
-      contact_id: newContact.id,
+      contact_id: newPerson.id,
       outlook_added: false
     })
   }
@@ -112,7 +134,7 @@ export async function POST(request) {
     success: true,
     message: `${first_name} ${last_name || ""} added to PeerChair${outlook.ok ? " and Outlook contacts" : ""}` +
       (outlook.ok ? "." : ` (Outlook add failed: ${outlook.reason}).`),
-    contact_id: newContact.id,
+    contact_id: newPerson.id,
     outlook_added: outlook.ok,
     ...(outlook.ok ? {} : { outlook_error: outlook.reason })
   })
