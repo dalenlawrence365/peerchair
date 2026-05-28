@@ -1,0 +1,131 @@
+export const dynamic = "force-dynamic"
+import { createClient } from "@supabase/supabase-js"
+
+// GET /api/dashboard — one-shot data fetch for the new dashboard.
+// Returns:
+//   counts.cfo / counts.sponsor / counts.referral — distributions by state
+//   counts.totals — top-line numbers
+//   queues — counts for review_queue, follow_up (reply_received), needs_role_review
+//   fit_calls — upcoming fit_call_scheduled action tags + person info
+//   sponsor_discoveries — upcoming sponsor_discovery_scheduled action tags
+//   activity — most recent 15 communications across all people
+//   unread_linkedin — count of people with linkedin_has_unread
+
+export async function GET() {
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+
+  // CFO / sponsor / referral distributions
+  const { data: cfoStates }      = await sb.from("people").select("cfo_state").not("cfo_state", "is", null)
+  const { data: sponsorStates }  = await sb.from("people").select("sponsor_state").not("sponsor_state", "is", null)
+  const { data: referralStates } = await sb.from("people").select("referral_state").not("referral_state", "is", null)
+
+  function tally(rows, field) {
+    const out = {}
+    ;(rows || []).forEach(function(r){
+      const v = r[field]
+      if (v) out[v] = (out[v] || 0) + 1
+    })
+    return out
+  }
+  const cfoCounts      = tally(cfoStates, "cfo_state")
+  const sponsorCounts  = tally(sponsorStates, "sponsor_state")
+  const referralCounts = tally(referralStates, "referral_state")
+
+  // Totals + sponsor companies
+  const { count: sponsorCompanies } = await sb.from("companies").select("id", { count: "exact", head: true }).eq("is_sponsor", true)
+
+  // Queues — active tags only
+  const { count: needsRoleReview } = await sb.from("person_status_tags")
+    .select("person_id", { count: "exact", head: true })
+    .eq("tag", "needs_role_review").is("removed_at", null)
+
+  // Reply received — open replies (action_tag, no removed_at column on action_tags per earlier finding)
+  const { count: replyReceived } = await sb.from("person_action_tags")
+    .select("person_id", { count: "exact", head: true })
+    .eq("action_type", "reply_received")
+
+  // Unread LinkedIn
+  const { count: unreadLinkedin } = await sb.from("people")
+    .select("id", { count: "exact", head: true })
+    .eq("linkedin_has_unread", true)
+
+  // Upcoming fit calls — pull the fit_call_scheduled action tags, then load the people
+  const { data: fitCallTags } = await sb.from("person_action_tags")
+    .select("person_id, set_at, notes, as_of_date")
+    .eq("action_type", "fit_call_scheduled")
+    .order("set_at", { ascending: false })
+    .limit(20)
+
+  const fitPersonIds = (fitCallTags || []).map(t => t.person_id)
+  const { data: fitPeople } = fitPersonIds.length > 0
+    ? await sb.from("people").select("id, full_name, title, company, cfo_state").in("id", fitPersonIds)
+    : { data: [] }
+  const fitPersonById = {}
+  ;(fitPeople || []).forEach(function(p){ fitPersonById[p.id] = p })
+
+  const fitCalls = (fitCallTags || [])
+    .map(function(t){ const p = fitPersonById[t.person_id]; return p ? Object.assign({}, p, { tag_set_at: t.set_at, tag_notes: t.notes }) : null })
+    .filter(Boolean)
+
+  // Upcoming sponsor discoveries
+  const { data: sdTags } = await sb.from("person_action_tags")
+    .select("person_id, set_at, notes")
+    .eq("action_type", "sponsor_discovery_scheduled")
+    .order("set_at", { ascending: false })
+    .limit(20)
+  const sdIds = (sdTags || []).map(t => t.person_id)
+  const { data: sdPeople } = sdIds.length > 0
+    ? await sb.from("people").select("id, full_name, title, company, sponsor_state").in("id", sdIds)
+    : { data: [] }
+  const sdById = {}
+  ;(sdPeople || []).forEach(function(p){ sdById[p.id] = p })
+  const sponsorDiscoveries = (sdTags || [])
+    .map(function(t){ const p = sdById[t.person_id]; return p ? Object.assign({}, p, { tag_set_at: t.set_at, tag_notes: t.notes }) : null })
+    .filter(Boolean)
+
+  // Recent activity — last 15 communications across all people
+  const { data: activityRaw } = await sb.from("communications")
+    .select("id, person_id, contact_id, occurred_at, direction, channel, step_label, body")
+    .order("occurred_at", { ascending: false })
+    .limit(15)
+
+  const actPersonIds = [...new Set((activityRaw || []).map(c => c.person_id || c.contact_id).filter(Boolean))]
+  const { data: actPeople } = actPersonIds.length > 0
+    ? await sb.from("people").select("id, full_name").in("id", actPersonIds)
+    : { data: [] }
+  const actById = {}
+  ;(actPeople || []).forEach(function(p){ actById[p.id] = p })
+  const activity = (activityRaw || []).map(function(c){
+    const id = c.person_id || c.contact_id
+    const p = actById[id]
+    return {
+      id: c.id, occurred_at: c.occurred_at, channel: c.channel,
+      direction: c.direction, step_label: c.step_label,
+      body: c.body ? (c.body.length > 140 ? c.body.slice(0, 140) + "…" : c.body) : null,
+      person_id: id, person_name: p ? p.full_name : "(unknown)"
+    }
+  })
+
+  return Response.json({
+    counts: {
+      cfo: cfoCounts,
+      sponsor: sponsorCounts,
+      referral: referralCounts,
+      cfo_total: Object.values(cfoCounts).reduce((a, b) => a + b, 0),
+      sponsor_total: Object.values(sponsorCounts).reduce((a, b) => a + b, 0),
+      referral_total: Object.values(referralCounts).reduce((a, b) => a + b, 0),
+      sponsor_companies: sponsorCompanies || 0,
+    },
+    queues: {
+      needs_role_review: needsRoleReview || 0,
+      reply_received: replyReceived || 0,
+      unread_linkedin: unreadLinkedin || 0,
+    },
+    fit_calls: fitCalls.slice(0, 10),
+    sponsor_discoveries: sponsorDiscoveries.slice(0, 10),
+    activity,
+  })
+}

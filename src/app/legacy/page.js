@@ -1,41 +1,40 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
+
+const App = dynamic(() => import('@/components/App'), { ssr: false })
 
 const PASSWORD = '19103Darwin$'
 const KEY = 'pc_auth'
 
 export default function Home() {
-  const router = useRouter()
+  const [auth, setAuth] = useState(false)
   const [input, setInput] = useState('')
   const [error, setError] = useState(false)
   const [checking, setChecking] = useState(true)
 
-  // If already authed, send straight to the new dashboard
   useEffect(function() {
-    if (typeof window === 'undefined') return
-    const v = localStorage.getItem(KEY)
-    if (v === 'ok' || v === '1') {
-      router.replace('/dashboard')
-      return
+    if (typeof window !== 'undefined') {
+      if (localStorage.getItem(KEY) === 'ok') setAuth(true)
     }
     setChecking(false)
-  }, [router])
+  }, [])
 
   function submit(e) {
     e.preventDefault()
     if (input === PASSWORD) {
       localStorage.setItem(KEY, 'ok')
-      router.replace('/dashboard')
+      setAuth(true)
     } else {
-      setError(true); setInput('')
+      setError(true)
+      setInput('')
       setTimeout(function(){ setError(false) }, 2000)
     }
   }
 
   if (checking) return null
 
-  return (
+  if (!auth) return (
     <div style={{
       display:'flex', alignItems:'center', justifyContent:'center',
       minHeight:'100vh', background:'#080f1a',
@@ -51,25 +50,34 @@ export default function Home() {
           <div style={{fontSize:11,color:'#3a5a74',letterSpacing:2,textTransform:'uppercase'}}>Chapter Director Platform</div>
         </div>
         <form onSubmit={submit}>
-          <input type="password" value={input} onChange={function(e){ setInput(e.target.value) }} placeholder="Enter password" autoFocus
+          <input
+            type="password"
+            value={input}
+            onChange={function(e){ setInput(e.target.value) }}
+            placeholder="Enter password"
+            autoFocus
             style={{
               width:'100%', padding:'12px 14px', borderRadius:6,
               background:'#080f1a', border: error ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.1)',
-              color:'#e8f2ff', fontSize:14, outline:'none', fontFamily:'inherit', boxSizing:'border-box',
+              color:'#e8f2ff', fontSize:14, outline:'none',
+              fontFamily:'inherit', boxSizing:'border-box',
               transition:'border-color 0.2s'
-            }}/>
+            }}
+          />
           {error && <div style={{color:'#e74c3c',fontSize:11,marginTop:6,textAlign:'center'}}>Incorrect password</div>}
           <button type="submit" style={{
             width:'100%', marginTop:16, padding:'12px',
             background:'rgba(240,200,74,0.15)', border:'1px solid rgba(240,200,74,0.4)',
             color:'#f0c84a', borderRadius:6, cursor:'pointer',
-            fontSize:13, fontWeight:600, letterSpacing:1, fontFamily:'inherit'
-          }}>Enter</button>
+            fontSize:13, fontWeight:600, letterSpacing:1,
+            fontFamily:'inherit'
+          }}>
+            Enter
+          </button>
         </form>
-        <div style={{textAlign:'center', marginTop:20, fontSize:10, color:'#3a5a74'}}>
-          <a href="/legacy" style={{color:'#3a5a74', textDecoration:'none'}}>Legacy interface →</a>
-        </div>
       </div>
     </div>
   )
+
+  return <App />
 }
