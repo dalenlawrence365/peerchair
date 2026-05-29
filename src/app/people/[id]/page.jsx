@@ -255,11 +255,11 @@ export default function PersonProfile() {
 
   const p = data.person
   const firmo = p.firmographics || {}
-  const firmoRows = [["Industry", firmo.industry], ["Revenue", firmo.revenue], ["Employees", firmo.employees], ["Finance team", firmo.finance_team], ["Ownership", firmo.ownership]].filter(function(r){ return r[1] })
+  const firmoRows = [["Industry", firmo.industry], ["Revenue", firmo.revenue], ["Employees", firmo.employees], ["Finance team", firmo.finance_team], ["Ownership", firmo.ownership], ["Reports to", firmo.reports_to]].filter(function(r){ return r[1] })
   const firmoWebsite = firmo.website ? (/^https?:\/\//i.test(firmo.website) ? firmo.website : "https://" + firmo.website) : null
   const editInput = { width: "100%", padding: "6px 9px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }
   const editLabel = { fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3, display: "block" }
-  const tab = activeTab || (p.firmographics ? "fitcall" : "timeline")
+  const tab = activeTab || "tags"
   const stage = p.cfo_state || p.sponsor_state || p.referral_state
   const primaryRole = (p.roles || [])[0]
   const backLink = primaryRole === "sponsor_contact" && p.sponsor_state ? `/pipeline/sponsor/${p.sponsor_state}` :
@@ -469,25 +469,17 @@ export default function PersonProfile() {
 
       {/* ===== Tabbed detail — keeps the page short; click instead of scroll ===== */}
       <TabBar active={tab} onSelect={setActiveTab} tabs={[
-        { key: "fitcall", label: "Fit Call" },
         { key: "tags", label: "Tags & Activity" },
         { key: "timeline", label: "Timeline" },
+        { key: "fitcall", label: "Fit Call" },
       ]} />
 
       {/* TAB: Fit Call — the full fit-call record */}
       {tab === "fitcall" && (p.firmographics ? (
         <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>Firmographics</div>
-            {p.firmographics.last_fit_call && <div style={{ fontSize: 11, color: T.textTertiary }}>Fit call {fmtShort(p.firmographics.last_fit_call)}</div>}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 14 }}>
-            <Field label="Revenue" value={p.firmographics.revenue} />
-            <Field label="Employees" value={p.firmographics.employees} />
-            <Field label="Finance team" value={p.firmographics.finance_team} />
-            <Field label="Ownership" value={p.firmographics.ownership} />
-            <Field label="Reports to" value={p.firmographics.reports_to} />
-            <Field label="Industry" value={p.firmographics.industry} />
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>Fit Call</div>
+            {p.firmographics.last_fit_call && <div style={{ fontSize: 11, color: T.textTertiary }}>{fmtShort(p.firmographics.last_fit_call)}</div>}
           </div>
           <ChipRow label="Pressure points" items={p.firmographics.pressure_points} color="#3b82f6" />
           <ChipRow label="Buying cues" items={p.firmographics.buying_cues} color="#16a34a" />
