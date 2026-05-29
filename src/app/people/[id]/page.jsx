@@ -106,6 +106,7 @@ export default function PersonProfile() {
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [timelineFilter, setTimelineFilter] = useState("all")
+  const [activeTab, setActiveTab] = useState(null)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({})
 
@@ -258,6 +259,7 @@ export default function PersonProfile() {
   const firmoWebsite = firmo.website ? (/^https?:\/\//i.test(firmo.website) ? firmo.website : "https://" + firmo.website) : null
   const editInput = { width: "100%", padding: "6px 9px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }
   const editLabel = { fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3, display: "block" }
+  const tab = activeTab || (p.firmographics ? "fitcall" : "timeline")
   const stage = p.cfo_state || p.sponsor_state || p.referral_state
   const primaryRole = (p.roles || [])[0]
   const backLink = primaryRole === "sponsor_contact" && p.sponsor_state ? `/pipeline/sponsor/${p.sponsor_state}` :
@@ -465,8 +467,15 @@ export default function PersonProfile() {
         )}
       </div>
 
-      {/* Firmographics — captured on the fit call */}
-      {p.firmographics && (
+      {/* ===== Tabbed detail — keeps the page short; click instead of scroll ===== */}
+      <TabBar active={tab} onSelect={setActiveTab} tabs={[
+        { key: "fitcall", label: "Fit Call" },
+        { key: "tags", label: "Tags & Activity" },
+        { key: "timeline", label: "Timeline" },
+      ]} />
+
+      {/* TAB: Fit Call — the full fit-call record */}
+      {tab === "fitcall" && (p.firmographics ? (
         <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>Firmographics</div>
@@ -494,9 +503,14 @@ export default function PersonProfile() {
             </div>
           )}
         </div>
-      )}
+      ) : (
+        <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 32, marginBottom: 18, textAlign: "center", color: T.textTertiary, fontSize: 13 }}>
+          No fit call recorded yet. Once you complete one, the firmographics, pressure points, buying cues, red flags, and call notes appear here.
+        </div>
+      ))}
 
-      {/* Status & action tags — split: Status (left) · Activity (right). Each: quick-add choices + custom on the fly. */}
+      {/* TAB: Tags & Activity */}
+      {tab === "tags" && (
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Tags</div>
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
@@ -571,7 +585,10 @@ export default function PersonProfile() {
 
         </div>
       </div>
+      )}
 
+      {/* TAB: Timeline — LinkedIn thread snapshot + activity log */}
+      {tab === "timeline" && (<>
       {/* LinkedIn thread snapshot if present */}
       {p.linkedin_thread_snapshot && (
         <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
@@ -657,8 +674,28 @@ export default function PersonProfile() {
           )
         })()}
       </div>
+      </>)}
 
     </main>
+  )
+}
+
+function TabBar({ active, onSelect, tabs }) {
+  return (
+    <div style={{ display: "flex", gap: 2, marginBottom: 18, borderBottom: "1px solid " + T.border }}>
+      {tabs.map(function(t){
+        const on = active === t.key
+        return (
+          <button key={t.key} onClick={function(){ onSelect(t.key) }}
+            style={{
+              padding: "9px 16px", fontSize: 13, fontWeight: on ? 600 : 500, fontFamily: "inherit",
+              cursor: "pointer", background: "none", border: "none",
+              color: on ? T.textPrimary : T.textTertiary,
+              borderBottom: "2px solid " + (on ? "#0f3d6e" : "transparent"), marginBottom: -1,
+            }}>{t.label}</button>
+        )
+      })}
+    </div>
   )
 }
 
