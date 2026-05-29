@@ -368,10 +368,10 @@ export default function PersonProfile() {
               {data.status_tags.map(function(t){
                 return (
                   <span key={"s_" + t.tag} title={`Set ${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
-                    fontSize: 11, padding: "3px 6px 3px 9px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 6,
-                    background: t.tag === "needs_role_review" ? "#fef3c7" : T.bg,
-                    border: "1px solid " + T.border,
-                    color: t.tag === "needs_role_review" ? "#92400e" : T.textSecondary
+                    fontSize: 11, padding: "3px 6px 3px 9px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 500,
+                    background: t.tag === "needs_role_review" ? "#fef3c7" : "#eaf0f8",
+                    border: "1px solid " + (t.tag === "needs_role_review" ? "#fcd34d" : "#c7d5ea"),
+                    color: t.tag === "needs_role_review" ? "#92400e" : "#1e3a5f"
                   }}>
                     {t.tag}
                     <span onClick={function(){ postAction({ action: "remove_tag", tag: t.tag }) }} style={{ cursor: "pointer", opacity: 0.5, fontWeight: 700 }} title="Remove tag">×</span>
@@ -404,8 +404,8 @@ export default function PersonProfile() {
               {data.action_tags.map(function(t, i){
                 return (
                   <span key={"a_" + i} title={`${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
-                    fontSize: 11, padding: "3px 9px", borderRadius: 4,
-                    background: T.bg, border: "1px solid " + T.border, color: T.textSecondary, opacity: 0.9
+                    fontSize: 11, padding: "3px 9px", borderRadius: 4, fontWeight: 500,
+                    background: "#e9f3ec", border: "1px solid #c3e0cc", color: "#1b5e36"
                   }}>{t.action_type}{t.as_of_date ? " · " + fmtShort(t.as_of_date) : ""}</span>
                 )
               })}
