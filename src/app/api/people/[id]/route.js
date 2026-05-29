@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
-import { createClient } from "@supabase/supabase-js"
+export const fetchCache = "force-no-store"
+import { serverClient } from "@/lib/supabaseServer"
 
 // GET /api/people/[id] — full profile for the /people/[id] page.
 // Returns person row, communications (latest 50), active status & action tags,
@@ -9,10 +10,7 @@ export async function GET(request, { params }) {
   const id = params?.id
   if (!id) return Response.json({ error: "id required" }, { status: 400 })
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   const { data: person, error: pErr } = await sb.from("people").select("*").eq("id", id).maybeSingle()
   if (pErr) return Response.json({ error: pErr.message }, { status: 500 })
