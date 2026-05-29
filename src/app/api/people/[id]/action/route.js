@@ -127,5 +127,23 @@ export async function POST(request, { params }) {
     return Response.json({ ok: true })
   }
 
+  if (action === "set_fields") {
+    // Whitelisted scalar identity fields. Empty string clears (-> null).
+    const ALLOWED = ["full_name", "title", "company", "email", "phone", "mobile", "location", "headline"]
+    const fields = body.fields || {}
+    const updates = {}
+    for (const k of ALLOWED) {
+      if (Object.prototype.hasOwnProperty.call(fields, k)) {
+        const v = fields[k]
+        updates[k] = (v === null || String(v).trim() === "") ? null : String(v).trim()
+      }
+    }
+    if (Object.keys(updates).length === 0) return Response.json({ error: "no editable fields supplied" }, { status: 400 })
+    updates.last_meaningful_touch = new Date().toISOString()
+    const { error } = await sb.from("people").update(updates).eq("id", id)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ ok: true })
+  }
+
   return Response.json({ error: "unknown action" }, { status: 400 })
 }

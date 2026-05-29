@@ -106,6 +106,8 @@ export default function PersonProfile() {
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [timelineFilter, setTimelineFilter] = useState("all")
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({})
 
   async function uploadAvatarFile(file) {
     if (!file) return
@@ -205,11 +207,57 @@ export default function PersonProfile() {
     setNoteText(""); setSavingNote(false)
   }
 
+  function openEdit(person) {
+    const f = person.firmographics || {}
+    setForm({
+      full_name: person.full_name || "", title: person.title || "", company: person.company || "",
+      headline: person.headline || "", email: person.email || "", phone: person.phone || person.mobile || "",
+      location: person.location || "",
+      industry: f.industry || "", revenue: f.revenue || "", employees: f.employees || "",
+      finance_team: f.finance_team || "", ownership: f.ownership || "", website: f.website || "",
+    })
+    setEditing(true)
+  }
+
+  async function saveEdit(person) {
+    setBusy(true); setError(null)
+    try {
+      const r1 = await fetch(`/api/people/${id}/action`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_fields", fields: {
+          full_name: form.full_name, title: form.title, company: form.company, headline: form.headline,
+          email: form.email, phone: form.phone, location: form.location,
+        } }),
+      }).then(function(r){ return r.json() })
+      if (r1.error) throw new Error(r1.error)
+
+      // Merge firmographics: set non-empty values, drop cleared ones
+      const merged = { ...(person.firmographics || {}) }
+      ;["industry", "revenue", "employees", "finance_team", "ownership", "website"].forEach(function(k){
+        const v = (form[k] || "").trim()
+        if (v) merged[k] = v; else delete merged[k]
+      })
+      if (Object.keys(merged).length > 0) {
+        const r2 = await fetch(`/api/people/${id}/action`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "set_firmographics", firmographics: merged }),
+        }).then(function(r){ return r.json() })
+        if (r2.error) throw new Error(r2.error)
+      }
+      setEditing(false); reload()
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
+
   if (loading) return <main style={{ padding: 32 }}><div style={{ color: T.textTertiary }}>Loading…</div></main>
   if (error && !data) return <main style={{ padding: 32 }}><div style={{ color: T.danger }}>⚠ {error}</div></main>
   if (!data) return null
 
   const p = data.person
+  const firmo = p.firmographics || {}
+  const firmoRows = [["Industry", firmo.industry], ["Revenue", firmo.revenue], ["Employees", firmo.employees], ["Finance team", firmo.finance_team], ["Ownership", firmo.ownership]].filter(function(r){ return r[1] })
+  const firmoWebsite = firmo.website ? (/^https?:\/\//i.test(firmo.website) ? firmo.website : "https://" + firmo.website) : null
+  const editInput = { width: "100%", padding: "6px 9px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }
+  const editLabel = { fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3, display: "block" }
   const stage = p.cfo_state || p.sponsor_state || p.referral_state
   const primaryRole = (p.roles || [])[0]
   const backLink = primaryRole === "sponsor_contact" && p.sponsor_state ? `/pipeline/sponsor/${p.sponsor_state}` :
@@ -303,13 +351,39 @@ export default function PersonProfile() {
             </div>
           </div>
           </div>
-          {p.linkedin_url && (
-            <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer" style={{
-              fontSize: 12, padding: "7px 12px", borderRadius: 6,
-              background: "#0a66c2", color: "white", textDecoration: "none", fontWeight: 500,
-              whiteSpace: "nowrap"
-            }}>Open in LinkedIn ↗</a>
-          )}
+          {/* RIGHT COLUMN — company / firmographics */}
+          <div style={{ width: 280, flexShrink: 0, borderLeft: "1px solid " + T.borderSoft, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>Company</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={function(){ openEdit(p) }} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>✎ Edit</button>
+                {p.linkedin_url && (
+                  <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer" title="Open in LinkedIn"
+                    style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, background: "#0a66c2", color: "white", textDecoration: "none", fontWeight: 600, whiteSpace: "nowrap" }}>in ↗</a>
+                )}
+              </div>
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>
+              {p.company || <span style={{ color: T.textTertiary, fontWeight: 400 }}>No company set</span>}
+            </div>
+            {firmoWebsite && (
+              <a href={firmoWebsite} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#0a66c2", textDecoration: "none", wordBreak: "break-all" }}>{firmo.website} ↗</a>
+            )}
+            {firmoRows.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {firmoRows.map(function(r){
+                  return (
+                    <div key={r[0]}>
+                      <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>{r[0]}</div>
+                      <div style={{ fontSize: 13, color: T.textPrimary }}>{r[1]}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              !firmoWebsite && <div style={{ fontSize: 12, color: T.textTertiary, fontStyle: "italic" }}>No firmographics yet</div>
+            )}
+          </div>
         </div>
 
         {/* Key fields */}
@@ -355,6 +429,29 @@ export default function PersonProfile() {
               <button onClick={function(){ postAction({ action: "set_avatar", avatar_url: "" }); setShowAvatarEdit(false) }}
                 style={{ marginTop: 10, padding: "5px 10px", fontSize: 11, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.danger, cursor: "pointer", fontFamily: "inherit" }}>Remove photo</button>
             )}
+          </div>
+        )}
+        {editing && (
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid " + T.borderSoft }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Edit details</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
+              {[["full_name", "Full name"], ["title", "Title"], ["company", "Company"], ["headline", "Headline"], ["email", "Email"], ["phone", "Phone"], ["location", "Location"], ["industry", "Industry"], ["revenue", "Revenue"], ["employees", "Employees"], ["finance_team", "Finance team"], ["ownership", "Ownership"], ["website", "Website"]].map(function(fld){
+                return (
+                  <div key={fld[0]}>
+                    <label style={editLabel}>{fld[1]}</label>
+                    <input value={form[fld[0]] || ""} disabled={busy}
+                      onChange={function(e){ const v = e.target.value; setForm(function(s){ return Object.assign({}, s, { [fld[0]]: v }) }) }}
+                      style={editInput} />
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              <button disabled={busy} onClick={function(){ saveEdit(p) }}
+                style={{ padding: "7px 16px", fontSize: 13, borderRadius: 6, border: "none", background: "#3b82f6", color: "white", cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: 600 }}>{busy ? "Saving…" : "Save"}</button>
+              <button disabled={busy} onClick={function(){ setEditing(false) }}
+                style={{ padding: "7px 16px", fontSize: 13, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+            </div>
           </div>
         )}
       </div>
