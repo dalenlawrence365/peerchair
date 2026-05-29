@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 // Avatar — shows a profile photo when we have one, else colored initials.
 // Used everywhere people appear: profiles, fit call, search, lists, dashboard.
@@ -20,6 +20,10 @@ function hueFor(name) {
 
 export default function Avatar({ name, src, size = 40 }) {
   const [failed, setFailed] = useState(false)
+  // Reset the error state whenever the photo URL changes, so a one-time
+  // transient miss (e.g. a just-uploaded file not served for a split second)
+  // doesn't permanently fall back to initials.
+  useEffect(function(){ setFailed(false) }, [src])
   const showPhoto = src && !failed
   const hue = hueFor(name)
   return (
