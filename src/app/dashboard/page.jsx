@@ -49,6 +49,7 @@ export default function DashboardPage() {
 
   const c = data.counts
   const q = data.queues
+  const s = data.segments || {}
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
 
   return (
@@ -74,6 +75,18 @@ export default function DashboardPage() {
         <QueueTile label="LinkedIn replies" count={q.reply_received} href="/inbox/follow-up" tone="amber" />
         <QueueTile label="Unread LinkedIn threads" count={q.unread_linkedin} href="/inbox/linkedin" tone="blue" />
         <QueueTile label="Auto-created (need role)" count={q.needs_role_review} href="/queue/review" tone="amber" />
+      </div>
+
+      {/* LinkedIn connection funnel — live segments off connection tags */}
+      <SectionHeader title="LinkedIn connection funnel" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 8 }}>
+        <StatTile label="Uninvited" value={s.uninvited ?? "—"} color="#64748b" />
+        <StatTile label="Invite Pending" value={s.invite_pending ?? "—"} color="#b45309" href="/segment/invite_pending" />
+        <StatTile label="Silent Connections" value={s.silent_connections ?? "—"} color="#0f3d6e" href="/segment/silent_connections" />
+        <StatTile label="Engaged" value={s.engaged ?? "—"} color="#15803d" href="/segment/engaged" />
+      </div>
+      <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 24, lineHeight: 1.5 }}>
+        Click a tile for the list (Uninvited is count-only — too long to scroll). Excludes opt-outs / do-not-contact / not-a-fit. Note: HeyReach didn't record who we asked, so Uninvited runs slightly high and Invite Pending slightly low.
       </div>
 
       {/* CFO pipeline distribution */}

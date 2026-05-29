@@ -111,6 +111,8 @@ export async function GET() {
     }
   })
 
+  const { data: segmentCounts } = await sb.rpc("connection_segment_counts")
+
   return Response.json({
     counts: {
       cfo: cfoCounts,
@@ -121,6 +123,7 @@ export async function GET() {
       referral_total: Object.values(referralCounts).reduce((a, b) => a + b, 0),
       sponsor_companies: sponsorCompanies || 0,
     },
+    segments: segmentCounts || {},
     queues: {
       needs_role_review: needsRoleReview || 0,
       reply_received: replyReceived || 0,
