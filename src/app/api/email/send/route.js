@@ -1,5 +1,6 @@
 import { getAccessToken } from "@/lib/microsoft-auth"
 import { createClient }   from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 export async function POST(request) {
   const { to, subject, html, text, contact_id } = await request.json()
@@ -15,7 +16,7 @@ export async function POST(request) {
   if (!res.ok) return Response.json({ error:"Send failed: "+await res.text() },{status:500})
 
   if (contact_id) {
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    const sb = serverClient()
     await sb.from("communications").insert({contact_id,occurred_at:new Date().toISOString(),channel:"email",direction:"outbound",step_label:"Email Sent",body:text||subject,source:"PeerChair",logged_by:"Dalen Lawrence",send_status:"confirmed"})
   }
   return Response.json({ success:true })

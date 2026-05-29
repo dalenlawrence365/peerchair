@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 // GPT Action contact lookup.
 // CHANGED 2026-05-27: migrated from legacy `contacts` table to unified `people`.
@@ -40,10 +41,7 @@ export async function GET(request) {
     return Response.json({ error: "Provide name or contact_id" }, { status: 400 })
   }
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   let contact = null
 

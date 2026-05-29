@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic"
 // webhook at /api/linkedhelper-webhook (people-aware) — not this one.
 
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 export async function OPTIONS() {
   return new Response(null, {
@@ -30,10 +31,7 @@ export async function OPTIONS() {
 
 export async function POST() {
   try {
-    const sb = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
+    const sb = serverClient()
     await sb.from("audit_log").insert({
       run_at: new Date().toISOString(),
       audit_type: "heyreach_webhook",

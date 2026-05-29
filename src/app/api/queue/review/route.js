@@ -14,11 +14,12 @@ export const dynamic = "force-dynamic"
 //   Either way the needs_role_review tag is removed (resolved).
 
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 const ROLE_STATE_FIELD = { cfo: "cfo_state", sponsor_contact: "sponsor_state", referral_partner: "referral_state" }
 
 export async function GET() {
-  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  const sb = serverClient()
 
   // Active needs_role_review tags
   const { data: tags, error: tErr } = await sb
@@ -71,7 +72,7 @@ export async function GET() {
 }
 
 export async function POST(request) {
-  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  const sb = serverClient()
 
   let body
   try { body = await request.json() } catch(e) { return Response.json({ error: "Invalid JSON" }, { status: 400 }) }

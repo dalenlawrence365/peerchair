@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { corsResponse, handleOptions } from "@/lib/cors"
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 import { getAccessToken } from "@/lib/microsoft-auth"
 
 // Strip HTML and decode the most common entities, then collapse whitespace.
@@ -37,10 +38,7 @@ export async function GET(request) {
     return corsResponse({ error: "message_id is required" }, { status: 400 })
   }
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   // 1) Try local cache first — fastest, already cleaned, and works for any
   //    message that has been synced into email_messages.

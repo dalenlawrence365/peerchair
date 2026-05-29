@@ -1,14 +1,12 @@
 export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 // GET /api/inbox/follow-up — people with active reply_received action tag.
 // These are LinkedIn replies (and other inbound signals) Dalen hasn't actioned.
 
 export async function GET() {
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   const { data: tags } = await sb.from("person_action_tags")
     .select("person_id, set_at, notes")

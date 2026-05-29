@@ -3,6 +3,7 @@
 // Fires pending scheduled_actions, verifies delivery, alerts on failure
 
 import { createClient } from '@supabase/supabase-js'
+import { serverClient } from "@/lib/supabaseServer"
 
 const HR_KEY  = process.env.HEYREACH_API_KEY
 const HR_BASE = "https://api.heyreach.io/api/public"
@@ -15,10 +16,7 @@ export async function GET(request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const supabase = serverClient()
 
   const now = new Date().toISOString()
   const results = { fired: [], resurfaced: [], failed: [], verified: [] }

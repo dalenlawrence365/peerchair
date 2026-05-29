@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 // GET /api/dashboard — one-shot data fetch for the new dashboard.
 // Returns:
@@ -12,10 +13,7 @@ import { createClient } from "@supabase/supabase-js"
 //   unread_linkedin — count of people with linkedin_has_unread
 
 export async function GET() {
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   // Distributions via COUNT queries per stage — NOT row-fetch-then-tally.
   // Supabase .select() silently caps at 1000 rows, which made fetch-then-count

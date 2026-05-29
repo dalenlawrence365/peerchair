@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 // GET /api/inbox/linkedin — people with a LinkedIn thread snapshot.
 // Sorted by has_unread (true first), then by linkedin_thread_updated_at (desc).
@@ -7,10 +8,7 @@ import { createClient } from "@supabase/supabase-js"
 // /api/people/[id] when a row is opened.
 
 export async function GET() {
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   const { data: people } = await sb.from("people")
     .select("id, full_name, first_name, last_name, title, company, linkedin_url, roles, cfo_state, sponsor_state, referral_state, linkedin_has_unread, linkedin_last_message_incoming, linkedin_thread_updated_at, linkedin_thread_snapshot")

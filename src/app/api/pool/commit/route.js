@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic"
 // - On per-row insert error, logs to audit_log errors[] and continues.
 
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 function normalizeUrl(u) {
   if (!u) return ""
@@ -25,10 +26,7 @@ function normalizeUrl(u) {
 }
 
 export async function POST(request) {
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   let body
   try { body = await request.json() } catch(e) {

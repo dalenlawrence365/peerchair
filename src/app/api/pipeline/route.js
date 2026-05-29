@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 // GET /api/pipeline?type=cfo|sponsor&stage=<stage>
 // Always returns the full funnel (count per stage, via count queries — no
@@ -29,10 +30,7 @@ export async function GET(request) {
   const cfg = CONFIG[type]
   if (!cfg) return Response.json({ error: "invalid type" }, { status: 400 })
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   // Funnel — count per stage
   const funnel = {}

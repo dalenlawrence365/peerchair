@@ -1,10 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
+import { serverClient } from "@/lib/supabaseServer"
 
 export async function GET() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const supabase = serverClient()
 
   // Step 1: Get all inbound comms
   const { data: inbound, error: e1 } = await supabase

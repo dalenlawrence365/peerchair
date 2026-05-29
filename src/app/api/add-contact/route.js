@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { corsResponse, handleOptions } from "@/lib/cors"
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 import { getAccessToken } from "@/lib/microsoft-auth"
 
 // GPT Action: add a contact (and optionally an Outlook contact).
@@ -66,10 +67,7 @@ export async function POST(request) {
     return corsResponse({ error: "first_name and email are required" }, { status: 400 })
   }
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   // Dedup against people by email
   const { data: existing } = await sb.from("people").select("id").ilike("email", email).maybeSingle()

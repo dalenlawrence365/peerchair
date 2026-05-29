@@ -4,6 +4,7 @@
 // Reconciles HeyReach state against Supabase — no permanent data loss
 
 import { createClient } from '@supabase/supabase-js'
+import { serverClient } from "@/lib/supabaseServer"
 import { alertNewConnection } from '@/lib/notify'
 
 const HR_KEY  = process.env.HEYREACH_API_KEY
@@ -15,10 +16,7 @@ export async function GET(request) {
   // Auth check
   // Auth check removed — safe to call publicly
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const supabase = serverClient()
 
   const results = {
     run_at: new Date().toISOString(),

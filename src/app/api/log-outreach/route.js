@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { corsResponse, handleOptions, CORS_HEADERS } from "@/lib/cors"
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 // Stage progression map — what stage to move to when logging outreach
 const STAGE_AFTER_OUTREACH = {
@@ -57,10 +58,7 @@ export async function POST(request) {
     return corsResponse({ error: "contact_id, message, and channel are required" }, { status: 400 })
   }
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   // Verify the person exists (people, not contacts)
   const { data: contact } = await sb

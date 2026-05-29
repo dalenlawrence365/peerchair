@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 // POST /api/people/[id]/avatar
 //   - multipart/form-data with field "file"  → uploaded file (desktop drag / file picker)
@@ -13,10 +14,7 @@ const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "im
 const MAX = 5 * 1024 * 1024
 
 function sb() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  return serverClient()
 }
 
 async function storeAndSet(client, id, bytes, contentType) {

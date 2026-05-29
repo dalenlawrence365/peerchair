@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 // POST /api/people/[id]/action
 // Body: { action, ... }
@@ -25,10 +26,7 @@ export async function POST(request, { params }) {
   try { body = await request.json() } catch(e) { return Response.json({ error: "Invalid JSON" }, { status: 400 }) }
   const action = body.action
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   // Confirm the person exists
   const { data: person } = await sb.from("people").select("id, roles").eq("id", id).maybeSingle()

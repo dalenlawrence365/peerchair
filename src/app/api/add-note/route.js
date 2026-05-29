@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { corsResponse, handleOptions } from "@/lib/cors"
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 export async function OPTIONS() { return handleOptions() }
 
@@ -21,10 +22,7 @@ export async function POST(request) {
     return corsResponse({ error: "contact_id and note are required" }, { status: 400 })
   }
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   // Verify the person exists (unified people table — was contacts, which
   // missed anyone added via people-only paths like AddPersonModal / GPT add)

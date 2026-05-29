@@ -1,12 +1,13 @@
 import { getAccessToken } from "@/lib/microsoft-auth"
 import { createClient }   from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 export async function GET() {
   let token
   try { token = await getAccessToken() }
   catch(e) { return Response.json({ error:e.message, needs_auth:true }, {status:401}) }
 
-  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  const sb = serverClient()
 
   // Load contacts with emails
   const { data:contacts } = await sb.from("contacts").select("id,first_name,last_name,company_name,email,pipeline_stage").not("email","is",null).limit(1000)

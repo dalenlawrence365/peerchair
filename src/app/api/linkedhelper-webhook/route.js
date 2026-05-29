@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 export async function OPTIONS() {
   return new Response(null, {
@@ -116,10 +117,7 @@ export async function POST(request) {
     return json({ error: "Invalid event. Use ?event=sent|connected|replied" }, 400)
   }
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   let payload
   try { payload = await request.json() } catch(e) {

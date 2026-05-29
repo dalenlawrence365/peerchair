@@ -2,6 +2,7 @@
 // Fetches all Calendly meetings (upcoming + recent past), enriches with invitee + Supabase contact data
 
 import { createClient } from '@supabase/supabase-js'
+import { serverClient } from "@/lib/supabaseServer"
 
 const CALENDLY_USER = "https://api.calendly.com/users/6e6c3a6f-335a-4520-a3f7-53b42e7d834c"
 
@@ -9,10 +10,7 @@ export async function GET() {
   const TOKEN = process.env.CALENDLY_TOKEN
   if (!TOKEN) return Response.json({ error: 'No CALENDLY_TOKEN' }, { status: 500 })
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const supabase = serverClient()
 
   const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }
   const now = new Date()

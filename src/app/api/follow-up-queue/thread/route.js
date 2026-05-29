@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic"
 // Falls back to HeyReach ONLY if database has zero messages for this contact.
 
 import { createClient } from '@supabase/supabase-js'
+import { serverClient } from "@/lib/supabaseServer"
 
 const HR_KEY  = process.env.HEYREACH_API_KEY || "UTXt46dJni1Wul3y3Ea5AVPLSOcYKRNKKsbUawBlUI4="
 const HR_BASE = "https://api.heyreach.io/api/public"
@@ -18,10 +19,7 @@ export async function GET(request) {
 
   if (!conversationId) return Response.json({ messages: [], error: "No conversationId" })
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const supabase = serverClient()
 
   // ── 1. Get DB conversation record ─────────────────────────────────────────
   // Look up by contact_id first — stored IDs may be synthetic "sb-" prefixed

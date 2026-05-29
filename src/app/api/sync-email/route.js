@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 import { getAccessToken } from "@/lib/microsoft-auth"
 
 // Inbound email sync — the counterpart to sync-sent.
@@ -15,10 +16,7 @@ export async function GET(request) {
   const ok = auth === "Bearer cfocircle2026" || (process.env.CRON_SECRET && auth === "Bearer " + process.env.CRON_SECRET)
   if (!ok) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   const results = { run_at: new Date().toISOString(), synced: 0, errors: [] }
 

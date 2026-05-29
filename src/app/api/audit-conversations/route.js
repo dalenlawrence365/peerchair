@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic"
 // Designed to run as a daily cron
 
 import { createClient } from '@supabase/supabase-js'
+import { serverClient } from "@/lib/supabaseServer"
 
 const HR_KEY  = process.env.HEYREACH_API_KEY || "UTXt46dJni1Wul3y3Ea5AVPLSOcYKRNKKsbUawBlUI4="
 const HR_BASE = "https://api.heyreach.io/api/public"
@@ -14,10 +15,7 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url)
   const fix = searchParams.get("fix") === "true" // ?fix=true to auto-resync drifted convos
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const supabase = serverClient()
 
   const results = {
     run_at: new Date().toISOString(),

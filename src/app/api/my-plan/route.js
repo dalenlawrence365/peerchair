@@ -2,12 +2,10 @@
 // Returns follow_up_tasks + scheduled_actions merged and sorted by date
 
 import { createClient } from '@supabase/supabase-js'
+import { serverClient } from "@/lib/supabaseServer"
 
 export async function GET() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const supabase = serverClient()
 
   // Load open tasks
   const { data: tasks } = await supabase
@@ -83,10 +81,7 @@ export async function GET() {
 }
 
 export async function POST(request) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const supabase = serverClient()
   const body = await request.json()
   const { action } = body
 

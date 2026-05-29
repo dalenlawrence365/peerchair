@@ -6,16 +6,14 @@ export const dynamic = "force-dynamic"
 // (cfo, sponsor_contact, referral_partner) since referrals can come from anywhere.
 
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
   const q = (searchParams.get("q") || "").trim()
   if (q.length < 2) return Response.json({ results: [] })
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = serverClient()
 
   const escaped = q.replace(/[%_]/g, "")
   const { data, error } = await sb

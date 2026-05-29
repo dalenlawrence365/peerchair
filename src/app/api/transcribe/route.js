@@ -2,15 +2,13 @@
 // Accepts audio blob, transcribes via OpenAI Whisper, logs to voice_commands table
 
 import { createClient } from '@supabase/supabase-js'
+import { serverClient } from "@/lib/supabaseServer"
 
 export async function POST(request) {
   const OPENAI_KEY = process.env.OPENAI_API_KEY
   if (!OPENAI_KEY) return Response.json({ error: 'No OPENAI_API_KEY' }, { status: 500 })
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const supabase = serverClient()
 
   let commandId = null
   let rawTranscript = null

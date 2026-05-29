@@ -21,14 +21,12 @@ export const dynamic = "force-dynamic"
 // Removed from vercel.json crons in the same commit.
 
 import { createClient } from "@supabase/supabase-js"
+import { serverClient } from "@/lib/supabaseServer"
 
 export async function GET() {
   const summary = "DISABLED — HeyReach sync decommissioned (LinkedHelper migration). See route comment for context."
   try {
-    const sb = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
+    const sb = serverClient()
     await sb.from("audit_log").insert({
       run_at: new Date().toISOString(),
       audit_type: "linkedin_sync",
