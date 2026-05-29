@@ -44,7 +44,6 @@ export async function POST(request) {
     .from("communications")
     .insert({
       person_id: contact_id,
-      contact_id,
       direction: "INTERNAL",
       channel: "Note",
       body: note,

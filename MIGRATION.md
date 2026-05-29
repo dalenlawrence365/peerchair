@@ -21,17 +21,26 @@ Audit date: 2026-05-28. ~47 files reference `contacts` / `contact_id`.
 ## Tier 1 — Active BUGS: routes that MATCH against `contacts` and silently
 ## drop people-only records. These lose/hide data right now.
 
-- [ ] `sync-sent`  — sent-email capture. **IN PROGRESS.** Match `people`, write
-      person_id, parameterize lookback. (This is the William bug.)
-- [ ] `sync-email` — inbound capture via M365 MCP. Matches `contacts`; also only
-      writes `email_messages` (which the profile timeline does NOT read). Two
-      fixes: match `people`, and either write `communications` or merge
-      `email_messages` into the timeline.
-- [ ] `calendly-webhook` — booking/meeting capture matches `contacts`.
-- [ ] `log-outreach` — outreach logging matches `contacts`.
-- [ ] `inbox-summary` — inbox rollup reads `contacts`.
-- [ ] verify `follow-up-queue`, `queue-debug` — heavy `contacts` reads; confirm
-      whether they already join through to `people`.
+- [x] `sync-sent`  — sent-email capture. Matches `people`, writes person_id,
+      parameterized lookback. (2026-05-28)
+- [x] `sync-email` — rewritten to mirror sync-sent: direct Graph token (dropped
+      the fragile LLM/MCP path), match SENDER against `people`, write
+      `communications` (direction IN) so inbound replies hit the timeline.
+      email_messages is now legacy/unused for new writes. (2026-05-28)
+- [x] `calendly-webhook` — already matched people; fixed its communications
+      inserts to person_id-only (were setting contact_id=<people id>, FK-fail
+      for people-only). (2026-05-28)
+- [x] `log-outreach` — already matched people; dropped contact_id dual-write
+      (person_id-only). (2026-05-28)
+- [x] `inbox-summary` — sender lookup switched contacts → people. (2026-05-28)
+- [x] `people/[id]/action` (note) — was setting contact_id=<people id>, which
+      FK-failed for people-only: **you couldn't save a note on William's
+      profile.** Now person_id-only. (2026-05-28)
+- [x] `add-note` (GPT) — dropped contact_id dual-write. (2026-05-28)
+- [x] reviewed `follow-up-queue`, `queue-debug` — LinkedHelper-specific (the
+      LinkedIn reply queue); LinkedHelper maintains their contacts rows via the
+      webhook dual-write, so NOT a people-only bug. Migrate when we drop
+      contacts; left as-is for now.
 
 ## Tier 2 — Intentional dual-write / by-design (leave until the finale)
 

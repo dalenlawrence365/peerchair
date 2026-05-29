@@ -38,7 +38,7 @@ export async function POST(request, { params }) {
     const text = (body.body || "").trim()
     if (!text) return Response.json({ error: "note body required" }, { status: 400 })
     const { error } = await sb.from("communications").insert({
-      person_id: id, contact_id: id,
+      person_id: id,
       direction: "INTERNAL", channel: "Note",
       body: text, occurred_at: new Date().toISOString(),
       step_label: "Note", source: "App", logged_by: "Dalen Lawrence"

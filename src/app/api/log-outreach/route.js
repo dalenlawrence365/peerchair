@@ -73,10 +73,9 @@ export async function POST(request) {
     return corsResponse({ error: "Contact not found" }, { status: 404 })
   }
 
-  // Log to communications — dual-write person_id + contact_id
+  // Log to communications — person_id only (people-first; contact_id FK needs a contacts row)
   const { error: insertError } = await sb.from("communications").insert({
     person_id: contact_id,
-    contact_id,
     direction: "OUT",
     channel,
     body: subject ? `Subject: ${subject}\n\n${message}` : message,

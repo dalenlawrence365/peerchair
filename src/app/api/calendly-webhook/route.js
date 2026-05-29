@@ -179,7 +179,7 @@ export async function POST(request) {
     await sb.rpc("set_status_tag", { p_person_id: created.id, p_tag: "not_on_linkedin", p_set_by: "calendly_webhook" })
     await sb.rpc("set_action_tag", { p_person_id: created.id, p_action_type: pipeline.actionTag, p_set_by: "calendly_webhook", p_notes: `${eventName} @ ${startTime} (auto-created from booking)` })
     await sb.from("communications").insert({
-      person_id: created.id, contact_id: created.id,
+      person_id: created.id,
       direction: "IN", channel: "Calendly",
       body: `${eventName} booked for ${startTime ? new Date(startTime).toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "medium", timeStyle: "short" }) : "TBD"}. Auto-created from booking (company: ${company || "—"}). Role guessed as ${pipeline.role} — confirm.`,
       occurred_at: new Date().toISOString(),
@@ -219,7 +219,7 @@ export async function POST(request) {
   await sb.from("people").update({ last_meaningful_touch: new Date().toISOString() }).eq("id", contact.id)
 
   await sb.from("communications").insert({
-    person_id: contact.id, contact_id: contact.id,
+    person_id: contact.id,
     direction: "IN", channel: "Calendly",
     body: `${eventName} booked for ${startTime ? new Date(startTime).toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "medium", timeStyle: "short" }) : "TBD"}`,
     occurred_at: new Date().toISOString(),

@@ -57,14 +57,14 @@ export async function GET(request) {
   // Get unique sender emails
   const senderEmails = [...new Set(messages.map(m => m.from?.emailAddress?.address?.toLowerCase()).filter(Boolean))]
 
-  // Look up which senders are in PeerChair
-  const { data: knownContacts } = await sb
-    .from("contacts")
-    .select("id, first_name, last_name, email, contact_type, pipeline_stage, company_name")
+  // Look up which senders are in PeerChair (people, the unified table)
+  const { data: knownPeople } = await sb
+    .from("people")
+    .select("id, full_name, email, roles, cfo_state, sponsor_state, referral_state, company")
     .in("email", senderEmails)
 
   const knownEmailMap = {}
-  for (const c of (knownContacts || [])) {
+  for (const c of (knownPeople || [])) {
     if (c.email) knownEmailMap[c.email.toLowerCase()] = c
   }
 
@@ -94,10 +94,10 @@ export async function GET(request) {
       known.push({
         ...entry,
         contact_id: c.id,
-        contact_name: `${c.first_name} ${c.last_name}`.trim(),
-        contact_type: c.contact_type,
-        stage: c.pipeline_stage || null,
-        company: c.company_name || null
+        contact_name: c.full_name || "",
+        contact_type: Array.isArray(c.roles) ? c.roles[0] : null,
+        stage: c.cfo_state || c.sponsor_state || c.referral_state || null,
+        company: c.company || null
       })
     } else {
       // Unrecognized — surface as potential add
