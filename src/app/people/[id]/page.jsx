@@ -25,6 +25,25 @@ function fmtShort(iso) {
   try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) } catch(e) { return iso }
 }
 
+// Normalize the inconsistently-cased channel values into clean filter buckets.
+const TIMELINE_TYPES = [
+  { key: "email",    label: "Email",     color: "#0ea5e9" },
+  { key: "linkedin", label: "LinkedIn",  color: "#0a66c2" },
+  { key: "meeting",  label: "Meetings",  color: "#16a34a" },
+  { key: "note",     label: "Notes",     color: "#d97706" },
+  { key: "system",   label: "System",    color: "#94a3b8" },
+]
+const TIMELINE_COLOR = TIMELINE_TYPES.reduce(function(m, t){ m[t.key] = t.color; return m }, {})
+function timelineType(c) {
+  const ch = (c.channel || "").toLowerCase()
+  const sl = (c.step_label || "").toLowerCase()
+  if (ch.includes("note") || sl === "note" || c.direction === "INTERNAL") return "note"
+  if (ch.includes("email")) return "email"
+  if (ch.includes("linkedin") || ch.includes("inmail")) return "linkedin"
+  if (ch.includes("calendly") || ch.includes("phone") || ch.includes("person") || ch.includes("meeting") || ch.includes("call")) return "meeting"
+  return "system"
+}
+
 // Display-only: turn a notes blob into readable lines. Respects real line
 // breaks first; otherwise splits on sentence boundaries, protecting common
 // abbreviations so "incl. Exxon" / "Inc." / "e.g." don't fragment. Never
@@ -65,6 +84,7 @@ export default function PersonProfile() {
   const [avatarInput, setAvatarInput] = useState("")
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [timelineFilter, setTimelineFilter] = useState("all")
 
   async function uploadAvatarFile(file) {
     if (!file) return
@@ -386,12 +406,28 @@ export default function PersonProfile() {
 
         {data.communications.length === 0 ? (
           <div style={{ color: T.textTertiary, fontSize: 13, padding: "8px 0" }}>No activity yet.</div>
-        ) : (
-          data.communications.map(function(c){
+        ) : (() => {
+          // Tag each row with its normalized type, then filter
+          const tagged = data.communications.map(function(c){ return { ...c, _type: timelineType(c) } })
+          const counts = tagged.reduce(function(m, c){ m[c._type] = (m[c._type] || 0) + 1; return m }, {})
+          const shown = timelineFilter === "all" ? tagged : tagged.filter(function(c){ return c._type === timelineFilter })
+          return (
+          <>
+            {/* Filter chips */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+              <Chip active={timelineFilter === "all"} color="#475569" label={"All"} count={tagged.length} onClick={function(){ setTimelineFilter("all") }} />
+              {TIMELINE_TYPES.filter(function(t){ return counts[t.key] }).map(function(t){
+                return <Chip key={t.key} active={timelineFilter === t.key} color={t.color} label={t.label} count={counts[t.key]} onClick={function(){ setTimelineFilter(t.key) }} />
+              })}
+            </div>
+
+            {shown.length === 0 ? (
+              <div style={{ color: T.textTertiary, fontSize: 13, padding: "8px 0" }}>No {timelineFilter} activity.</div>
+            ) : shown.map(function(c){
             const isOut = c.direction === "OUT" || c.direction === "outbound"
             const isIn = c.direction === "IN" || c.direction === "inbound"
-            const isNote = c.channel === "Note" || c.direction === "INTERNAL"
-            const accent = CHANNEL_COLOR[c.channel] || "#888"
+            const isNote = c._type === "note"
+            const accent = TIMELINE_COLOR[c._type] || "#888"
             return (
               <div key={c.id} style={{ paddingTop: 12, paddingBottom: 12, borderBottom: "1px solid " + T.borderSoft, borderLeft: "3px solid " + accent, paddingLeft: 12, marginBottom: 4 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
@@ -414,8 +450,10 @@ export default function PersonProfile() {
                 )}
               </div>
             )
-          })
-        )}
+          })}
+          </>
+          )
+        })()}
       </div>
 
     </main>
@@ -428,6 +466,21 @@ function Field({ label, value }) {
       <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{label}</div>
       <div style={{ fontSize: 13, color: value ? T.textPrimary : T.textTertiary }}>{value || "—"}</div>
     </div>
+  )
+}
+
+function Chip({ active, color, label, count, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      fontSize: 12, padding: "4px 11px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
+      border: "1px solid " + (active ? color : "#d1d5db"),
+      background: active ? color : "white",
+      color: active ? "white" : "#475569", fontWeight: active ? 600 : 400,
+      display: "inline-flex", alignItems: "center", gap: 6,
+    }}>
+      {label}
+      <span style={{ fontSize: 11, opacity: 0.85, fontWeight: 400 }}>{count}</span>
+    </button>
   )
 }
 
