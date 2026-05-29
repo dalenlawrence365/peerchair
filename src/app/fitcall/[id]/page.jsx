@@ -98,12 +98,21 @@ export default function FitCallPage() {
     setSaving(true)
     const oc = OUTCOMES.find(o => o.v === outcome)
     const today = new Date().toISOString().slice(0, 10)
-    const firmographics = {
+    const firmoRaw = {
       revenue: f.rev, employees: f.emp, finance_team: f.fin,
       ownership: f.own, reports_to: f.rpt, industry: f.ind,
       pressure_points: pressure, buying_cues: cues, red_flags: flags,
       last_fit_call: today, last_outcome: outcome || null, notes: notes || null,
     }
+    // Keep only populated values so the structured record stays clean (no empty-string keys).
+    const firmographics = {}
+    Object.keys(firmoRaw).forEach(function(k){
+      const v = firmoRaw[k]
+      if (v === null || v === undefined) return
+      if (typeof v === "string" && v.trim() === "") return
+      if (Array.isArray(v) && v.length === 0) return
+      firmographics[k] = v
+    })
     const noteBody =
       `FIT CALL — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}\n` +
       `Outcome: ${oc ? oc.l : "(not set)"}${stage ? ` · Stage set to: ${stage}` : ""}\n\n` +
