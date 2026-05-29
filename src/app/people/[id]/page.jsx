@@ -366,10 +366,7 @@ export default function PersonProfile() {
             <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>
               {p.company || <span style={{ color: T.textTertiary, fontWeight: 400 }}>No company set</span>}
             </div>
-            {firmoWebsite && (
-              <a href={firmoWebsite} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#0a66c2", textDecoration: "none", wordBreak: "break-all" }}>{firmo.website} ↗</a>
-            )}
-            {firmoRows.length > 0 ? (
+            {(firmoRows.length > 0 || firmoWebsite) ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {firmoRows.map(function(r){
                   return (
@@ -379,9 +376,15 @@ export default function PersonProfile() {
                     </div>
                   )
                 })}
+                {firmoWebsite && (
+                  <div>
+                    <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>Website</div>
+                    <a href={firmoWebsite} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: "#0a66c2", textDecoration: "none", wordBreak: "break-all" }}>{firmo.website} ↗</a>
+                  </div>
+                )}
               </div>
             ) : (
-              !firmoWebsite && <div style={{ fontSize: 12, color: T.textTertiary, fontStyle: "italic" }}>No firmographics yet</div>
+              <div style={{ fontSize: 12, color: T.textTertiary, fontStyle: "italic" }}>No firmographics yet</div>
             )}
           </div>
         </div>
