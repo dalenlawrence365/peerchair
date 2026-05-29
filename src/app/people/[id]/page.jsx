@@ -290,6 +290,12 @@ export default function PersonProfile() {
             <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
               {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
             </div>
+            {p.headline && (
+              <div style={{ marginTop: 6, fontSize: 12.5, color: T.textTertiary, lineHeight: 1.4 }}>
+                <span style={{ textTransform: "uppercase", letterSpacing: 0.5, fontSize: 10, color: T.textTertiary, marginRight: 6 }}>Headline</span>
+                {p.headline}
+              </div>
+            )}
             <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               {(p.roles || []).map(function(r){
                 return (
