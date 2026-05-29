@@ -238,29 +238,36 @@ export default function PersonProfile() {
                   }}>{ROLE_LABEL[r] || r}</span>
                 )
               })}
-              {/* Interactive stage dropdown for the primary role */}
+              {/* Stage stepper — click any stage to move the primary role up or down a level */}
               {primaryRole && STATE_OPTIONS[primaryRole] && (
-                <div style={{ position: "relative" }}>
-                  <button onClick={function(){ setShowStateMenu(!showStateMenu) }} disabled={busy} style={{
-                    fontSize: 11, padding: "3px 10px", borderRadius: 999,
-                    border: "1px solid " + T.border, color: T.textPrimary, background: "white",
-                    cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit"
-                  }}>
-                    {p[STATE_FIELD[primaryRole]] || "set stage"} ▾
-                  </button>
-                  {showStateMenu && (
-                    <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "white", border: "1px solid " + T.border, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 10, minWidth: 140, overflow: "hidden" }}>
-                      {STATE_OPTIONS[primaryRole].map(function(s){
-                        const current = p[STATE_FIELD[primaryRole]] === s
-                        return (
-                          <div key={s} onClick={function(){ setShowStateMenu(false); if (!current) postAction({ action: "set_state", role: primaryRole, state: s }) }}
-                            style={{ padding: "8px 12px", fontSize: 13, cursor: "pointer", background: current ? T.bg : "white", fontWeight: current ? 600 : 400 }}>
-                            {s}{current ? " ✓" : ""}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
+                <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", width: "100%", marginTop: 6 }}>
+                  <span style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginRight: 4 }}>Stage</span>
+                  {STATE_OPTIONS[primaryRole].map(function(s, i){
+                    const stages = STATE_OPTIONS[primaryRole]
+                    const cur = p[STATE_FIELD[primaryRole]]
+                    const curIdx = stages.indexOf(cur)
+                    const isCur = s === cur
+                    const isPast = curIdx >= 0 && i < curIdx
+                    const isAdjacent = curIdx >= 0 && Math.abs(i - curIdx) === 1
+                    const rc = ROLE_COLOR[primaryRole] || "#475569"
+                    return (
+                      <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        {i > 0 && <span style={{ color: T.border, fontSize: 12 }}>›</span>}
+                        <button disabled={busy || isCur}
+                          onClick={function(){ if (!isCur) postAction({ action: "set_state", role: primaryRole, state: s }) }}
+                          title={isCur ? "Current stage" : (curIdx >= 0 && i < curIdx ? "Move back to " + s : "Advance to " + s)}
+                          style={{
+                            fontSize: 11, padding: "4px 10px", borderRadius: 999, fontFamily: "inherit",
+                            fontWeight: isCur ? 700 : 500,
+                            cursor: isCur ? "default" : (busy ? "not-allowed" : "pointer"),
+                            background: isCur ? rc : (isPast ? rc + "22" : "white"),
+                            color: isCur ? "white" : (isPast ? rc : T.textSecondary),
+                            border: "1px solid " + (isCur ? rc : (isAdjacent ? rc + "88" : T.border)),
+                            textTransform: "capitalize"
+                          }}>{s}</button>
+                      </span>
+                    )
+                  })}
                 </div>
               )}
             </div>
