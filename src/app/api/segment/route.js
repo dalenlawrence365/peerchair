@@ -4,7 +4,7 @@ import { serverClient } from "@/lib/supabaseServer"
 
 // GET /api/segment?key=silent_connections — people in a connection-funnel segment.
 // Valid keys: uninvited, invite_pending, silent_connections, engaged.
-const VALID = ["uninvited", "invite_pending", "silent_connections", "engaged"]
+const VALID = ["uninvited", "invite_pending", "silent_connections", "replied"]
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url)

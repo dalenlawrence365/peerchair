@@ -9,7 +9,7 @@ const META = {
   uninvited:          { label: "Uninvited",          desc: "CFOs you've never sent a connection request to.", action: "Send a connection request", color: "#64748b" },
   invite_pending:     { label: "Invite Pending",     desc: "Invited on LinkedIn, not yet accepted.",          action: "Wait, or withdraw & re-invite",  color: "#b45309" },
   silent_connections: { label: "Silent Connections", desc: "Connected, but never replied to anything.",       action: "Re-ping about CFO Circle",        color: "#0f3d6e" },
-  engaged:            { label: "Engaged",            desc: "Connected and in active conversation.",           action: "Keep the conversation going",     color: "#15803d" },
+  replied:            { label: "Replied",            desc: "CFOs who have ever replied to you (recovered from threads + tags).", action: "Move into the conversation / triage", color: "#15803d" },
 }
 
 function fmtShort(iso) { if (!iso) return null; try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }) } catch (e) { return iso } }

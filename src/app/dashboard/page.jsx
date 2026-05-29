@@ -83,7 +83,7 @@ export default function DashboardPage() {
         <StatTile label="Uninvited" value={s.uninvited ?? "—"} color="#64748b" />
         <StatTile label="Invite Pending" value={s.invite_pending ?? "—"} color="#b45309" href="/segment/invite_pending" />
         <StatTile label="Silent Connections" value={s.silent_connections ?? "—"} color="#0f3d6e" href="/segment/silent_connections" />
-        <StatTile label="Engaged" value={s.engaged ?? "—"} color="#15803d" href="/segment/engaged" />
+        <StatTile label="Replied" value={s.replied ?? "—"} color="#15803d" href="/segment/replied" />
       </div>
       <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 24, lineHeight: 1.5 }}>
         Click a tile for the list (Uninvited is count-only — too long to scroll). Excludes opt-outs / do-not-contact / not-a-fit. Note: HeyReach didn't record who we asked, so Uninvited runs slightly high and Invite Pending slightly low.
