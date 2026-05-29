@@ -124,8 +124,11 @@ export default function FitCallPage() {
       if (targetStage) {
         await fetch(`/api/people/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "set_state", role: "cfo", state: targetStage }) })
       }
-      // 4. Completed tag
-      await fetch(`/api/people/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "add_tag", tag: "fit_call_completed", notes: oc ? oc.l : null }) })
+      // 4. Completed — ACTION tag (audit event), runs supersession to consume the
+      //    fit_call_scheduled tag. Must NOT be a status tag, or it skips supersession.
+      const _t = new Date()
+      const asofDate = `${_t.getFullYear()}-${String(_t.getMonth()+1).padStart(2,"0")}-${String(_t.getDate()).padStart(2,"0")}`
+      await fetch(`/api/people/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "action_tag", action_type: "fit_call_completed", as_of_date: asofDate, notes: oc ? oc.l : null }) })
       setSaved(true)
     } catch(e) { setError(e.message || String(e)) }
     setSaving(false)

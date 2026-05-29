@@ -7,6 +7,7 @@ import { serverClient } from "@/lib/supabaseServer"
 //   action="note"        { body }                       → log an internal note
 //   action="set_state"   { role, state }                → advance/change a per-role state
 //   action="add_tag"     { tag, notes? }                → add a status tag
+//   action="action_tag"  { action_type, as_of_date?, notes? } → log an action tag (runs supersession)
 //   action="remove_tag"  { tag }                        → remove a status tag
 //
 // Browser-facing (pc_auth localStorage model — same trust level as the rest
@@ -75,6 +76,26 @@ export async function POST(request, { params }) {
     const { error } = await sb.rpc("remove_status_tag", { p_person_id: id, p_tag: tag, p_removed_by: "profile_ui" })
     if (error) return Response.json({ error: error.message }, { status: 500 })
     return Response.json({ ok: true })
+  }
+
+  // action="action_tag" — log a point-in-time ACTION tag (audit-trail event).
+  // Routes through set_action_tag so supersession rules fire (e.g. completing a
+  // fit call deletes the now-consumed fit_call_scheduled tag). Lifecycle events
+  // like fit_call_completed/event_invite_sent are action tags, NOT status tags —
+  // writing them via add_tag/set_status_tag silently skips supersession.
+  if (action === "action_tag") {
+    const actionType = (body.action_type || body.tag || "").trim()
+    if (!actionType) return Response.json({ error: "action_type required" }, { status: 400 })
+    const { data, error } = await sb.rpc("set_action_tag", {
+      p_person_id: id,
+      p_action_type: actionType,
+      p_as_of_date: body.as_of_date || null,
+      p_as_of_time: body.as_of_time || null,
+      p_set_by: "profile_ui",
+      p_notes: body.notes || null,
+    })
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ ok: true, action_tag_id: data })
   }
 
   if (action === "set_firmographics") {
