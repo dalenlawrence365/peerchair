@@ -23,6 +23,19 @@ const ACTION_TAG_CHOICES = ["connection_sent", "connection_accepted", "first_mee
 const QUICK_ADD_STYLE = { padding: "3px 8px", fontSize: 11, borderRadius: 4, border: "1px dashed " + T.border, background: "transparent", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }
 function addBtnStyle(val) { const on = !!(val && val.trim()); return { padding: "5px 12px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: on ? "#3b82f6" : "white", color: on ? "white" : T.textTertiary, cursor: on ? "pointer" : "not-allowed", fontFamily: "inherit" } }
 
+// Relative-due label for next_action_date (e.g. "due today", "in 5d", "overdue 3d").
+function dueInfo(naDate) {
+  if (!naDate) return null
+  const iso = String(naDate).slice(0, 10)
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const d = new Date(iso + "T00:00:00")
+  const diff = Math.round((d - today) / 86400000)
+  if (diff < 0) return { label: "overdue " + (-diff) + "d", color: "#b91c1c" }
+  if (diff === 0) return { label: "due today", color: "#b45309" }
+  if (diff === 1) return { label: "due tomorrow", color: "#b45309" }
+  return { label: "in " + diff + "d", color: "#475569" }
+}
+
 function fmtDate(iso) {
   if (!iso) return ""
   try { return new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) } catch(e) { return iso }
@@ -270,6 +283,23 @@ export default function PersonProfile() {
                   })}
                 </div>
               )}
+              {/* Next action date — editable; drives the follow-up queue */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", marginTop: 8 }}>
+                <span style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>Next action</span>
+                <input type="date" disabled={busy}
+                  value={p.next_action_date ? String(p.next_action_date).slice(0, 10) : ""}
+                  onChange={function(e){ postAction({ action: "set_next_action", date: e.target.value || null }) }}
+                  style={{ fontSize: 12, padding: "4px 8px", border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", color: T.textPrimary, background: "white" }} />
+                {p.next_action_date ? (
+                  <>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: (dueInfo(p.next_action_date) || {}).color }}>{(dueInfo(p.next_action_date) || {}).label}</span>
+                    <button disabled={busy} onClick={function(){ postAction({ action: "set_next_action", date: null }) }}
+                      style={{ fontSize: 11, color: T.textTertiary, background: "none", border: "none", cursor: busy ? "not-allowed" : "pointer", textDecoration: "underline", fontFamily: "inherit", padding: 0 }}>clear</button>
+                  </>
+                ) : (
+                  <span style={{ fontSize: 12, color: T.textTertiary }}>not set</span>
+                )}
+              </div>
             </div>
           </div>
           </div>

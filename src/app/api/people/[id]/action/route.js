@@ -98,6 +98,14 @@ export async function POST(request, { params }) {
     return Response.json({ ok: true, action_tag_id: data })
   }
 
+  if (action === "set_next_action") {
+    // date is 'YYYY-MM-DD' to set, or null/empty to clear
+    const d = body.date || null
+    const { error } = await sb.from("people").update({ next_action_date: d }).eq("id", id)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ ok: true })
+  }
+
   if (action === "set_firmographics") {
     // body.firmographics is the full JSONB object
     if (!body.firmographics || typeof body.firmographics !== "object") {
