@@ -16,6 +16,13 @@ const STATE_FIELD = { cfo: "cfo_state", sponsor_contact: "sponsor_state", referr
 
 const CHANNEL_COLOR = { LinkedIn: "#0a66c2", Calendly: "#006bff", Email: "#16a34a", Note: "#6b7280", Phone: "#f97316" }
 
+// Tag pickers — known choices are offered as one-tap quick-adds; the free-text box adds anything on the fly.
+// Status = mutable state (set/removed). Action = point-in-time event (audit trail, runs supersession).
+const STATUS_TAG_CHOICES = ["do_not_contact", "not_a_fit", "opted_out", "snoozed", "reserve"]
+const ACTION_TAG_CHOICES = ["connection_sent", "connection_accepted", "first_meeting", "reply_received", "brochure_sent", "cfo_survey_sent", "fit_call_scheduled", "fit_call_completed", "event_invite_sent", "event_rsvp_confirmed"]
+const QUICK_ADD_STYLE = { padding: "3px 8px", fontSize: 11, borderRadius: 4, border: "1px dashed " + T.border, background: "transparent", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }
+function addBtnStyle(val) { const on = !!(val && val.trim()); return { padding: "5px 12px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: on ? "#3b82f6" : "white", color: on ? "white" : T.textTertiary, cursor: on ? "pointer" : "not-allowed", fontFamily: "inherit" } }
+
 function fmtDate(iso) {
   if (!iso) return ""
   try { return new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) } catch(e) { return iso }
@@ -78,7 +85,8 @@ export default function PersonProfile() {
   const [noteText, setNoteText] = useState("")
   const [savingNote, setSavingNote] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [newTag, setNewTag] = useState("")
+  const [newStatusTag, setNewStatusTag] = useState("")
+  const [newActionTag, setNewActionTag] = useState("")
   const [showStateMenu, setShowStateMenu] = useState(false)
   const [showAvatarEdit, setShowAvatarEdit] = useState(false)
   const [avatarInput, setAvatarInput] = useState("")
@@ -160,6 +168,21 @@ export default function PersonProfile() {
     } catch(e) { setError(e.message || String(e)) }
     setBusy(false)
     reload()
+  }
+
+  function addStatusTag(tag) {
+    const t = (tag || "").trim()
+    if (!t) return
+    postAction({ action: "add_tag", tag: t })
+    setNewStatusTag("")
+  }
+  function addActionTag(tag) {
+    const t = (tag || "").trim()
+    if (!t) return
+    const d = new Date()
+    const asof = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    postAction({ action: "action_tag", action_type: t, as_of_date: asof })
+    setNewActionTag("")
   }
 
   async function saveNote() {
@@ -330,43 +353,79 @@ export default function PersonProfile() {
         </div>
       )}
 
-      {/* Status & action tags — always visible (editable) */}
+      {/* Status & action tags — split: Status (left) · Activity (right). Each: quick-add choices + custom on the fly. */}
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Tags</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          {data.status_tags.map(function(t){
-            return (
-              <span key={"s_" + t.tag} title={`Set ${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
-                fontSize: 11, padding: "3px 6px 3px 9px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 6,
-                background: t.tag === "needs_role_review" ? "#fef3c7" : T.bg,
-                border: "1px solid " + T.border,
-                color: t.tag === "needs_role_review" ? "#92400e" : T.textSecondary
-              }}>
-                {t.tag}
-                <span onClick={function(){ postAction({ action: "remove_tag", tag: t.tag }) }} style={{ cursor: "pointer", opacity: 0.5, fontWeight: 700 }} title="Remove tag">×</span>
-              </span>
-            )
-          })}
-          {data.action_tags.map(function(t, i){
-            return (
-              <span key={"a_" + i} title={`${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
-                fontSize: 11, padding: "3px 9px", borderRadius: 4,
-                background: T.bg, border: "1px solid " + T.border, color: T.textSecondary, opacity: 0.85
-              }}>{t.action_type}{t.as_of_date ? " · " + fmtShort(t.as_of_date) : ""}</span>
-            )
-          })}
-          {data.status_tags.length === 0 && data.action_tags.length === 0 && (
-            <span style={{ fontSize: 12, color: T.textTertiary }}>No tags yet.</span>
-          )}
-        </div>
-        {/* Add status tag */}
-        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-          <input value={newTag} onChange={function(e){ setNewTag(e.target.value) }}
-            onKeyDown={function(e){ if (e.key === "Enter" && newTag.trim()) { postAction({ action: "add_tag", tag: newTag.trim() }); setNewTag("") } }}
-            placeholder="Add a status tag (e.g. do_not_contact, hot_lead)…"
-            style={{ flex: 1, maxWidth: 360, padding: "6px 10px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
-          <button disabled={!newTag.trim() || busy} onClick={function(){ if (newTag.trim()) { postAction({ action: "add_tag", tag: newTag.trim() }); setNewTag("") } }}
-            style={{ padding: "6px 14px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: newTag.trim() ? "#3b82f6" : "white", color: newTag.trim() ? "white" : T.textTertiary, cursor: newTag.trim() ? "pointer" : "not-allowed", fontFamily: "inherit" }}>Add</button>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Tags</div>
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+
+          {/* ── STATUS (left) ── */}
+          <div style={{ flex: "1 1 260px", minWidth: 240, borderRight: "1px solid " + T.border, paddingRight: 24 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: "#0f3d6e", display: "inline-block" }} /> STATUS
+              <span style={{ fontWeight: 400, color: T.textTertiary }}>· current state</span>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", minHeight: 22 }}>
+              {data.status_tags.map(function(t){
+                return (
+                  <span key={"s_" + t.tag} title={`Set ${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
+                    fontSize: 11, padding: "3px 6px 3px 9px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 6,
+                    background: t.tag === "needs_role_review" ? "#fef3c7" : T.bg,
+                    border: "1px solid " + T.border,
+                    color: t.tag === "needs_role_review" ? "#92400e" : T.textSecondary
+                  }}>
+                    {t.tag}
+                    <span onClick={function(){ postAction({ action: "remove_tag", tag: t.tag }) }} style={{ cursor: "pointer", opacity: 0.5, fontWeight: 700 }} title="Remove tag">×</span>
+                  </span>
+                )
+              })}
+              {data.status_tags.length === 0 && <span style={{ fontSize: 12, color: T.textTertiary }}>None</span>}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+              {STATUS_TAG_CHOICES.filter(function(c){ return !data.status_tags.some(function(t){ return t.tag === c }) }).map(function(c){
+                return <button key={c} disabled={busy} onClick={function(){ addStatusTag(c) }} style={QUICK_ADD_STYLE}>+ {c}</button>
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <input value={newStatusTag} onChange={function(e){ setNewStatusTag(e.target.value) }}
+                onKeyDown={function(e){ if (e.key === "Enter") addStatusTag(newStatusTag) }}
+                placeholder="custom status…"
+                style={{ flex: 1, padding: "5px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
+              <button disabled={!newStatusTag.trim() || busy} onClick={function(){ addStatusTag(newStatusTag) }} style={addBtnStyle(newStatusTag)}>Add</button>
+            </div>
+          </div>
+
+          {/* ── ACTIVITY / ACTION (right) ── */}
+          <div style={{ flex: "1 1 260px", minWidth: 240 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#15803d", display: "inline-block" }} /> ACTIVITY
+              <span style={{ fontWeight: 400, color: T.textTertiary }}>· logged events</span>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", minHeight: 22 }}>
+              {data.action_tags.map(function(t, i){
+                return (
+                  <span key={"a_" + i} title={`${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
+                    fontSize: 11, padding: "3px 9px", borderRadius: 4,
+                    background: T.bg, border: "1px solid " + T.border, color: T.textSecondary, opacity: 0.9
+                  }}>{t.action_type}{t.as_of_date ? " · " + fmtShort(t.as_of_date) : ""}</span>
+                )
+              })}
+              {data.action_tags.length === 0 && <span style={{ fontSize: 12, color: T.textTertiary }}>None</span>}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+              {ACTION_TAG_CHOICES.filter(function(c){ return !data.action_tags.some(function(t){ return t.action_type === c }) }).map(function(c){
+                return <button key={c} disabled={busy} onClick={function(){ addActionTag(c) }} style={QUICK_ADD_STYLE}>+ {c}</button>
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <input value={newActionTag} onChange={function(e){ setNewActionTag(e.target.value) }}
+                onKeyDown={function(e){ if (e.key === "Enter") addActionTag(newActionTag) }}
+                placeholder="custom activity…"
+                style={{ flex: 1, padding: "5px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
+              <button disabled={!newActionTag.trim() || busy} onClick={function(){ addActionTag(newActionTag) }} style={addBtnStyle(newActionTag)}>Add</button>
+            </div>
+            <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 6, lineHeight: 1.4 }}>Logged as of today. Activity is an audit trail — e.g. logging a completion auto-clears its scheduled tag.</div>
+          </div>
+
         </div>
       </div>
 
