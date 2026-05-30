@@ -57,6 +57,8 @@ function extractLead(payload) {
     location: pick(payload, ["Location", "location", "location_name"]),
     email: pick(payload, ["Email", "email", "Email Address", "emailAddress"]),
     avatar: pick(payload, ["avatar", "avatar_url", "Avatar", "photo", "profile_picture"]),
+    headline: pick(payload, ["headline", "Headline", "current_headline", "linkedin_headline"]),
+    summary: pick(payload, ["summary", "Summary", "about", "About", "profile_summary"]),
     campaign: pick(payload, ["Campaign name", "Campaign", "campaignName", "campaign", "campaign_name"]),
     tagsRaw: payload.Tags || payload.tags || payload.tag || null,
     // REPLY TEXT — preferred order: the triggering reply, then last incoming, then old/legacy aliases
@@ -286,6 +288,23 @@ async function logUnmatched(sb, eventType, lead, messageBody, rawPayload) {
   })
 }
 
+// Persist people-only enrichment (About / headline) from the LinkedHelper
+// payload. people.id === contacts.id, so we key by the contact id returned from
+// findOrCreateContact. About is overwritten when present (LinkedHelper is the
+// freshest source); headline only fills a gap so we never clobber the curated
+// CSV headlines.
+async function enrichPersonFromLead(sb, personId, lead) {
+  if (!personId) return
+  try {
+    if (lead.summary) {
+      await sb.from("people").update({ about: lead.summary }).eq("id", personId)
+    }
+    if (lead.headline) {
+      await sb.from("people").update({ headline: lead.headline }).eq("id", personId).is("headline", null)
+    }
+  } catch(e) { console.error("people enrich (about/headline) failed:", e.message) }
+}
+
 async function handleSent(sb, lead, tags, seedBatchTag, raw) {
   const poolRow = await findPoolRecord(sb, lead.profileUrl)
   const contact = await findOrCreateContact(sb, lead, seedBatchTag, "Requested", poolRow)
@@ -293,6 +312,7 @@ async function handleSent(sb, lead, tags, seedBatchTag, raw) {
     await logUnmatched(sb, "sent", lead, null, raw)
     return
   }
+  await enrichPersonFromLead(sb, contact.id, lead)
 
   // Move to Requested only if currently at pool or empty stage
   if (!contact.pipeline_stage || contact.pipeline_stage === "pool") {
@@ -336,6 +356,7 @@ async function handleConnected(sb, lead, tags, seedBatchTag, raw) {
     await logUnmatched(sb, "connected", lead, null, raw)
     return
   }
+  await enrichPersonFromLead(sb, contact.id, lead)
 
   // Always advance to Connected on accept (unless already past)
   const advancedStages = ["Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Active Member","Event Waitlist","Event Invited","Event Confirmed","Event Attended","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment"]
@@ -370,6 +391,7 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
     await logUnmatched(sb, "replied", lead, replyText, raw)
     return
   }
+  await enrichPersonFromLead(sb, contact.id, lead)
 
   // Dedupe: don't insert if a matching reply already exists in last 7 days
   if (replyText) {

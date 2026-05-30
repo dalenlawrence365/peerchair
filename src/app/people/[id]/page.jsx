@@ -288,7 +288,17 @@ export default function PersonProfile() {
               <div style={{ position: "absolute", bottom: -2, right: -2, width: 20, height: 20, borderRadius: "50%", background: "#3b82f6", border: "2px solid white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "white" }}>✎</div>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: -0.4, margin: 0 }}>{p.full_name || "(no name)"}</h1>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: -0.4, margin: 0 }}>{p.full_name || "(no name)"}</h1>
+              {(p.roles || []).map(function(r){
+                return (
+                  <span key={r} style={{
+                    fontSize: 11, padding: "3px 9px", borderRadius: 999,
+                    background: ROLE_COLOR[r] || "#888", color: "white", fontWeight: 600
+                  }}>{ROLE_LABEL[r] || r}</span>
+                )
+              })}
+            </div>
             <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
               {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
             </div>
@@ -298,18 +308,10 @@ export default function PersonProfile() {
                 {p.headline}
               </div>
             )}
-            <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              {(p.roles || []).map(function(r){
-                return (
-                  <span key={r} style={{
-                    fontSize: 11, padding: "3px 9px", borderRadius: 999,
-                    background: ROLE_COLOR[r] || "#888", color: "white", fontWeight: 600
-                  }}>{ROLE_LABEL[r] || r}</span>
-                )
-              })}
+            <div style={{ marginTop: 12, display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
               {/* Stage stepper — click any stage to move the primary role up or down a level */}
               {primaryRole && STATE_OPTIONS[primaryRole] && (
-                <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", width: "100%", marginTop: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginRight: 4 }}>Stage</span>
                   {STATE_OPTIONS[primaryRole].map(function(s, i){
                     const stages = STATE_OPTIONS[primaryRole]
@@ -340,7 +342,7 @@ export default function PersonProfile() {
                 </div>
               )}
               {/* Next action date — editable; drives the follow-up queue */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", marginTop: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>Next action</span>
                 <input type="date" disabled={busy}
                   value={p.next_action_date ? String(p.next_action_date).slice(0, 10) : ""}
@@ -357,6 +359,7 @@ export default function PersonProfile() {
                 )}
               </div>
             </div>
+            {p.about && <AboutBlock text={p.about} />}
           </div>
           </div>
           {/* RIGHT COLUMN — company / firmographics */}
@@ -669,6 +672,25 @@ export default function PersonProfile() {
       </>)}
 
     </main>
+  )
+}
+
+function AboutBlock({ text }) {
+  const [open, setOpen] = useState(false)
+  const clean = String(text).trim()
+  const long = clean.length > 220
+  const shown = open || !long ? clean : clean.slice(0, 220).replace(/\s+\S*$/, "") + "…"
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid " + T.borderSoft }}>
+      <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>About</div>
+      <div style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.55, whiteSpace: "pre-wrap", maxWidth: 760 }}>{shown}</div>
+      {long && (
+        <button onClick={function(){ setOpen(!open) }}
+          style={{ marginTop: 4, fontSize: 12, color: "#0f3d6e", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, fontWeight: 500 }}>
+          {open ? "less" : "more"}
+        </button>
+      )}
+    </div>
   )
 }
 
