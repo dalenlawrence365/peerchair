@@ -46,7 +46,7 @@ export async function GET(request) {
         channel:     action.channel === 'linkedin' ? 'LinkedIn' : 'Email',
         direction:   'INTERNAL',
         step_label:  'Scheduled Action Resurfaced',
-        body:        `Draft ready to send: "${action.message_body.slice(0, 100)}..."`,
+        body:        `Draft ready to send: "${action.message_body}"`,
         source:      'PeerChair',
         logged_by:   'system',
       })
