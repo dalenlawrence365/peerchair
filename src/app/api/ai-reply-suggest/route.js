@@ -21,7 +21,8 @@ export async function POST(request) {
     if (thread && thread.length > 0) {
       var recentMsgs = thread.slice(-6) // last 6 messages for context
       threadContext = recentMsgs.map(function(m) {
-        var sender = m.direction === "OUT" ? "Dalen" : firstName
+        var dir = String(m.direction || "").toLowerCase()
+        var sender = (dir === "out" || dir === "outbound") ? "Dalen" : firstName
         var body = (m.body || "").slice(0, 200)
         return sender + ": " + body
       }).join("\n")
