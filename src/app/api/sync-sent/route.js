@@ -69,15 +69,15 @@ export async function GET(request) {
       const { data: existing } = await sb.from("communications")
         .select("id")
         .or(`person_id.eq.${person.id},contact_id.eq.${person.id}`)
-        .eq("channel", "Email").eq("direction", "OUT")
+        .eq("channel", "email").eq("direction", "outbound")
         .eq("occurred_at", msg.sentDateTime)
         .limit(1)
       if (existing?.length) continue
 
       const { error: insErr } = await sb.from("communications").insert({
         person_id: person.id,
-        direction: "OUT",
-        channel: "Email",
+        direction: "outbound",
+        channel: "email",
         subject: msg.subject || null,
         body: `Subject: ${msg.subject || "(no subject)"}\n\n${msg.bodyPreview || ""}`,
         occurred_at: msg.sentDateTime,
