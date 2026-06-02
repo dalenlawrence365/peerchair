@@ -14,7 +14,8 @@ export async function OPTIONS() { return handleOptions() }
 // Lookback defaults to 2h (cron); pass ?hours=N for a one-off wider sweep.
 export async function GET(request) {
   const auth = request.headers.get("authorization") || ""
-  const isCron = auth === "Bearer cfocircle2026"
+  const expected = `Bearer ${process.env.CRON_SECRET || "cfocircle2026"}`
+  const isCron = auth === expected
   const isGpt = verifyGptActionKey(request)
   if (!isCron && !isGpt) {
     return corsResponse({ error: "Unauthorized" }, { status: 401 })

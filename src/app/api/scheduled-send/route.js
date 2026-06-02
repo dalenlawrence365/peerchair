@@ -11,8 +11,8 @@ const SITE    = "https://www.peerchair.com"
 
 export async function GET(request) {
   const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== 'Bearer ' + cronSecret) {
+  const cronSecret = process.env.CRON_SECRET || "cfocircle2026"
+  if (authHeader !== 'Bearer ' + cronSecret) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
