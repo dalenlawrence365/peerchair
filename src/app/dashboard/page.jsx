@@ -89,14 +89,16 @@ export default function DashboardPage() {
         Click a tile for the list (Uninvited is count-only — too long to scroll). Excludes opt-outs / do-not-contact / not-a-fit. Note: HeyReach didn't record who we asked, so Uninvited runs slightly high and Invite Pending slightly low.
       </div>
 
-      {/* CFO pipeline distribution */}
-      <SectionHeader title="CFO pipeline by stage" />
-      <PipelineBar stages={CFO_STAGES} counts={c.cfo} hrefBase="/pipeline/cfo" color={ROLE_COLOR.cfo} />
-
-      {/* Sponsor pipeline distribution */}
-      <div style={{ marginTop: 18 }}>
-        <SectionHeader title="Sponsor pipeline by stage" />
-        <PipelineBar stages={SPONSOR_STAGES} counts={c.sponsor} hrefBase="/pipeline/sponsor" color={ROLE_COLOR.sponsor_contact} />
+      {/* CFO + Sponsor pipeline distributions — side-by-side */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+        <div>
+          <SectionHeader title="CFO pipeline by stage" />
+          <PipelineBar stages={CFO_STAGES} counts={c.cfo} hrefBase="/pipeline/cfo" color={ROLE_COLOR.cfo} />
+        </div>
+        <div>
+          <SectionHeader title="Sponsor pipeline by stage" />
+          <PipelineBar stages={SPONSOR_STAGES} counts={c.sponsor} hrefBase="/pipeline/sponsor" color={ROLE_COLOR.sponsor_contact} />
+        </div>
       </div>
 
       {/* Referral pipeline distribution */}
@@ -205,7 +207,7 @@ function PipelineBar({ stages, counts, hrefBase, color, referralMode }) {
         const pct = Math.round((n / total) * 100)
         const href = referralMode ? hrefBase : hrefBase + "/" + stage
         return (
-          <Link key={stage} href={href} style={{ flex: Math.max(1, n), textDecoration: "none", minWidth: 80 }}>
+          <Link key={stage} href={href} style={{ flex: 1, textDecoration: "none", minWidth: 80 }}>
             <div style={{
               background: T.cardBg, border: "1px solid " + T.border, borderRadius: 8,
               padding: "12px 14px", borderLeft: "3px solid " + color, cursor: "pointer"
