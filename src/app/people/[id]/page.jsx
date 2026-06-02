@@ -367,6 +367,12 @@ export default function PersonProfile() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>Company</span>
               <div style={{ display: "flex", gap: 6 }}>
+                {(p.roles || []).includes("cfo") && (
+                  <Link href={`/fitcall/${p.id}`}
+                    style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, background: "#10b981", color: "white", textDecoration: "none", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    Start Fit Call →
+                  </Link>
+                )}
                 <button onClick={function(){ openEdit(p) }} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>✎ Edit</button>
                 {p.linkedin_url && (
                   <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer" title="Open in LinkedIn"
