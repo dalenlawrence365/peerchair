@@ -88,6 +88,28 @@ export async function GET() {
     .map(function(t){ const p = sdById[t.person_id]; return p ? Object.assign({}, p, { tag_set_at: t.set_at, tag_notes: t.notes }) : null })
     .filter(Boolean)
 
+  // Weekly KPIs — action_tags set in the current ISO week (Monday-current)
+  const weekStart = new Date()
+  const day = weekStart.getUTCDay()
+  const diffToMon = day === 0 ? -6 : 1 - day  // Sunday → -6, Monday → 0, Tuesday → -1...
+  weekStart.setUTCDate(weekStart.getUTCDate() + diffToMon)
+  weekStart.setUTCHours(0, 0, 0, 0)
+  const weekStartIso = weekStart.toISOString()
+
+  async function tagCountSince(action_type, since) {
+    const { count } = await sb.from("person_action_tags")
+      .select("person_id", { count: "exact", head: true })
+      .eq("action_type", action_type)
+      .gte("set_at", since)
+    return count || 0
+  }
+  const weekly = {
+    fit_scheduled:       await tagCountSince("fit_call_scheduled", weekStartIso),
+    fit_completed:       await tagCountSince("fit_call_completed", weekStartIso),
+    discovery_scheduled: await tagCountSince("sponsor_discovery_scheduled", weekStartIso),
+    discovery_completed: await tagCountSince("sponsor_discovery_completed", weekStartIso),
+  }
+
   // Recent activity — last 15 communications across all people
   const { data: activityRaw } = await sb.from("communications")
     .select("id, person_id, contact_id, occurred_at, direction, channel, step_label, body")
@@ -131,6 +153,7 @@ export async function GET() {
     },
     fit_calls: fitCalls.slice(0, 10),
     sponsor_discoveries: sponsorDiscoveries.slice(0, 10),
+    weekly,
     activity,
   })
 }

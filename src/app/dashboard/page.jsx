@@ -86,25 +86,51 @@ export default function DashboardPage() {
         <StatTile label="Replied" value={s.replied ?? "—"} color="#15803d" href="/segment/replied" />
       </div>
       <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 24, lineHeight: 1.5 }}>
-        Click a tile for the list (Uninvited is count-only — too long to scroll). Excludes opt-outs / do-not-contact / not-a-fit. Note: HeyReach didn't record who we asked, so Uninvited runs slightly high and Invite Pending slightly low.
+        Click a tile for the list (Uninvited is count-only — too long to scroll). Excludes opt-outs / do-not-contact / not-a-fit.
       </div>
 
-      {/* CFO + Sponsor pipeline distributions — side-by-side */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+      {/* CFO + Sponsor pipeline distributions — side-by-side with clear separation */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40 }}>
         <div>
           <SectionHeader title="CFO pipeline by stage" />
-          <PipelineBar stages={CFO_STAGES} counts={c.cfo} hrefBase="/pipeline/cfo" color={ROLE_COLOR.cfo} />
+          <PipelineBar stages={CFO_STAGES} counts={c.cfo} hrefBase="/pipeline/cfo" color={ROLE_COLOR.cfo} compact />
         </div>
         <div>
           <SectionHeader title="Sponsor pipeline by stage" />
-          <PipelineBar stages={SPONSOR_STAGES} counts={c.sponsor} hrefBase="/pipeline/sponsor" color={ROLE_COLOR.sponsor_contact} />
+          <PipelineBar stages={SPONSOR_STAGES} counts={c.sponsor} hrefBase="/pipeline/sponsor" color={ROLE_COLOR.sponsor_contact} compact />
         </div>
       </div>
 
-      {/* Referral pipeline distribution */}
-      <div style={{ marginTop: 18 }}>
-        <SectionHeader title="Referral partners by stage" />
-        <PipelineBar stages={REFERRAL_STAGES} counts={c.referral} hrefBase="/referral" color={ROLE_COLOR.referral_partner} referralMode />
+      {/* Referral + this-week KPIs — three grouped tile clusters on one row */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 32, marginTop: 24 }}>
+        <div>
+          <SectionHeader title="Referral partners by stage" />
+          <PipelineBar stages={REFERRAL_STAGES} counts={c.referral} hrefBase="/referral" color={ROLE_COLOR.referral_partner} referralMode compact />
+        </div>
+        <div>
+          <SectionHeader title="Fit calls (this week)" />
+          <PipelineBar
+            stages={["Scheduled", "Completed"]}
+            counts={{ Scheduled: (data.weekly && data.weekly.fit_scheduled) || 0, Completed: (data.weekly && data.weekly.fit_completed) || 0 }}
+            hrefBase="/meetings"
+            color={ROLE_COLOR.cfo}
+            referralMode
+            compact
+            hidePct
+          />
+        </div>
+        <div>
+          <SectionHeader title="Sponsor discoveries (this week)" />
+          <PipelineBar
+            stages={["Scheduled", "Completed"]}
+            counts={{ Scheduled: (data.weekly && data.weekly.discovery_scheduled) || 0, Completed: (data.weekly && data.weekly.discovery_completed) || 0 }}
+            hrefBase="/meetings"
+            color={ROLE_COLOR.sponsor_contact}
+            referralMode
+            compact
+            hidePct
+          />
+        </div>
       </div>
 
       {/* Two-column: Upcoming calls + Recent activity */}
@@ -116,7 +142,7 @@ export default function DashboardPage() {
             )
           })}
         </Card>
-        <Card title="Sponsor discoveries">
+        <Card title="Upcoming sponsor discoveries">
           {data.sponsor_discoveries.length === 0 ? <Empty msg="No sponsor discoveries scheduled." /> : data.sponsor_discoveries.map(function(p){
             return (
               <PersonRow key={p.id} person={p} subtitle={p.tag_notes || "Discovery scheduled"} time={fmtRel(p.tag_set_at)} />
@@ -198,23 +224,26 @@ function SectionHeader({ title }) {
   return <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.7, color: T.textTertiary, fontWeight: 600, margin: "8px 2px 10px" }}>{title}</div>
 }
 
-function PipelineBar({ stages, counts, hrefBase, color, referralMode }) {
+function PipelineBar({ stages, counts, hrefBase, color, referralMode, compact, hidePct }) {
   const total = stages.reduce(function(s, k){ return s + (counts[k] || 0) }, 0) || 1
+  const padding = compact ? "8px 10px" : "12px 14px"
+  const numSize = compact ? 18 : 22
+  const minW    = compact ? 56 : 80
   return (
-    <div style={{ display: "flex", gap: 8 }}>
+    <div style={{ display: "flex", gap: 6 }}>
       {stages.map(function(stage){
         const n = counts[stage] || 0
         const pct = Math.round((n / total) * 100)
         const href = referralMode ? hrefBase : hrefBase + "/" + stage
         return (
-          <Link key={stage} href={href} style={{ flex: 1, textDecoration: "none", minWidth: 80 }}>
+          <Link key={stage} href={href} style={{ flex: 1, textDecoration: "none", minWidth: minW }}>
             <div style={{
               background: T.cardBg, border: "1px solid " + T.border, borderRadius: 8,
-              padding: "12px 14px", borderLeft: "3px solid " + color, cursor: "pointer"
+              padding: padding, borderLeft: "3px solid " + color, cursor: "pointer"
             }}>
-              <div style={{ fontSize: 22, fontWeight: 600, color: T.textPrimary, lineHeight: 1 }}>{n.toLocaleString()}</div>
+              <div style={{ fontSize: numSize, fontWeight: 600, color: T.textPrimary, lineHeight: 1 }}>{n.toLocaleString()}</div>
               <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 4 }}>{stage}</div>
-              <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 2 }}>{pct}%</div>
+              {!hidePct && <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 2 }}>{pct}%</div>}
             </div>
           </Link>
         )
