@@ -4,6 +4,7 @@ import { serverClient } from "@/lib/supabaseServer"
 import { corsResponse, handleOptions } from "@/lib/cors"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { getAccessToken } from "@/lib/microsoft-auth"
+import { logCronRun } from "@/lib/cron-audit"
 
 export async function OPTIONS() { return handleOptions() }
 
@@ -27,6 +28,7 @@ export async function GET(request) {
   try {
     accessToken = await getAccessToken()
   } catch (e) {
+    await logCronRun("sync-sent", "Token refresh failed", [e.message])
     return corsResponse({ error: e.message }, { status: 401 })
   }
 
@@ -39,20 +41,32 @@ export async function GET(request) {
     `https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages?$filter=sentDateTime ge ${since}&$select=id,subject,sentDateTime,toRecipients,bodyPreview&$orderby=sentDateTime desc&$top=100`,
     { headers: { Authorization: "Bearer " + accessToken } }
   )
-  if (!res.ok) return corsResponse({ error: "Outlook fetch failed" }, { status: 500 })
+  if (!res.ok) {
+    await logCronRun("sync-sent", "Outlook fetch failed", [`HTTP ${res.status}`])
+    return corsResponse({ error: "Outlook fetch failed" }, { status: 500 })
+  }
 
   const { value: messages } = await res.json()
-  if (!messages?.length) return corsResponse({ synced: 0, message: `No sent messages in last ${hours}h` })
+  if (!messages?.length) {
+    await logCronRun("sync-sent", `No sent messages in last ${hours}h`)
+    return corsResponse({ synced: 0, message: `No sent messages in last ${hours}h` })
+  }
 
   // All recipient addresses across the batch
   const allEmails = [...new Set(
     messages.flatMap(m => (m.toRecipients || []).map(r => r.emailAddress?.address?.toLowerCase()).filter(Boolean))
   )]
-  if (!allEmails.length) return corsResponse({ synced: 0, message: "No recipients found" })
+  if (!allEmails.length) {
+    await logCronRun("sync-sent", "No recipients found in sent items")
+    return corsResponse({ synced: 0, message: "No recipients found" })
+  }
 
   // Match against PEOPLE (unified table), not legacy contacts
   const { data: people } = await sb.from("people").select("id, email").in("email", allEmails)
-  if (!people?.length) return corsResponse({ synced: 0, message: "No matching people in sent items" })
+  if (!people?.length) {
+    await logCronRun("sync-sent", "No matching people in sent items")
+    return corsResponse({ synced: 0, message: "No matching people in sent items" })
+  }
 
   const emailToPerson = {}
   for (const p of people) { if (p.email) emailToPerson[p.email.toLowerCase()] = p }
@@ -91,6 +105,10 @@ export async function GET(request) {
     }
   }
 
+  await logCronRun(
+    "sync-sent",
+    synced > 0 ? `Synced ${synced} sent email(s)` : "No new emails to log",
+  )
   return corsResponse({
     synced,
     lookback_hours: hours,

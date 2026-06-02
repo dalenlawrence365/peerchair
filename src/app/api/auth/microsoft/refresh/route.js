@@ -1,5 +1,7 @@
 export const dynamic = "force-dynamic"
 
+import { logCronRun } from "@/lib/cron-audit"
+
 export async function GET(request) {
   const auth = request.headers.get("authorization")
   if (auth !== "Bearer " + (process.env.CRON_SECRET || "cfocircle2026")) {
@@ -14,7 +16,10 @@ export async function GET(request) {
     )
 
     const { data: row } = await sb.from("microsoft_tokens").select("*").eq("id", "dalen").single()
-    if (!row) return Response.json({ error: "No token found" }, { status: 404 })
+    if (!row) {
+      await logCronRun("microsoft-refresh", "No token row found", ["No token found"])
+      return Response.json({ error: "No token found" }, { status: 404 })
+    }
 
     const res = await fetch(
       `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/oauth2/v2.0/token`,
@@ -33,6 +38,7 @@ export async function GET(request) {
 
     if (!res.ok) {
       const err = await res.text()
+      await logCronRun("microsoft-refresh", "Refresh failed", [`HTTP ${res.status}: ${err.slice(0, 200)}`])
       return Response.json({ error: "Refresh failed", detail: err }, { status: 500 })
     }
 
@@ -47,8 +53,10 @@ export async function GET(request) {
       updated_at: new Date().toISOString()
     })
 
+    await logCronRun("microsoft-refresh", `Token refreshed, expires ${expiresAt}`)
     return Response.json({ success: true, expires_at: expiresAt })
   } catch(e) {
+    await logCronRun("microsoft-refresh", "Exception", [e.message])
     return Response.json({ error: e.message }, { status: 500 })
   }
 }

@@ -4,6 +4,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { serverClient } from "@/lib/supabaseServer"
+import { logCronRun } from "@/lib/cron-audit"
 
 const HR_KEY  = process.env.HEYREACH_API_KEY
 const HR_BASE = "https://api.heyreach.io/api/public"
@@ -188,13 +189,20 @@ export async function GET(request) {
     } catch(e) { console.warn('Verification failed:', e.message) }
   }
 
+  const total = results.fired.length + results.resurfaced.length
+  await logCronRun(
+    "scheduled-send",
+    `fired=${results.fired.length} resurfaced=${results.resurfaced.length} failed=${results.failed.length} verified=${results.verified.length}`,
+    results.failed.length ? results.failed.map(f => typeof f === "string" ? f : JSON.stringify(f)) : null
+  )
+
   return Response.json({
     run_at: now,
     fired: results.fired,
     resurfaced: results.resurfaced,
     failed: results.failed,
     verified: results.verified,
-    total: results.fired.length + results.resurfaced.length
+    total
   })
 }
 

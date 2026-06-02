@@ -11,6 +11,10 @@
     {
       "path": "/api/scheduled-send",
       "schedule": "0 16,20 * * *"
+    },
+    {
+      "path": "/api/cron-health",
+      "schedule": "0 * * * *"
     }
   ]
 }
