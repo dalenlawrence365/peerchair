@@ -18,7 +18,7 @@ const STAGE_CONFIG = {
 const INVENTORY_ITEMS = [
   { key: "connection_accepted", label: "Connected", color: "audience" },
   { key: "brochure_sent", label: "Brochure", color: "audience", critical: true },
-  { key: "cfo_survey_sent", label: "Survey", color: "audience" }, // not critical until Dalen takes it himself
+  { key: "assessment_sent", label: "Assessment", color: "audience" }, // not critical until Dalen takes it himself
   { key: "fit_call_scheduled", label: "Fit scheduled", color: "prospect" },
   { key: "fit_call_completed", label: "Fit done", color: "qualified" },
   { key: "event_invite_sent", label: "Event invite", color: "audience", critical: true, qualifiedOnly: true },
@@ -141,7 +141,7 @@ export default function StageWorkspace({ stage }) {
         hasFitScheduled: tags.has("fit_call_scheduled"),
         hasFitCompleted: tags.has("fit_call_completed"),
         hasBrochure: tags.has("brochure_sent"),
-        hasSurvey: tags.has("cfo_survey_sent"),
+        hasAssessment: tags.has("assessment_sent"),
         hasEventInvite: tags.has("event_invite_sent"),
         isStale: days !== null && days >= 14,
         isCold: days !== null && days >= 20,

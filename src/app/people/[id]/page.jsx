@@ -19,7 +19,7 @@ const CHANNEL_COLOR = { LinkedIn: "#0a66c2", Calendly: "#006bff", Email: "#16a34
 // Tag pickers — known choices are offered as one-tap quick-adds; the free-text box adds anything on the fly.
 // Status = mutable state (set/removed). Action = point-in-time event (audit trail, runs supersession).
 const STATUS_TAG_CHOICES = ["do_not_contact", "not_a_fit", "opted_out", "snoozed", "reserve"]
-const ACTION_TAG_CHOICES = ["connection_sent", "connection_accepted", "reply_received", "brochure_sent", "cfo_survey_sent", "fit_call_scheduled", "fit_call_completed", "event_invite_sent", "event_rsvp_confirmed"]
+const ACTION_TAG_CHOICES = ["connection_sent", "connection_accepted", "reply_received", "brochure_sent", "assessment_sent", "fit_call_scheduled", "fit_call_completed", "event_invite_sent", "event_rsvp_confirmed"]
 const QUICK_ADD_STYLE = { padding: "3px 8px", fontSize: 11, borderRadius: 4, border: "1px dashed " + T.border, background: "transparent", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }
 function addBtnStyle(val) { const on = !!(val && val.trim()); return { padding: "5px 12px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: on ? "#3b82f6" : "white", color: on ? "white" : T.textTertiary, cursor: on ? "pointer" : "not-allowed", fontFamily: "inherit" } }
 
