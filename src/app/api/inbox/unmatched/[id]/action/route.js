@@ -78,7 +78,7 @@ export async function POST(req, { params }) {
   }
 
   if (action === "add_to_peerchair") {
-    const { first_name, last_name, role, company, title } = body
+    const { first_name, last_name, role, company, title, email } = body
     if (!first_name || !last_name || !role) {
       return Response.json({ error: "first_name, last_name, role required" }, { status: 400 })
     }
@@ -91,11 +91,16 @@ export async function POST(req, { params }) {
                    : role === "cfo"             ? "cfo_state"
                    :                              "referral_state"
 
+    // Email defaults to the unmatched row's from_address, but the form can
+    // override — important for transactional senders (e.g. Calendly), where
+    // the actual person's email lives in the body, not the From: header.
+    const finalEmail = (email && email.trim()) || row.from_address
+
     const insertPayload = {
       first_name,
       last_name,
       full_name: `${first_name} ${last_name}`,
-      email: row.from_address,
+      email: finalEmail,
       company: company || null,
       title: title || null,
       roles: [role],

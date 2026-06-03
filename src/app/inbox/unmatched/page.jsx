@@ -174,6 +174,7 @@ function AddPanel({ item, onCancel, onDone }) {
   const guessed = guessNames(item.from_name, item.from_address)
   const [firstName, setFirstName] = useState(guessed.first_name)
   const [lastName, setLastName] = useState(guessed.last_name)
+  const [email, setEmail] = useState(item.from_address || "")
   const [role, setRole] = useState("sponsor_contact")
   const [company, setCompany] = useState(guessCompany(item.from_address))
   const [title, setTitle] = useState("")
@@ -185,7 +186,7 @@ function AddPanel({ item, onCancel, onDone }) {
     try {
       const r = await fetch(`/api/inbox/unmatched/${item.id}/action`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "add_to_peerchair", first_name: firstName, last_name: lastName, role, company, title })
+        body: JSON.stringify({ action: "add_to_peerchair", first_name: firstName, last_name: lastName, email, role, company, title })
       })
       const j = await r.json()
       if (!r.ok) { alert("Failed: " + (j.error || r.status)); return }
@@ -199,6 +200,7 @@ function AddPanel({ item, onCancel, onDone }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
         <Field label="First name" value={firstName} onChange={setFirstName} />
         <Field label="Last name" value={lastName} onChange={setLastName} />
+        <Field label="Email" value={email} onChange={setEmail} />
         <Field label="Title" value={title} onChange={setTitle} />
         <Field label="Company" value={company} onChange={setCompany} />
       </div>

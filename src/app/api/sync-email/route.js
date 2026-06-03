@@ -63,6 +63,19 @@ export async function GET(request) {
   // negatives (noise in the triage queue).
   const SKIP_LOCAL_PARTS = /^(no-?reply|noreply-|donotreply|mailer-daemon|postmaster|bounces?|automated?)(@|-|\.)/i
   const SKIP_SUBJECTS = /^\s*(out of office|automatic reply|auto-reply|auto reply)\b/i
+  // Specific known-automated senders that are recurring and should NOT enter
+  // the unmatched triage queue. Their content (e.g., Calendly booking details)
+  // is captured by a different layer (sync-calendar / Outlook calendar sync).
+  const SKIP_EXACT_ADDRESSES = new Set([
+    "notifications@calendly.com",
+    "no-reply@calendly.com",
+    "notifications@slack.com",
+    "noreply@github.com",
+    "linkedin@em.linkedin.com",
+    "messages-noreply@linkedin.com",
+    "invitations@linkedin.com",
+    "calendar-notification@google.com",
+  ])
 
   for (const msg of messages) {
     const fromAddr = msg.from?.emailAddress?.address?.toLowerCase()
@@ -70,7 +83,9 @@ export async function GET(request) {
     if (!fromAddr || fromAddr === CFO_CIRCLE_EMAIL.toLowerCase()) continue
 
     // Conservative auto-skip
-    if (SKIP_LOCAL_PARTS.test(fromAddr) || (msg.subject && SKIP_SUBJECTS.test(msg.subject))) {
+    if (SKIP_EXACT_ADDRESSES.has(fromAddr) ||
+        SKIP_LOCAL_PARTS.test(fromAddr) ||
+        (msg.subject && SKIP_SUBJECTS.test(msg.subject))) {
       skipped_noise++
       continue
     }
