@@ -17,7 +17,6 @@ const STAGE_CONFIG = {
 // Action tag display config — what we show in the inventory bubbles
 const INVENTORY_ITEMS = [
   { key: "connection_accepted", label: "Connected", color: "audience" },
-  { key: "first_meeting", label: "Met", color: "audience" },
   { key: "brochure_sent", label: "Brochure", color: "audience", critical: true },
   { key: "cfo_survey_sent", label: "Survey", color: "audience" }, // not critical until Dalen takes it himself
   { key: "fit_call_scheduled", label: "Fit scheduled", color: "prospect" },
