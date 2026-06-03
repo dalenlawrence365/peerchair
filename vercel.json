@@ -13,6 +13,10 @@
       "schedule": "*/30 * * * *"
     },
     {
+      "path": "/api/sync-calendar",
+      "schedule": "*/30 * * * *"
+    },
+    {
       "path": "/api/scheduled-send",
       "schedule": "0 16,20 * * *"
     },

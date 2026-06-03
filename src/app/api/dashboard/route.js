@@ -144,6 +144,16 @@ export async function GET() {
       sponsor_total: Object.values(sponsorCounts).reduce((a, b) => a + b, 0),
       referral_total: Object.values(referralCounts).reduce((a, b) => a + b, 0),
       sponsor_companies: sponsorCompanies || 0,
+      upcoming_meetings: await (async () => {
+        const now = new Date().toISOString()
+        const next7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        const { count } = await sb.from("meetings")
+          .select("*", { count: "exact", head: true })
+          .gte("starts_at", now)
+          .lte("starts_at", next7)
+          .not("status", "in", "(canceled,completed)")
+        return count || 0
+      })(),
     },
     segments: segmentCounts || {},
     queues: {
