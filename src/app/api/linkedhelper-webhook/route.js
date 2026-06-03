@@ -1,6 +1,15 @@
 export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
+import { normalizeLinkedInUrl } from "@/lib/csv"
+
+// Campaign-name whitelist: events with ?campaign=<one of these> route to the
+// linkedin_connections table instead of the people table. Add new names here
+// as you create more linkedin_connections-targeting campaigns. Names are
+// lowercased for matching.
+const LINKEDIN_CONNECTIONS_CAMPAIGNS = new Set([
+  "provisors-network",
+])
 
 export async function OPTIONS() {
   return new Response(null, {
@@ -154,6 +163,17 @@ export async function POST(request) {
   } catch(e) { console.error("audit_log write failed:", e.message) }
 
   try {
+    // Campaign-based routing: certain campaigns target linkedin_connections
+    // instead of people. Everything else falls through to the people-table path.
+    const campaignParam = (url.searchParams.get("campaign") || "").toLowerCase().trim()
+    if (campaignParam && LINKEDIN_CONNECTIONS_CAMPAIGNS.has(campaignParam)) {
+      await handleLinkedInConnectionsEvent({ sb, event, campaign: campaignParam, lead, tags, payload: root })
+      return json({
+        ok: true, event, target: "linkedin_connections", campaign: campaignParam,
+        lead: { name: lead.fullName, url: lead.profileUrl }
+      })
+    }
+
     if (event === "sent") {
       await handleSent(sb, lead, tags, seedBatchTag, payload)
     } else if (event === "connected") {
@@ -453,4 +473,129 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
   })
 
   await updatePool(sb, lead.profileUrl, "replied", contact.id)
+}
+
+// ============================================================================
+// linkedin_connections branch
+// ============================================================================
+//
+// Webhook events with ?campaign=<name> where name is in LINKEDIN_CONNECTIONS_CAMPAIGNS
+// route here instead of the people-table handlers above. The model is much
+// simpler than the CFO pipeline: track the LinkedIn graph state (sent →
+// connected → optionally-replied), tag the connection with the campaign source,
+// optionally cross-reference an existing people row by linkedin_url, and stop.
+// No communications timeline, no pipeline state, no follow-up queue.
+
+async function handleLinkedInConnectionsEvent({ sb, event, campaign, lead, tags, payload }) {
+  const normalizedUrl = normalizeLinkedInUrl(lead.profileUrl)
+  if (!normalizedUrl) {
+    console.warn(`LH→linkedin_connections [${event}]: no profile URL on payload, skipping`)
+    return
+  }
+
+  // Source label: strip a "-network" suffix so the value stored is the clean
+  // cohort name (e.g. "provisors-network" → "provisors").
+  const sourceLabel = campaign.replace(/-network$/, "") || campaign
+  const campaignTag = sourceLabel
+  const mergedIncomingTags = Array.from(new Set([campaignTag, ...((tags || []).map(String))]))
+
+  // Cross-reference into people by linkedin_url. People rows may store either
+  // the linkedin.com or www.linkedin.com form, so check both.
+  let peopleId = null
+  try {
+    const variants = Array.from(new Set([
+      normalizedUrl,
+      normalizedUrl.replace("https://linkedin.com", "https://www.linkedin.com"),
+    ]))
+    const { data: matches } = await sb.from("people")
+      .select("id")
+      .in("linkedin_url", variants)
+      .limit(1)
+    if (matches && matches.length > 0) peopleId = matches[0].id
+  } catch (e) { /* nonfatal; cross-ref is best-effort */ }
+
+  // Status: 'sent' → pending_invite; 'connected'/'replied' → connected
+  const statusByEvent = {
+    sent: "pending_invite",
+    connected: "connected",
+    replied: "connected",
+  }
+  const newStatus = statusByEvent[event] || "connected"
+
+  // Existing row?
+  const { data: existing } = await sb.from("linkedin_connections")
+    .select("id, tags, source, relevance, peerchair_person_id, connection_status, connected_at")
+    .eq("linkedin_url", normalizedUrl)
+    .maybeSingle()
+
+  const now = new Date().toISOString()
+
+  if (existing) {
+    // Merge tags, preserve curated fields, only progress status forward.
+    // Status progression: pending_invite → connected; never downgrade from
+    // connected back to pending_invite if a stray 'sent' arrives late.
+    const mergedTags = Array.from(new Set([...(existing.tags || []), ...mergedIncomingTags]))
+    const shouldUpdateStatus = !(
+      newStatus === "pending_invite" && existing.connection_status === "connected"
+    )
+
+    const update = {
+      // LinkedIn-side facts: refresh from each event if non-empty
+      full_name: lead.fullName || undefined,
+      first_name: lead.firstName || undefined,
+      last_name: lead.lastName || undefined,
+      headline: lead.headline || undefined,
+      current_company: lead.company || undefined,
+      current_title: lead.position || undefined,
+      location: lead.location || undefined,
+      // Event tracking
+      last_event_type: event,
+      last_event_at: now,
+      // Merge tags
+      tags: mergedTags,
+      // Source: only set if not already set (preserve any prior labeling)
+      source: existing.source || sourceLabel,
+      // Cross-reference: set only if not already linked
+      peerchair_person_id: existing.peerchair_person_id || peopleId,
+      // Connected timestamp: capture on the first connected/replied event
+      connected_at: existing.connected_at ||
+        ((event === "connected" || event === "replied") ? now : null),
+      updated_at: now,
+    }
+    if (shouldUpdateStatus) update.connection_status = newStatus
+
+    // Strip undefined so we don't blank fields with null
+    for (const k of Object.keys(update)) if (update[k] === undefined) delete update[k]
+
+    const { error } = await sb.from("linkedin_connections").update(update).eq("id", existing.id)
+    if (error) throw new Error(`linkedin_connections update failed: ${error.message}`)
+    console.log(`LH→linkedin_connections [${event}] UPDATE id=${existing.id} status=${update.connection_status || existing.connection_status} cross_ref=${peopleId ? "yes" : "no"}`)
+  } else {
+    const insert = {
+      linkedin_url: normalizedUrl,
+      full_name: lead.fullName || null,
+      first_name: lead.firstName || null,
+      last_name: lead.lastName || null,
+      headline: lead.headline || null,
+      current_company: lead.company || null,
+      current_title: lead.position || null,
+      location: lead.location || null,
+      connection_status: newStatus,
+      relevance: "network_visibility",
+      heat: "cold",
+      source: sourceLabel,
+      tags: mergedIncomingTags,
+      peerchair_person_id: peopleId,
+      connected_at: (event === "connected" || event === "replied") ? now : null,
+      last_event_type: event,
+      last_event_at: now,
+      last_seen_at: now,
+    }
+    const { data: inserted, error } = await sb.from("linkedin_connections")
+      .insert(insert)
+      .select("id")
+      .single()
+    if (error) throw new Error(`linkedin_connections insert failed: ${error.message}`)
+    console.log(`LH→linkedin_connections [${event}] INSERT id=${inserted.id} cross_ref=${peopleId ? "yes" : "no"}`)
+  }
 }
