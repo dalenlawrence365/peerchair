@@ -17,6 +17,7 @@ import { logCronRun } from "@/lib/cron-audit"
 // max acceptable gap (hours) between successful audit rows before we alert.
 const EXPECTED = {
   "sync-sent":         { schedule: "every 30 min",       maxGapHours: 2.5 },
+  "sync-email":        { schedule: "every 30 min",       maxGapHours: 2.5 },
   "scheduled-send":    { schedule: "16:00 and 20:00 UTC", maxGapHours: 26 },
   "microsoft-refresh": { schedule: "14:00 UTC daily",     maxGapHours: 26 },
 }
