@@ -18,6 +18,7 @@ const NAV = [
   { section: "Inbox", items: [
     { label: "Follow-up queue", href: "/inbox/follow-up",  matches: function(p){ return p === "/inbox/follow-up" } },
     { label: "LinkedIn replies", href: "/inbox/linkedin",  matches: function(p){ return p === "/inbox/linkedin" } },
+    { label: "Unmatched",       href: "/inbox/unmatched",  matches: function(p){ return p === "/inbox/unmatched" } },
     { label: "Review queue",    href: "/queue/review",     matches: function(p){ return p === "/queue/review" } },
   ] },
   { section: "Schedule", items: [

@@ -53,44 +53,83 @@ export async function GET(request) {
   for (const p of (people || [])) { if (p.email) emailToPerson[p.email.toLowerCase()] = p }
 
   let synced = 0
+  let unmatched = 0
+  let skipped_noise = 0
   const loggedFor = []
   const errors = []
+
+  // Auto-skip conservative patterns — only obvious automation. Conservative
+  // because false positives (real mail filtered out) are worse than false
+  // negatives (noise in the triage queue).
+  const SKIP_LOCAL_PARTS = /^(no-?reply|noreply-|donotreply|mailer-daemon|postmaster|bounces?|automated?)(@|-|\.)/i
+  const SKIP_SUBJECTS = /^\s*(out of office|automatic reply|auto-reply|auto reply)\b/i
+
   for (const msg of messages) {
     const fromAddr = msg.from?.emailAddress?.address?.toLowerCase()
+    const fromName = msg.from?.emailAddress?.name || null
     if (!fromAddr || fromAddr === CFO_CIRCLE_EMAIL.toLowerCase()) continue
+
+    // Conservative auto-skip
+    if (SKIP_LOCAL_PARTS.test(fromAddr) || (msg.subject && SKIP_SUBJECTS.test(msg.subject))) {
+      skipped_noise++
+      continue
+    }
+
     const person = emailToPerson[fromAddr]
-    if (!person) continue
 
-    const { data: existing } = await sb.from("communications")
-      .select("id")
-      .or(`person_id.eq.${person.id},contact_id.eq.${person.id}`)
-      .eq("channel", "email").eq("direction", "inbound")
-      .eq("occurred_at", msg.receivedDateTime)
-      .limit(1)
-    if (existing?.length) continue
+    if (person) {
+      // Matched path — write to the person's timeline (existing behavior)
+      const { data: existing } = await sb.from("communications")
+        .select("id")
+        .or(`person_id.eq.${person.id},contact_id.eq.${person.id}`)
+        .eq("channel", "email").eq("direction", "inbound")
+        .eq("occurred_at", msg.receivedDateTime)
+        .limit(1)
+      if (existing?.length) continue
 
-    const { error: insErr } = await sb.from("communications").insert({
-      person_id: person.id,
-      direction: "inbound",
-      channel: "email",
-      subject: msg.subject || null,
-      body: `Subject: ${msg.subject || "(no subject)"}\n\n${msg.bodyPreview || ""}`,
-      occurred_at: msg.receivedDateTime,
-      step_label: "Received Email (Outlook)",
-      source: "outlook_sync",
-    })
-    if (insErr) { errors.push(insErr.message); continue }
-    synced++
-    loggedFor.push(fromAddr)
+      const { error: insErr } = await sb.from("communications").insert({
+        person_id: person.id,
+        direction: "inbound",
+        channel: "email",
+        subject: msg.subject || null,
+        body: `Subject: ${msg.subject || "(no subject)"}\n\n${msg.bodyPreview || ""}`,
+        occurred_at: msg.receivedDateTime,
+        step_label: "Received Email (Outlook)",
+        source: "outlook_sync",
+      })
+      if (insErr) { errors.push(insErr.message); continue }
+      synced++
+      loggedFor.push(fromAddr)
+    } else {
+      // Unmatched path — write to holding table for triage
+      const { error: unErr } = await sb.from("unmatched_communications").insert({
+        direction: "inbound",
+        channel: "email",
+        from_address: fromAddr,
+        from_name: fromName,
+        subject: msg.subject || null,
+        body_preview: msg.bodyPreview || null,
+        occurred_at: msg.receivedDateTime,
+        external_id: msg.id,
+      })
+      // Ignore unique-constraint duplicates silently (already captured a prior run)
+      if (unErr && !String(unErr.message).includes("duplicate key")) {
+        errors.push("unmatched insert: " + unErr.message)
+        continue
+      }
+      if (!unErr) unmatched++
+    }
   }
 
   await logCronRun(
     "sync-email",
-    synced > 0 ? `Synced ${synced} received email(s)` : "No new received emails to log",
+    `matched=${synced} unmatched=${unmatched} skipped_noise=${skipped_noise} (last ${hours}h)`,
     errors.length ? errors : null,
   )
   return Response.json({
     synced,
+    unmatched,
+    skipped_noise,
     lookback_hours: hours,
     recipients_logged: [...new Set(loggedFor)],
     errors,
