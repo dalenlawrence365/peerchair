@@ -9,9 +9,24 @@ export function parseCsv(text) {
   const lines = splitLines(text)
   if (lines.length === 0) return { headers: [], rows: [] }
 
-  const headers = parseLine(lines[0]).map(h => h.trim())
+  // Find the actual header row. LinkedIn's native Connections.csv export has a
+  // "Notes:" preamble (1-4 lines of explanatory text + a blank line) before the
+  // real header. LinkedHelper / Sales Navigator exports usually put the header
+  // on line 1. Scan the first 20 lines for one that contains a known LinkedIn-
+  // export header token AND has at least 3 columns.
+  const HEADER_TOKEN = /\b(URL|LinkedIn URL|Profile URL|First Name|Last Name|Email Address|Connected On|Position|Headline)\b/i
+  let headerIdx = 0
+  for (let i = 0; i < Math.min(lines.length, 20); i++) {
+    const cells = parseLine(lines[i])
+    if (cells.length >= 3 && HEADER_TOKEN.test(lines[i])) {
+      headerIdx = i
+      break
+    }
+  }
+
+  const headers = parseLine(lines[headerIdx]).map(h => h.trim())
   const rows = []
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = headerIdx + 1; i < lines.length; i++) {
     const line = lines[i]
     if (!line || !line.trim()) continue
     const cells = parseLine(line)
