@@ -154,6 +154,19 @@ export async function GET() {
           .not("status", "in", "(canceled,completed)")
         return count || 0
       })(),
+      linkedin_connections: await (async () => {
+        const { count } = await sb.from("linkedin_connections")
+          .select("*", { count: "exact", head: true })
+          .eq("connection_status", "connected")
+        return count || 0
+      })(),
+      linkedin_connections_unrated: await (async () => {
+        const { count } = await sb.from("linkedin_connections")
+          .select("*", { count: "exact", head: true })
+          .eq("connection_status", "connected")
+          .eq("relevance", "unrated")
+        return count || 0
+      })(),
     },
     segments: segmentCounts || {},
     queues: {

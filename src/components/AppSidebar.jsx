@@ -14,6 +14,7 @@ const NAV = [
     { label: "CFO Pipeline",    href: "/pipeline/cfo/prospect", matches: function(p){ return p.startsWith("/pipeline/cfo") } },
     { label: "Sponsors",        href: "/pipeline/sponsor/pool", matches: function(p){ return p.startsWith("/pipeline/sponsor") } },
     { label: "Referral partners", href: "/referral",          matches: function(p){ return p.startsWith("/referral") } },
+    { label: "LinkedIn",        href: "/linkedin-connections", matches: function(p){ return p.startsWith("/linkedin-connections") } },
   ] },
   { section: "Inbox", items: [
     { label: "Follow-up queue", href: "/inbox/follow-up",  matches: function(p){ return p === "/inbox/follow-up" } },

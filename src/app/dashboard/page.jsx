@@ -67,6 +67,9 @@ export default function DashboardPage() {
         <StatTile label="Sponsor contacts" value={c.sponsor_total} color={ROLE_COLOR.sponsor_contact} href="/pipeline/sponsor/pool" />
         <StatTile label="Referral partners" value={c.referral_total} color={ROLE_COLOR.referral_partner} href="/referral" />
         <StatTile label="Sponsor companies" value={c.sponsor_companies} color="#3b82f6" href="/pipeline/sponsor/pool" />
+        <StatTile label="Upcoming meetings (7d)" value={c.upcoming_meetings} color="#0d9488" href="/meetings" />
+        <StatTile label={c.linkedin_connections_unrated > 0 ? `LinkedIn connections (${c.linkedin_connections_unrated} unrated)` : "LinkedIn connections"}
+          value={c.linkedin_connections} color="#0a66c2" href="/linkedin-connections" />
       </div>
 
       {/* Action queues */}
