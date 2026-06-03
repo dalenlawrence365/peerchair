@@ -11,17 +11,22 @@ export function parseCsv(text) {
 
   // Find the actual header row. LinkedIn's native Connections.csv export has a
   // "Notes:" preamble (1-4 lines of explanatory text + a blank line) before the
-  // real header. LinkedHelper / Sales Navigator exports usually put the header
-  // on line 1. Scan the first 20 lines for one that contains a known LinkedIn-
-  // export header token AND has at least 3 columns.
-  const HEADER_TOKEN = /\b(URL|LinkedIn URL|Profile URL|First Name|Last Name|Email Address|Connected On|Position|Headline)\b/i
+  // real header. LinkedHelper / Sales Navigator exports put the header on line 1.
+  // Strategy: a real CSV header line starts with a known column name as its
+  // FIRST cell (after CSV parsing). Preamble sentences won't.
+  const HEADER_FIRST_CELL = new Set([
+    "first name", "firstname", "first",
+    "linkedin url", "url", "profile url", "link", "profile link", "linkedinurl",
+    "name", "full name", "fullname",
+    "email address", "email",
+    "headline", "company", "organization",
+  ])
   let headerIdx = 0
   for (let i = 0; i < Math.min(lines.length, 20); i++) {
     const cells = parseLine(lines[i])
-    if (cells.length >= 3 && HEADER_TOKEN.test(lines[i])) {
-      headerIdx = i
-      break
-    }
+    if (cells.length < 3) continue
+    const firstCell = (cells[0] || "").trim().toLowerCase().replace(/^"+|"+$/g, "")
+    if (HEADER_FIRST_CELL.has(firstCell)) { headerIdx = i; break }
   }
 
   const headers = parseLine(lines[headerIdx]).map(h => h.trim())
