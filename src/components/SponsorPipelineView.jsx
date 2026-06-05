@@ -38,7 +38,9 @@ function HostBadge({ viable, type }) {
   const c = isYes
     ? { bg: "rgba(22, 163, 74, 0.10)", fg: "#15803d", border: "rgba(22, 163, 74, 0.3)" }
     : { bg: "rgba(100, 116, 139, 0.10)", fg: "#64748b", border: "rgba(100, 116, 139, 0.3)" }
-  const label = isYes ? (type && type !== "TBD" && type !== "N/A" ? `Host · ${type}` : "Host") : "No host"
+  const label = isYes
+    ? (type && type !== "TBD" && type !== "N/A" ? type : "Host viable")
+    : "No host"
   return (
     <span style={{
       display: "inline-block", padding: "2px 8px", borderRadius: 999,
