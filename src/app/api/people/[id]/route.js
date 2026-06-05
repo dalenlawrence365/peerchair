@@ -40,7 +40,7 @@ export async function GET(request, { params }) {
   let company = null
   if (person.company_id) {
     const { data: co } = await sb.from("companies")
-      .select("id, name, sponsor_type, sponsor_state, neighborhood_la, host_viable")
+      .select("id, name, sponsor_type, sponsor_state, host_viable")
       .eq("id", person.company_id).maybeSingle()
     company = co || null
   }

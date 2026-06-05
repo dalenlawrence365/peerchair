@@ -12,6 +12,55 @@ const STAGE_LABEL = {
   active: "Active",
 }
 
+const STAGE_COLOR = {
+  pool:      { bg: "rgba(148, 163, 184, 0.12)", fg: "#64748b", border: "rgba(148, 163, 184, 0.35)" },
+  audience:  { bg: "rgba(59, 130, 246, 0.12)",  fg: "#3b82f6", border: "rgba(59, 130, 246, 0.4)"  },
+  discovery: { bg: "rgba(236, 72, 153, 0.12)",  fg: "#db2777", border: "rgba(236, 72, 153, 0.4)"  },
+  proposal:  { bg: "rgba(217, 119, 6, 0.14)",   fg: "#b45309", border: "rgba(217, 119, 6, 0.4)"   },
+  active:    { bg: "rgba(22, 163, 74, 0.14)",   fg: "#15803d", border: "rgba(22, 163, 74, 0.4)"   },
+}
+
+function StagePill({ state }) {
+  const c = STAGE_COLOR[state] || STAGE_COLOR.pool
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 8px", borderRadius: 999,
+      fontSize: 10, fontWeight: 600, letterSpacing: 0.3, textTransform: "uppercase",
+      background: c.bg, color: c.fg, border: "1px solid " + c.border,
+      whiteSpace: "nowrap",
+    }}>{STAGE_LABEL[state] || state}</span>
+  )
+}
+
+function HostBadge({ viable, type }) {
+  if (!viable || viable === "Unknown") return null
+  const isYes = viable === "Yes"
+  const c = isYes
+    ? { bg: "rgba(22, 163, 74, 0.10)", fg: "#15803d", border: "rgba(22, 163, 74, 0.3)" }
+    : { bg: "rgba(100, 116, 139, 0.10)", fg: "#64748b", border: "rgba(100, 116, 139, 0.3)" }
+  const label = isYes ? (type && type !== "TBD" && type !== "N/A" ? `Host · ${type}` : "Host") : "No host"
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 8px", borderRadius: 999,
+      fontSize: 10, fontWeight: 500,
+      background: c.bg, color: c.fg, border: "1px solid " + c.border,
+      whiteSpace: "nowrap",
+    }}>{label}</span>
+  )
+}
+
+function LocationBadge({ count }) {
+  if (!count) return null
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 8px", borderRadius: 999,
+      fontSize: 10, fontWeight: 500,
+      background: "rgba(100, 116, 139, 0.08)", color: "#64748b", border: "1px solid rgba(100, 116, 139, 0.25)",
+      whiteSpace: "nowrap",
+    }}>📍 {count}{count === 1 ? "" : ""}</span>
+  )
+}
+
 const SPONSOR_COLOR = "#a855f7" // purple — matches existing sponsor color in PipelineView
 
 function fmtRel(iso) {
@@ -130,20 +179,53 @@ export default function SponsorPipelineView({ stage }) {
                   transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 120ms",
                 }}>▶</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary }}>{co.name}</div>
-                  <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 2 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span>{co.name}</span>
+                    <StagePill state={co.sponsor_state} />
+                    <HostBadge viable={co.host_viable} type={co.hosting_type} />
+                    <LocationBadge count={co.location_count} />
+                  </div>
+                  <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 4 }}>
                     {[co.category, `${co.contact_count} contact${co.contact_count === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}
                   </div>
                 </div>
                 <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtRel(co.last_touch)}</div>
               </div>
 
-              {/* Expanded contact list */}
+              {/* Expanded panel — locations first, then contacts */}
               {isOpen && (
                 <div style={{
                   background: "rgba(0,0,0,0.02)",
                   borderTop: "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)"),
                 }}>
+                  {/* Locations (if any) */}
+                  {co.locations && co.locations.length > 0 && (
+                    <div style={{
+                      padding: "10px 16px 12px 42px",
+                      borderBottom: "1px solid " + (T.borderSoft || "rgba(0,0,0,0.04)"),
+                    }}>
+                      <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6, fontWeight: 600 }}>
+                        {co.locations.length} location{co.locations.length === 1 ? "" : "s"}
+                      </div>
+                      {co.locations.map(function(loc){
+                        const parts = [loc.address_line1, loc.neighborhood, loc.city].filter(Boolean).join(" · ")
+                        return (
+                          <div key={loc.id} style={{ fontSize: 12, color: T.textSecondary, marginBottom: 3, display: "flex", gap: 6, alignItems: "baseline" }}>
+                            {loc.label && (
+                              <span style={{
+                                fontSize: 10, fontWeight: 600, color: T.textTertiary,
+                                background: "rgba(100, 116, 139, 0.08)",
+                                padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap",
+                              }}>{loc.label}</span>
+                            )}
+                            <span>{parts || "—"}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Contacts */}
                   {co.contacts.length === 0 ? (
                     <div style={{ padding: "12px 16px 12px 42px", fontSize: 12, color: T.textTertiary }}>
                       No contacts at this firm yet.

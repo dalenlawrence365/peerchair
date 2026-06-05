@@ -116,7 +116,7 @@ export async function GET(request) {
   // Company info if linked
   let company = null
   if (contact.company_id) {
-    const { data: co } = await sb.from("companies").select("name, sponsor_type, host_viable, neighborhood_la").eq("id", contact.company_id).maybeSingle()
+    const { data: co } = await sb.from("companies").select("name, sponsor_type, host_viable").eq("id", contact.company_id).maybeSingle()
     company = co
   }
 

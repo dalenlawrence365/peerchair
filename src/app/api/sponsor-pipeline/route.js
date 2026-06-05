@@ -42,6 +42,22 @@ export async function GET(request) {
 
   const companyIds = (companies || []).map(c => c.id)
 
+  // Fetch host_locations for these companies — used for location_count + a short preview
+  let locationsByCompany = {}
+  if (companyIds.length) {
+    const { data: locs } = await sb
+      .from("host_locations")
+      .select("id, company_id, label, address_line1, neighborhood, city, is_primary")
+      .in("company_id", companyIds)
+      .order("is_primary", { ascending: false })
+
+    for (const loc of locs || []) {
+      const cid = loc.company_id
+      if (!locationsByCompany[cid]) locationsByCompany[cid] = []
+      locationsByCompany[cid].push(loc)
+    }
+  }
+
   // Fetch all contacts at these companies in one query, then group by company_id
   let contactsByCompany = {}
   if (companyIds.length) {
@@ -68,9 +84,10 @@ export async function GET(request) {
     }
   }
 
-  // Attach contacts + derived fields to each company
+  // Attach contacts + locations + derived fields to each company
   const list = (companies || []).map(function(c){
     const contacts = contactsByCompany[c.id] || []
+    const locations = locationsByCompany[c.id] || []
     // Latest activity across all contacts at the firm
     const latestTouch = contacts.reduce(function(acc, p){
       if (!p.last_touch) return acc
@@ -85,8 +102,10 @@ export async function GET(request) {
       host_viable: c.host_viable,
       hosting_type: c.hosting_type,
       contact_count: contacts.length,
+      location_count: locations.length,
       last_touch: latestTouch,
       contacts: contacts,
+      locations: locations,
     }
   })
 
