@@ -50,7 +50,8 @@ export default function SidebarSearch() {
 
   function routeFor(r) {
     if (r.kind === "person") return `/people/${r.id}`
-    return null   // companies — no detail page yet
+    if (r.kind === "company") return `/companies/${r.id}`
+    return null
   }
 
   function selectResult(r) {
