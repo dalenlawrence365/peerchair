@@ -169,20 +169,27 @@ export default function SponsorPipelineView({ stage }) {
             <div key={co.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)") : "none" }}>
               {/* Company row */}
               <div
-                onClick={function(){ toggle(co.id) }}
                 style={{
                   padding: "14px 16px",
                   display: "flex", alignItems: "center", gap: 12,
-                  cursor: "pointer",
                   background: isOpen ? "rgba(168, 85, 247, 0.04)" : "transparent",
                 }}>
-                <div style={{
-                  fontSize: 11, color: T.textTertiary, width: 14, textAlign: "center",
-                  transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 120ms",
-                }}>▶</div>
+                <div
+                  onClick={function(){ toggle(co.id) }}
+                  style={{
+                    fontSize: 11, color: T.textTertiary, width: 14, textAlign: "center",
+                    transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 120ms",
+                    cursor: "pointer", flexShrink: 0,
+                  }}
+                  title={isOpen ? "Collapse" : "Expand contacts"}
+                >▶</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <span>{co.name}</span>
+                    <Link href={`/companies/${co.id}`} style={{ color: "inherit", textDecoration: "none" }}
+                      onMouseEnter={e => e.currentTarget.style.color = "#3b82f6"}
+                      onMouseLeave={e => e.currentTarget.style.color = T.textPrimary}>
+                      {co.name}
+                    </Link>
                     <StagePill state={co.sponsor_state} />
                     <HostBadge viable={co.host_viable} type={co.hosting_type} />
                     <LocationBadge count={co.location_count} />
@@ -191,7 +198,9 @@ export default function SponsorPipelineView({ stage }) {
                     {[co.category, `${co.contact_count} contact${co.contact_count === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}
                   </div>
                 </div>
-                <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtRel(co.last_touch)}</div>
+                <div onClick={function(){ toggle(co.id) }} style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap", cursor: "pointer" }}>
+                  {fmtRel(co.last_touch)}
+                </div>
               </div>
 
               {/* Expanded panel — locations first, then contacts */}
