@@ -1,6 +1,6 @@
 "use client"
 import { useParams } from "next/navigation"
-import PipelineView from "@/components/PipelineView"
+import SponsorPipelineView from "@/components/SponsorPipelineView"
 
 const VALID_STAGES = ["pool", "audience", "discovery", "proposal", "active"]
 
@@ -10,5 +10,5 @@ export default function SponsorStagePage() {
   if (!VALID_STAGES.includes(stage)) {
     return <div style={{ padding: 40, color: "#dc2626" }}>Unknown stage: <strong>{String(stage)}</strong></div>
   }
-  return <PipelineView type="sponsor" stage={stage} />
+  return <SponsorPipelineView stage={stage} />
 }
