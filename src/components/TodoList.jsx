@@ -15,6 +15,7 @@ export const TODO_PRESETS = [
   { key: "event",      title: "Send event invite",  action_type: "event_invite_sent" },
   { key: "fitcall",    title: "Schedule fit call",  action_type: "fit_call_scheduled" },
   { key: "followup",   title: "Personal follow-up", action_type: null },
+  { key: "waiting",    title: "Waiting",            action_type: "waiting" },
   { key: "peerchair",  title: "PeerChair",          action_type: "peerchair" },
   { key: "custom",     title: "",                   action_type: null },
 ]
@@ -89,6 +90,18 @@ export function TodoQuickAdd({ personId, companyId, defaultPersonName, onCreated
     // For scoped contexts (profile pages), reference the contextual name in the title.
     // For global context (/todos page), reference the attachment's name if one's already picked.
     const refName = isScoped ? defaultPersonName : (attachment?.name || "")
+    // Waiting preset: title is "Waiting on <name>" and default date is next Monday
+    // (typical "give them the rest of the week + the weekend" follow-up cadence).
+    if (preset.key === "waiting") {
+      setDraft({
+        title: refName ? `Waiting on ${refName}` : "Waiting on…",
+        action_type: "waiting",
+        scheduled_for: nextMondayISO(),
+        notes: "",
+      })
+      setOpen(true)
+      return
+    }
     const title = preset.action_type === "brochure_sent"   ? `Send brochure${refName ? " to " + refName : ""}` :
                   preset.action_type === "assessment_sent" ? `Send assessment${refName ? " to " + refName : ""}` :
                   preset.action_type === "event_invite_sent" ? `Send event invite${refName ? " to " + refName : ""}` :
@@ -311,6 +324,14 @@ export function TodoRow({ todo, onComplete, onUpdate, onDelete, showPersonLink =
               border: "1px solid rgba(168, 85, 247, 0.3)",
               whiteSpace: "nowrap",
             }}>PeerChair</span>
+          ) : todo.action_type === "waiting" ? (
+            <span style={{
+              display: "inline-block", padding: "1px 7px", borderRadius: 999,
+              fontSize: 10, fontWeight: 600, letterSpacing: 0.3,
+              background: "rgba(217, 119, 6, 0.14)", color: "#b45309",
+              border: "1px solid rgba(217, 119, 6, 0.35)",
+              whiteSpace: "nowrap",
+            }}>Waiting</span>
           ) : todo.action_type ? (
             <span>· {todo.action_type}</span>
           ) : null}
