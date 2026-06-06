@@ -40,18 +40,33 @@ function nextMondayISO() {
   return d.toISOString().slice(0, 10)
 }
 
+// Returns { anchor, countdown, color }
+//   anchor   = absolute date label (or null when it's redundant — today/tomorrow)
+//   countdown = relative phrase (today, in 3d, 2d overdue, etc.)
+//   color     = the color for the urgency cue
 function dueLabel(dateStr) {
-  if (!dateStr) return { text: "no date", color: T.textTertiary }
+  if (!dateStr) return { anchor: null, countdown: "no date", color: T.textTertiary }
+
   const today = todayISO()
-  if (dateStr < today) {
-    const days = Math.round((new Date(today) - new Date(dateStr)) / 86400000)
-    return { text: `${days}d overdue`, color: "#b91c1c" }
-  }
-  if (dateStr === today) return { text: "today", color: "#b45309" }
-  if (dateStr === inDaysISO(1)) return { text: "tomorrow", color: "#b45309" }
-  const days = Math.round((new Date(dateStr) - new Date(today)) / 86400000)
-  if (days <= 14) return { text: `in ${days}d`, color: T.textSecondary }
-  return { text: new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" }), color: T.textTertiary }
+  const date = new Date(dateStr + "T00:00:00")
+  const now  = new Date(today + "T00:00:00")
+  const days = Math.round((date - now) / 86400000)
+
+  // Format the anchor
+  const sameWeek = (() => {
+    const d = new Date(); const dow = d.getDay()
+    const daysToSun = (7 - dow) % 7
+    const eow = new Date(); eow.setDate(eow.getDate() + daysToSun)
+    return dateStr <= eow.toISOString().slice(0, 10)
+  })()
+  const anchorShort = date.toLocaleDateString("en-US", { weekday: "short" })
+  const anchorFull  = date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+
+  if (days < 0)  return { anchor: anchorFull,  countdown: `${Math.abs(days)}d overdue`, color: "#b91c1c" }
+  if (days === 0) return { anchor: null,        countdown: "today",     color: "#b45309" }
+  if (days === 1) return { anchor: null,        countdown: "tomorrow",  color: "#b45309" }
+  if (sameWeek)   return { anchor: anchorShort, countdown: `in ${days}d`, color: T.textSecondary }
+  return            { anchor: anchorFull,  countdown: `in ${days}d`, color: T.textTertiary }
 }
 
 // ─── Quick-add form ──────────────────────────────────────────────────────────
@@ -273,8 +288,14 @@ export function TodoRow({ todo, onComplete, onUpdate, onDelete, showPersonLink =
         <div style={{ fontSize: 13, fontWeight: 500, color: isDone ? T.textTertiary : T.textPrimary, textDecoration: isDone ? "line-through" : "none" }}>
           {todo.title}
         </div>
-        <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {!isDone && <span style={{ color: due.color }}>{due.text}</span>}
+        <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {!isDone && (
+            <span>
+              {due.anchor && <span style={{ color: T.textPrimary, fontWeight: 500 }}>{due.anchor}</span>}
+              {due.anchor && <span style={{ color: T.textTertiary, margin: "0 5px" }}>·</span>}
+              <span style={{ color: due.color, fontWeight: 500 }}>{due.countdown}</span>
+            </span>
+          )}
           {isDone && <span>completed {new Date(todo.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
           {showPersonLink && personName && todo.person_id && (
             <span>· <Link href={`/people/${todo.person_id}`} style={{ color: "#3b82f6", textDecoration: "none" }}>{personName}</Link></span>
