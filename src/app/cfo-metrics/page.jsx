@@ -21,6 +21,44 @@ function StatePill({ s }) {
   )
 }
 
+// ─── Activity & status pills ─────────────────────────────────────────────────
+// Activity = positive milestones reached (replies received, materials sent, fit
+// call done). Color leans warm/green to read as "this has happened, ✓."
+// Status = currently-set qualitative tags (not_a_fit, opted_out, etc.). Color
+// leans neutral or red depending on severity.
+
+const ACTIVITY_PILL = {
+  reply_received:     { label: "Reply",      bg: "rgba(22, 163, 74, 0.10)",  fg: "#15803d", border: "rgba(22, 163, 74, 0.3)" },
+  brochure_sent:      { label: "Brochure",   bg: "rgba(59, 130, 246, 0.10)", fg: "#2563eb", border: "rgba(59, 130, 246, 0.3)" },
+  assessment_sent:    { label: "Assessment", bg: "rgba(168, 85, 247, 0.10)", fg: "#9333ea", border: "rgba(168, 85, 247, 0.3)" },
+  fit_call_completed: { label: "Fit call ✓", bg: "rgba(22, 163, 74, 0.14)",  fg: "#15803d", border: "rgba(22, 163, 74, 0.4)" },
+}
+
+const STATUS_PILL = {
+  reserve:        { label: "Reserve",     bg: "rgba(100, 116, 139, 0.10)", fg: "#475569", border: "rgba(100, 116, 139, 0.3)" },
+  snoozed:        { label: "Snoozed",     bg: "rgba(100, 116, 139, 0.10)", fg: "#475569", border: "rgba(100, 116, 139, 0.3)" },
+  not_a_fit:      { label: "Not a fit",   bg: "rgba(217, 119, 6, 0.14)",   fg: "#b45309", border: "rgba(217, 119, 6, 0.4)" },
+  opted_out:      { label: "Opted out",   bg: "rgba(220, 38, 38, 0.10)",   fg: "#b91c1c", border: "rgba(220, 38, 38, 0.3)" },
+  do_not_contact: { label: "DNC",         bg: "rgba(220, 38, 38, 0.14)",   fg: "#b91c1c", border: "rgba(220, 38, 38, 0.4)" },
+}
+
+function MiniPill({ def }) {
+  return (
+    <span style={{
+      display: "inline-block", padding: "1px 6px", borderRadius: 4,
+      fontSize: 10, fontWeight: 600, whiteSpace: "nowrap",
+      background: def.bg, color: def.fg, border: "1px solid " + def.border,
+    }}>{def.label}</span>
+  )
+}
+
+function fmtDate(iso) {
+  if (!iso) return null
+  // Accepts YYYY-MM-DD or ISO datetime
+  const d = iso.length === 10 ? new Date(iso + "T00:00:00") : new Date(iso)
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
 function fmtRel(iso) {
   if (!iso) return "—"
   const days = (Date.now() - new Date(iso)) / 86400000
@@ -66,26 +104,39 @@ export default function CfoMetricsPage() {
         {data.lists[view].length === 0 ? (
           <div style={{ padding: 24, color: T.textTertiary, fontSize: 13 }}>None.</div>
         ) : (
-          data.lists[view].map((p, i) => (
-            <Link key={p.id} href={`/people/${p.id}`} style={{ textDecoration: "none", color: T.textPrimary }}>
-              <div style={{
-                padding: "10px 16px", display: "flex", alignItems: "center", gap: 12,
-                borderBottom: i < data.lists[view].length - 1 ? "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)") : "none",
-                cursor: "pointer",
-              }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
-                    <span>{p.name}</span>
-                    <StatePill s={p.cfo_state} />
+          data.lists[view].map((p, i) => {
+            const activityDefs = (p.activity_pills || []).map(t => ACTIVITY_PILL[t]).filter(Boolean)
+            const statusDefs   = (p.status_tags    || []).map(t => STATUS_PILL[t]).filter(Boolean)
+            const hasPills = activityDefs.length + statusDefs.length > 0
+            return (
+              <Link key={p.id} href={`/people/${p.id}`} style={{ textDecoration: "none", color: T.textPrimary }}>
+                <div style={{
+                  padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 12,
+                  borderBottom: i < data.lists[view].length - 1 ? "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)") : "none",
+                  cursor: "pointer",
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Line 1: name + state pill + activity/status pills inline */}
+                    <div style={{ fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <span>{p.name}</span>
+                      <StatePill s={p.cfo_state} />
+                      {activityDefs.map((def, j) => <MiniPill key={"a" + j} def={def} />)}
+                      {statusDefs.map((def, j) => <MiniPill key={"s" + j} def={def} />)}
+                    </div>
+                    {/* Line 2: title · company */}
+                    <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
+                  {/* Right side: connected_at + last_touch stacked */}
+                  <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap", textAlign: "right", lineHeight: 1.5 }}>
+                    {p.connected_at && <div>Connected {fmtDate(p.connected_at)}</div>}
+                    <div>{fmtRel(p.last_touch)}</div>
                   </div>
                 </div>
-                <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtRel(p.last_touch)}</div>
-              </div>
-            </Link>
-          ))
+              </Link>
+            )
+          })
         )}
       </div>
     </main>

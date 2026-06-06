@@ -12,7 +12,12 @@ import { serverClient } from "@/lib/supabaseServer"
 //     brochure:   { sent: 12, not_sent: 294, pct_sent: 3.9 },
 //     assessment: { sent: 8,  not_sent: 298, pct_sent: 2.6 },
 //     lists: {
-//       no_brochure:    [{ id, name, title, company, cfo_state, last_touch }, ...],
+//       no_brochure:    [{
+//         id, name, title, company, cfo_state, last_touch,
+//         connected_at,    // date of connection_accepted action_tag, or null
+//         activity_pills,  // [reply_received, brochure_sent, ...] — subset present
+//         status_tags,     // [reserve, not_a_fit, opted_out, ...] — currently set
+//       }, ...],
 //       no_assessment:  [...],
 //       with_brochure:  [...],
 //       with_assessment:[...],
@@ -46,22 +51,58 @@ export async function GET() {
     })
   }
 
-  // Who has brochure_sent / assessment_sent
+  // All action tags for these CFOs (whole picture, not just brochure/assessment).
+  // We need this for: brochure/assessment bucketing, the connected_at date,
+  // and rendering activity pills on each row.
   const { data: tags } = await sb
     .from("person_action_tags")
-    .select("person_id, action_type")
+    .select("person_id, action_type, as_of_date, set_at")
     .in("person_id", cfoIds)
-    .in("action_type", ["brochure_sent", "assessment_sent"])
+    .is("removed_at", null)
 
+  // Group by person — keep the array, and also derive a quick-lookup set per type
+  const tagsByPerson = {}      // person_id → [{action_type, as_of_date, set_at}, ...]
   const hasBrochure   = new Set()
   const hasAssessment = new Set()
   for (const t of tags || []) {
+    if (!tagsByPerson[t.person_id]) tagsByPerson[t.person_id] = []
+    tagsByPerson[t.person_id].push({
+      type: t.action_type,
+      as_of_date: t.as_of_date,
+      set_at: t.set_at,
+    })
     if (t.action_type === "brochure_sent")   hasBrochure.add(t.person_id)
     if (t.action_type === "assessment_sent") hasAssessment.add(t.person_id)
   }
 
-  // Helper to shape an output row
+  // Status tags currently active (not removed) — for warning pills
+  const { data: statusRows } = await sb
+    .from("person_status_tags")
+    .select("person_id, tag")
+    .in("person_id", cfoIds)
+    .is("removed_at", null)
+
+  const statusByPerson = {}    // person_id → [tag, ...]
+  for (const s of statusRows || []) {
+    if (!statusByPerson[s.person_id]) statusByPerson[s.person_id] = []
+    statusByPerson[s.person_id].push(s.tag)
+  }
+
+  // Action types we surface as pills (in display order). Anything else is hidden.
+  const PILL_ORDER = ["reply_received", "brochure_sent", "assessment_sent", "fit_call_completed"]
+
+  // Helper to shape an output row — includes activity_pills, status_tags, connected_at
   function row(p) {
+    const personTags = tagsByPerson[p.id] || []
+
+    // connected_at = earliest as_of_date / set_at for connection_accepted
+    const connectTag = personTags.find(t => t.type === "connection_accepted")
+    const connectedAt = connectTag ? (connectTag.as_of_date || (connectTag.set_at ? connectTag.set_at.slice(0, 10) : null)) : null
+
+    // Activity pills, sorted by PILL_ORDER
+    const presentTypes = new Set(personTags.map(t => t.type))
+    const activityPills = PILL_ORDER.filter(type => presentTypes.has(type))
+
     return {
       id: p.id,
       name: p.full_name || `${p.first_name || ""} ${p.last_name || ""}`.trim(),
@@ -69,6 +110,9 @@ export async function GET() {
       company: p.company,
       cfo_state: p.cfo_state,
       last_touch: p.last_meaningful_touch,
+      connected_at: connectedAt,
+      activity_pills: activityPills,
+      status_tags: statusByPerson[p.id] || [],
     }
   }
 
