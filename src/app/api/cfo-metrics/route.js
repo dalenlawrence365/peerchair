@@ -28,7 +28,7 @@ export async function GET() {
   // 1. Pull all connected CFOs
   const { data: cfos, error } = await sb
     .from("people")
-    .select("id, full_name, first_name, last_name, title, company, cfo_state, last_meaningful_touch")
+    .select("id, full_name, first_name, last_name, title, company, email, email2, cfo_state, last_meaningful_touch")
     .in("cfo_state", CONNECTED_STATES)
     .contains("roles", ["cfo"])
     .limit(5000)
@@ -92,6 +92,7 @@ export async function GET() {
       name: p.full_name || `${p.first_name || ""} ${p.last_name || ""}`.trim(),
       title: p.title,
       company: p.company,
+      email: (p.email && p.email.trim()) || (p.email2 && p.email2.trim()) || null,
       cfo_state: p.cfo_state,
       last_touch: p.last_meaningful_touch,
       connected_at: connectedAtByPerson.get(p.id) || null,

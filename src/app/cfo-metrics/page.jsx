@@ -135,10 +135,22 @@ function PersonRow({ p, isLast }) {
             {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
           </div>
         </div>
-        {/* Right: connected_at + last_touch stacked */}
-        <div style={{ textAlign: "right", whiteSpace: "nowrap", fontSize: 11, color: T.textTertiary, lineHeight: 1.5, paddingTop: 1 }}>
+        {/* Right: connected_at + last_touch + email stacked */}
+        <div style={{ textAlign: "right", whiteSpace: "nowrap", fontSize: 11, color: T.textTertiary, lineHeight: 1.55, paddingTop: 1 }}>
           {connectedFmt && <div>Connected {connectedFmt}</div>}
           {touchFmt && <div>Last touch {touchFmt}</div>}
+          {p.email ? (
+            <a
+              href={`mailto:${p.email}`}
+              onClick={(e) => e.stopPropagation()}
+              title={p.email}
+              style={{ color: "#3b82f6", textDecoration: "none", fontWeight: 500 }}
+            >
+              ✉ {p.email.length > 28 ? p.email.slice(0, 26) + "…" : p.email}
+            </a>
+          ) : (
+            <div style={{ color: "#cbd5e1", fontStyle: "italic" }}>no email</div>
+          )}
         </div>
       </div>
     </Link>
