@@ -151,6 +151,22 @@ function PersonRow({ p, isLast }) {
           ) : (
             <div style={{ color: "#cbd5e1", fontStyle: "italic" }}>no email</div>
           )}
+          {p.linkedin_url ? (
+            <div>
+              <a
+                href={p.linkedin_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title={p.linkedin_url}
+                style={{ color: "#0a66c2", textDecoration: "none", fontWeight: 500 }}
+              >
+                in&nbsp;LinkedIn ↗
+              </a>
+            </div>
+          ) : (
+            <div style={{ color: "#cbd5e1", fontStyle: "italic" }}>no LinkedIn</div>
+          )}
         </div>
       </div>
     </Link>
