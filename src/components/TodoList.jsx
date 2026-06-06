@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { T } from "@/lib/pipelineTheme"
+import PersonCompanyPicker from "@/components/PersonCompanyPicker"
 
 // ─── Quick-add presets ───────────────────────────────────────────────────────
 // These map to the canonical action_tag taxonomy: completing the todo fires
@@ -38,14 +39,20 @@ function dueLabel(dateStr) {
 export function TodoQuickAdd({ personId, companyId, defaultPersonName, onCreated }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState({ title: "", action_type: null, scheduled_for: todayISO(), notes: "" })
+  // attachment is only used when no personId/companyId was preset by the parent
+  const [attachment, setAttachment] = useState(null) // { kind, id, name, subtitle } | null
   const [saving, setSaving] = useState(false)
+  const isScoped = !!(personId || companyId)
 
   function startWithPreset(preset) {
-    const title = preset.action_type === "brochure_sent"   ? `Send brochure${defaultPersonName ? " to " + defaultPersonName : ""}` :
-                  preset.action_type === "assessment_sent" ? `Send assessment${defaultPersonName ? " to " + defaultPersonName : ""}` :
-                  preset.action_type === "event_invite_sent" ? `Send event invite${defaultPersonName ? " to " + defaultPersonName : ""}` :
-                  preset.action_type === "fit_call_scheduled" ? `Schedule fit call${defaultPersonName ? " with " + defaultPersonName : ""}` :
-                  preset.key === "followup" ? `Follow up${defaultPersonName ? " with " + defaultPersonName : ""}` :
+    // For scoped contexts (profile pages), reference the contextual name in the title.
+    // For global context (/todos page), reference the attachment's name if one's already picked.
+    const refName = isScoped ? defaultPersonName : (attachment?.name || "")
+    const title = preset.action_type === "brochure_sent"   ? `Send brochure${refName ? " to " + refName : ""}` :
+                  preset.action_type === "assessment_sent" ? `Send assessment${refName ? " to " + refName : ""}` :
+                  preset.action_type === "event_invite_sent" ? `Send event invite${refName ? " to " + refName : ""}` :
+                  preset.action_type === "fit_call_scheduled" ? `Schedule fit call${refName ? " with " + refName : ""}` :
+                  preset.key === "followup" ? `Follow up${refName ? " with " + refName : ""}` :
                   ""
     setDraft({ title, action_type: preset.action_type, scheduled_for: todayISO(), notes: "" })
     setOpen(true)
@@ -59,14 +66,16 @@ export function TodoQuickAdd({ personId, companyId, defaultPersonName, onCreated
       action_type: draft.action_type || null,
       scheduled_for: draft.scheduled_for || null,
       notes: draft.notes || null,
-      ...(personId  ? { person_id:  personId }  : {}),
-      ...(companyId ? { company_id: companyId } : {}),
+      // Scoped props win; otherwise use the picker attachment
+      ...(personId  ? { person_id:  personId  } : (attachment?.kind === "person"  ? { person_id:  attachment.id } : {})),
+      ...(companyId ? { company_id: companyId } : (attachment?.kind === "company" ? { company_id: attachment.id } : {})),
     }
     try {
       const r = await fetch("/api/todos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       const d = await r.json()
       if (d.todo && onCreated) onCreated(d.todo)
       setDraft({ title: "", action_type: null, scheduled_for: todayISO(), notes: "" })
+      setAttachment(null)
       setOpen(false)
     } finally {
       setSaving(false)
@@ -108,6 +117,15 @@ export function TodoQuickAdd({ personId, companyId, defaultPersonName, onCreated
           marginBottom: 8,
         }}
       />
+
+      {/* Attachment picker — only shown when no parent scope was passed in */}
+      {!isScoped && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+          <label style={{ fontSize: 11, color: T.textTertiary }}>Attach to</label>
+          <PersonCompanyPicker value={attachment} onSelect={setAttachment} />
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
         <label style={{ fontSize: 11, color: T.textTertiary }}>Due</label>
         <input type="date" value={draft.scheduled_for || ""} onChange={e => setDraft({ ...draft, scheduled_for: e.target.value || null })}

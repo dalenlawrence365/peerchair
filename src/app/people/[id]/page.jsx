@@ -512,9 +512,15 @@ export default function PersonProfile() {
       {/* ===== Tabbed detail — keeps the page short; click instead of scroll ===== */}
       <TabBar active={tab} onSelect={setActiveTab} tabs={[
         { key: "tags", label: "Tags & Activity" },
+        { key: "todos", label: "To-dos" },
         { key: "timeline", label: "Timeline" },
         { key: "fitcall", label: "Fit Call" },
       ]} />
+
+      {/* TAB: To-dos */}
+      {tab === "todos" && (
+        <ProfileTodoCard personId={p.id} defaultName={p.full_name || p.first_name || ""} />
+      )}
 
       {/* TAB: Fit Call — the full fit-call record */}
       {tab === "fitcall" && (p.firmographics ? (
@@ -621,11 +627,8 @@ export default function PersonProfile() {
       </div>
       )}
 
-      {/* TAB: Timeline — todos + LinkedIn thread snapshot + activity log */}
+      {/* TAB: Timeline — LinkedIn thread snapshot + activity log */}
       {tab === "timeline" && (<>
-      {/* To-do card — always show at top of Timeline */}
-      <ProfileTodoCard personId={p.id} defaultName={p.full_name || p.first_name || ""} />
-
       {/* LinkedIn thread snapshot if present */}
       {p.linkedin_thread_snapshot && (() => {
         const messages = parseLinkedInThread(p.linkedin_thread_snapshot)
