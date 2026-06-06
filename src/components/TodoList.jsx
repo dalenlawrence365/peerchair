@@ -5,15 +5,18 @@ import { T } from "@/lib/pipelineTheme"
 import PersonCompanyPicker from "@/components/PersonCompanyPicker"
 
 // ─── Quick-add presets ───────────────────────────────────────────────────────
-// These map to the canonical action_tag taxonomy: completing the todo fires
-// the corresponding action_tag on the linked person.
+// These map to the canonical action_tag taxonomy: completing a person-attached
+// todo fires the corresponding action_tag on the linked person.
+// The 'peerchair' preset is a category marker (no tag-firing) for app
+// development tasks — bugs, features, refactors of PeerChair itself.
 export const TODO_PRESETS = [
-  { key: "brochure",   title: "Send brochure",     action_type: "brochure_sent" },
-  { key: "assessment", title: "Send assessment",   action_type: "assessment_sent" },
-  { key: "event",      title: "Send event invite", action_type: "event_invite_sent" },
-  { key: "fitcall",    title: "Schedule fit call", action_type: "fit_call_scheduled" },
+  { key: "brochure",   title: "Send brochure",      action_type: "brochure_sent" },
+  { key: "assessment", title: "Send assessment",    action_type: "assessment_sent" },
+  { key: "event",      title: "Send event invite",  action_type: "event_invite_sent" },
+  { key: "fitcall",    title: "Schedule fit call",  action_type: "fit_call_scheduled" },
   { key: "followup",   title: "Personal follow-up", action_type: null },
-  { key: "custom",     title: "",                  action_type: null },
+  { key: "peerchair",  title: "PeerChair",          action_type: "peerchair" },
+  { key: "custom",     title: "",                   action_type: null },
 ]
 
 // ─── Date helpers ────────────────────────────────────────────────────────────
@@ -62,6 +65,12 @@ export function TodoQuickAdd({ personId, companyId, defaultPersonName, onCreated
   const isScoped = !!(personId || companyId)
 
   function startWithPreset(preset) {
+    // PeerChair preset: empty title, user types the bug/feature
+    if (preset.key === "peerchair") {
+      setDraft({ title: "", action_type: "peerchair", scheduled_for: todayISO(), notes: "" })
+      setOpen(true)
+      return
+    }
     // For scoped contexts (profile pages), reference the contextual name in the title.
     // For global context (/todos page), reference the attachment's name if one's already picked.
     const refName = isScoped ? defaultPersonName : (attachment?.name || "")
@@ -273,9 +282,17 @@ export function TodoRow({ todo, onComplete, onUpdate, onDelete, showPersonLink =
           {showCompanyLink && companyName && todo.company_id && (
             <span>· <Link href={`/companies/${todo.company_id}`} style={{ color: "#3b82f6", textDecoration: "none" }}>{companyName}</Link></span>
           )}
-          {todo.action_type && (
+          {todo.action_type === "peerchair" ? (
+            <span style={{
+              display: "inline-block", padding: "1px 7px", borderRadius: 999,
+              fontSize: 10, fontWeight: 600, letterSpacing: 0.3,
+              background: "rgba(168, 85, 247, 0.12)", color: "#a855f7",
+              border: "1px solid rgba(168, 85, 247, 0.3)",
+              whiteSpace: "nowrap",
+            }}>PeerChair</span>
+          ) : todo.action_type ? (
             <span>· {todo.action_type}</span>
-          )}
+          ) : null}
         </div>
         {todo.notes && (
           <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 4 }}>{todo.notes}</div>

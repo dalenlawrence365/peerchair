@@ -38,9 +38,11 @@ export async function POST(_request, { params }) {
 
   if (updErr) return Response.json({ error: updErr.message }, { status: 500 })
 
-  // Fire the action_tag if we have person + action_type
+  // Fire the action_tag if we have person + action_type, except for category
+  // markers like 'peerchair' that aren't part of the person-tag taxonomy.
   let firedTag = null
-  if (existing.person_id && existing.action_type) {
+  const TAG_FIRING_BLACKLIST = new Set(["peerchair"])
+  if (existing.person_id && existing.action_type && !TAG_FIRING_BLACKLIST.has(existing.action_type)) {
     const { error: tagErr } = await sb.rpc("set_action_tag", {
       p_person_id:  existing.person_id,
       p_action_type: existing.action_type,
