@@ -13,6 +13,7 @@ const CONNECTED_STATES = ["audience", "prospect", "qualified", "member"]
 
 // Action tags we care about per row
 const ACTIVITY_TAGS = [
+  "connection_sent",
   "connection_accepted",
   "reply_received",
   "brochure_sent",
@@ -48,6 +49,7 @@ export async function GET() {
   // Pull in chunks of 500 if needed; PostgREST has IN-list size limits
   const actionTagsByPerson = new Map()
   const connectedAtByPerson = new Map()
+  const inviteSentAtByPerson = new Map()
   for (let i = 0; i < cfoIds.length; i += 500) {
     const chunk = cfoIds.slice(i, i + 500)
     const { data: tags } = await sb
@@ -58,13 +60,14 @@ export async function GET() {
     for (const t of tags || []) {
       if (!actionTagsByPerson.has(t.person_id)) actionTagsByPerson.set(t.person_id, new Set())
       actionTagsByPerson.get(t.person_id).add(t.action_type)
+      const when = t.as_of_date || t.as_of_time || t.set_at
+      if (!when) continue
       if (t.action_type === "connection_accepted") {
-        // Prefer as_of_date, then as_of_time, then set_at
-        const when = t.as_of_date || t.as_of_time || t.set_at
-        if (when) {
-          const existing = connectedAtByPerson.get(t.person_id)
-          if (!existing || when < existing) connectedAtByPerson.set(t.person_id, when)
-        }
+        const existing = connectedAtByPerson.get(t.person_id)
+        if (!existing || when < existing) connectedAtByPerson.set(t.person_id, when)
+      } else if (t.action_type === "connection_sent") {
+        const existing = inviteSentAtByPerson.get(t.person_id)
+        if (!existing || when < existing) inviteSentAtByPerson.set(t.person_id, when)
       }
     }
   }
@@ -97,6 +100,7 @@ export async function GET() {
       cfo_state: p.cfo_state,
       last_touch: p.last_meaningful_touch,
       connected_at: connectedAtByPerson.get(p.id) || null,
+      invite_sent_at: inviteSentAtByPerson.get(p.id) || null,
       activity: {
         replied:           acts.has("reply_received"),
         brochure_sent:     acts.has("brochure_sent"),

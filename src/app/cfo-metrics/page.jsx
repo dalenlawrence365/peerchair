@@ -107,69 +107,70 @@ export default function CfoMetricsPage() {
 
 function PersonRow({ p, isLast }) {
   const connectedFmt = fmtConnected(p.connected_at)
+  const inviteFmt = fmtConnected(p.invite_sent_at)
   const touchFmt = fmtRel(p.last_touch)
   return (
-    <Link href={`/people/${p.id}`} style={{ textDecoration: "none", color: T.textPrimary }}>
-      <div style={{
-        padding: "12px 16px",
-        display: "flex", alignItems: "flex-start", gap: 12,
-        borderBottom: isLast ? "none" : "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)"),
-        cursor: "pointer",
-      }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Line 1: name + state + status pills + activity pills */}
-          <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</span>
-            <StatePill s={p.cfo_state} />
-            {(p.status_tags || []).map(t => {
-              const c = STATUS_LABEL[t]
-              if (!c) return null
-              return <Pill key={t} bg={c.bg} fg={c.fg} text={c.label} />
-            })}
-            {ACTIVITY_DEFS.filter(d => p.activity?.[d.key]).map(d =>
-              <Pill key={d.key} bg={d.bg} fg={d.fg} text={d.label} />
-            )}
-          </div>
-          {/* Line 2: title · company */}
-          <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
-          </div>
+    <div style={{
+      padding: "12px 16px",
+      display: "flex", alignItems: "flex-start", gap: 12,
+      borderBottom: isLast ? "none" : "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)"),
+    }}>
+      {/* Left half: clickable to profile */}
+      <Link href={`/people/${p.id}`} style={{ flex: 1, minWidth: 0, textDecoration: "none", color: T.textPrimary, cursor: "pointer" }}>
+        {/* Line 1: name + state + status pills + activity pills */}
+        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</span>
+          <StatePill s={p.cfo_state} />
+          {(p.status_tags || []).map(t => {
+            const c = STATUS_LABEL[t]
+            if (!c) return null
+            return <Pill key={t} bg={c.bg} fg={c.fg} text={c.label} />
+          })}
+          {ACTIVITY_DEFS.filter(d => p.activity?.[d.key]).map(d =>
+            <Pill key={d.key} bg={d.bg} fg={d.fg} text={d.label} />
+          )}
         </div>
-        {/* Right: connected_at + last_touch + email stacked */}
-        <div style={{ textAlign: "right", whiteSpace: "nowrap", fontSize: 11, color: T.textTertiary, lineHeight: 1.55, paddingTop: 1 }}>
-          {connectedFmt && <div>Connected {connectedFmt}</div>}
-          {touchFmt && <div>Last touch {touchFmt}</div>}
-          {p.email ? (
+        {/* Line 2: title · company */}
+        <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
+        </div>
+      </Link>
+      {/* Right side: dates + email + LinkedIn — NOT inside the Link, so anchors work natively */}
+      <div style={{ textAlign: "right", whiteSpace: "nowrap", fontSize: 11, color: T.textTertiary, lineHeight: 1.55, paddingTop: 1 }}>
+        {inviteFmt && <div>Invite sent {inviteFmt}</div>}
+        {connectedFmt && <div>Connected {connectedFmt}</div>}
+        {!inviteFmt && !connectedFmt && <div style={{ color: "#cbd5e1", fontStyle: "italic" }}>no connection date</div>}
+        {touchFmt && <div>Last touch {touchFmt}</div>}
+        {p.email ? (
+          <div>
             <a
               href={`mailto:${p.email}`}
-              onClick={(e) => e.stopPropagation()}
               title={p.email}
               style={{ color: "#3b82f6", textDecoration: "none", fontWeight: 500 }}
             >
               ✉ {p.email.length > 28 ? p.email.slice(0, 26) + "…" : p.email}
             </a>
-          ) : (
-            <div style={{ color: "#cbd5e1", fontStyle: "italic" }}>no email</div>
-          )}
-          {p.linkedin_url ? (
-            <div>
-              <a
-                href={p.linkedin_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                title={p.linkedin_url}
-                style={{ color: "#0a66c2", textDecoration: "none", fontWeight: 500 }}
-              >
-                in&nbsp;LinkedIn ↗
-              </a>
-            </div>
-          ) : (
-            <div style={{ color: "#cbd5e1", fontStyle: "italic" }}>no LinkedIn</div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div style={{ color: "#cbd5e1", fontStyle: "italic" }}>no email</div>
+        )}
+        {p.linkedin_url ? (
+          <div>
+            <a
+              href={p.linkedin_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={p.linkedin_url}
+              style={{ color: "#0a66c2", textDecoration: "none", fontWeight: 500 }}
+            >
+              in&nbsp;LinkedIn ↗
+            </a>
+          </div>
+        ) : (
+          <div style={{ color: "#cbd5e1", fontStyle: "italic" }}>no LinkedIn</div>
+        )}
       </div>
-    </Link>
+    </div>
   )
 }
 
