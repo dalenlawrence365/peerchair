@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { T } from "@/lib/pipelineTheme"
 import Avatar from "@/components/Avatar"
+import ProfileTodoCard from "@/components/ProfileTodoCard"
 
 // ─── Taxonomy ─────────────────────────────────────────────────────────────────
 
@@ -391,6 +392,11 @@ export default function CompanyDetailPage() {
       {/* Notes */}
       <Section title="Notes">
         <NotesField value={co.notes} onSave={notes => patchCompany({ notes })} />
+      </Section>
+
+      {/* To-dos */}
+      <Section title="To-dos">
+        <ProfileTodoCard companyId={co.id} defaultName={co.name} />
       </Section>
 
       {/* Locations */}

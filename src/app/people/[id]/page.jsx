@@ -4,6 +4,7 @@ import { useParams } from "next/navigation"
 import Link from "next/link"
 import { T } from "@/lib/pipelineTheme"
 import Avatar from "@/components/Avatar"
+import ProfileTodoCard from "@/components/ProfileTodoCard"
 
 const ROLE_LABEL = { cfo: "CFO", sponsor_contact: "Sponsor Contact", referral_partner: "Referral Partner" }
 const ROLE_COLOR = { cfo: "#d97706", sponsor_contact: "#a855f7", referral_partner: "#10b981" }
@@ -620,8 +621,11 @@ export default function PersonProfile() {
       </div>
       )}
 
-      {/* TAB: Timeline — LinkedIn thread snapshot + activity log */}
+      {/* TAB: Timeline — todos + LinkedIn thread snapshot + activity log */}
       {tab === "timeline" && (<>
+      {/* To-do card — always show at top of Timeline */}
+      <ProfileTodoCard personId={p.id} defaultName={p.full_name || p.first_name || ""} />
+
       {/* LinkedIn thread snapshot if present */}
       {p.linkedin_thread_snapshot && (() => {
         const messages = parseLinkedInThread(p.linkedin_thread_snapshot)

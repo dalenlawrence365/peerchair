@@ -23,6 +23,7 @@ const NAV = [
     { label: "Review queue",    href: "/queue/review",     matches: function(p){ return p === "/queue/review" } },
   ] },
   { section: "Schedule", items: [
+    { label: "To-dos",          href: "/todos",            matches: function(p){ return p.startsWith("/todos") } },
     { label: "Meetings",        href: "/meetings",         matches: function(p){ return p.startsWith("/meetings") } },
   ] },
   { section: "Tools", items: [
