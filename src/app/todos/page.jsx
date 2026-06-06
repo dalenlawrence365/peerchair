@@ -6,25 +6,38 @@ import { TodoQuickAdd, TodoRow } from "@/components/TodoList"
 function todayISO() { return new Date().toISOString().slice(0, 10) }
 function inDaysISO(n) { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }
 
-// Group an array of todos into the right buckets
+// Group an array of todos into the right buckets.
+// Buckets follow the calendar week, not arbitrary day counts, so "in 7 days"
+// from a Friday correctly lands in Next Week, not This Week.
 function bucket(todos) {
   const today = todayISO()
-  const week  = inDaysISO(7)
 
-  const out = { overdue: [], today: [], thisWeek: [], later: [], noDate: [], completed: [] }
+  // End of current week = upcoming Sunday (inclusive)
+  const now = new Date()
+  const dow = now.getDay() // 0 = Sunday, 6 = Saturday
+  const daysToSun = (7 - dow) % 7 // 0 if today is Sunday
+  const endOfWeek = new Date(); endOfWeek.setDate(endOfWeek.getDate() + daysToSun)
+  const endOfWeekStr = endOfWeek.toISOString().slice(0, 10)
+
+  // End of next week = the Sunday after that (7 days later)
+  const endOfNextWeek = new Date(endOfWeek); endOfNextWeek.setDate(endOfNextWeek.getDate() + 7)
+  const endOfNextWeekStr = endOfNextWeek.toISOString().slice(0, 10)
+
+  const out = { overdue: [], today: [], thisWeek: [], nextWeek: [], later: [], noDate: [], completed: [] }
   for (const t of todos) {
-    if (t.completed_at) { out.completed.push(t); continue }
-    if (!t.scheduled_for) { out.noDate.push(t); continue }
-    if (t.scheduled_for < today)   { out.overdue.push(t); continue }
-    if (t.scheduled_for === today) { out.today.push(t); continue }
-    if (t.scheduled_for <= week)   { out.thisWeek.push(t); continue }
+    if (t.completed_at)            { out.completed.push(t); continue }
+    if (!t.scheduled_for)          { out.noDate.push(t); continue }
+    if (t.scheduled_for < today)        { out.overdue.push(t); continue }
+    if (t.scheduled_for === today)      { out.today.push(t); continue }
+    if (t.scheduled_for <= endOfWeekStr)     { out.thisWeek.push(t); continue }
+    if (t.scheduled_for <= endOfNextWeekStr) { out.nextWeek.push(t); continue }
     out.later.push(t)
   }
-  // Sort each bucket
   const byDateAsc = (a, b) => (a.scheduled_for || "").localeCompare(b.scheduled_for || "")
   out.overdue.sort(byDateAsc)
   out.today.sort(byDateAsc)
   out.thisWeek.sort(byDateAsc)
+  out.nextWeek.sort(byDateAsc)
   out.later.sort(byDateAsc)
   return out
 }
@@ -84,6 +97,10 @@ export default function TodosPage() {
 
       <Section label="This week" count={b.thisWeek.length}>
         {b.thisWeek.map(t => <TodoRow key={t.id} todo={t} onComplete={onComplete} onUpdate={onUpdate} onDelete={onDelete} />)}
+      </Section>
+
+      <Section label="Next week" count={b.nextWeek.length}>
+        {b.nextWeek.map(t => <TodoRow key={t.id} todo={t} onComplete={onComplete} onUpdate={onUpdate} onDelete={onDelete} />)}
       </Section>
 
       <Section label="Later" count={b.later.length} defaultCollapsed>

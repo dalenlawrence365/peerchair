@@ -20,6 +20,23 @@ export const TODO_PRESETS = [
 function todayISO() { return new Date().toISOString().slice(0, 10) }
 function inDaysISO(n) { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }
 
+// End of this week = upcoming Sunday (or today if it's already Sunday)
+function endOfWeekISO() {
+  const d = new Date()
+  const dow = d.getDay() // 0 = Sun, 6 = Sat
+  const daysToSun = (7 - dow) % 7
+  d.setDate(d.getDate() + daysToSun)
+  return d.toISOString().slice(0, 10)
+}
+// Start of next week = next Monday
+function nextMondayISO() {
+  const d = new Date()
+  const dow = d.getDay() // 0 = Sun, 1 = Mon, …
+  const daysToMon = dow === 0 ? 1 : (8 - dow)
+  d.setDate(d.getDate() + daysToMon)
+  return d.toISOString().slice(0, 10)
+}
+
 function dueLabel(dateStr) {
   if (!dateStr) return { text: "no date", color: T.textTertiary }
   const today = todayISO()
@@ -132,7 +149,9 @@ export function TodoQuickAdd({ personId, companyId, defaultPersonName, onCreated
           style={{ padding: "6px 10px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
         <button onClick={() => setDraft({ ...draft, scheduled_for: todayISO() })} style={pillBtnStyle()}>Today</button>
         <button onClick={() => setDraft({ ...draft, scheduled_for: inDaysISO(1) })} style={pillBtnStyle()}>Tomorrow</button>
-        <button onClick={() => setDraft({ ...draft, scheduled_for: inDaysISO(7) })} style={pillBtnStyle()}>+1 week</button>
+        <button onClick={() => setDraft({ ...draft, scheduled_for: endOfWeekISO() })} style={pillBtnStyle()}>End of week</button>
+        <button onClick={() => setDraft({ ...draft, scheduled_for: nextMondayISO() })} style={pillBtnStyle()}>Next Mon</button>
+        <button onClick={() => setDraft({ ...draft, scheduled_for: inDaysISO(14) })} style={pillBtnStyle()}>+2 weeks</button>
         <button onClick={() => setDraft({ ...draft, scheduled_for: null })} style={pillBtnStyle()}>No date</button>
       </div>
       <textarea
