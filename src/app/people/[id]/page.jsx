@@ -16,6 +16,38 @@ const STATE_FIELD = { cfo: "cfo_state", sponsor_contact: "sponsor_state", referr
 
 const CHANNEL_COLOR = { LinkedIn: "#0a66c2", Calendly: "#006bff", Email: "#16a34a", Note: "#6b7280", Phone: "#f97316" }
 
+// ─── LinkedIn thread parser ──────────────────────────────────────────────────
+// LinkedHelper webhooks deliver thread history as a single concatenated string:
+//   "Dalen Lawrence [June 2, 2026 04:25:20 PM] message body  Pratish Patel [...] body  ..."
+// Each message is prefixed with "<Speaker Name> [<Month Day, Year HH:MM:SS AM/PM>] ".
+// We split by detecting that header pattern and recovering each message's
+// speaker / timestamp / body. Names can be multi-word, hyphenated, or contain
+// accented characters; we cap at 5 words to keep the regex from over-eating.
+const THREAD_HEADER_RE = /([A-Za-zÀ-ÿ'.\-]+(?:\s+[A-Za-zÀ-ÿ'.\-]+){1,4})\s+\[([A-Z][a-z]+\s+\d+,\s+\d{4}\s+\d+:\d+:\d+\s+[AP]M)\]\s+/g
+
+// Who "me" is in these threads. Single-user app — hardcoded for now.
+const ME_NAME = "Dalen Lawrence"
+
+function parseLinkedInThread(raw) {
+  if (!raw || typeof raw !== "string") return []
+  THREAD_HEADER_RE.lastIndex = 0 // reset stateful regex
+  const headers = []
+  let m
+  while ((m = THREAD_HEADER_RE.exec(raw)) !== null) {
+    headers.push({ index: m.index, length: m[0].length, speaker: m[1].trim(), timestamp: m[2] })
+  }
+  return headers.map(function(h, i){
+    const start = h.index + h.length
+    const end = i + 1 < headers.length ? headers[i + 1].index : raw.length
+    return {
+      speaker: h.speaker,
+      timestamp: h.timestamp,
+      body: raw.slice(start, end).trim(),
+      isMe: h.speaker === ME_NAME,
+    }
+  })
+}
+
 // Tag pickers — known choices are offered as one-tap quick-adds; the free-text box adds anything on the fly.
 // Status = mutable state (set/removed). Action = point-in-time event (audit trail, runs supersession).
 const STATUS_TAG_CHOICES = ["do_not_contact", "not_a_fit", "opted_out", "snoozed", "reserve"]
@@ -591,20 +623,79 @@ export default function PersonProfile() {
       {/* TAB: Timeline — LinkedIn thread snapshot + activity log */}
       {tab === "timeline" && (<>
       {/* LinkedIn thread snapshot if present */}
-      {p.linkedin_thread_snapshot && (
-        <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>LinkedIn Thread</div>
-            <div style={{ fontSize: 11, color: T.textTertiary }}>Updated {fmtShort(p.linkedin_thread_updated_at)}</div>
+      {p.linkedin_thread_snapshot && (() => {
+        const messages = parseLinkedInThread(p.linkedin_thread_snapshot)
+        // Fall back to raw text if parser found nothing (defensive)
+        if (messages.length === 0) {
+          return (
+            <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>LinkedIn Thread</div>
+                <div style={{ fontSize: 11, color: T.textTertiary }}>Updated {fmtShort(p.linkedin_thread_updated_at)}</div>
+              </div>
+              <pre style={{
+                whiteSpace: "pre-wrap", wordBreak: "break-word",
+                fontFamily: "inherit", fontSize: 13, lineHeight: 1.55,
+                background: T.bg, padding: 14, borderRadius: 8,
+                margin: 0, maxHeight: 480, overflowY: "auto"
+              }}>{p.linkedin_thread_snapshot}</pre>
+            </div>
+          )
+        }
+        return (
+          <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                LinkedIn Thread <span style={{ fontWeight: 400, color: T.textTertiary, textTransform: "none", letterSpacing: 0, marginLeft: 4 }}>· {messages.length} message{messages.length === 1 ? "" : "s"}</span>
+              </div>
+              <div style={{ fontSize: 11, color: T.textTertiary }}>Updated {fmtShort(p.linkedin_thread_updated_at)}</div>
+            </div>
+            <div style={{
+              background: T.bg, padding: 14, borderRadius: 8,
+              maxHeight: 560, overflowY: "auto",
+              display: "flex", flexDirection: "column", gap: 12,
+            }}>
+              {messages.map((msg, i) => {
+                const isMe = msg.isMe
+                return (
+                  <div key={i} style={{
+                    display: "flex",
+                    justifyContent: isMe ? "flex-end" : "flex-start",
+                  }}>
+                    <div style={{
+                      maxWidth: "78%",
+                      background: isMe ? "#0a66c2" : "white",
+                      color: isMe ? "white" : T.textPrimary,
+                      border: isMe ? "none" : "1px solid " + T.border,
+                      borderRadius: 12,
+                      padding: "10px 14px",
+                      fontSize: 13,
+                      lineHeight: 1.5,
+                      boxShadow: isMe ? "none" : "0 1px 2px rgba(0,0,0,0.04)",
+                    }}>
+                      <div style={{
+                        display: "flex", alignItems: "baseline", gap: 8,
+                        marginBottom: 4, justifyContent: "space-between",
+                      }}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 600,
+                          color: isMe ? "rgba(255,255,255,0.85)" : T.textPrimary,
+                        }}>{msg.speaker}</span>
+                        <span style={{
+                          fontSize: 10,
+                          color: isMe ? "rgba(255,255,255,0.65)" : T.textTertiary,
+                          whiteSpace: "nowrap",
+                        }}>{msg.timestamp}</span>
+                      </div>
+                      <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{msg.body}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-          <pre style={{
-            whiteSpace: "pre-wrap", wordBreak: "break-word",
-            fontFamily: "inherit", fontSize: 13, lineHeight: 1.55,
-            background: T.bg, padding: 14, borderRadius: 8,
-            margin: 0, maxHeight: 480, overflowY: "auto"
-          }}>{p.linkedin_thread_snapshot}</pre>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Communications timeline */}
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18 }}>
