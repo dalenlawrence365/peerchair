@@ -10,67 +10,63 @@ const STATE_COLOR = {
   member:    { bg: "rgba(22, 163, 74, 0.14)",  fg: "#15803d" },
 }
 
+// Activity pills — shown only if the person has that activity
+const ACTIVITY_DEFS = [
+  { key: "replied",            label: "Reply",      bg: "rgba(22, 163, 74, 0.14)",  fg: "#15803d" },
+  { key: "brochure_sent",      label: "Brochure",   bg: "rgba(59, 130, 246, 0.12)", fg: "#3b82f6" },
+  { key: "assessment_sent",    label: "Assessment", bg: "rgba(168, 85, 247, 0.14)", fg: "#a855f7" },
+  { key: "event_invite_sent",  label: "Event inv.", bg: "rgba(99, 102, 241, 0.14)", fg: "#6366f1" },
+  { key: "fit_call_scheduled", label: "Fit sched",  bg: "rgba(217, 119, 6, 0.14)",  fg: "#b45309" },
+  { key: "fit_call_completed", label: "Fit call ✓", bg: "rgba(22, 163, 74, 0.18)",  fg: "#15803d" },
+]
+
+// Status tag pills — shown only if active
+const STATUS_LABEL = {
+  reserve:        { label: "Reserve",     bg: "rgba(100,116,139,0.13)", fg: "#475569" },
+  snoozed:        { label: "Snoozed",     bg: "rgba(100,116,139,0.13)", fg: "#475569" },
+  not_a_fit:      { label: "Not a fit",   bg: "rgba(217, 119, 6, 0.14)",  fg: "#b45309" },
+  opted_out:      { label: "Opted out",   bg: "rgba(220, 38, 38, 0.13)",  fg: "#b91c1c" },
+  do_not_contact: { label: "DNC",         bg: "rgba(220, 38, 38, 0.13)",  fg: "#b91c1c" },
+}
+
 function StatePill({ s }) {
   const c = STATE_COLOR[s] || { bg: "rgba(100,116,139,0.1)", fg: "#64748b" }
+  return <Pill bg={c.bg} fg={c.fg} text={s} upper />
+}
+
+function Pill({ bg, fg, text, upper = false }) {
   return (
     <span style={{
       display: "inline-block", padding: "1px 7px", borderRadius: 999,
-      fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3,
-      background: c.bg, color: c.fg,
-    }}>{s}</span>
+      fontSize: 9.5, fontWeight: 600,
+      textTransform: upper ? "uppercase" : "none",
+      letterSpacing: upper ? 0.3 : 0,
+      background: bg, color: fg, whiteSpace: "nowrap",
+    }}>{text}</span>
   )
-}
-
-// ─── Activity & status pills ─────────────────────────────────────────────────
-// Activity = positive milestones reached (replies received, materials sent, fit
-// call done). Color leans warm/green to read as "this has happened, ✓."
-// Status = currently-set qualitative tags (not_a_fit, opted_out, etc.). Color
-// leans neutral or red depending on severity.
-
-const ACTIVITY_PILL = {
-  reply_received:     { label: "Reply",      bg: "rgba(22, 163, 74, 0.10)",  fg: "#15803d", border: "rgba(22, 163, 74, 0.3)" },
-  brochure_sent:      { label: "Brochure",   bg: "rgba(59, 130, 246, 0.10)", fg: "#2563eb", border: "rgba(59, 130, 246, 0.3)" },
-  assessment_sent:    { label: "Assessment", bg: "rgba(168, 85, 247, 0.10)", fg: "#9333ea", border: "rgba(168, 85, 247, 0.3)" },
-  fit_call_completed: { label: "Fit call ✓", bg: "rgba(22, 163, 74, 0.14)",  fg: "#15803d", border: "rgba(22, 163, 74, 0.4)" },
-}
-
-const STATUS_PILL = {
-  reserve:        { label: "Reserve",     bg: "rgba(100, 116, 139, 0.10)", fg: "#475569", border: "rgba(100, 116, 139, 0.3)" },
-  snoozed:        { label: "Snoozed",     bg: "rgba(100, 116, 139, 0.10)", fg: "#475569", border: "rgba(100, 116, 139, 0.3)" },
-  not_a_fit:      { label: "Not a fit",   bg: "rgba(217, 119, 6, 0.14)",   fg: "#b45309", border: "rgba(217, 119, 6, 0.4)" },
-  opted_out:      { label: "Opted out",   bg: "rgba(220, 38, 38, 0.10)",   fg: "#b91c1c", border: "rgba(220, 38, 38, 0.3)" },
-  do_not_contact: { label: "DNC",         bg: "rgba(220, 38, 38, 0.14)",   fg: "#b91c1c", border: "rgba(220, 38, 38, 0.4)" },
-}
-
-function MiniPill({ def }) {
-  return (
-    <span style={{
-      display: "inline-block", padding: "1px 6px", borderRadius: 4,
-      fontSize: 10, fontWeight: 600, whiteSpace: "nowrap",
-      background: def.bg, color: def.fg, border: "1px solid " + def.border,
-    }}>{def.label}</span>
-  )
-}
-
-function fmtDate(iso) {
-  if (!iso) return null
-  // Accepts YYYY-MM-DD or ISO datetime
-  const d = iso.length === 10 ? new Date(iso + "T00:00:00") : new Date(iso)
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
 function fmtRel(iso) {
-  if (!iso) return "—"
+  if (!iso) return null
   const days = (Date.now() - new Date(iso)) / 86400000
   if (days < 1) return "today"
   if (days < 30) return Math.round(days) + "d ago"
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
+function fmtConnected(iso) {
+  if (!iso) return null
+  const d = new Date(iso)
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString("en-US", sameYear
+    ? { month: "short", day: "numeric" }
+    : { month: "short", day: "numeric", year: "numeric" })
+}
+
 export default function CfoMetricsPage() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
-  const [view, setView] = useState("no_brochure") // active list to render
+  const [view, setView] = useState("no_brochure")
 
   useEffect(() => {
     fetch("/api/cfo-metrics").then(r => r.json()).then(d => {
@@ -88,7 +84,6 @@ export default function CfoMetricsPage() {
         {data.connected_total.toLocaleString()} connected CFOs (past Pool stage)
       </div>
 
-      {/* Metric tiles */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 24 }}>
         <Tile label="Brochure sent"     value={data.brochure.sent}      pct={data.brochure.pct_sent}     active={view === "with_brochure"}   onClick={() => setView("with_brochure")}   color="#15803d" />
         <Tile label="Brochure NOT sent" value={data.brochure.not_sent}  pct={100 - data.brochure.pct_sent} active={view === "no_brochure"}     onClick={() => setView("no_brochure")}     color="#b45309" />
@@ -96,7 +91,6 @@ export default function CfoMetricsPage() {
         <Tile label="Assessment NOT sent" value={data.assessment.not_sent}  pct={100 - data.assessment.pct_sent} active={view === "no_assessment"}   onClick={() => setView("no_assessment")}   color="#b45309" />
       </div>
 
-      {/* Active list */}
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, overflow: "hidden" }}>
         <div style={{ padding: "12px 16px", borderBottom: "1px solid " + T.border, fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>
           {LABEL[view]} <span style={{ color: T.textPrimary, marginLeft: 6, fontWeight: 500 }}>· {data.lists[view].length.toLocaleString()}</span>
@@ -104,42 +98,50 @@ export default function CfoMetricsPage() {
         {data.lists[view].length === 0 ? (
           <div style={{ padding: 24, color: T.textTertiary, fontSize: 13 }}>None.</div>
         ) : (
-          data.lists[view].map((p, i) => {
-            const activityDefs = (p.activity_pills || []).map(t => ACTIVITY_PILL[t]).filter(Boolean)
-            const statusDefs   = (p.status_tags    || []).map(t => STATUS_PILL[t]).filter(Boolean)
-            const hasPills = activityDefs.length + statusDefs.length > 0
-            return (
-              <Link key={p.id} href={`/people/${p.id}`} style={{ textDecoration: "none", color: T.textPrimary }}>
-                <div style={{
-                  padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 12,
-                  borderBottom: i < data.lists[view].length - 1 ? "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)") : "none",
-                  cursor: "pointer",
-                }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* Line 1: name + state pill + activity/status pills inline */}
-                    <div style={{ fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <span>{p.name}</span>
-                      <StatePill s={p.cfo_state} />
-                      {activityDefs.map((def, j) => <MiniPill key={"a" + j} def={def} />)}
-                      {statusDefs.map((def, j) => <MiniPill key={"s" + j} def={def} />)}
-                    </div>
-                    {/* Line 2: title · company */}
-                    <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
-                    </div>
-                  </div>
-                  {/* Right side: connected_at + last_touch stacked */}
-                  <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap", textAlign: "right", lineHeight: 1.5 }}>
-                    {p.connected_at && <div>Connected {fmtDate(p.connected_at)}</div>}
-                    <div>{fmtRel(p.last_touch)}</div>
-                  </div>
-                </div>
-              </Link>
-            )
-          })
+          data.lists[view].map((p, i) => <PersonRow key={p.id} p={p} isLast={i === data.lists[view].length - 1} />)
         )}
       </div>
     </main>
+  )
+}
+
+function PersonRow({ p, isLast }) {
+  const connectedFmt = fmtConnected(p.connected_at)
+  const touchFmt = fmtRel(p.last_touch)
+  return (
+    <Link href={`/people/${p.id}`} style={{ textDecoration: "none", color: T.textPrimary }}>
+      <div style={{
+        padding: "12px 16px",
+        display: "flex", alignItems: "flex-start", gap: 12,
+        borderBottom: isLast ? "none" : "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)"),
+        cursor: "pointer",
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Line 1: name + state + status pills + activity pills */}
+          <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</span>
+            <StatePill s={p.cfo_state} />
+            {(p.status_tags || []).map(t => {
+              const c = STATUS_LABEL[t]
+              if (!c) return null
+              return <Pill key={t} bg={c.bg} fg={c.fg} text={c.label} />
+            })}
+            {ACTIVITY_DEFS.filter(d => p.activity?.[d.key]).map(d =>
+              <Pill key={d.key} bg={d.bg} fg={d.fg} text={d.label} />
+            )}
+          </div>
+          {/* Line 2: title · company */}
+          <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
+          </div>
+        </div>
+        {/* Right: connected_at + last_touch stacked */}
+        <div style={{ textAlign: "right", whiteSpace: "nowrap", fontSize: 11, color: T.textTertiary, lineHeight: 1.5, paddingTop: 1 }}>
+          {connectedFmt && <div>Connected {connectedFmt}</div>}
+          {touchFmt && <div>Last touch {touchFmt}</div>}
+        </div>
+      </div>
+    </Link>
   )
 }
 

@@ -3,36 +3,29 @@ import { serverClient } from "@/lib/supabaseServer"
 
 // GET /api/cfo-metrics
 //
-// Returns the brochure / assessment delivery picture for "connected CFOs"
-// (those past the Pool stage — by definition LinkedIn-connected).
-//
-// Response shape:
-//   {
-//     connected_total: 306,
-//     brochure:   { sent: 12, not_sent: 294, pct_sent: 3.9 },
-//     assessment: { sent: 8,  not_sent: 298, pct_sent: 2.6 },
-//     lists: {
-//       no_brochure:    [{
-//         id, name, title, company, cfo_state, last_touch,
-//         connected_at,    // date of connection_accepted action_tag, or null
-//         activity_pills,  // [reply_received, brochure_sent, ...] — subset present
-//         status_tags,     // [reserve, not_a_fit, opted_out, ...] — currently set
-//       }, ...],
-//       no_assessment:  [...],
-//       with_brochure:  [...],
-//       with_assessment:[...],
-//     }
-//   }
-//
-// Each list capped at 500 rows to keep payload reasonable.
+// "Connected CFO" = 'cfo' in roles AND cfo_state in (audience, prospect,
+// qualified, member). Returns metrics for brochure + assessment delivery,
+// plus per-person activity tags / status tags / connected_at so the row
+// can show the FULL outreach picture for each person at a glance.
 
 const LIST_LIMIT = 500
 const CONNECTED_STATES = ["audience", "prospect", "qualified", "member"]
 
+// Action tags we care about per row
+const ACTIVITY_TAGS = [
+  "connection_accepted",
+  "reply_received",
+  "brochure_sent",
+  "assessment_sent",
+  "fit_call_scheduled",
+  "fit_call_completed",
+  "event_invite_sent",
+]
+
 export async function GET() {
   const sb = serverClient()
 
-  // All connected CFOs
+  // 1. Pull all connected CFOs
   const { data: cfos, error } = await sb
     .from("people")
     .select("id, full_name, first_name, last_name, title, company, cfo_state, last_meaningful_touch")
@@ -51,58 +44,49 @@ export async function GET() {
     })
   }
 
-  // All action tags for these CFOs (whole picture, not just brochure/assessment).
-  // We need this for: brochure/assessment bucketing, the connected_at date,
-  // and rendering activity pills on each row.
-  const { data: tags } = await sb
-    .from("person_action_tags")
-    .select("person_id, action_type, as_of_date, set_at")
-    .in("person_id", cfoIds)
-    .is("removed_at", null)
-
-  // Group by person — keep the array, and also derive a quick-lookup set per type
-  const tagsByPerson = {}      // person_id → [{action_type, as_of_date, set_at}, ...]
-  const hasBrochure   = new Set()
-  const hasAssessment = new Set()
-  for (const t of tags || []) {
-    if (!tagsByPerson[t.person_id]) tagsByPerson[t.person_id] = []
-    tagsByPerson[t.person_id].push({
-      type: t.action_type,
-      as_of_date: t.as_of_date,
-      set_at: t.set_at,
-    })
-    if (t.action_type === "brochure_sent")   hasBrochure.add(t.person_id)
-    if (t.action_type === "assessment_sent") hasAssessment.add(t.person_id)
+  // 2. Pull all action tags (for the activity pills + connected_at)
+  // Pull in chunks of 500 if needed; PostgREST has IN-list size limits
+  const actionTagsByPerson = new Map()
+  const connectedAtByPerson = new Map()
+  for (let i = 0; i < cfoIds.length; i += 500) {
+    const chunk = cfoIds.slice(i, i + 500)
+    const { data: tags } = await sb
+      .from("person_action_tags")
+      .select("person_id, action_type, as_of_date, as_of_time, set_at")
+      .in("person_id", chunk)
+      .in("action_type", ACTIVITY_TAGS)
+    for (const t of tags || []) {
+      if (!actionTagsByPerson.has(t.person_id)) actionTagsByPerson.set(t.person_id, new Set())
+      actionTagsByPerson.get(t.person_id).add(t.action_type)
+      if (t.action_type === "connection_accepted") {
+        // Prefer as_of_date, then as_of_time, then set_at
+        const when = t.as_of_date || t.as_of_time || t.set_at
+        if (when) {
+          const existing = connectedAtByPerson.get(t.person_id)
+          if (!existing || when < existing) connectedAtByPerson.set(t.person_id, when)
+        }
+      }
+    }
   }
 
-  // Status tags currently active (not removed) — for warning pills
-  const { data: statusRows } = await sb
-    .from("person_status_tags")
-    .select("person_id, tag")
-    .in("person_id", cfoIds)
-    .is("removed_at", null)
-
-  const statusByPerson = {}    // person_id → [tag, ...]
-  for (const s of statusRows || []) {
-    if (!statusByPerson[s.person_id]) statusByPerson[s.person_id] = []
-    statusByPerson[s.person_id].push(s.tag)
+  // 3. Pull active status tags
+  const statusTagsByPerson = new Map()
+  for (let i = 0; i < cfoIds.length; i += 500) {
+    const chunk = cfoIds.slice(i, i + 500)
+    const { data: stags } = await sb
+      .from("person_status_tags")
+      .select("person_id, tag")
+      .in("person_id", chunk)
+      .is("removed_at", null)
+    for (const s of stags || []) {
+      if (!statusTagsByPerson.has(s.person_id)) statusTagsByPerson.set(s.person_id, [])
+      statusTagsByPerson.get(s.person_id).push(s.tag)
+    }
   }
 
-  // Action types we surface as pills (in display order). Anything else is hidden.
-  const PILL_ORDER = ["reply_received", "brochure_sent", "assessment_sent", "fit_call_completed"]
-
-  // Helper to shape an output row — includes activity_pills, status_tags, connected_at
+  // Shape an output row with all the metadata
   function row(p) {
-    const personTags = tagsByPerson[p.id] || []
-
-    // connected_at = earliest as_of_date / set_at for connection_accepted
-    const connectTag = personTags.find(t => t.type === "connection_accepted")
-    const connectedAt = connectTag ? (connectTag.as_of_date || (connectTag.set_at ? connectTag.set_at.slice(0, 10) : null)) : null
-
-    // Activity pills, sorted by PILL_ORDER
-    const presentTypes = new Set(personTags.map(t => t.type))
-    const activityPills = PILL_ORDER.filter(type => presentTypes.has(type))
-
+    const acts = actionTagsByPerson.get(p.id) || new Set()
     return {
       id: p.id,
       name: p.full_name || `${p.first_name || ""} ${p.last_name || ""}`.trim(),
@@ -110,14 +94,20 @@ export async function GET() {
       company: p.company,
       cfo_state: p.cfo_state,
       last_touch: p.last_meaningful_touch,
-      connected_at: connectedAt,
-      activity_pills: activityPills,
-      status_tags: statusByPerson[p.id] || [],
+      connected_at: connectedAtByPerson.get(p.id) || null,
+      activity: {
+        replied:           acts.has("reply_received"),
+        brochure_sent:     acts.has("brochure_sent"),
+        assessment_sent:   acts.has("assessment_sent"),
+        fit_call_scheduled: acts.has("fit_call_scheduled"),
+        fit_call_completed: acts.has("fit_call_completed"),
+        event_invite_sent: acts.has("event_invite_sent"),
+      },
+      status_tags: statusTagsByPerson.get(p.id) || [],
     }
   }
 
-  // Sort: by cfo_state importance (member > qualified > prospect > audience),
-  // then by last touch desc (most-recently-touched first within each bucket)
+  // Sort by cfo_state importance, then last_touch desc
   const stateRank = { member: 0, qualified: 1, prospect: 2, audience: 3 }
   const sorter = (a, b) => {
     const r = (stateRank[a.cfo_state] ?? 9) - (stateRank[b.cfo_state] ?? 9)
@@ -128,23 +118,35 @@ export async function GET() {
     return 0
   }
 
-  const noBrochure     = cfos.filter(p => !hasBrochure.has(p.id)).sort(sorter).slice(0, LIST_LIMIT).map(row)
-  const noAssessment   = cfos.filter(p => !hasAssessment.has(p.id)).sort(sorter).slice(0, LIST_LIMIT).map(row)
-  const withBrochure   = cfos.filter(p =>  hasBrochure.has(p.id)).sort(sorter).slice(0, LIST_LIMIT).map(row)
-  const withAssessment = cfos.filter(p =>  hasAssessment.has(p.id)).sort(sorter).slice(0, LIST_LIMIT).map(row)
+  // Compute the four lists
+  const withBrochure   = []
+  const noBrochure     = []
+  const withAssessment = []
+  const noAssessment   = []
+  for (const p of cfos) {
+    const r = row(p)
+    if (r.activity.brochure_sent)   withBrochure.push(r);   else noBrochure.push(r)
+    if (r.activity.assessment_sent) withAssessment.push(r); else noAssessment.push(r)
+  }
+  withBrochure.sort(sorter)
+  noBrochure.sort(sorter)
+  withAssessment.sort(sorter)
+  noAssessment.sort(sorter)
 
   const total = cfos.length
+  const bSent = withBrochure.length
+  const aSent = withAssessment.length
   const pct = (n) => total === 0 ? 0 : Math.round((n / total) * 1000) / 10
 
   return Response.json({
     connected_total: total,
-    brochure:   { sent: hasBrochure.size,   not_sent: total - hasBrochure.size,   pct_sent: pct(hasBrochure.size) },
-    assessment: { sent: hasAssessment.size, not_sent: total - hasAssessment.size, pct_sent: pct(hasAssessment.size) },
+    brochure:   { sent: bSent, not_sent: total - bSent, pct_sent: pct(bSent) },
+    assessment: { sent: aSent, not_sent: total - aSent, pct_sent: pct(aSent) },
     lists: {
-      no_brochure:     noBrochure,
-      no_assessment:   noAssessment,
-      with_brochure:   withBrochure,
-      with_assessment: withAssessment,
+      no_brochure:     noBrochure.slice(0, LIST_LIMIT),
+      no_assessment:   noAssessment.slice(0, LIST_LIMIT),
+      with_brochure:   withBrochure.slice(0, LIST_LIMIT),
+      with_assessment: withAssessment.slice(0, LIST_LIMIT),
     },
   })
 }
