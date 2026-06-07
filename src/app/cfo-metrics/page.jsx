@@ -144,8 +144,10 @@ function PersonRow({ p, isLast }) {
         {p.email ? (
           <div>
             <a
-              href={`mailto:${p.email}`}
-              title={p.email}
+              href={`https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(p.email)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Compose in Outlook to ${p.email}`}
               style={{ color: "#3b82f6", textDecoration: "none", fontWeight: 500 }}
             >
               ✉ {p.email.length > 28 ? p.email.slice(0, 26) + "…" : p.email}
