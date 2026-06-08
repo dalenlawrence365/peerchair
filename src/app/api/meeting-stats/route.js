@@ -5,8 +5,15 @@ const CALENDLY_USER = "https://api.calendly.com/users/6e6c3a6f-335a-4520-a3f7-53
 
 function classifyEvent(name, slug) {
   var s = (name || slug || "").toLowerCase() // name first — event_type is a UUID URL
-  if (s.includes("sponsor") || s.includes("discovery")) return "sponsor_discovery"
-  if (s.includes("fit") || s.includes("15") || s.includes("30")) return "fit_call"
+  // Sponsor discovery: only when both words are present together (or the
+  // hyphenated slug form). Single 'sponsor' alone is too loose — e.g. the
+  // generic 30-min event was historically created from a sponsor template
+  // and may still carry that word in its display name.
+  if (s.includes("sponsor discovery") || s.includes("sponsor-discovery") || s.includes("sponsor_discovery")) return "sponsor_discovery"
+  // Fit call/chat: require the specific phrase, not loose 'fit' which
+  // could match unrelated event names.
+  if (s.includes("fit chat") || s.includes("fit-chat") || s.includes("fit_chat") || s.includes("fit call")) return "fit_call"
+  // Everything else (generic 15-min, generic 30-min, ad-hoc events, etc.)
   return "other"
 }
 
