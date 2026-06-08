@@ -7,15 +7,116 @@ const CFO_CIRCLE_EMAIL = "dalen.lawrence@cfo-circle.com"
 
 // Heuristic — pattern-match the event title to assign a meeting_type.
 // Editable downstream; the page UI will let Dalen override per row.
+// LEGACY: kept for backwards-compat with old code paths that filter on
+// meeting_type. New code reads `meetings.tags` instead.
 function inferMeetingType(title, bodyPreview) {
   const t = `${title || ""} ${bodyPreview || ""}`.toLowerCase()
-  if (/\bfit\s*call\b/.test(t)) return "fit_call"
-  if (/\b(sponsor|discovery)\b/.test(t)) return "sponsor_discovery"
+  if (/\bfit\s*(call|chat)\b/.test(t)) return "fit_call"
+  if (/\bsponsor\s*discovery\b/.test(t)) return "sponsor_discovery"
   if (/\bchapter\b/.test(t) && /\b(director|lead|peer)\b/.test(t)) return "chapter_peer"
   if (/\b(exploratory|intro|introduction)\b/.test(t)) return "exploratory"
   if (/\b(lunch|dinner|gym|workout|personal|doctor|dentist|family|kids|school)\b/.test(t)) return "personal"
   if (/\b30\s*min(ute)?\b/.test(t) || /\bcfo\s*circle\b/.test(t)) return "exploratory"
   return "other"
+}
+
+// Emails that are "me" — filter out of attendee role-walking so the
+// meeting doesn't inherit Dalen's own role tags.
+const SELF_EMAILS = new Set([
+  "dalen.lawrence@cfo-circle.com",
+  "dalen.lawrence@stalliant.com",
+])
+
+// Title pattern → set of tags. These run independently of attendee data.
+// Multiple patterns can match a single title (e.g. "Troika with ProVisors"
+// adds both `troika` and `provisors`).
+function titleTags(title, bodyPreview) {
+  const t = `${title || ""} ${bodyPreview || ""}`.toLowerCase()
+  const tags = new Set()
+
+  // Pipeline-bearing — specific phrases only, no loose substring matching
+  if (/\bfit\s*(call|chat)\b/.test(t)) tags.add("fit_call")
+  if (/\bsponsor\s*discovery\b/.test(t)) tags.add("sponsor_discovery")
+
+  // Troika — Dalen typically starts outgoing invites with "Troika"
+  if (/\btroika\b/.test(t)) {
+    tags.add("troika")
+    tags.add("provisors")
+    tags.add("networking")
+  }
+
+  // ProVisors group patterns. Affinity Group is the strongest signal —
+  // ProVisors brands all their roundtables that way.
+  if (/\bprovisors\b/.test(t)) { tags.add("provisors"); tags.add("networking") }
+  if (/\baffinity\s*group\b/.test(t)) { tags.add("provisors"); tags.add("networking") }
+  if (/\btransactions\s*(&|and|\$)\s*transitions\b/.test(t)) { tags.add("provisors"); tags.add("networking") }
+  if (/\bcapital\s*formation\b/.test(t)) { tags.add("provisors"); tags.add("networking") }
+
+  // ACG — word-boundary so it doesn't match unrelated words containing "acg"
+  if (/\bacg\b/.test(t)) { tags.add("acg"); tags.add("networking") }
+
+  // Explicit networking signals
+  if (/\bmixer\b/.test(t)) { tags.add("mixer"); tags.add("networking") }
+  if (/\bnetworking\b/.test(t)) tags.add("networking")
+  if (/\bhappy\s*hour\b/.test(t)) tags.add("networking")
+
+  // Internal team
+  if (/\bchapter\b/.test(t) && /\b(director|lead|peer)\b/.test(t)) tags.add("chapter_peer")
+
+  // Personal time
+  if (/\b(lunch|dinner|gym|workout|personal|doctor|dentist|family|kids|school|buffer|drive|commute)\b/.test(t)) tags.add("personal")
+
+  return tags
+}
+
+// Attendees → set of role-derived tags. Walks the attendees array, looks
+// up each non-self email in people, and ORs in 'cfo' / 'sponsor' /
+// 'referral' for each matched role.
+async function attendeeRoleTags(sb, attendees) {
+  const tags = new Set()
+  if (!attendees || !attendees.length) return tags
+
+  const emails = attendees
+    .map(a => (a.address || "").toLowerCase().trim())
+    .filter(e => e && e.includes("@") && !SELF_EMAILS.has(e))
+
+  if (emails.length === 0) return tags
+
+  const { data: people } = await sb
+    .from("people")
+    .select("email, roles")
+    .in("email", emails)
+
+  for (const p of people || []) {
+    for (const r of p.roles || []) {
+      if (r === "cfo") tags.add("cfo")
+      else if (r === "sponsor_contact") tags.add("sponsor")
+      else if (r === "referral_partner") tags.add("referral")
+    }
+  }
+  return tags
+}
+
+// Top-level: combine title patterns + attendee roles into a single tag set.
+// Adds 'call' as a baseline for any matched-to-person meeting that isn't
+// already pipeline-specific (fit_call / sponsor_discovery), and 'other' as
+// the catch-all when nothing matched.
+async function inferTags(sb, title, bodyPreview, attendees) {
+  const tags = new Set([
+    ...titleTags(title, bodyPreview),
+    ...(await attendeeRoleTags(sb, attendees)),
+  ])
+
+  // If we matched a person-role (cfo/sponsor/referral) but didn't classify
+  // the meeting as a specific pipeline type, tag it as a generic call.
+  const hasRole = tags.has("cfo") || tags.has("sponsor") || tags.has("referral")
+  const hasPipelineType = tags.has("fit_call") || tags.has("sponsor_discovery")
+  if (hasRole && !hasPipelineType) tags.add("call")
+
+  // Catch-all so every meeting has at least one tag
+  if (tags.size === 0) tags.add("other")
+
+  return Array.from(tags)
 }
 
 function normalizeStatus(showAs, isCancelled) {
@@ -100,6 +201,8 @@ export async function GET(request) {
       if (status === "canceled") canceled++
       if (personId) matched++
 
+      const tags = await inferTags(sb, ev.subject, ev.bodyPreview, attendees)
+
       const row = {
         external_id:    ev.id,
         source:         "outlook_calendar",
@@ -114,6 +217,7 @@ export async function GET(request) {
         attendees_json: attendees,
         person_id:      personId,
         meeting_type:   inferMeetingType(ev.subject, ev.bodyPreview),
+        tags,
         updated_at:     new Date().toISOString(),
       }
 
