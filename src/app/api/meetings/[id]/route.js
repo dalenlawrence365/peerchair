@@ -48,7 +48,11 @@ export async function PATCH(req, { params }) {
   newTags = Array.from(new Set(newTags))
 
   const { error: upErr } = await sb.from("meetings")
-    .update({ tags: newTags, updated_at: new Date().toISOString() })
+    .update({
+      tags: newTags,
+      tags_manually_edited: true,
+      updated_at: new Date().toISOString()
+    })
     .eq("id", id)
   if (upErr) return Response.json({ error: upErr.message }, { status: 500 })
 

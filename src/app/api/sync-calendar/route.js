@@ -101,17 +101,31 @@ async function attendeeRoleTags(sb, attendees) {
 // Adds 'call' as a baseline for any matched-to-person meeting that isn't
 // already pipeline-specific (fit_call / sponsor_discovery), and 'other' as
 // the catch-all when nothing matched.
-async function inferTags(sb, title, bodyPreview, attendees) {
+//
+// firstTouch=true promotes a generic matched-role meeting to the role's
+// discovery tag: CFO first-touch → fit_call, sponsor first-touch →
+// sponsor_discovery. This auto-marks the start of each pipeline relationship
+// even when the title doesn't explicitly say so. Manual override later if wrong.
+async function inferTags(sb, title, bodyPreview, attendees, opts = {}) {
   const tags = new Set([
     ...titleTags(title, bodyPreview),
     ...(await attendeeRoleTags(sb, attendees)),
   ])
 
-  // If we matched a person-role (cfo/sponsor/referral) but didn't classify
-  // the meeting as a specific pipeline type, tag it as a generic call.
   const hasRole = tags.has("cfo") || tags.has("sponsor") || tags.has("referral")
   const hasPipelineType = tags.has("fit_call") || tags.has("sponsor_discovery")
-  if (hasRole && !hasPipelineType) tags.add("call")
+
+  if (hasRole && !hasPipelineType) {
+    if (opts.firstTouch) {
+      // First-touch auto-promotion based on the strongest role present.
+      // CFO wins over sponsor wins over referral if multiple are present.
+      if (tags.has("cfo")) tags.add("fit_call")
+      else if (tags.has("sponsor")) tags.add("sponsor_discovery")
+      else tags.add("call") // referral first-touch = just a call
+    } else {
+      tags.add("call")
+    }
+  }
 
   // Catch-all so every meeting has at least one tag
   if (tags.size === 0) tags.add("other")
@@ -201,7 +215,39 @@ export async function GET(request) {
       if (status === "canceled") canceled++
       if (personId) matched++
 
-      const tags = await inferTags(sb, ev.subject, ev.bodyPreview, attendees)
+      // First-touch detection: this is the person's earliest meeting if there
+      // are no prior meetings (or only this one) for the same person_id with
+      // starts_at <= this meeting's starts_at.
+      let firstTouch = false
+      if (personId) {
+        const { count: priorCount } = await sb
+          .from("meetings")
+          .select("id", { count: "exact", head: true })
+          .eq("person_id", personId)
+          .lt("starts_at", startTs)
+          .neq("external_id", ev.id)
+        firstTouch = (priorCount || 0) === 0
+      }
+
+      // Check the existing row to respect manual tag edits — never overwrite
+      // tags that the user has set explicitly via the meetings-page UI.
+      let preserveExistingTags = false
+      let existingTags = null
+      {
+        const { data: existing } = await sb
+          .from("meetings")
+          .select("tags, tags_manually_edited")
+          .eq("external_id", ev.id)
+          .maybeSingle()
+        if (existing?.tags_manually_edited) {
+          preserveExistingTags = true
+          existingTags = existing.tags
+        }
+      }
+
+      const tags = preserveExistingTags
+        ? existingTags
+        : await inferTags(sb, ev.subject, ev.bodyPreview, attendees, { firstTouch })
 
       const row = {
         external_id:    ev.id,

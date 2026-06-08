@@ -15,12 +15,13 @@ export async function GET(request) {
   const url = new URL(request.url)
   const range = url.searchParams.get("range") || "upcoming"  // upcoming | past | all
   const type = url.searchParams.get("type")
+  const tag = url.searchParams.get("tag")
   const includePersonal = url.searchParams.get("include_personal") !== "false"
   const limit = Math.min(Number(url.searchParams.get("limit")) || 200, 500)
 
   let q = sb.from("meetings").select(`
     id, external_id, source, title, body_preview, starts_at, ends_at, all_day,
-    status, location, is_organizer, attendees_json, meeting_type, calendly_event_uri,
+    status, location, is_organizer, attendees_json, meeting_type, tags, tags_manually_edited, calendly_event_uri,
     person:person_id ( id, full_name, email, roles, cfo_state, sponsor_state, referral_state )
   `)
 
@@ -35,6 +36,7 @@ export async function GET(request) {
   }
 
   if (type) q = q.eq("meeting_type", type)
+  if (tag) q = q.contains("tags", [tag])
   if (!includePersonal) q = q.neq("meeting_type", "personal")
 
   q = q.limit(limit)

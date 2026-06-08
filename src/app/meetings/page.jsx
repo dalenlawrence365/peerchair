@@ -2,15 +2,18 @@
 import { useEffect, useState, useMemo } from "react"
 import Link from "next/link"
 import { T } from "@/lib/pipelineTheme"
+import { TAG_LABEL, TAG_VOCABULARY, NETWORKING_TAGS } from "@/lib/meetingTags"
 
-const TYPE_LABELS = {
-  fit_call:          { label: "Fit call",          color: "#10b981" },
-  sponsor_discovery: { label: "Sponsor discovery", color: "#9b59b6" },
-  chapter_peer:      { label: "Chapter peer",      color: "#3b82f6" },
-  exploratory:       { label: "Exploratory",       color: "#f59e0b" },
-  other:             { label: "Other",             color: "#94a3b8" },
-  personal:          { label: "Personal",          color: "#cbd5e1" },
-}
+// Filter chips on the meetings page surface key tag-based slices.
+const FILTER_CHIPS = [
+  { key: null,                 label: "All" },
+  { key: "fit_call",           label: "Fit calls" },
+  { key: "sponsor_discovery",  label: "Sponsor discovery" },
+  { key: "call",               label: "Calls" },
+  { key: "networking",         label: "Networking" },
+  { key: "chapter_peer",       label: "Chapter peer" },
+  { key: "personal",           label: "Personal" },
+]
 
 function fmtDateTime(s, all_day) {
   if (!s) return "—"
@@ -46,7 +49,7 @@ export default function MeetingsPage() {
   async function load() {
     try {
       const qs = new URLSearchParams({ range })
-      if (typeFilter) qs.set("type", typeFilter)
+      if (typeFilter) qs.set("tag", typeFilter)
       if (!showPersonal) qs.set("include_personal", "false")
       const r = await fetch(`/api/meetings?${qs.toString()}`, { cache: "no-store" })
       if (!r.ok) throw new Error("HTTP " + r.status)
@@ -110,20 +113,20 @@ export default function MeetingsPage() {
         </div>
 
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {Object.entries(TYPE_LABELS).map(function([k, v]){
-            const count = data && data.counts && (data.counts[k] || 0)
-            const isActive = typeFilter === k
-            if (!showPersonal && k === "personal") return null
+          {FILTER_CHIPS.map(function(chip){
+            const isActive = typeFilter === chip.key
+            if (!showPersonal && chip.key === "personal") return null
+            const meta = chip.key ? TAG_LABEL[chip.key] : null
             return (
-              <button key={k} onClick={function(){ setTypeFilter(isActive ? null : k) }}
+              <button key={chip.key || "all"} onClick={function(){ setTypeFilter(chip.key) }}
                 style={{
                   fontSize: 11, padding: "4px 10px",
                   borderRadius: 14,
-                  border: "1px solid " + (isActive ? v.color : T.border),
-                  background: isActive ? v.color : "white",
+                  border: "1px solid " + (isActive ? (meta?.color || T.textPrimary) : T.border),
+                  background: isActive ? (meta?.color || T.textPrimary) : "white",
                   color: isActive ? "white" : T.textSecondary,
                   cursor: "pointer", fontFamily: "inherit",
-                }}>{v.label}{count !== undefined && <span style={{ marginLeft: 6, opacity: 0.7 }}>{count}</span>}</button>
+                }}>{chip.label}</button>
             )
           })}
         </div>
@@ -146,7 +149,7 @@ export default function MeetingsPage() {
         return (
           <div key={g.day} style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>{g.day}</div>
-            {g.items.map(function(m){ return <MeetingRow key={m.id} m={m} /> })}
+            {g.items.map(function(m){ return <MeetingRow key={m.id} m={m} onChanged={load} /> })}
           </div>
         )
       })}
@@ -154,14 +157,32 @@ export default function MeetingsPage() {
   )
 }
 
-function MeetingRow({ m }) {
-  const t = TYPE_LABELS[m.meeting_type || "other"] || TYPE_LABELS.other
+function MeetingRow({ m, onChanged }) {
+  const [editing, setEditing] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const tags = Array.isArray(m.tags) && m.tags.length > 0 ? m.tags : ["other"]
   const isCanceled = m.status === "canceled"
+  const primaryColor = TAG_LABEL[tags[0]]?.color || "#94a3b8"
+
+  async function patch(payload) {
+    setBusy(true)
+    try {
+      const r = await fetch(`/api/meetings/${m.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const j = await r.json()
+      if (!r.ok) { alert("Failed: " + (j.error || r.status)); return }
+      if (onChanged) await onChanged()
+    } finally { setBusy(false) }
+  }
+
   return (
     <div style={{
       background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10,
       padding: 14, marginBottom: 8, opacity: isCanceled ? 0.55 : 1,
-      borderLeft: "3px solid " + t.color,
+      borderLeft: "3px solid " + primaryColor,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -170,11 +191,68 @@ function MeetingRow({ m }) {
               {fmtDateTime(m.starts_at, m.all_day)}
               {m.ends_at && !m.all_day && <span style={{ color: T.textTertiary, fontWeight: 400 }}>–{fmtDateTime(m.ends_at, false)}</span>}
             </div>
-            <span style={{ fontSize: 10, padding: "1px 8px", borderRadius: 10, background: t.color + "22", color: t.color, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4 }}>{t.label}</span>
             {isCanceled && <span style={{ fontSize: 10, padding: "1px 8px", borderRadius: 10, background: "#e7e5e4", color: T.textSecondary, fontWeight: 600, textTransform: "uppercase" }}>Canceled</span>}
             {m.status === "tentative" && <span style={{ fontSize: 10, padding: "1px 8px", borderRadius: 10, background: "#fef3c7", color: "#92400e", fontWeight: 600, textTransform: "uppercase" }}>Tentative</span>}
+            {m.tags_manually_edited && <span title="Tags manually edited — sync will not overwrite" style={{ fontSize: 9, padding: "1px 6px", borderRadius: 10, background: "#f1f5f9", color: T.textTertiary, fontWeight: 600 }}>✎</span>}
           </div>
-          <div style={{ fontSize: 14, color: T.textPrimary, marginTop: 4, fontWeight: 500 }}>
+
+          {/* Tag pill row — clickable, opens inline editor */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6, alignItems: "center" }}>
+            {tags.map(t => {
+              const meta = TAG_LABEL[t] || { label: t, color: "#94a3b8", bg: "rgba(148,163,184,0.13)" }
+              return (
+                <span key={t} style={{
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  padding: "2px 8px", borderRadius: 999,
+                  fontSize: 10.5, fontWeight: 600,
+                  background: meta.bg, color: meta.color, whiteSpace: "nowrap",
+                }}>
+                  {meta.label}
+                  {editing && t !== "other" && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); patch({ remove: [t] }) }}
+                      disabled={busy}
+                      style={{ background: "transparent", border: "none", color: meta.color, cursor: "pointer", padding: 0, marginLeft: 2, fontSize: 11, lineHeight: 1, fontFamily: "inherit" }}
+                      title={`Remove ${meta.label}`}
+                    >×</button>
+                  )}
+                </span>
+              )
+            })}
+            <button
+              onClick={() => setEditing(v => !v)}
+              style={{
+                fontSize: 10, padding: "2px 7px", borderRadius: 999,
+                border: "1px dashed " + T.border, background: "transparent",
+                color: T.textTertiary, cursor: "pointer", fontFamily: "inherit",
+              }}
+              title="Edit tags"
+            >
+              {editing ? "done" : "edit tags"}
+            </button>
+          </div>
+
+          {/* Add-tag dropdown when editing */}
+          {editing && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6, padding: "6px 8px", background: "#f8fafc", border: "1px solid " + T.border, borderRadius: 6 }}>
+              <span style={{ fontSize: 10, color: T.textTertiary, alignSelf: "center", marginRight: 4 }}>Add:</span>
+              {TAG_VOCABULARY.filter(t => !tags.includes(t)).map(t => {
+                const meta = TAG_LABEL[t] || { label: t, color: "#94a3b8", bg: "rgba(148,163,184,0.13)" }
+                return (
+                  <button key={t} onClick={() => patch({ add: [t] })} disabled={busy}
+                    style={{
+                      fontSize: 10, padding: "2px 7px", borderRadius: 999,
+                      background: meta.bg, color: meta.color, border: "1px solid transparent",
+                      cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
+                    }}>
+                    + {meta.label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          <div style={{ fontSize: 14, color: T.textPrimary, marginTop: 6, fontWeight: 500 }}>
             {m.title || "(no title)"}
           </div>
           <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
