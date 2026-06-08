@@ -72,7 +72,10 @@ function titleTags(title, _bodyPreviewIgnored) {
 
 // Attendees → set of role-derived tags. Walks the attendees array, looks
 // up each non-self email in people, and ORs in 'cfo' / 'sponsor' /
-// 'referral' for each matched role.
+// 'referral' for each matched role. If ANY attendee has
+// provisors_member=true, also adds 'provisors' and 'networking' tags so
+// Troikas and ProVisor meetings auto-classify even when the title doesn't
+// contain a recognizable pattern.
 async function attendeeRoleTags(sb, attendees) {
   const tags = new Set()
   if (!attendees || !attendees.length) return tags
@@ -85,7 +88,7 @@ async function attendeeRoleTags(sb, attendees) {
 
   const { data: people } = await sb
     .from("people")
-    .select("email, roles")
+    .select("email, roles, provisors_member")
     .in("email", emails)
 
   for (const p of people || []) {
@@ -93,6 +96,10 @@ async function attendeeRoleTags(sb, attendees) {
       if (r === "cfo") tags.add("cfo")
       else if (r === "sponsor_contact") tags.add("sponsor")
       else if (r === "referral_partner") tags.add("referral")
+    }
+    if (p.provisors_member) {
+      tags.add("provisors")
+      tags.add("networking")
     }
   }
   return tags
