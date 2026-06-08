@@ -165,7 +165,7 @@ export async function GET(request) {
           use_for: "Generic 15-minute slot for ANYONE — referral partners, ProVisors contacts, repeat conversations with CFO prospects who already had a fit chat, sponsors who already had discovery, members, or any second/third touchpoint. Does NOT change pipeline stage."
         },
         the_30_min: {
-          url: "https://calendly.com/cfo-circle/cfo-circle-sponsor-30_minute",
+          url: "https://calendly.com/cfo-circle/cfo-circle-30_minute",
           duration_min: 30,
           changes_journey: false,
           use_for: "Generic 30-minute slot for ANYONE needing a longer conversation. Same rules as the_15_min — use for any second touchpoint, referral partners, member check-ins, or non-pitch sponsor conversations. Does NOT change pipeline stage."

@@ -85,7 +85,7 @@ THE OUTREACH PROCESS:
 - Calendly fit call (CFO prospects, FIRST contact only, advances stage): https://calendly.com/cfo-circle/cfo-circle-fit-chat
 - Calendly sponsor discovery (sponsor prospects, FIRST contact only, advances stage): https://calendly.com/cfo-circle/cfo-circle-sponsor-discovery-call
 - Calendly generic 15 min (anyone — referral partners, repeat touches, ProVisors; does NOT change stage): https://calendly.com/cfo-circle/cfo-circle-15-minute-chat
-- Calendly generic 30 min (anyone needing longer conversation; does NOT change stage): https://calendly.com/cfo-circle/cfo-circle-sponsor-30_minute
+- Calendly generic 30 min (anyone needing longer conversation; does NOT change stage): https://calendly.com/cfo-circle/cfo-circle-30_minute
 - Touch 2 auto-sends 5 business days after first reply if no booking
 
 THE FIT CALL (15 min):
