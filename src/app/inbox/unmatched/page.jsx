@@ -58,7 +58,7 @@ export default function UnmatchedInboxPage() {
     <main style={{ padding: "32px 36px", maxWidth: 980 }}>
       <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>Unmatched inbox</h1>
       <p style={{ color: T.textSecondary, fontSize: 13, marginTop: 8, marginBottom: 20, maxWidth: 700 }}>
-        Emails from senders not yet in PeerChair. Triage each one: add the sender as a new contact, merge into someone who's already in PeerChair under a different email, or ignore.
+        Emails from senders not yet in PeerChair. Triage each one: add the sender as a new contact, merge into someone who's already in PeerChair under a different email, ignore (keeps the record), archive (out of view, recoverable), or delete (permanent).
       </p>
 
       <div style={{ display: "flex", gap: 4, borderBottom: "1px solid " + T.border, marginBottom: 20 }}>
@@ -66,6 +66,7 @@ export default function UnmatchedInboxPage() {
           { key: "new", label: "Needs triage" },
           { key: "added_to_peerchair", label: "Added" },
           { key: "merged_into_existing", label: "Merged" },
+          { key: "archived", label: "Archived" },
           { key: "ignored", label: "Ignored" },
           { key: "all", label: "All" },
         ].map(function(t){
@@ -156,6 +157,25 @@ function UnmatchedRow({ item, isExpanded, onToggle, onActioned }) {
               await onActioned()
             }}
               style={btnStyle("transparent", T.textSecondary)}>Ignore</button>
+            <button onClick={async function(){
+              const r = await fetch(`/api/inbox/unmatched/${item.id}/action`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "archive" })
+              })
+              if (!r.ok) { const j = await r.json().catch(()=>({})); alert("Failed: " + (j.error || r.status)); return }
+              await onActioned()
+            }}
+              style={btnStyle("white", "#64748b", "#cbd5e1")}>Archive</button>
+            <button onClick={async function(){
+              if (!confirm("Hard-delete this row from the database? This is permanent.")) return
+              const r = await fetch(`/api/inbox/unmatched/${item.id}/action`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "delete" })
+              })
+              if (!r.ok) { const j = await r.json().catch(()=>({})); alert("Failed: " + (j.error || r.status)); return }
+              await onActioned()
+            }}
+              style={btnStyle("white", "#b91c1c", "#fecaca")}>Delete</button>
           </div>
         )}
       </div>

@@ -37,8 +37,25 @@ export async function POST(req, { params }) {
     return Response.json({ error: "Unmatched row not found" }, { status: 404 })
   }
 
+  // --- DELETE: allowed on any status, wipes the row entirely ---
+  if (action === "delete") {
+    const { error } = await sb.from("unmatched_communications").delete().eq("id", id)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ success: true, action: "deleted" })
+  }
+
+  // All other actions require the row to be in 'new' state
   if (row.status !== "new") {
     return Response.json({ error: `Already actioned (${row.status}). Reload the list.` }, { status: 409 })
+  }
+
+  if (action === "archive") {
+    const { error } = await sb.from("unmatched_communications").update({
+      status: "archived",
+      actioned_at: new Date().toISOString(),
+    }).eq("id", id)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ success: true, action: "archived" })
   }
 
   if (action === "ignore") {
