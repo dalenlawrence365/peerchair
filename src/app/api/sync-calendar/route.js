@@ -27,11 +27,12 @@ const SELF_EMAILS = new Set([
   "dalen.lawrence@stalliant.com",
 ])
 
-// Title pattern → set of tags. These run independently of attendee data.
-// Multiple patterns can match a single title (e.g. "Troika with ProVisors"
-// adds both `troika` and `provisors`).
-function titleTags(title, bodyPreview) {
-  const t = `${title || ""} ${bodyPreview || ""}`.toLowerCase()
+// Title pattern → set of tags. Runs against TITLE ONLY — body_preview is
+// too noisy (Calendly event descriptions are full of marketing copy that
+// triggers false matches, e.g. 'peer group' and 'chapter' in a CFO Circle
+// invite would falsely flag the meeting as chapter_peer).
+function titleTags(title, _bodyPreviewIgnored) {
+  const t = (title || "").toLowerCase()
   const tags = new Set()
 
   // Pipeline-bearing — specific phrases only, no loose substring matching
@@ -133,8 +134,13 @@ async function inferTags(sb, title, bodyPreview, attendees, opts = {}) {
   return Array.from(tags)
 }
 
-function normalizeStatus(showAs, isCancelled) {
+function normalizeStatus(showAs, isCancelled, title) {
   if (isCancelled) return "canceled"
+  // Outlook prepends "Canceled: " to the subject when a meeting is cancelled
+  // by an organizer (sometimes via an external system like Calendly) but
+  // doesn't always set the isCancelled flag on the meeting attendee's copy.
+  // Use the title prefix as a secondary signal.
+  if (/^canceled:\s*/i.test(title || "")) return "canceled"
   if (showAs === "tentative") return "tentative"
   return "scheduled"
 }
@@ -211,7 +217,7 @@ export async function GET(request) {
         }
       }
 
-      const status = normalizeStatus(ev.showAs, ev.isCancelled)
+      const status = normalizeStatus(ev.showAs, ev.isCancelled, ev.subject)
       if (status === "canceled") canceled++
       if (personId) matched++
 
