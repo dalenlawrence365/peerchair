@@ -19,24 +19,56 @@ export async function GET(request) {
 
   const sb = serverClient()
 
-  // Funnel — count companies per sponsor_state
+  // Funnel — deal stages are counted on companies; AUDIENCE is a people metric:
+  // the count of distinct sponsor-contact individuals connected on LinkedIn, so it
+  // can exceed pool (it counts people, not firms).
   const funnel = {}
-  await Promise.all(STAGES.map(async function(s){
+  await Promise.all(["pool", "discovery", "proposal", "active"].map(async function(s){
     const { count } = await sb.from("companies")
       .select("id", { count: "exact", head: true })
       .eq("sponsor_state", s)
       .eq("is_sponsor", true)
     funnel[s] = count || 0
   }))
-  const total = Object.values(funnel).reduce((a, b) => a + b, 0)
+  {
+    const { count } = await sb.from("people")
+      .select("id", { count: "exact", head: true })
+      .contains("roles", ["sponsor_contact"])
+      .eq("linkedin_connected", true)
+    funnel.audience = count || 0
+  }
+  // "total" = sponsor companies across the deal stages (audience excluded — it's individuals)
+  const total = funnel.pool + funnel.discovery + funnel.proposal + funnel.active
 
-  // Companies in the requested stage with their contacts
-  const { data: companies, error } = await sb
-    .from("companies")
-    .select("id, name, sponsor_type, sponsor_state, host_viable, hosting_type, notes")
-    .eq("sponsor_state", stage)
-    .eq("is_sponsor", true)
-    .order("name", { ascending: true })
+  // Companies to list for the requested stage. For AUDIENCE we don't list by
+  // company stage (no firm sits at 'audience'); instead we list the firms that have
+  // >=1 connected sponsor contact, showing just those connected individuals.
+  let companies = [], error = null
+  if (stage === "audience") {
+    const { data: connPeople } = await sb
+      .from("people")
+      .select("company_id")
+      .contains("roles", ["sponsor_contact"])
+      .eq("linkedin_connected", true)
+      .not("company_id", "is", null)
+    const ids = Array.from(new Set((connPeople || []).map(p => p.company_id)))
+    if (ids.length) {
+      const res = await sb
+        .from("companies")
+        .select("id, name, sponsor_type, sponsor_state, host_viable, hosting_type, notes")
+        .in("id", ids)
+        .order("name", { ascending: true })
+      companies = res.data || []; error = res.error
+    }
+  } else {
+    const res = await sb
+      .from("companies")
+      .select("id, name, sponsor_type, sponsor_state, host_viable, hosting_type, notes")
+      .eq("sponsor_state", stage)
+      .eq("is_sponsor", true)
+      .order("name", { ascending: true })
+    companies = res.data || []; error = res.error
+  }
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
@@ -61,12 +93,13 @@ export async function GET(request) {
   // Fetch all contacts at these companies in one query, then group by company_id
   let contactsByCompany = {}
   if (companyIds.length) {
-    const { data: contacts } = await sb
+    let cq = sb
       .from("people")
-      .select("id, full_name, first_name, last_name, title, company_id, last_meaningful_touch, next_action_date, avatar_url, linkedin_url, email")
+      .select("id, full_name, first_name, last_name, title, company_id, last_meaningful_touch, next_action_date, avatar_url, linkedin_url, email, linkedin_connected")
       .in("company_id", companyIds)
       .contains("roles", ["sponsor_contact"])
-      .order("last_meaningful_touch", { ascending: false, nullsFirst: false })
+    if (stage === "audience") cq = cq.eq("linkedin_connected", true)
+    const { data: contacts } = await cq.order("last_meaningful_touch", { ascending: false, nullsFirst: false })
 
     for (const p of contacts || []) {
       const cid = p.company_id
