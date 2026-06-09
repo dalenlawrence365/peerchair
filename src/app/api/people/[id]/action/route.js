@@ -129,7 +129,7 @@ export async function POST(request, { params }) {
 
   if (action === "set_fields") {
     // Whitelisted scalar identity fields. Empty string clears (-> null).
-    const ALLOWED = ["full_name", "title", "company", "email", "phone", "mobile", "location", "headline"]
+    const ALLOWED = ["full_name", "title", "company", "email", "phone", "mobile", "location", "headline", "linkedin_url"]
     const fields = body.fields || {}
     const updates = {}
     for (const k of ALLOWED) {
