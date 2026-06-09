@@ -178,5 +178,11 @@ export async function POST(request, { params }) {
     return Response.json({ ok: true })
   }
 
+  if (action === "set_cfo_circle") {
+    const { error } = await sb.from("people").update({ cfo_circle_member: body.member === true }).eq("id", id)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ ok: true })
+  }
+
   return Response.json({ error: "unknown action" }, { status: 400 })
 }
