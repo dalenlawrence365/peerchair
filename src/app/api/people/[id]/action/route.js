@@ -19,6 +19,10 @@ const VALID_STATES = {
   referral_partner: ["pool", "audience"],
 }
 
+// The set_role_state Postgres fn expects short role keys (cfo|sponsor|referral)
+// and writes <role>_state. Map the app's role keys onto that contract.
+const RPC_ROLE = { cfo: "cfo", sponsor_contact: "sponsor", referral_partner: "referral" }
+
 export async function POST(request, { params }) {
   const id = params?.id
   if (!id) return Response.json({ error: "id required" }, { status: 400 })
@@ -53,7 +57,7 @@ export async function POST(request, { params }) {
     if (!VALID_STATES[role] || VALID_STATES[role].indexOf(state) < 0) {
       return Response.json({ error: `invalid state '${state}' for role '${role}'` }, { status: 400 })
     }
-    const { error } = await sb.rpc("set_role_state", { p_person_id: id, p_role: role, p_new_state: state, p_set_by: "profile_ui" })
+    const { error } = await sb.rpc("set_role_state", { p_person_id: id, p_role: RPC_ROLE[role] || role, p_new_state: state, p_set_by: "profile_ui" })
     if (error) return Response.json({ error: error.message }, { status: 500 })
     // Ensure the role is present in the roles array (in case they advance a role they didn't formally have)
     if ((person.roles || []).indexOf(role) < 0) {
@@ -158,7 +162,7 @@ export async function POST(request, { params }) {
       for (const role of (full?.roles || [])) {
         const cur = full[stateField[role]]
         if (cur === null || cur === undefined || cur === "" || cur === "pool") {
-          await sb.rpc("set_role_state", { p_person_id: id, p_role: role, p_new_state: "audience", p_set_by: "first_degree_toggle" })
+          await sb.rpc("set_role_state", { p_person_id: id, p_role: RPC_ROLE[role] || role, p_new_state: "audience", p_set_by: "first_degree_toggle" })
         }
       }
     }
