@@ -350,6 +350,18 @@ export default function PersonProfile() {
               {p.provisors_member && (
                 <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 999, background: "#0891b2", color: "white", fontWeight: 600 }}>ProVisor</span>
               )}
+              {(p.provisors_member || (p.roles || []).includes("sponsor_contact")) && (
+                <button disabled={busy}
+                  onClick={function(){ postAction({ action: "set_connected", connected: !p.linkedin_connected }) }}
+                  title="Click to toggle LinkedIn connection status"
+                  style={{
+                    fontSize: 11, padding: "3px 9px", borderRadius: 999, fontFamily: "inherit", fontWeight: 600,
+                    cursor: busy ? "not-allowed" : "pointer",
+                    background: p.linkedin_connected ? "#0a66c2" : "white",
+                    color: p.linkedin_connected ? "white" : T.textTertiary,
+                    border: "1px solid " + (p.linkedin_connected ? "#0a66c2" : T.border),
+                  }}>{p.linkedin_connected ? "✓ 1st" : "not connected"}</button>
+              )}
             </div>
             <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
               {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
@@ -393,23 +405,6 @@ export default function PersonProfile() {
                   })}
                 </div>
               )}
-              {/* Next action date — editable; drives the follow-up queue */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>Next action</span>
-                <input type="date" disabled={busy}
-                  value={p.next_action_date ? String(p.next_action_date).slice(0, 10) : ""}
-                  onChange={function(e){ postAction({ action: "set_next_action", date: e.target.value || null }) }}
-                  style={{ fontSize: 12, padding: "4px 8px", border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", color: T.textPrimary, background: "white" }} />
-                {p.next_action_date ? (
-                  <>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: (dueInfo(p.next_action_date) || {}).color }}>{(dueInfo(p.next_action_date) || {}).label}</span>
-                    <button disabled={busy} onClick={function(){ postAction({ action: "set_next_action", date: null }) }}
-                      style={{ fontSize: 11, color: T.textTertiary, background: "none", border: "none", cursor: busy ? "not-allowed" : "pointer", textDecoration: "underline", fontFamily: "inherit", padding: 0 }}>clear</button>
-                  </>
-                ) : (
-                  <span style={{ fontSize: 12, color: T.textTertiary }}>not set</span>
-                )}
-              </div>
             </div>
             {p.about && <AboutBlock text={p.about} />}
           </div>
@@ -507,7 +502,11 @@ export default function PersonProfile() {
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid " + T.borderSoft }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Edit details</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
-              {[["full_name", "Full name"], ["title", "Title"], ["company", "Company"], ["headline", "Headline"], ["email", "Email"], ["phone", "Phone"], ["location", "Location"], ["industry", "Industry"], ["revenue", "Revenue"], ["employees", "Employees"], ["finance_team", "Finance team"], ["ownership", "Ownership"], ["website", "Website"]].map(function(fld){
+              {(
+                (p.provisors_member || (p.roles || []).includes("sponsor_contact"))
+                  ? [["full_name", "Full name"], ["title", "Title"], ["company", "Company"], ["headline", "Headline"], ["email", "Email"], ["phone", "Phone"], ["location", "Location"], ["industry", "Industry"], ["website", "Website"]]
+                  : [["full_name", "Full name"], ["title", "Title"], ["company", "Company"], ["headline", "Headline"], ["email", "Email"], ["phone", "Phone"], ["location", "Location"], ["industry", "Industry"], ["revenue", "Revenue"], ["employees", "Employees"], ["finance_team", "Finance team"], ["ownership", "Ownership"], ["website", "Website"]]
+              ).map(function(fld){
                 return (
                   <div key={fld[0]}>
                     <label style={editLabel}>{fld[1]}</label>
