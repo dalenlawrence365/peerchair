@@ -131,7 +131,7 @@ export default function SponsorPipelineView({ stage }) {
                 <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 5 }}>
                   {STAGE_LABEL[s] || s}
                 </div>
-                <div style={{ fontSize: 9, color: SPONSOR_COLOR, marginTop: 2, fontWeight: 600 }}>companies</div>
+                <div style={{ fontSize: 9, color: SPONSOR_COLOR, marginTop: 2, fontWeight: 600 }}>{s === "audience" ? "individuals" : "companies"}</div>
               </div>
             </Link>
           )
@@ -141,7 +141,7 @@ export default function SponsorPipelineView({ stage }) {
       {/* Stage header + filter input */}
       <div style={{ marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div style={{ fontSize: 15, fontWeight: 600 }}>
-          {STAGE_LABEL[stage] || stage} <span style={{ color: T.textTertiary, fontWeight: 400 }}>· {(data.funnel[stage] || 0).toLocaleString()} firms</span>
+          {STAGE_LABEL[stage] || stage} <span style={{ color: T.textTertiary, fontWeight: 400 }}>· {(data.funnel[stage] || 0).toLocaleString()} {stage === "audience" ? "connected individuals" : "firms"}</span>
         </div>
         <input
           value={q}
