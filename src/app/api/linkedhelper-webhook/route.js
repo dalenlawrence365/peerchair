@@ -516,6 +516,14 @@ async function handleLinkedInConnectionsEvent({ sb, event, campaign, lead, tags,
     if (matches && matches.length > 0) peopleId = matches[0].id
   } catch (e) { /* nonfatal; cross-ref is best-effort */ }
 
+  // When the connections audit fires and we can match the person, write the
+  // profile enrichment (About / headline) into their people row too — same as
+  // the sent/connected/replied handlers. This is how the "am I connected to all
+  // ProVisors" audit backfills About over time.
+  if (peopleId && (lead.summary || lead.headline)) {
+    await enrichPersonFromLead(sb, peopleId, lead)
+  }
+
   // Status: 'sent' → pending_invite; 'connected'/'replied' → connected
   const statusByEvent = {
     sent: "pending_invite",
