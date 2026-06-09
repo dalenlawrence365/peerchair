@@ -124,6 +124,7 @@ export default function ProvisorsPage() {
     not_connected: people.filter(p => p.linkedin_connected !== true).length,
     no_url: people.filter(p => !p.linkedin_url).length,
     sponsors: people.filter(p => (p.roles || []).includes("sponsor_contact")).length,
+    referral: people.filter(p => (p.roles || []).includes("referral_partner")).length,
   }
   const PREDICATE = {
     all: () => true,
@@ -131,6 +132,7 @@ export default function ProvisorsPage() {
     not_connected: p => p.linkedin_connected !== true,
     no_url: p => !p.linkedin_url,
     sponsors: p => (p.roles || []).includes("sponsor_contact"),
+    referral: p => (p.roles || []).includes("referral_partner"),
   }
   const visible = people.filter(PREDICATE[filter] || (() => true))
   function pickFilter(f) { setFilter(prev => prev === f ? "all" : f) }
@@ -186,12 +188,13 @@ export default function ProvisorsPage() {
       )}
 
       {/* Stat tiles — each one is a filter; click to filter the list, click again to clear */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginBottom: 24 }}>
         <Tile label="Total ProVisors" value={counts.all} color="#0891b2" active={filter === "all"} onClick={() => setFilter("all")} />
         <Tile label="Connected on LinkedIn" value={counts.connected} color="#0a66c2" active={filter === "connected"} onClick={() => pickFilter("connected")} />
         <Tile label="Not connected" value={counts.not_connected} color="#b45309" active={filter === "not_connected"} onClick={() => pickFilter("not_connected")} />
         <Tile label="No LinkedIn URL" value={counts.no_url} color="#6b7280" active={filter === "no_url"} onClick={() => pickFilter("no_url")} />
         <Tile label="Sponsors" value={counts.sponsors} color="#15803d" active={filter === "sponsors"} onClick={() => pickFilter("sponsors")} />
+        <Tile label="Referral partners" value={counts.referral} color="#1d4ed8" active={filter === "referral"} onClick={() => pickFilter("referral")} />
       </div>
 
       {/* People list */}
