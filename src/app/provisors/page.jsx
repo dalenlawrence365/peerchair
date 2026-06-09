@@ -67,6 +67,7 @@ export default function ProvisorsPage() {
   const [searchResults, setSearchResults] = useState([])
   const [busy, setBusy] = useState(null)
   const [filter, setFilter] = useState("all")
+  const [pending, setPending] = useState(0)
 
   async function load() {
     try {
@@ -75,7 +76,14 @@ export default function ProvisorsPage() {
       if (j.error) setError(j.error); else setData(j)
     } catch (e) { setError(e.message || String(e)) }
   }
-  useEffect(() => { load() }, [])
+  async function loadPending() {
+    try {
+      const r = await fetch("/api/provisors/review?status=pending")
+      const j = await r.json()
+      setPending((j.batches || []).length)
+    } catch (e) { /* non-fatal */ }
+  }
+  useEffect(() => { load(); loadPending() }, [])
 
   async function unflag(id) {
     setBusy(id)
@@ -141,14 +149,31 @@ export default function ProvisorsPage() {
     <main style={{ padding: "26px 32px 80px", maxWidth: 1100 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
         <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: -0.4, margin: 0 }}>ProVisors</h1>
-        <button onClick={() => setSearchOpen(v => !v)}
-          style={{
-            fontSize: 12, padding: "6px 12px", borderRadius: 6,
-            background: searchOpen ? T.textPrimary : "white", color: searchOpen ? "white" : T.textPrimary,
-            border: "1px solid " + T.border, cursor: "pointer", fontFamily: "inherit", fontWeight: 500,
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Link href="/provisors/review" style={{
+            position: "relative", fontSize: 12, padding: "6px 12px", borderRadius: 6,
+            background: "white", color: pending > 0 ? "#15803d" : T.textSecondary,
+            border: "1px solid " + (pending > 0 ? "#15803d" : T.border), cursor: "pointer",
+            fontWeight: 500, textDecoration: "none",
           }}>
-          {searchOpen ? "Cancel" : "+ Add ProVisor"}
-        </button>
+            Review queue
+            {pending > 0 && (
+              <span style={{
+                marginLeft: 6, display: "inline-block", minWidth: 16, padding: "0 5px",
+                borderRadius: 999, background: "#15803d", color: "white", fontSize: 10,
+                fontWeight: 700, textAlign: "center", lineHeight: "16px",
+              }}>{pending}</span>
+            )}
+          </Link>
+          <button onClick={() => setSearchOpen(v => !v)}
+            style={{
+              fontSize: 12, padding: "6px 12px", borderRadius: 6,
+              background: searchOpen ? T.textPrimary : "white", color: searchOpen ? "white" : T.textPrimary,
+              border: "1px solid " + T.border, cursor: "pointer", fontFamily: "inherit", fontWeight: 500,
+            }}>
+            {searchOpen ? "Cancel" : "+ Add ProVisor"}
+          </button>
+        </div>
       </div>
       <div style={{ fontSize: 13, color: T.textTertiary, marginTop: 4, marginBottom: 22 }}>
         Primary warm network for sponsor prospecting and referral partner development.
