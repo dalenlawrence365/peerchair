@@ -320,7 +320,9 @@ async function enrichPersonFromLead(sb, personId, lead) {
       await sb.from("people").update({ about: lead.summary }).eq("id", personId)
     }
     if (lead.headline) {
-      await sb.from("people").update({ headline: lead.headline }).eq("id", personId).is("headline", null)
+      // Overwrite headline whenever LinkedHelper sends a fresh one — a new campaign
+      // that re-collects headlines will refresh existing values (incl. curated CSV ones).
+      await sb.from("people").update({ headline: lead.headline }).eq("id", personId)
     }
   } catch(e) { console.error("people enrich (about/headline) failed:", e.message) }
 }
