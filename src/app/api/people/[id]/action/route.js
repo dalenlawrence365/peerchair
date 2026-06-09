@@ -16,7 +16,7 @@ import { serverClient } from "@/lib/supabaseServer"
 const VALID_STATES = {
   cfo: ["pool", "audience", "prospect", "qualified", "member"],
   sponsor_contact: ["pool", "audience", "discovery", "proposal", "active"],
-  referral_partner: ["pool", "audience", "active"],
+  referral_partner: ["pool", "audience"],
 }
 
 export async function POST(request, { params }) {
