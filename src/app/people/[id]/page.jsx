@@ -53,6 +53,22 @@ function parseLinkedInThread(raw) {
 // Status = mutable state (set/removed). Action = point-in-time event (audit trail, runs supersession).
 const STATUS_TAG_CHOICES = ["do_not_contact", "not_a_fit", "opted_out", "snoozed", "reserve"]
 const ACTION_TAG_CHOICES = ["connection_sent", "connection_accepted", "reply_received", "brochure_sent", "assessment_sent", "fit_call_scheduled", "fit_call_completed", "event_invite_sent", "event_rsvp_confirmed"]
+// Quick-add activities relevant to each role. Common ones apply to everyone;
+// role-specific ones only surface for people carrying that role. Free-text box still adds anything.
+const ACTION_COMMON = ["connection_sent", "connection_accepted", "reply_received", "event_invite_sent", "event_rsvp_confirmed"]
+const ACTION_BY_ROLE = {
+  cfo: ["brochure_sent", "assessment_sent", "fit_call_scheduled", "fit_call_completed"],
+  sponsor_contact: ["discovery_call_scheduled", "discovery_call_completed", "proposal_sent", "agreement_signed"],
+  referral_partner: ["intro_made", "intro_received"],
+}
+function actionChoicesFor(roles) {
+  const seen = new Set()
+  const out = []
+  function add(a) { if (!seen.has(a)) { seen.add(a); out.push(a) } }
+  ACTION_COMMON.forEach(add)
+  ;(roles || []).forEach(function(r){ (ACTION_BY_ROLE[r] || []).forEach(add) })
+  return out
+}
 const QUICK_ADD_STYLE = { padding: "3px 8px", fontSize: 11, borderRadius: 4, border: "1px dashed " + T.border, background: "transparent", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }
 function addBtnStyle(val) { const on = !!(val && val.trim()); return { padding: "5px 12px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: on ? "#3b82f6" : "white", color: on ? "white" : T.textTertiary, cursor: on ? "pointer" : "not-allowed", fontFamily: "inherit" } }
 
@@ -331,6 +347,9 @@ export default function PersonProfile() {
                   }}>{ROLE_LABEL[r] || r}</span>
                 )
               })}
+              {p.provisors_member && (
+                <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 999, background: "#0891b2", color: "white", fontWeight: 600 }}>ProVisor</span>
+              )}
             </div>
             <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
               {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
@@ -514,7 +533,9 @@ export default function PersonProfile() {
         { key: "tags", label: "Tags & Activity" },
         { key: "todos", label: "To-dos" },
         { key: "timeline", label: "Timeline" },
-        { key: "fitcall", label: "Fit Call" },
+        ...((p.roles || []).includes("cfo") ? [{ key: "fitcall", label: "Fit Call" }] : []),
+        ...((p.roles || []).includes("sponsor_contact") ? [{ key: "discovery", label: "Discovery Call" }] : []),
+        ...(p.provisors_member ? [{ key: "groups", label: "Groups" }] : []),
       ]} />
 
       {/* TAB: To-dos */}
@@ -548,6 +569,29 @@ export default function PersonProfile() {
           No fit call recorded yet. Once you complete one, the firmographics, pressure points, buying cues, red flags, and call notes appear here.
         </div>
       ))}
+
+      {/* TAB: Discovery Call — sponsor discovery record (placeholder until capture form is built) */}
+      {tab === "discovery" && (
+        <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 32, marginBottom: 18, textAlign: "center", color: T.textTertiary, fontSize: 13, lineHeight: 1.6 }}>
+          No discovery call recorded yet. This is the sponsor-side equivalent of the Fit Call — capturing what the sponsor offers, their ideal client profile, why they'd sponsor CFO Circle, and fit notes. Tell Dalen the fields you used in the old version and the capture form goes here.
+        </div>
+      )}
+
+      {/* TAB: Groups — ProVisors group memberships (provisors only) */}
+      {tab === "groups" && (
+        <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>ProVisors Groups</div>
+          {(data.groups && data.groups.length > 0) ? (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {data.groups.map(function(g){
+                return <span key={g} style={{ fontSize: 12, padding: "4px 11px", borderRadius: 999, background: "rgba(168,85,247,0.12)", color: "#7c3aed", border: "1px solid rgba(168,85,247,0.3)" }}>{g}</span>
+              })}
+            </div>
+          ) : (
+            <div style={{ color: T.textTertiary, fontSize: 13 }}>No ProVisors groups on file for this person yet.</div>
+          )}
+        </div>
+      )}
 
       {/* TAB: Tags & Activity */}
       {tab === "tags" && (
@@ -609,7 +653,7 @@ export default function PersonProfile() {
               {data.action_tags.length === 0 && <span style={{ fontSize: 12, color: T.textTertiary }}>None</span>}
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-              {ACTION_TAG_CHOICES.filter(function(c){ return !data.action_tags.some(function(t){ return t.action_type === c }) }).map(function(c){
+              {actionChoicesFor(p.roles).filter(function(c){ return !data.action_tags.some(function(t){ return t.action_type === c }) }).map(function(c){
                 return <button key={c} disabled={busy} onClick={function(){ addActionTag(c) }} style={QUICK_ADD_STYLE}>+ {c}</button>
               })}
             </div>
