@@ -262,7 +262,7 @@ export default function PersonProfile() {
     setForm({
       full_name: person.full_name || "", title: person.title || "", company: person.company || "",
       headline: person.headline || "", email: person.email || "", phone: person.phone || person.mobile || "",
-      location: person.location || "",
+      location: person.location || "", linkedin_url: person.linkedin_url || "",
       industry: f.industry || "", revenue: f.revenue || "", employees: f.employees || "",
       finance_team: f.finance_team || "", ownership: f.ownership || "", website: f.website || "",
     })
@@ -276,7 +276,7 @@ export default function PersonProfile() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "set_fields", fields: {
           full_name: form.full_name, title: form.title, company: form.company, headline: form.headline,
-          email: form.email, phone: form.phone, location: form.location,
+          email: form.email, phone: form.phone, location: form.location, linkedin_url: form.linkedin_url,
         } }),
       }).then(function(r){ return r.json() })
       if (r1.error) throw new Error(r1.error)
@@ -504,8 +504,8 @@ export default function PersonProfile() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
               {(
                 (p.provisors_member || (p.roles || []).includes("sponsor_contact"))
-                  ? [["full_name", "Full name"], ["title", "Title"], ["company", "Company"], ["headline", "Headline"], ["email", "Email"], ["phone", "Phone"], ["location", "Location"], ["industry", "Industry"], ["website", "Website"]]
-                  : [["full_name", "Full name"], ["title", "Title"], ["company", "Company"], ["headline", "Headline"], ["email", "Email"], ["phone", "Phone"], ["location", "Location"], ["industry", "Industry"], ["revenue", "Revenue"], ["employees", "Employees"], ["finance_team", "Finance team"], ["ownership", "Ownership"], ["website", "Website"]]
+                  ? [["full_name", "Full name"], ["title", "Title"], ["company", "Company"], ["headline", "Headline"], ["email", "Email"], ["phone", "Phone"], ["location", "Location"], ["linkedin_url", "LinkedIn URL"], ["industry", "Industry"], ["website", "Website"]]
+                  : [["full_name", "Full name"], ["title", "Title"], ["company", "Company"], ["headline", "Headline"], ["email", "Email"], ["phone", "Phone"], ["location", "Location"], ["linkedin_url", "LinkedIn URL"], ["industry", "Industry"], ["revenue", "Revenue"], ["employees", "Employees"], ["finance_team", "Finance team"], ["ownership", "Ownership"], ["website", "Website"]]
               ).map(function(fld){
                 return (
                   <div key={fld[0]}>
