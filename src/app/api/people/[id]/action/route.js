@@ -145,5 +145,12 @@ export async function POST(request, { params }) {
     return Response.json({ ok: true })
   }
 
+  if (action === "set_connected") {
+    const val = body.connected === true
+    const { error } = await sb.from("people").update({ linkedin_connected: val }).eq("id", id)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ ok: true })
+  }
+
   return Response.json({ error: "unknown action" }, { status: 400 })
 }
