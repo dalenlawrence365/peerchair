@@ -45,9 +45,16 @@ export async function GET(request, { params }) {
     company = co || null
   }
 
+  // ProVisors group memberships (names) — used by the profile Groups tab
+  const { data: gmRows } = await sb.from("person_provisors_groups")
+    .select("provisors_groups(name)")
+    .eq("person_id", id)
+  const groups = (gmRows || []).map(function(r){ return r.provisors_groups && r.provisors_groups.name }).filter(Boolean)
+
   return Response.json({
     person,
     company,
+    groups,
     communications: comms || [],
     status_tags: statusTags || [],
     action_tags: actionTags || [],
