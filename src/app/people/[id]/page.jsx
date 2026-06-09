@@ -263,6 +263,7 @@ export default function PersonProfile() {
       full_name: person.full_name || "", title: person.title || "", company: person.company || "",
       headline: person.headline || "", email: person.email || "", phone: person.phone || person.mobile || "",
       location: person.location || "", linkedin_url: person.linkedin_url || "",
+      roles: [...(person.roles || [])],
       industry: f.industry || "", revenue: f.revenue || "", employees: f.employees || "",
       finance_team: f.finance_team || "", ownership: f.ownership || "", website: f.website || "",
     })
@@ -294,6 +295,11 @@ export default function PersonProfile() {
         }).then(function(r){ return r.json() })
         if (r2.error) throw new Error(r2.error)
       }
+      const r3 = await fetch(`/api/people/${id}/action`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_roles", roles: form.roles || [] }),
+      }).then(function(r){ return r.json() })
+      if (r3.error) throw new Error(r3.error)
       setEditing(false); reload()
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
@@ -516,6 +522,22 @@ export default function PersonProfile() {
                   </div>
                 )
               })}
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <label style={editLabel}>Roles</label>
+              <div style={{ display: "flex", gap: 16, marginTop: 4, flexWrap: "wrap" }}>
+                {[["cfo", "CFO"], ["sponsor_contact", "Sponsor Contact"], ["referral_partner", "Referral Partner"]].map(function(r){
+                  const on = (form.roles || []).includes(r[0])
+                  return (
+                    <label key={r[0]} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: T.textPrimary, cursor: busy ? "not-allowed" : "pointer" }}>
+                      <input type="checkbox" disabled={busy} checked={on}
+                        onChange={function(){ setForm(function(s){ const cur = s.roles || []; const next = on ? cur.filter(function(x){ return x !== r[0] }) : cur.concat([r[0]]); return Object.assign({}, s, { roles: next }) }) }} />
+                      {r[1]}
+                    </label>
+                  )
+                })}
+              </div>
+              <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 5 }}>Uncheck a role to remove it (also clears that role's pipeline stage). ProVisor status is separate and unaffected.</div>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
               <button disabled={busy} onClick={function(){ saveEdit(p) }}
