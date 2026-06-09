@@ -149,6 +149,32 @@ export async function POST(request, { params }) {
     const val = body.connected === true
     const { error } = await sb.from("people").update({ linkedin_connected: val }).eq("id", id)
     if (error) return Response.json({ error: error.message }, { status: 500 })
+    // A first-degree connection is, by definition, in the audience. Advance any role
+    // still at pool/none up to 'audience' — never demote someone already past it.
+    if (val) {
+      const { data: full } = await sb.from("people")
+        .select("roles, cfo_state, sponsor_state, referral_state").eq("id", id).maybeSingle()
+      const stateField = { cfo: "cfo_state", sponsor_contact: "sponsor_state", referral_partner: "referral_state" }
+      for (const role of (full?.roles || [])) {
+        const cur = full[stateField[role]]
+        if (cur === null || cur === undefined || cur === "" || cur === "pool") {
+          await sb.rpc("set_role_state", { p_person_id: id, p_role: role, p_new_state: "audience", p_set_by: "first_degree_toggle" })
+        }
+      }
+    }
+    return Response.json({ ok: true })
+  }
+
+  if (action === "set_roles") {
+    const VALID_ROLES = ["cfo", "sponsor_contact", "referral_partner"]
+    const incoming = Array.isArray(body.roles) ? Array.from(new Set(body.roles.filter(r => VALID_ROLES.includes(r)))) : null
+    if (!incoming) return Response.json({ error: "roles array required" }, { status: 400 })
+    const stateField = { cfo: "cfo_state", sponsor_contact: "sponsor_state", referral_partner: "referral_state" }
+    const removed = (person.roles || []).filter(r => !incoming.includes(r))
+    const patch = { roles: incoming }
+    for (const r of removed) if (stateField[r]) patch[stateField[r]] = null  // clear stale stage of removed role
+    const { error } = await sb.from("people").update(patch).eq("id", id)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
     return Response.json({ ok: true })
   }
 
