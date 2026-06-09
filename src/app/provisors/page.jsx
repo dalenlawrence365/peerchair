@@ -66,6 +66,7 @@ export default function ProvisorsPage() {
   const [query, setQuery] = useState("")
   const [searchResults, setSearchResults] = useState([])
   const [busy, setBusy] = useState(null)
+  const [filter, setFilter] = useState("all")
 
   async function load() {
     try {
@@ -115,6 +116,24 @@ export default function ProvisorsPage() {
 
   if (error) return <main style={{ padding: 32 }}><div style={{ color: T.danger }}>⚠ {error}</div></main>
   if (!data) return <main style={{ padding: 32 }}><div style={{ color: T.textTertiary }}>Loading…</div></main>
+
+  const people = data.people
+  const counts = {
+    all: people.length,
+    connected: people.filter(p => p.linkedin_connected === true).length,
+    not_connected: people.filter(p => p.linkedin_connected !== true).length,
+    no_url: people.filter(p => !p.linkedin_url).length,
+    sponsors: people.filter(p => (p.roles || []).includes("sponsor_contact")).length,
+  }
+  const PREDICATE = {
+    all: () => true,
+    connected: p => p.linkedin_connected === true,
+    not_connected: p => p.linkedin_connected !== true,
+    no_url: p => !p.linkedin_url,
+    sponsors: p => (p.roles || []).includes("sponsor_contact"),
+  }
+  const visible = people.filter(PREDICATE[filter] || (() => true))
+  function pickFilter(f) { setFilter(prev => prev === f ? "all" : f) }
 
   return (
     <main style={{ padding: "26px 32px 80px", maxWidth: 1100 }}>
@@ -166,27 +185,34 @@ export default function ProvisorsPage() {
         </div>
       )}
 
-      {/* Stat tiles */}
+      {/* Stat tiles — each one is a filter; click to filter the list, click again to clear */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 24 }}>
-        <Tile label="Total ProVisors" value={data.stats.total} color="#0891b2" />
-        <Tile label="Connected on LinkedIn" value={data.stats.connected ?? 0} color="#0a66c2" sub={`/${data.stats.total} total`} />
-        <Tile label="CFOs" value={data.stats.by_role.cfo} color="#3b82f6" />
-        <Tile label="Sponsors" value={data.stats.by_role.sponsor} color="#15803d" />
-        <Tile label="Touched 30d" value={data.stats.touched_last_30d} color="#a855f7" sub={`/${data.stats.total} total`} />
+        <Tile label="Total ProVisors" value={counts.all} color="#0891b2" active={filter === "all"} onClick={() => setFilter("all")} />
+        <Tile label="Connected on LinkedIn" value={counts.connected} color="#0a66c2" active={filter === "connected"} onClick={() => pickFilter("connected")} />
+        <Tile label="Not connected" value={counts.not_connected} color="#b45309" active={filter === "not_connected"} onClick={() => pickFilter("not_connected")} />
+        <Tile label="No LinkedIn URL" value={counts.no_url} color="#6b7280" active={filter === "no_url"} onClick={() => pickFilter("no_url")} />
+        <Tile label="Sponsors" value={counts.sponsors} color="#15803d" active={filter === "sponsors"} onClick={() => pickFilter("sponsors")} />
       </div>
 
       {/* People list */}
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, overflow: "hidden" }}>
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid " + T.border, fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>
-          ProVisor list <span style={{ color: T.textPrimary, marginLeft: 6, fontWeight: 500 }}>· {data.people.length.toLocaleString()}</span>
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid " + T.border, fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 8 }}>
+          ProVisor list <span style={{ color: T.textPrimary, fontWeight: 500 }}>· {visible.length.toLocaleString()}</span>
+          {filter !== "all" && (
+            <button onClick={() => setFilter("all")} style={{ marginLeft: "auto", fontSize: 10, padding: "2px 8px", borderRadius: 999, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit", textTransform: "none", letterSpacing: 0 }}>
+              clear filter ✕
+            </button>
+          )}
         </div>
-        {data.people.length === 0 ? (
+        {visible.length === 0 ? (
           <div style={{ padding: 32, color: T.textTertiary, fontSize: 13, textAlign: "center" }}>
-            No ProVisors flagged yet. Click <strong>+ Add ProVisor</strong> above to start.
+            {people.length === 0
+              ? <>No ProVisors flagged yet. Click <strong>+ Add ProVisor</strong> above to start.</>
+              : "No ProVisors match this filter."}
           </div>
         ) : (
-          data.people.map((p, i) => (
-            <ProvisorRow key={p.id} p={p} isLast={i === data.people.length - 1}
+          visible.map((p, i) => (
+            <ProvisorRow key={p.id} p={p} isLast={i === visible.length - 1}
               busy={busy === p.id} onUnflag={() => unflag(p.id)} />
           ))
         )}
@@ -199,14 +225,17 @@ export default function ProvisorsPage() {
   )
 }
 
-function Tile({ label, value, color, sub }) {
+function Tile({ label, value, color, sub, active, onClick }) {
   return (
-    <div style={{
-      background: T.cardBg, border: "1px solid " + T.border,
-      borderTop: "3px solid " + color, borderRadius: 10, padding: "16px 14px",
-    }}>
+    <div onClick={onClick} role="button" tabIndex={0}
+      style={{
+        background: active ? color + "14" : T.cardBg, border: "1px solid " + (active ? color : T.border),
+        borderTop: "3px solid " + color, borderRadius: 10, padding: "16px 14px",
+        cursor: onClick ? "pointer" : "default", userSelect: "none",
+        boxShadow: active ? "0 0 0 1px " + color : "none", transition: "background 0.1s",
+      }}>
       <div style={{ fontSize: 28, fontWeight: 600, color: T.textPrimary, lineHeight: 1 }}>{value.toLocaleString()}</div>
-      <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 6, textTransform: "uppercase", letterSpacing: 0.4 }}>
+      <div style={{ fontSize: 11, color: active ? color : T.textTertiary, marginTop: 6, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: active ? 700 : 400 }}>
         {label}
       </div>
       {sub && <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 3 }}>{sub}</div>}
