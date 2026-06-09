@@ -23,7 +23,15 @@ export async function GET(request) {
   // the count of distinct sponsor-contact individuals connected on LinkedIn, so it
   // can exceed pool (it counts people, not firms).
   const funnel = {}
-  await Promise.all(["pool", "discovery", "proposal", "active"].map(async function(s){
+  // POOL = the entire sponsor universe. Advancing a firm into discovery/proposal/active
+  // never shrinks the pool — those upper stages are progress markers WITHIN the pool.
+  {
+    const { count } = await sb.from("companies")
+      .select("id", { count: "exact", head: true })
+      .eq("is_sponsor", true)
+    funnel.pool = count || 0
+  }
+  await Promise.all(["discovery", "proposal", "active"].map(async function(s){
     const { count } = await sb.from("companies")
       .select("id", { count: "exact", head: true })
       .eq("sponsor_state", s)
@@ -37,8 +45,8 @@ export async function GET(request) {
       .eq("linkedin_connected", true)
     funnel.audience = count || 0
   }
-  // "total" = sponsor companies across the deal stages (audience excluded — it's individuals)
-  const total = funnel.pool + funnel.discovery + funnel.proposal + funnel.active
+  // "total" = the sponsor universe (= pool). Upper stages are subsets of it, so don't sum.
+  const total = funnel.pool
 
   // Companies to list for the requested stage. For AUDIENCE we don't list by
   // company stage (no firm sits at 'audience'); instead we list the firms that have
@@ -60,6 +68,14 @@ export async function GET(request) {
         .order("name", { ascending: true })
       companies = res.data || []; error = res.error
     }
+  } else if (stage === "pool") {
+    // Pool is the whole universe — list every sponsor firm, advanced or not.
+    const res = await sb
+      .from("companies")
+      .select("id, name, sponsor_type, sponsor_state, host_viable, hosting_type, notes")
+      .eq("is_sponsor", true)
+      .order("name", { ascending: true })
+    companies = res.data || []; error = res.error
   } else {
     const res = await sb
       .from("companies")
