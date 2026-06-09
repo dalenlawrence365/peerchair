@@ -339,7 +339,7 @@ export default function PersonProfile() {
           <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flex: 1, minWidth: 0 }}>
             <div onClick={function(){ setShowAvatarEdit(!showAvatarEdit) }} title="Click to change photo"
               style={{ position: "relative", cursor: "pointer", flexShrink: 0 }}>
-              <Avatar name={p.full_name} src={p.avatar_url} size={56} />
+              <Avatar name={p.full_name} src={p.avatar_url} size={112} />
               <div style={{ position: "absolute", bottom: -2, right: -2, width: 20, height: 20, borderRadius: "50%", background: "#3b82f6", border: "2px solid white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "white" }}>✎</div>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
