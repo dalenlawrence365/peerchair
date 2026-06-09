@@ -19,6 +19,38 @@ const ROLE_PILL = {
   referral_partner:  { bg: "rgba(59,130,246,0.10)", fg: "#1d4ed8", label: "Referral" },
 }
 
+// Short labels for Dalen's ProVisors groups
+const GROUP_LABEL = {
+  "Middle Market Affinity Group": "Middle Market",
+  "M$A/Capital Formation Group": "M&A Capital",
+  "Transactions & Transitions": "T&T",
+  "Valley Distributors & Manufacturers": "Valley D&M",
+}
+
+const AVATAR_COLORS = ["#3b82f6", "#15803d", "#a855f7", "#ea580c", "#0891b2", "#db2777", "#ca8a04", "#4f46e5"]
+
+function Avatar({ name, src, size = 38 }) {
+  const clean = (name || "").trim()
+  const initials =
+    clean.split(/\s+/).filter(Boolean).slice(0, 2).map(s => s[0]).join("").toUpperCase() || "?"
+  let h = 0
+  for (let i = 0; i < clean.length; i++) h = (h * 31 + clean.charCodeAt(i)) >>> 0
+  const bg = AVATAR_COLORS[h % AVATAR_COLORS.length]
+  if (src) {
+    return (
+      <img src={src} alt="" referrerPolicy="no-referrer"
+        style={{ width: size, height: size, borderRadius: 999, objectFit: "cover", flexShrink: 0, background: "#eee" }} />
+    )
+  }
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: 999, background: bg, color: "white",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: size * 0.36, fontWeight: 600, flexShrink: 0, letterSpacing: 0.2,
+    }}>{initials}</div>
+  )
+}
+
 function fmtRel(iso) {
   if (!iso) return "—"
   const days = (Date.now() - new Date(iso)) / 86400000
@@ -137,9 +169,9 @@ export default function ProvisorsPage() {
       {/* Stat tiles */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 24 }}>
         <Tile label="Total ProVisors" value={data.stats.total} color="#0891b2" />
+        <Tile label="Connected on LinkedIn" value={data.stats.connected ?? 0} color="#0a66c2" sub={`/${data.stats.total} total`} />
         <Tile label="CFOs" value={data.stats.by_role.cfo} color="#3b82f6" />
         <Tile label="Sponsors" value={data.stats.by_role.sponsor} color="#15803d" />
-        <Tile label="Referral partners" value={data.stats.by_role.referral} color="#1d4ed8" />
         <Tile label="Touched 30d" value={data.stats.touched_last_30d} color="#a855f7" sub={`/${data.stats.total} total`} />
       </div>
 
@@ -189,6 +221,8 @@ function ProvisorRow({ p, isLast, busy, onUnflag }) {
       borderBottom: isLast ? "none" : "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)"),
       opacity: busy ? 0.5 : 1,
     }}>
+      <Avatar name={p.name} src={p.photo_url} />
+
       <Link href={`/people/${p.id}`} style={{ flex: 1, minWidth: 0, textDecoration: "none", color: T.textPrimary }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 3 }}>
           <span style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</span>
@@ -197,10 +231,23 @@ function ProvisorRow({ p, isLast, busy, onUnflag }) {
             if (!m) return null
             return <Pill key={r} bg={m.bg} fg={m.fg} text={m.label} />
           })}
+          {p.linkedin_connected === true && (
+            <Pill bg="rgba(10,102,194,0.12)" fg="#0a66c2" text="✓ 1st" />
+          )}
+          {p.linkedin_connected === false && (
+            <Pill bg="rgba(0,0,0,0.05)" fg={T.textTertiary} text="not connected" />
+          )}
         </div>
-        <div style={{ fontSize: 12, color: T.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ fontSize: 12, color: T.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: (p.groups && p.groups.length) ? 5 : 0 }}>
           {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
         </div>
+        {p.groups && p.groups.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+            {p.groups.map(g => (
+              <Pill key={g} bg="rgba(168,85,247,0.12)" fg="#7c3aed" text={GROUP_LABEL[g] || g} />
+            ))}
+          </div>
+        )}
       </Link>
 
       <div style={{ textAlign: "right", whiteSpace: "nowrap", fontSize: 11, color: T.textTertiary, lineHeight: 1.55, paddingTop: 1, minWidth: 130 }}>
