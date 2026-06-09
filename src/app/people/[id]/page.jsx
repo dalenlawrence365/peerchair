@@ -11,7 +11,7 @@ const ROLE_COLOR = { cfo: "#d97706", sponsor_contact: "#a855f7", referral_partne
 const STATE_OPTIONS = {
   cfo: ["pool", "audience", "prospect", "qualified", "member"],
   sponsor_contact: ["pool", "audience", "discovery", "proposal", "active"],
-  referral_partner: ["pool", "audience", "active"],
+  referral_partner: ["pool", "audience"],
 }
 const STATE_FIELD = { cfo: "cfo_state", sponsor_contact: "sponsor_state", referral_partner: "referral_state" }
 
