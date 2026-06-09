@@ -6,7 +6,7 @@ import { T } from "@/lib/pipelineTheme"
 import Avatar from "@/components/Avatar"
 import ProfileTodoCard from "@/components/ProfileTodoCard"
 
-const ROLE_LABEL = { cfo: "CFO", sponsor_contact: "Sponsor Contact", referral_partner: "Referral Partner" }
+const ROLE_LABEL = { cfo: "CFO", sponsor_contact: "Sponsor", referral_partner: "Referral Partner" }
 const ROLE_COLOR = { cfo: "#d97706", sponsor_contact: "#a855f7", referral_partner: "#10b981" }
 const STATE_OPTIONS = {
   cfo: ["pool", "audience", "prospect", "qualified", "member"],
@@ -264,6 +264,7 @@ export default function PersonProfile() {
       headline: person.headline || "", email: person.email || "", phone: person.phone || person.mobile || "",
       location: person.location || "", linkedin_url: person.linkedin_url || "",
       roles: [...(person.roles || [])],
+      cfo_circle_member: !!person.cfo_circle_member,
       industry: f.industry || "", revenue: f.revenue || "", employees: f.employees || "",
       finance_team: f.finance_team || "", ownership: f.ownership || "", website: f.website || "",
     })
@@ -300,6 +301,11 @@ export default function PersonProfile() {
         body: JSON.stringify({ action: "set_roles", roles: form.roles || [] }),
       }).then(function(r){ return r.json() })
       if (r3.error) throw new Error(r3.error)
+      const r4 = await fetch(`/api/people/${id}/action`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_cfo_circle", member: !!form.cfo_circle_member }),
+      }).then(function(r){ return r.json() })
+      if (r4.error) throw new Error(r4.error)
       setEditing(false); reload()
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
@@ -353,6 +359,9 @@ export default function PersonProfile() {
                   }}>{ROLE_LABEL[r] || r}</span>
                 )
               })}
+              {p.cfo_circle_member && (
+                <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 999, background: "#4338ca", color: "white", fontWeight: 600 }}>CFO Circle</span>
+              )}
               {p.provisors_member && (
                 <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 999, background: "#0891b2", color: "white", fontWeight: 600 }}>ProVisor</span>
               )}
@@ -526,7 +535,7 @@ export default function PersonProfile() {
             <div style={{ marginTop: 14 }}>
               <label style={editLabel}>Roles</label>
               <div style={{ display: "flex", gap: 16, marginTop: 4, flexWrap: "wrap" }}>
-                {[["cfo", "CFO"], ["sponsor_contact", "Sponsor Contact"], ["referral_partner", "Referral Partner"]].map(function(r){
+                {[["cfo", "CFO"], ["sponsor_contact", "Sponsor"], ["referral_partner", "Referral Partner"]].map(function(r){
                   const on = (form.roles || []).includes(r[0])
                   return (
                     <label key={r[0]} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: T.textPrimary, cursor: busy ? "not-allowed" : "pointer" }}>
@@ -538,6 +547,16 @@ export default function PersonProfile() {
                 })}
               </div>
               <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 5 }}>Uncheck a role to remove it (also clears that role's pipeline stage). ProVisor status is separate and unaffected.</div>
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <label style={editLabel}>Affiliation</label>
+              <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: T.textPrimary, cursor: busy ? "not-allowed" : "pointer" }}>
+                  <input type="checkbox" disabled={busy} checked={!!form.cfo_circle_member}
+                    onChange={function(){ setForm(function(s){ return Object.assign({}, s, { cfo_circle_member: !s.cfo_circle_member }) }) }} />
+                  CFO Circle
+                </label>
+              </div>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
               <button disabled={busy} onClick={function(){ saveEdit(p) }}
