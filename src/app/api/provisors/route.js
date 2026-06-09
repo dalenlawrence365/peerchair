@@ -10,15 +10,27 @@ export async function GET() {
 
   const { data: people, error } = await sb
     .from("people")
-    .select("id, full_name, first_name, last_name, title, company, email, linkedin_url, roles, cfo_state, sponsor_state, referral_state, last_meaningful_touch, notes")
+    .select("id, full_name, first_name, last_name, title, company, email, linkedin_url, photo_url, linkedin_connected, roles, cfo_state, sponsor_state, referral_state, last_meaningful_touch, notes")
     .eq("provisors_member", true)
     .limit(2000)
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
-  // Aggregate role breakdown
+  // Group memberships: person_id -> [group name, ...]
+  const groupsByPerson = {}
+  const { data: gm } = await sb
+    .from("person_provisors_groups")
+    .select("person_id, provisors_groups(name)")
+  for (const row of (gm || [])) {
+    const nm = row.provisors_groups?.name
+    if (!nm) continue
+    ;(groupsByPerson[row.person_id] ||= []).push(nm)
+  }
+
+  // Aggregate stats
   const stats = {
     total: people.length,
     by_role: { cfo: 0, sponsor: 0, referral: 0, unroled: 0 },
+    connected: 0,
     touched_last_30d: 0,
     touched_last_90d: 0,
   }
@@ -31,6 +43,7 @@ export async function GET() {
     if (roles.includes("sponsor_contact")) { stats.by_role.sponsor++; counted = true }
     if (roles.includes("referral_partner")) { stats.by_role.referral++; counted = true }
     if (!counted) stats.by_role.unroled++
+    if (p.linkedin_connected) stats.connected++
     if (p.last_meaningful_touch) {
       const t = new Date(p.last_meaningful_touch).getTime()
       if (t > cutoff30) stats.touched_last_30d++
@@ -54,6 +67,9 @@ export async function GET() {
     company: p.company,
     email: p.email,
     linkedin_url: p.linkedin_url,
+    photo_url: p.photo_url,
+    linkedin_connected: p.linkedin_connected,
+    groups: groupsByPerson[p.id] || [],
     roles: p.roles || [],
     cfo_state: p.cfo_state,
     sponsor_state: p.sponsor_state,
