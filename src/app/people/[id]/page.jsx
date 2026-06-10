@@ -365,6 +365,12 @@ export default function PersonProfile() {
               {p.provisors_member && (
                 <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 999, background: "#0891b2", color: "white", fontWeight: 600 }}>ProVisor</span>
               )}
+              {(data.troika_master_of || []).length > 0 && (
+                <span title={"Troika Master of: " + data.troika_master_of.join(", ")}
+                  style={{ fontSize: 11, padding: "3px 9px", borderRadius: 999, background: "#7c3aed", color: "white", fontWeight: 600 }}>
+                  Troika Master{data.troika_master_of.length === 1 ? "" : ` ×${data.troika_master_of.length}`}
+                </span>
+              )}
               {(p.provisors_member || (p.roles || []).includes("sponsor_contact")) && (
                 <button disabled={busy}
                   onClick={function(){ postAction({ action: "set_connected", connected: !p.linkedin_connected }) }}
