@@ -51,10 +51,17 @@ export async function GET(request, { params }) {
     .eq("person_id", id)
   const groups = (gmRows || []).map(function(r){ return r.provisors_groups && r.provisors_groups.name }).filter(Boolean)
 
+  // Troika master designations — groups where this person is the troika master
+  const { data: tmRows } = await sb.from("provisors_groups")
+    .select("name")
+    .eq("troika_master_person_id", id)
+  const troika_master_of = (tmRows || []).map(function(r){ return r.name }).filter(Boolean)
+
   return Response.json({
     person,
     company,
     groups,
+    troika_master_of,
     communications: comms || [],
     status_tags: statusTags || [],
     action_tags: actionTags || [],
