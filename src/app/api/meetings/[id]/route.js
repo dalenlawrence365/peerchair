@@ -19,6 +19,20 @@ export async function GET(request, { params }) {
   const attendees = (att || []).map(r => r.people).filter(Boolean)
     .sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""))
 
+  // Attach each attendee's connection_sent tag date so the grid can show
+  // "connection sent · <date>" and the page can count/filter on it. (Manual click and
+  // the LinkedHelper sent event both write this tag, so it reflects all requests.)
+  const ids = attendees.map(p => p.id)
+  if (ids.length) {
+    const { data: sentTags } = await sb.from("person_action_tags")
+      .select("person_id, set_at")
+      .eq("action_type", "connection_sent")
+      .in("person_id", ids)
+    const sentBy = {}
+    ;(sentTags || []).forEach(t => { if (!sentBy[t.person_id] || t.set_at > sentBy[t.person_id]) sentBy[t.person_id] = t.set_at })
+    attendees.forEach(p => { p.connection_sent_at = sentBy[p.id] || null })
+  }
+
   return Response.json({
     meeting: {
       id: meeting.id, meeting_date: meeting.meeting_date, label: meeting.label,
