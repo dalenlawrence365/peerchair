@@ -1,4 +1,4 @@
-// first-degree network view: list sourced from people.linkedin_connected (redeploy bump)
+// first-degree network view: list sourced from people.linkedin_connected (redeploy bump 2)
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
