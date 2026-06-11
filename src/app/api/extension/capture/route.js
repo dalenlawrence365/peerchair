@@ -26,10 +26,26 @@ export async function POST(request) {
   const url = canonicalUrl(body.linkedin_url)
   const fullName = (body.full_name || "").trim()
 
-  if (body.match_id) {
+  // Resolve the target person. Honor the human's pick (match_id) first; otherwise run the
+  // shared de-dup matcher as a BACKSTOP so "Create new" cannot mint a duplicate when an
+  // exact identity (normalized slug / email / name+company) already exists. This is the same
+  // matcher every other write path uses -> the Claudia / Albert duplicate classes can't recur.
+  let matchId = body.match_id || null
+  let backstopped = false
+  if (!matchId) {
+    const { data: pid } = await sb.rpc("find_existing_person", {
+      p_linkedin_url: body.linkedin_url || null,
+      p_email: body.email || null,
+      p_full_name: fullName || null,
+      p_company: body.company || null,
+    })
+    if (pid) { matchId = pid; backstopped = true }
+  }
+
+  if (matchId) {
     const { data: ex } = await sb.from("people")
       .select("id, linkedin_url, roles, provisors_member, linkedin_connected, cfo_state, sponsor_state, referral_state")
-      .eq("id", body.match_id).maybeSingle()
+      .eq("id", matchId).maybeSingle()
     if (!ex) return J({ error: "match_id not found" }, 404)
 
     const patch = { updated_at: new Date().toISOString() }
@@ -48,7 +64,7 @@ export async function POST(request) {
     }
     const { error } = await sb.from("people").update(patch).eq("id", ex.id)
     if (error) return J({ error: error.message }, 500)
-    return J({ ok: true, action: "updated", id: ex.id })
+    return J({ ok: true, action: backstopped ? "linked_existing" : "updated", id: ex.id, backstopped })
   }
 
   if (!fullName) return J({ error: "full_name required to create" }, 400)
