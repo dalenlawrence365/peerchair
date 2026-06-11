@@ -20,10 +20,21 @@ export function canonicalUrl(url) {
   return slug ? `https://www.linkedin.com/in/${slug}` : (url || null)
 }
 
-// Strip trailing credential suffixes so "Neil Cohen, CPA" matches "Neil Cohen".
+// Strip trailing credential suffixes so "Neil Cohen, CPA" or
+// "Bradley Kraines LUTCF,CLTC,RICP, FSCP" both match "Bradley Kraines".
+const NAME_SUFFIX = new Set(["JR", "SR", "II", "III", "IV", "V"])
 export function stripCreds(name) {
-  return String(name || "")
+  // 1) known suffixes after a comma/pipe (kept for backward behavior)
+  let n = String(name || "")
     .replace(/[,|]\s*(mba|cpa|cfa|cfp®?|jd|ph\.?d|m\.?d|esq|cma|ea|chfc|clu|aif|cepa|cexp|cdfa|ccim|pmp|cfe|cic)\b\.?/gi, "")
-    .replace(/\s+/g, " ")
-    .trim()
+  // 2) general case: drop a trailing run of credential-like tokens (ALL-CAPS, 2-6 letters),
+  //    comma- or space-separated, but never a generational suffix (Jr/Sr/II/III/IV/V).
+  const toks = n.replace(/,/g, " ").split(/\s+/).filter(Boolean)
+  while (toks.length > 1) {
+    const t = toks[toks.length - 1].replace(/[.®™]/g, "")
+    if (/^[A-Z]{2,6}$/.test(t) && !NAME_SUFFIX.has(t)) toks.pop()
+    else break
+  }
+  return toks.join(" ").replace(/\s+/g, " ").trim()
 }
+
