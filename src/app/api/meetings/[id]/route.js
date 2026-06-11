@@ -8,7 +8,7 @@ export async function GET(request, { params }) {
   const sb = serverClient()
 
   const { data: meeting, error } = await sb.from("provisors_meetings")
-    .select("id, meeting_date, label, outlook_event_id, group_id, provisors_groups(name)")
+    .select("id, meeting_date, label, outlook_event_id, group_id, provisors_groups(name, troika_master_person_id)")
     .eq("id", id).maybeSingle()
   if (error) return Response.json({ error: error.message }, { status: 500 })
   if (!meeting) return Response.json({ error: "Meeting not found" }, { status: 404 })
@@ -23,6 +23,7 @@ export async function GET(request, { params }) {
     meeting: {
       id: meeting.id, meeting_date: meeting.meeting_date, label: meeting.label,
       group: meeting.provisors_groups ? meeting.provisors_groups.name : null,
+      troika_master_person_id: meeting.provisors_groups ? meeting.provisors_groups.troika_master_person_id : null,
       outlook_event_id: meeting.outlook_event_id,
     },
     attendees,
