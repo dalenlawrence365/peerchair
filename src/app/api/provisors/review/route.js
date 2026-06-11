@@ -44,10 +44,42 @@ export async function POST(request) {
       source: batch.source || "email",
       people: payload.people || [],
     })
+
+    // Record meeting attendance — rides on the approval. Needs a date + a known group.
+    let attendance = null
+    const mGroup = payload.meetingGroup || batch.meeting_group
+    const mDate = payload.meetingDate || null
+    if (mGroup && mDate) {
+      const { data: grp } = await sb.from("provisors_groups").select("id").ilike("name", mGroup).limit(1)
+      const groupId = grp && grp.length ? grp[0].id : null
+      if (groupId) {
+        // find-or-create the meeting for (group, date)
+        let meetingId = null
+        const { data: existingM } = await sb.from("provisors_meetings").select("id").eq("group_id", groupId).eq("meeting_date", mDate).limit(1)
+        if (existingM && existingM.length) meetingId = existingM[0].id
+        else {
+          const { data: newM } = await sb.from("provisors_meetings")
+            .insert({ group_id: groupId, meeting_date: mDate, label: `${mGroup} — ${mDate}`, source: batch.source || "email" })
+            .select("id").single()
+          meetingId = newM ? newM.id : null
+        }
+        if (meetingId) {
+          const ids = [...(result.created || []), ...(result.updated || [])].map(x => x.id).filter(Boolean)
+          if (ids.length) {
+            await sb.from("meeting_attendance").upsert(
+              ids.map(pid => ({ meeting_id: meetingId, person_id: pid })),
+              { onConflict: "meeting_id,person_id", ignoreDuplicates: true }
+            )
+          }
+          attendance = { meeting_id: meetingId, recorded: ids.length }
+        }
+      }
+    }
+
     await sb.from("provisor_import_batches").update({
       status: "approved", reviewed_at: new Date().toISOString(), ingest_result: result,
     }).eq("id", batch_id)
-    return Response.json({ ok: true, status: "approved", ...result })
+    return Response.json({ ok: true, status: "approved", ...result, attendance })
   } catch (e) {
     await sb.from("provisor_import_batches").update({ error: String(e && e.message || e) }).eq("id", batch_id)
     return Response.json({ error: String(e && e.message || e) }, { status: 500 })
