@@ -18,19 +18,22 @@ async function findGroupId(sb, name, cache) {
 }
 
 // Resolve an existing person by email, then name+company. Returns the row or null.
-export async function matchPerson(sb, { full_name, email, company }) {
-  const fullName = (full_name || "").trim()
-  const e = (email || "").trim().toLowerCase()
-  const co = (company || "").trim()
-  if (e) {
-    const { data } = await sb.from("people").select("id, email, firmographics, headline, full_name, company").ilike("email", e).limit(1)
-    if (data && data.length) return data[0]
-  }
-  if (fullName && co) {
-    const { data } = await sb.from("people").select("id, email, firmographics, headline, full_name, company").ilike("full_name", fullName).ilike("company", co).limit(1)
-    if (data && data.length) return data[0]
-  }
-  return null
+export async function matchPerson(sb, { full_name, email, company, linkedin_url }) {
+  // Delegates to the find_existing_person SQL matcher (single source of truth):
+  // normalized URL slug -> email -> normalized name+company. Normalization strips
+  // middle initials, punctuation, www/trailing-slash, and company suffixes.
+  // This is what prevents the Claudia N Castro / Claudia Castro class of duplicate.
+  const { data: pid, error } = await sb.rpc("find_existing_person", {
+    p_linkedin_url: linkedin_url || null,
+    p_email: email || null,
+    p_full_name: full_name || null,
+    p_company: company || null,
+  })
+  if (error || !pid) return null
+  const { data } = await sb.from("people")
+    .select("id, email, firmographics, headline, full_name, company, linkedin_url")
+    .eq("id", pid).maybeSingle()
+  return data || null
 }
 
 export async function ingestProvisors(sb, { meetingGroup, source, people } = {}) {
@@ -44,8 +47,9 @@ export async function ingestProvisors(sb, { meetingGroup, source, people } = {})
     if (!fullName) { skipped.push({ reason: "no name", row: p }); continue }
     const email = (p.email || "").trim().toLowerCase()
     const company = (p.company || "").trim()
+    const linkedin_url = (p.linkedin_url || "").trim()
 
-    const existing = await matchPerson(sb, { full_name: fullName, email, company })
+    const existing = await matchPerson(sb, { full_name: fullName, email, company, linkedin_url })
 
     const fg = Object.assign({}, (existing && existing.firmographics) || {})
     for (const [k, v] of [["industry", p.industry], ["website", p.website], ["address", p.address], ["zip", p.zip]]) {
@@ -60,6 +64,7 @@ export async function ingestProvisors(sb, { meetingGroup, source, people } = {})
       if (p.phone) patch.phone = p.phone
       if (p.location) patch.location = p.location
       if (email && !existing.email) patch.email = email
+      if (linkedin_url && !existing.linkedin_url) patch.linkedin_url = linkedin_url
       if (p.headline && (!existing.headline || existing.headline === "")) patch.headline = p.headline
       const { error } = await sb.from("people").update(patch).eq("id", existing.id)
       if (error) { skipped.push({ reason: error.message, name: fullName }); continue }
@@ -70,6 +75,7 @@ export async function ingestProvisors(sb, { meetingGroup, source, people } = {})
       if (p.title) ins.title = p.title
       if (company) ins.company = company
       if (email) ins.email = email
+      if (linkedin_url) ins.linkedin_url = linkedin_url
       if (p.phone) ins.phone = p.phone
       if (p.location) ins.location = p.location
       if (p.headline) ins.headline = p.headline
