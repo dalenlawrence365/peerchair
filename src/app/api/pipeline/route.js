@@ -1,12 +1,12 @@
 export const dynamic = "force-dynamic"
-import { createClient } from "@supabase/supabase-js"
+export const runtime = "nodejs"
 import { serverClient } from "@/lib/supabaseServer"
 
-// GET /api/pipeline?type=cfo|sponsor&stage=<stage>
-// Always returns the full funnel (count per stage, via count queries — no
-// 1000-row cap). Returns a people list ONLY for the small/actionable stages;
-// the big top-of-funnel stages (pool, audience) return list:null so the UI
-// shows a search bar instead of dumping thousands of rows.
+// GET /api/pipeline?type=cfo|sponsor&stage=<stage>&limit=&offset=&q=
+// Funnel counts per stage use head:true (uncapped). The requested stage returns a
+// PAGINATED, SEARCHABLE list with an exact list_total — EVERY stage is browsable,
+// including big top-of-funnel stages (pool, audience). Mirrors the
+// linkedin-connections pagination pattern (limit/offset + {count:'exact'} + ilike search).
 
 const CONFIG = {
   cfo: {
@@ -23,16 +23,21 @@ const CONFIG = {
   },
 }
 
+const SEL = "id, full_name, first_name, last_name, title, company, email, linkedin_url, avatar_url, last_meaningful_touch, next_action_date"
+
 export async function GET(request) {
   const url = new URL(request.url)
   const type = url.searchParams.get("type") || "cfo"
   const stage = url.searchParams.get("stage") || ""
+  const q = url.searchParams.get("q")
+  const limit = Math.min(Number(url.searchParams.get("limit")) || 100, 500)
+  const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0)
   const cfg = CONFIG[type]
   if (!cfg) return Response.json({ error: "invalid type" }, { status: 400 })
 
   const sb = serverClient()
 
-  // Funnel — count per stage
+  // Funnel — count per stage (head:true, uncapped)
   const funnel = {}
   await Promise.all(cfg.stages.map(async function(s){
     const { count } = await sb.from("people").select("id", { count: "exact", head: true }).eq(cfg.field, s)
@@ -40,14 +45,21 @@ export async function GET(request) {
   }))
   const total = Object.values(funnel).reduce((a, b) => a + b, 0)
 
-  // List only if this stage is small/actionable
+  // Paginated + searchable list for the requested stage (every stage is browsable)
   let list = null
-  if (stage && cfg.listable.indexOf(stage) >= 0) {
-    const { data: people } = await sb.from("people")
-      .select("id, full_name, first_name, last_name, title, company, email, linkedin_url, avatar_url, " + cfg.field + ", last_meaningful_touch, next_action_date")
+  let list_total = 0
+  if (stage && cfg.stages.indexOf(stage) >= 0) {
+    let query = sb.from("people")
+      .select(SEL + ", " + cfg.field, { count: "exact" })
       .eq(cfg.field, stage)
+    if (q) query = query.or(`full_name.ilike.%${q}%,company.ilike.%${q}%,title.ilike.%${q}%`)
+    query = query
       .order("last_meaningful_touch", { ascending: false, nullsFirst: false })
-      .limit(500)
+      .order("full_name", { ascending: true })
+      .range(offset, offset + limit - 1)
+
+    const { data: people, count } = await query
+    list_total = count || 0
     list = (people || []).map(function(p){
       return {
         id: p.id, name: p.full_name || `${p.first_name||""} ${p.last_name||""}`.trim(),
@@ -63,6 +75,7 @@ export async function GET(request) {
     listable: cfg.listable,
     stages: cfg.stages,
     funnel, total,
-    list,
+    list, list_total,
+    limit, offset, q: q || "",
   })
 }

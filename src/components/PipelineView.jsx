@@ -1,7 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { T } from "@/lib/pipelineTheme"
 import Avatar from "@/components/Avatar"
 
@@ -20,43 +19,60 @@ function fmtRel(iso) {
 }
 
 export default function PipelineView({ type, stage }) {
-  const router = useRouter()
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [q, setQ] = useState("")
-  const [results, setResults] = useState(null)
-  const [searching, setSearching] = useState(false)
+  const [query, setQuery] = useState("")   // committed search term
+  const [limit, setLimit] = useState(100)
+  const [offset, setOffset] = useState(0)
+  const [loading, setLoading] = useState(false)
   const color = TYPE_COLOR[type] || "#3b82f6"
   const basePath = `/pipeline/${type}`
 
+  // Reset paging + search when stage or pipeline type changes
   useEffect(function(){
-    setData(null); setError(null); setQ(""); setResults(null)
-    fetch(`/api/pipeline?type=${type}&stage=${stage}`).then(r => r.json()).then(function(d){
-      if (d.error) setError(d.error); else setData(d)
-    }).catch(e => setError(e.message || String(e)))
+    setQ(""); setQuery(""); setOffset(0)
   }, [type, stage])
 
-  // Search within the pipeline (used for big stages)
   useEffect(function(){
-    if (q.trim().length < 2) { setResults(null); return }
-    setSearching(true)
-    const t = setTimeout(async function(){
-      try {
-        const r = await fetch("/api/search?q=" + encodeURIComponent(q))
-        const d = await r.json()
-        // Only people of this pipeline's role, ideally — but show all people matches
-        setResults((d.contacts || []))
-      } catch(e) { setResults([]) }
-      setSearching(false)
-    }, 200)
-    return function(){ clearTimeout(t) }
-  }, [q])
+    setLoading(true)
+    const params = new URLSearchParams({ type, stage, limit: String(limit), offset: String(offset) })
+    if (query) params.set("q", query)
+    fetch(`/api/pipeline?${params}`, { cache: "no-store" })
+      .then(r => r.json())
+      .then(function(d){
+        if (d.error) setError(d.error); else { setData(d); setError(null) }
+      })
+      .catch(e => setError(e.message || String(e)))
+      .finally(function(){ setLoading(false) })
+  }, [type, stage, limit, offset, query])
+
+  function runSearch() { setOffset(0); setQuery(q.trim()) }
+  function clearSearch() { setQ(""); setQuery(""); setOffset(0) }
 
   if (error) return <main style={{ padding: 32 }}><div style={{ color: T.danger }}>⚠ {error}</div></main>
   if (!data) return <main style={{ padding: 32 }}><div style={{ color: T.textTertiary }}>Loading…</div></main>
 
-  const isListable = data.listable.indexOf(stage) >= 0
   const title = type === "cfo" ? "CFO Pipeline" : "Sponsor Pipeline"
+  const list = data.list || []
+  const total = data.list_total || 0
+  const from = total === 0 ? 0 : offset + 1
+  const to = Math.min(offset + limit, total)
+  const canPrev = offset > 0
+  const canNext = offset + limit < total
+
+  const Pager = (
+    <div style={{ display: "flex", gap: 6 }}>
+      <button disabled={!canPrev} onClick={function(){ setOffset(Math.max(0, offset - limit)) }}
+        style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: canPrev ? T.textPrimary : T.textTertiary, cursor: canPrev ? "pointer" : "default", fontFamily: "inherit" }}>
+        ← Prev
+      </button>
+      <button disabled={!canNext} onClick={function(){ setOffset(offset + limit) }}
+        style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: canNext ? T.textPrimary : T.textTertiary, cursor: canNext ? "pointer" : "default", fontFamily: "inherit" }}>
+        Next →
+      </button>
+    </div>
+  )
 
   return (
     <main style={{ padding: "26px 32px 64px", maxWidth: 1160 }}>
@@ -65,10 +81,9 @@ export default function PipelineView({ type, stage }) {
 
       {/* Funnel metrics — always on top, clickable */}
       <div style={{ display: "flex", gap: 8, marginBottom: 28, flexWrap: "wrap" }}>
-        {data.stages.map(function(s, i){
+        {data.stages.map(function(s){
           const n = data.funnel[s] || 0
           const isCurrent = s === stage
-          const listable = data.listable.indexOf(s) >= 0
           return (
             <Link key={s} href={`${basePath}/${s}`} style={{ textDecoration: "none", flex: "1 1 0", minWidth: 120 }}>
               <div style={{
@@ -83,74 +98,76 @@ export default function PipelineView({ type, stage }) {
                 <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 5 }}>
                   {STAGE_LABEL[s] || s}
                 </div>
-                {!listable && <div style={{ fontSize: 9, color: T.textTertiary, marginTop: 2, opacity: 0.7 }}>search only</div>}
-                {listable && <div style={{ fontSize: 9, color: color, marginTop: 2, fontWeight: 600 }}>workable</div>}
               </div>
             </Link>
           )
         })}
       </div>
 
-      {/* Current stage panel */}
-      <div style={{ marginBottom: 10, display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+      {/* Current stage header */}
+      <div style={{ marginBottom: 12, display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
         <div style={{ fontSize: 15, fontWeight: 600 }}>{STAGE_LABEL[stage] || stage} <span style={{ color: T.textTertiary, fontWeight: 400 }}>· {(data.funnel[stage] || 0).toLocaleString()}</span></div>
       </div>
 
-      {isListable ? (
-        // Small/actionable stage → show the list
-        <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, overflow: "hidden" }}>
-          {(!data.list || data.list.length === 0) ? (
-            <div style={{ padding: 24, color: T.textTertiary, fontSize: 13 }}>No one in {STAGE_LABEL[stage] || stage} yet.</div>
-          ) : data.list.map(function(p, i){
-            return (
-              <Link key={p.id} href={`/people/${p.id}`} style={{ textDecoration: "none", color: T.textPrimary }}>
-                <div style={{ padding: "12px 16px", borderBottom: i < data.list.length - 1 ? "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)") : "none", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
-                  <Avatar name={p.name} src={p.avatar_url} size={36} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</div>
-                    <div style={{ fontSize: 12, color: T.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtRel(p.last_touch)}</div>
-                </div>
-              </Link>
-            )
-          })}
+      {/* Search + page size */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
+        <input value={q} onChange={function(e){ setQ(e.target.value) }} onKeyDown={function(e){ if (e.key === "Enter") runSearch() }}
+          placeholder="Search name / company / title…"
+          style={{ flex: 1, minWidth: 220, fontSize: 13, padding: "8px 12px", borderRadius: 6, border: "1px solid " + T.border, background: "white", fontFamily: "inherit", boxSizing: "border-box" }} />
+        <button onClick={runSearch}
+          style={{ fontSize: 12, padding: "8px 14px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textPrimary, cursor: "pointer", fontFamily: "inherit" }}>
+          Search
+        </button>
+        {query && (
+          <button onClick={clearSearch}
+            style={{ fontSize: 12, padding: "8px 12px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textTertiary, cursor: "pointer", fontFamily: "inherit" }}>
+            Clear
+          </button>
+        )}
+        <select value={limit} onChange={function(e){ setLimit(Number(e.target.value)); setOffset(0) }}
+          style={{ fontSize: 12, padding: "8px 8px", borderRadius: 6, border: "1px solid " + T.border, background: "white", fontFamily: "inherit" }}>
+          <option value={100}>100 / page</option>
+          <option value={500}>500 / page</option>
+        </select>
+      </div>
+
+      {/* Count + top pager */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: T.textTertiary }}>
+          {total === 0 ? "No matches" : <>Showing <b>{from.toLocaleString()}–{to.toLocaleString()}</b> of <b>{total.toLocaleString()}</b></>}
+          {loading && <span style={{ marginLeft: 8, opacity: 0.6 }}>updating…</span>}
         </div>
-      ) : (
-        // Big stage → search bar only, no list
-        <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 20 }}>
-          <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 14 }}>
-            {(data.funnel[stage] || 0).toLocaleString()} people in {STAGE_LABEL[stage] || stage} — too many to list. Search to find someone:
+        {Pager}
+      </div>
+
+      {/* List */}
+      <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, overflow: "hidden" }}>
+        {list.length === 0 ? (
+          <div style={{ padding: 24, color: T.textTertiary, fontSize: 13 }}>
+            {query ? `No one in ${STAGE_LABEL[stage] || stage} matches “${query}”.` : `No one in ${STAGE_LABEL[stage] || stage} yet.`}
           </div>
-          <input
-            value={q}
-            onChange={function(e){ setQ(e.target.value) }}
-            placeholder={`Search ${STAGE_LABEL[stage] || stage}…`}
-            autoFocus
-            style={{ width: "100%", maxWidth: 480, padding: "10px 14px", fontSize: 14, border: "1px solid " + T.border, borderRadius: 8, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
-          />
-          <div style={{ marginTop: 14 }}>
-            {searching && <div style={{ color: T.textTertiary, fontSize: 13 }}>Searching…</div>}
-            {!searching && results && results.length === 0 && q.trim().length >= 2 && (
-              <div style={{ color: T.textTertiary, fontSize: 13 }}>No matches for &quot;{q}&quot;.</div>
-            )}
-            {!searching && results && results.map(function(r){
-              return (
-                <Link key={r.id} href={`/people/${r.id}`} style={{ textDecoration: "none", color: T.textPrimary }}>
-                  <div style={{ padding: "10px 12px", borderBottom: "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)"), display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500 }}>{r.name}</div>
-                      <div style={{ fontSize: 12, color: T.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {[r.title, r.company, r.stage].filter(Boolean).join(" · ")}
-                      </div>
-                    </div>
+        ) : list.map(function(p, i){
+          return (
+            <Link key={p.id} href={`/people/${p.id}`} style={{ textDecoration: "none", color: T.textPrimary }}>
+              <div style={{ padding: "12px 16px", borderBottom: i < list.length - 1 ? "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)") : "none", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+                <Avatar name={p.name} src={p.avatar_url} size={36} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</div>
+                  <div style={{ fontSize: 12, color: T.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
                   </div>
-                </Link>
-              )
-            })}
-          </div>
+                </div>
+                <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtRel(p.last_touch)}</div>
+              </div>
+            </Link>
+          )
+        })}
+      </div>
+
+      {/* Bottom pager */}
+      {list.length > 0 && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+          {Pager}
         </div>
       )}
     </main>
