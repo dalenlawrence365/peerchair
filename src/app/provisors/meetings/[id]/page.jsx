@@ -19,6 +19,19 @@ function initials(name) {
   return (name || "?").split(/\s+/).slice(0, 2).map(w => w[0] || "").join("").toUpperCase()
 }
 
+// LinkedIn-coverage bucket for an attendee. The three non-"all" buckets partition the
+// roster: has-URL+connected, has-URL+not-connected, and no-URL-at-all → they sum to All.
+function bucketOf(p) {
+  if (!p.linkedin_url) return "nourl"
+  return p.linkedin_connected ? "connected" : "notconnected"
+}
+const STATS = [
+  { key: "all", label: "All", color: T.textPrimary, tint: "rgba(15,23,42,0.06)" },
+  { key: "connected", label: "Connected", color: "#15803d", tint: "rgba(21,128,61,0.09)" },
+  { key: "notconnected", label: "Not connected", color: "#b45309", tint: "rgba(180,83,9,0.09)" },
+  { key: "nourl", label: "No LinkedIn URL", color: "#6b7280", tint: "rgba(107,114,128,0.10)" },
+]
+
 function Face({ p }) {
   const src = p.photo_url || p.avatar_url
   if (src) return <img src={src} alt="" style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
@@ -35,6 +48,7 @@ export default function MeetingDetail() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [q, setQ] = useState("")
+  const [filter, setFilter] = useState("all")
 
   useEffect(() => {
     if (!id) return
@@ -47,10 +61,13 @@ export default function MeetingDetail() {
   if (!data) return <main style={{ padding: 32 }}><div style={{ color: T.textTertiary }}>Loading…</div></main>
 
   const { meeting, attendees } = data
+  const counts = { all: attendees.length, connected: 0, notconnected: 0, nourl: 0 }
+  for (const p of attendees) counts[bucketOf(p)]++
   const needle = q.trim().toLowerCase()
+  const byFilter = filter === "all" ? attendees : attendees.filter(p => bucketOf(p) === filter)
   const filtered = needle
-    ? attendees.filter(p => (p.full_name || "").toLowerCase().includes(needle) || (p.company || "").toLowerCase().includes(needle))
-    : attendees
+    ? byFilter.filter(p => (p.full_name || "").toLowerCase().includes(needle) || (p.company || "").toLowerCase().includes(needle))
+    : byFilter
   const mId = meeting.troika_master_person_id
   const shown = mId
     ? [...filtered].sort((a, b) => (a.id === mId ? -1 : 0) - (b.id === mId ? -1 : 0))
@@ -62,8 +79,20 @@ export default function MeetingDetail() {
       <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: -0.4, margin: "8px 0 2px" }}>
         {GROUP_SHORT[meeting.group] || meeting.group || "Meeting"}
       </h1>
-      <div style={{ fontSize: 13, color: T.textTertiary, marginBottom: 18 }}>
+      <div style={{ fontSize: 13, color: T.textTertiary, marginBottom: 14 }}>
         {fmtDate(meeting.meeting_date)} · {attendees.length} attended
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+        {STATS.map(s => {
+          const active = filter === s.key
+          return (
+            <button key={s.key} onClick={() => setFilter(s.key)} style={{ flex: "1 1 0", minWidth: 132, textAlign: "left", cursor: "pointer", background: active ? s.tint : T.cardBg, border: "1px solid " + (active ? s.color : T.border), borderRadius: 10, padding: "12px 14px", fontFamily: "inherit" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: s.color, letterSpacing: -0.5 }}>{counts[s.key]}</div>
+              <div style={{ fontSize: 11.5, color: T.textTertiary, marginTop: 2 }}>{s.label}</div>
+            </button>
+          )
+        })}
       </div>
 
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Find someone — name or company…"
@@ -101,7 +130,7 @@ export default function MeetingDetail() {
           )
         })}
       </div>
-      {shown.length === 0 && <div style={{ color: T.textTertiary, fontSize: 13, marginTop: 8 }}>No match for “{q}”.</div>}
+      {shown.length === 0 && <div style={{ color: T.textTertiary, fontSize: 13, marginTop: 8 }}>{needle ? `No match for “${q}”.` : "No one in this view."}</div>}
     </main>
   )
 }
