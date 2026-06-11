@@ -136,22 +136,28 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Two-column: Upcoming calls + Recent activity */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginTop: 28 }}>
-        <Card title="Upcoming fit calls">
-          {data.fit_calls.length === 0 ? <Empty msg="No fit calls scheduled." /> : data.fit_calls.map(function(p){
-            return (
-              <PersonRow key={p.id} person={p} subtitle={p.tag_notes || "Fit call scheduled"} time={fmtRel(p.tag_set_at)} />
-            )
-          })}
-        </Card>
-        <Card title="Upcoming sponsor discoveries">
-          {data.sponsor_discoveries.length === 0 ? <Empty msg="No sponsor discoveries scheduled." /> : data.sponsor_discoveries.map(function(p){
-            return (
-              <PersonRow key={p.id} person={p} subtitle={p.tag_notes || "Discovery scheduled"} time={fmtRel(p.tag_set_at)} />
-            )
-          })}
-        </Card>
+      {/* Left half: upcoming calls + discoveries (condensed, stacked) · Right half: connection volume */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginTop: 28, alignItems: "start" }}>
+        <div style={{ display: "grid", gap: 18 }}>
+          <Card title="Upcoming fit calls">
+            {data.fit_calls.length === 0 ? <Empty msg="No fit calls scheduled." /> : data.fit_calls.map(function(p){
+              return (
+                <PersonRow key={p.id} person={p} subtitle={p.tag_notes || "Fit call scheduled"} time={fmtRel(p.tag_set_at)} />
+              )
+            })}
+          </Card>
+          <Card title="Upcoming sponsor discoveries">
+            {data.sponsor_discoveries.length === 0 ? <Empty msg="No sponsor discoveries scheduled." /> : data.sponsor_discoveries.map(function(p){
+              return (
+                <PersonRow key={p.id} person={p} subtitle={p.tag_notes || "Discovery scheduled"} time={fmtRel(p.tag_set_at)} />
+              )
+            })}
+          </Card>
+        </div>
+        <div style={{ display: "grid", gap: 18, gridAutoRows: "min-content" }}>
+          <ConnStat label="Connection requests sent" total={(data.connections && data.connections.requests_total) || 0} week={(data.connections && data.connections.requests_week) || 0} color="#0a66c2" />
+          <ConnStat label="Connections made" total={(data.connections && data.connections.accepted_total) || 0} week={(data.connections && data.connections.accepted_week) || 0} color="#15803d" />
+        </div>
       </div>
 
       {/* Recent activity */}
@@ -202,6 +208,19 @@ function StatTile({ label, value, color, href }) {
     </div>
   )
   return href ? <Link href={href} style={{ textDecoration: "none" }}>{inner}</Link> : inner
+}
+
+function ConnStat({ label, total, week, color }) {
+  return (
+    <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: "18px 20px", borderTop: "3px solid " + color }}>
+      <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ fontSize: 34, fontWeight: 600, color: T.textPrimary, lineHeight: 1.1, marginTop: 8 }}>{total}</div>
+      <div style={{ fontSize: 12, color: week > 0 ? color : T.textTertiary, marginTop: 6, fontWeight: 500 }}>
+        {week > 0 ? "\u25B2 " + week + " this week" : "none this week"}
+      </div>
+      <div style={{ fontSize: 10.5, color: T.textTertiary, marginTop: 8 }}>manual + automated</div>
+    </div>
+  )
 }
 
 function QueueTile({ label, count, href, tone }) {
