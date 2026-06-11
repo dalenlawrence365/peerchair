@@ -48,9 +48,13 @@ export default function MeetingDetail() {
 
   const { meeting, attendees } = data
   const needle = q.trim().toLowerCase()
-  const shown = needle
+  const filtered = needle
     ? attendees.filter(p => (p.full_name || "").toLowerCase().includes(needle) || (p.company || "").toLowerCase().includes(needle))
     : attendees
+  const mId = meeting.troika_master_person_id
+  const shown = mId
+    ? [...filtered].sort((a, b) => (a.id === mId ? -1 : 0) - (b.id === mId ? -1 : 0))
+    : filtered
 
   return (
     <main style={{ padding: "26px 32px 80px", maxWidth: 1000 }}>
@@ -66,11 +70,18 @@ export default function MeetingDetail() {
         style={{ width: "100%", maxWidth: 420, padding: "9px 12px", fontSize: 13, borderRadius: 8, border: "1px solid " + T.border, marginBottom: 18, fontFamily: "inherit", boxSizing: "border-box" }} />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
-        {shown.map(p => (
-          <div key={p.id} style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+        {shown.map(p => {
+          const isMaster = meeting.troika_master_person_id && p.id === meeting.troika_master_person_id
+          return (
+          <div key={p.id} style={{ background: isMaster ? "rgba(124,58,237,0.06)" : T.cardBg, border: "1px solid " + (isMaster ? "#7c3aed" : T.border), borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
             <Face p={p} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <Link href={`/people/${p.id}`} style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, textDecoration: "none" }}>{p.full_name}</Link>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Link href={`/people/${p.id}`} style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, textDecoration: "none" }}>{p.full_name}</Link>
+                {isMaster && (
+                  <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 999, background: "#7c3aed", color: "white", fontWeight: 700, whiteSpace: "nowrap" }}>TROIKA MASTER</span>
+                )}
+              </div>
               <div style={{ fontSize: 11.5, color: T.textTertiary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {p.title ? p.title + " · " : ""}{p.company || ""}
               </div>
@@ -87,7 +98,8 @@ export default function MeetingDetail() {
               </div>
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
       {shown.length === 0 && <div style={{ color: T.textTertiary, fontSize: 13, marginTop: 8 }}>No match for “{q}”.</div>}
     </main>
