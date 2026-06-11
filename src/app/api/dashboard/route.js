@@ -110,6 +110,24 @@ export async function GET() {
     discovery_completed: await tagCountSince("sponsor_discovery_completed", weekStartIso),
   }
 
+  // Connection volume — counts cover manual + automated together. The manual
+  // "connection sent/accepted" clicks and the LinkedHelper webhook both land here:
+  // event=sent writes the connection_sent tag directly; event=connected sets the
+  // contact stage to "Connected", which the sync trigger turns into connection_accepted.
+  // (Rows == distinct people — no duplicate tags per person.)
+  async function tagCountAll(action_type) {
+    const { count } = await sb.from("person_action_tags")
+      .select("person_id", { count: "exact", head: true })
+      .eq("action_type", action_type)
+    return count || 0
+  }
+  const connections = {
+    requests_total: await tagCountAll("connection_sent"),
+    requests_week:  await tagCountSince("connection_sent", weekStartIso),
+    accepted_total: await tagCountAll("connection_accepted"),
+    accepted_week:  await tagCountSince("connection_accepted", weekStartIso),
+  }
+
   // Recent activity — last 15 communications across all people
   const { data: activityRaw } = await sb.from("communications")
     .select("id, person_id, contact_id, occurred_at, direction, channel, step_label, body")
@@ -177,6 +195,7 @@ export async function GET() {
     fit_calls: fitCalls.slice(0, 10),
     sponsor_discoveries: sponsorDiscoveries.slice(0, 10),
     weekly,
+    connections,
     activity,
   })
 }
