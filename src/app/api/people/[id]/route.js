@@ -57,11 +57,22 @@ export async function GET(request, { params }) {
     .eq("troika_master_person_id", id)
   const troika_master_of = (tmRows || []).map(function(r){ return r.name }).filter(Boolean)
 
+  // Meetings this person attended (newest first)
+  const { data: maRows } = await sb.from("meeting_attendance")
+    .select("provisors_meetings(id, meeting_date, label, provisors_groups(name))")
+    .eq("person_id", id)
+  const meetings = (maRows || [])
+    .map(function(r){ return r.provisors_meetings })
+    .filter(Boolean)
+    .map(function(m){ return { id: m.id, meeting_date: m.meeting_date, label: m.label, group: m.provisors_groups ? m.provisors_groups.name : null } })
+    .sort(function(a, b){ return (b.meeting_date || "").localeCompare(a.meeting_date || "") })
+
   return Response.json({
     person,
     company,
     groups,
     troika_master_of,
+    meetings,
     communications: comms || [],
     status_tags: statusTags || [],
     action_tags: actionTags || [],
