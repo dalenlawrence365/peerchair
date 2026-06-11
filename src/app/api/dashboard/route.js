@@ -173,16 +173,20 @@ export async function GET() {
         return count || 0
       })(),
       linkedin_connections: await (async () => {
-        const { count } = await sb.from("linkedin_connections")
-          .select("*", { count: "exact", head: true })
-          .eq("connection_status", "connected")
+        // First-degree = the attribute on people, not the frozen snapshot table.
+        const { count } = await sb.from("people")
+          .select("id", { count: "exact", head: true })
+          .eq("linkedin_connected", true)
         return count || 0
       })(),
       linkedin_connections_unrated: await (async () => {
-        const { count } = await sb.from("linkedin_connections")
-          .select("*", { count: "exact", head: true })
-          .eq("connection_status", "connected")
-          .eq("relevance", "unrated")
+        // First-degree connections not yet classified into any role (the raw network).
+        const { count } = await sb.from("people")
+          .select("id", { count: "exact", head: true })
+          .eq("linkedin_connected", true)
+          .eq("provisors_member", false)
+          .eq("cfo_circle_member", false)
+          .or("roles.is.null,roles.eq.{}")
         return count || 0
       })(),
     },
