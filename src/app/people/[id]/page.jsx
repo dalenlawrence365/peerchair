@@ -372,7 +372,9 @@ export default function PersonProfile() {
                   Troika Master{data.troika_master_of.length === 1 ? "" : ` ×${data.troika_master_of.length}`}
                 </span>
               )}
-              {(p.provisors_member || (p.roles || []).includes("sponsor_contact")) && (
+              {/* First-degree pill shows on every profile (CFO included), not just ProVisors/sponsors —
+                  an at-a-glance connected indicator. Click still toggles linkedin_connected. */}
+              {(
                 <button disabled={busy}
                   onClick={function(){ postAction({ action: "set_connected", connected: !p.linkedin_connected }) }}
                   title="Click to toggle LinkedIn connection status"
