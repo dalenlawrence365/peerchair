@@ -583,6 +583,7 @@ export default function PersonProfile() {
         ...((p.roles || []).includes("cfo") ? [{ key: "fitcall", label: "Fit Call" }] : []),
         ...((p.roles || []).includes("sponsor_contact") ? [{ key: "discovery", label: "Discovery Call" }] : []),
         ...(p.provisors_member ? [{ key: "groups", label: "Groups" }] : []),
+        ...(p.provisors_member ? [{ key: "meetings", label: "Meetings" }] : []),
       ]} />
 
       {/* TAB: To-dos */}
@@ -636,6 +637,32 @@ export default function PersonProfile() {
             </div>
           ) : (
             <div style={{ color: T.textTertiary, fontSize: 13 }}>No ProVisors groups on file for this person yet.</div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: Meetings — ProVisors meeting instances this person attended (with Dalen) */}
+      {tab === "meetings" && (
+        <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Meetings Attended</div>
+          {(data.meetings && data.meetings.length > 0) ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {data.meetings.map(function(m){
+                return (
+                  <a key={m.id} href={"/provisors/meetings/" + m.id} style={{ textDecoration: "none", color: "inherit" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", border: "1px solid " + T.border, borderRadius: 8 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{m.group || "Meeting"}</div>
+                        <div style={{ fontSize: 11, color: T.textTertiary }}>{m.meeting_date ? new Date(m.meeting_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</div>
+                      </div>
+                      <div style={{ color: T.textTertiary }}>›</div>
+                    </div>
+                  </a>
+                )
+              })}
+            </div>
+          ) : (
+            <div style={{ color: T.textTertiary, fontSize: 13 }}>No recorded meetings yet. These fill in as you approve rosters.</div>
           )}
         </div>
       )}
