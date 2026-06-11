@@ -90,6 +90,24 @@ export async function POST(request, { params }) {
   if (action === "action_tag") {
     const actionType = (body.action_type || body.tag || "").trim()
     if (!actionType) return Response.json({ error: "action_type required" }, { status: 400 })
+
+    // De-dupe connection lifecycle tags to one-per-person-per-day so an accidental
+    // double-click (or same-day re-click) doesn't write duplicate rows. A genuine re-send
+    // on a later day still records. Backed by the uniq_conn_lifecycle_tag_per_day index.
+    const DEDUP_SAME_DAY = ["connection_sent", "connection_accepted"]
+    if (DEDUP_SAME_DAY.includes(actionType)) {
+      const day = body.as_of_date || new Date().toISOString().slice(0, 10)
+      const { data: existing } = await sb.from("person_action_tags")
+        .select("id")
+        .eq("person_id", id)
+        .eq("action_type", actionType)
+        .eq("as_of_date", day)
+        .limit(1)
+      if (existing && existing.length) {
+        return Response.json({ ok: true, deduped: true, action_tag_id: existing[0].id })
+      }
+    }
+
     const { data, error } = await sb.rpc("set_action_tag", {
       p_person_id: id,
       p_action_type: actionType,
@@ -98,7 +116,14 @@ export async function POST(request, { params }) {
       p_set_by: "profile_ui",
       p_notes: body.notes || null,
     })
-    if (error) return Response.json({ error: error.message }, { status: 500 })
+    if (error) {
+      // Race: two near-simultaneous clicks can both pass the check above; the unique index
+      // then rejects the second insert. Treat that as a successful no-op, not an error.
+      if (DEDUP_SAME_DAY.includes(actionType) && /duplicate key|unique|23505/i.test(error.message || "")) {
+        return Response.json({ ok: true, deduped: true })
+      }
+      return Response.json({ error: error.message }, { status: 500 })
+    }
     return Response.json({ ok: true, action_tag_id: data })
   }
 
