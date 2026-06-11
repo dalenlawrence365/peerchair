@@ -9,54 +9,56 @@ function flagged() {
   return Response.json({ error: "LinkedIn Connections module not enabled" }, { status: 404 })
 }
 
-// GET — paginated list with filters
+// GET — paginated list of first-degree people (linkedin_connected), filtered by ROLE.
+// Sources from the people table (the unified superset), NOT the frozen linkedin_connections
+// snapshot. Counts use head:true so they are not capped at Supabase's 1000-row .select() limit.
+const SEL = "id, full_name, linkedin_url, title, company, headline, location, roles, provisors_member, cfo_circle_member, sponsor_state, cfo_state, referral_state, source"
+
+function applyRole(query, role) {
+  switch (role) {
+    case "provisor":   return query.eq("provisors_member", true)
+    case "cfo_circle": return query.eq("cfo_circle_member", true)
+    case "sponsor":    return query.contains("roles", ["sponsor_contact"])
+    case "cfo":        return query.contains("roles", ["cfo"])
+    case "referral":   return query.contains("roles", ["referral_partner"])
+    case "none":       return query.eq("provisors_member", false).eq("cfo_circle_member", false).or("roles.is.null,roles.eq.{}")
+    default:           return query // "all"
+  }
+}
+
 export async function GET(request) {
   if (!isLinkedInConnectionsEnabled()) return flagged()
   const sb = serverClient()
   const url = new URL(request.url)
-  const relevance = url.searchParams.get("relevance")     // cfo_circle | stalliant | network_visibility | legacy | unrated | all
-  const heat      = url.searchParams.get("heat")          // hot | warm | cold | all
-  const status    = url.searchParams.get("status")        // connected | pending_invite | withdrawn | disconnected | all
-  const source    = url.searchParams.get("source")
-  const q         = url.searchParams.get("q")             // name/company text match
-  const limit     = Math.min(Number(url.searchParams.get("limit")) || 100, 500)
-  const offset    = Math.max(0, Number(url.searchParams.get("offset")) || 0)
+  const role   = url.searchParams.get("role") || "all"
+  const q      = url.searchParams.get("q")
+  const limit  = Math.min(Number(url.searchParams.get("limit")) || 100, 500)
+  const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0)
 
-  let query = sb.from("linkedin_connections").select(`
-    id, linkedin_url, full_name, first_name, last_name, headline,
-    current_company, current_title, location, connection_status,
-    relevance, heat, source, tags, peerchair_person_id, notes,
-    connected_at, last_event_at, last_event_type, last_seen_at, updated_at,
-    person:peerchair_person_id ( id, full_name, roles, cfo_state, sponsor_state, referral_state )
-  `, { count: "exact" })
-
-  if (relevance && relevance !== "all") query = query.eq("relevance", relevance)
-  if (heat      && heat      !== "all") query = query.eq("heat", heat)
-  if (status    && status    !== "all") query = query.eq("connection_status", status)
-  if (source)                            query = query.eq("source", source)
-  if (q) query = query.or(`full_name.ilike.%${q}%,current_company.ilike.%${q}%,current_title.ilike.%${q}%`)
-
-  query = query.order("updated_at", { ascending: false }).range(offset, offset + limit - 1)
+  let query = sb.from("people").select(SEL, { count: "exact" }).eq("linkedin_connected", true)
+  query = applyRole(query, role)
+  if (q) query = query.or(`full_name.ilike.%${q}%,company.ilike.%${q}%,title.ilike.%${q}%`)
+  query = query.order("full_name", { ascending: true }).range(offset, offset + limit - 1)
 
   const { data, count, error } = await query
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
-  // Tallies for filter chips
-  const { data: tally } = await sb.from("linkedin_connections")
-    .select("relevance, heat, connection_status")
-  const counts = {
-    relevance: { cfo_circle: 0, stalliant: 0, network_visibility: 0, legacy: 0, unrated: 0 },
-    heat:      { hot: 0, warm: 0, cold: 0 },
-    status:    { connected: 0, pending_invite: 0, withdrawn: 0, disconnected: 0 },
-    total: tally?.length || 0,
+  // Filter-chip counts — head:true so they reflect the true totals, not a 1000-row cap.
+  async function cnt(r) {
+    let qq = sb.from("people").select("id", { count: "exact", head: true }).eq("linkedin_connected", true)
+    qq = applyRole(qq, r)
+    const { count } = await qq
+    return count || 0
   }
-  for (const r of (tally || [])) {
-    counts.relevance[r.relevance] = (counts.relevance[r.relevance] || 0) + 1
-    counts.heat[r.heat] = (counts.heat[r.heat] || 0) + 1
-    counts.status[r.connection_status] = (counts.status[r.connection_status] || 0) + 1
-  }
+  const [all, provisor, sponsor, cfo, referral, cfo_circle, none] = await Promise.all([
+    cnt("all"), cnt("provisor"), cnt("sponsor"), cnt("cfo"), cnt("referral"), cnt("cfo_circle"), cnt("none"),
+  ])
 
-  return Response.json({ items: data || [], total_filtered: count || 0, counts })
+  return Response.json({
+    items: data || [],
+    total_filtered: count || 0,
+    counts: { all, provisor, sponsor, cfo, referral, cfo_circle, none },
+  })
 }
 
 // POST — import a CSV file. multipart/form-data with field "file" + optional "source" + optional "default_relevance"
