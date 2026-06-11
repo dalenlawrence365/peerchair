@@ -18,6 +18,10 @@ function fmtDate(d) {
 function initials(name) {
   return (name || "?").split(/\s+/).slice(0, 2).map(w => w[0] || "").join("").toUpperCase()
 }
+function fmtShort(d) {
+  if (!d) return ""
+  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
 
 // LinkedIn-coverage bucket for an attendee. The three non-"all" buckets partition the
 // roster: has-URL+connected, has-URL+not-connected, and no-URL-at-all → they sum to All.
@@ -30,6 +34,7 @@ const STATS = [
   { key: "connected", label: "Connected", color: "#15803d", tint: "rgba(21,128,61,0.09)" },
   { key: "notconnected", label: "Not connected", color: "#b45309", tint: "rgba(180,83,9,0.09)" },
   { key: "nourl", label: "No LinkedIn URL", color: "#6b7280", tint: "rgba(107,114,128,0.10)" },
+  { key: "connsent", label: "Connection sent", color: "#0a66c2", tint: "rgba(10,102,194,0.10)" },
 ]
 
 function Face({ p }) {
@@ -61,10 +66,13 @@ export default function MeetingDetail() {
   if (!data) return <main style={{ padding: 32 }}><div style={{ color: T.textTertiary }}>Loading…</div></main>
 
   const { meeting, attendees } = data
-  const counts = { all: attendees.length, connected: 0, notconnected: 0, nourl: 0 }
-  for (const p of attendees) counts[bucketOf(p)]++
+  const counts = { all: attendees.length, connected: 0, notconnected: 0, nourl: 0, connsent: 0 }
+  for (const p of attendees) { counts[bucketOf(p)]++; if (p.connection_sent_at) counts.connsent++ }
   const needle = q.trim().toLowerCase()
-  const byFilter = filter === "all" ? attendees : attendees.filter(p => bucketOf(p) === filter)
+  const byFilter =
+    filter === "all" ? attendees
+    : filter === "connsent" ? attendees.filter(p => p.connection_sent_at)
+    : attendees.filter(p => bucketOf(p) === filter)
   const filtered = needle
     ? byFilter.filter(p => (p.full_name || "").toLowerCase().includes(needle) || (p.company || "").toLowerCase().includes(needle))
     : byFilter
@@ -114,7 +122,7 @@ export default function MeetingDetail() {
               <div style={{ fontSize: 11.5, color: T.textTertiary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {p.title ? p.title + " · " : ""}{p.company || ""}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                 {p.linkedin_url && (
                   <a href={p.linkedin_url} target="_blank" rel="noreferrer" style={{ fontSize: 10.5, color: "#0a66c2", textDecoration: "none", fontWeight: 600 }}>in ↗</a>
                 )}
@@ -123,6 +131,9 @@ export default function MeetingDetail() {
                 </span>
                 {p.sponsor_state && (
                   <span style={{ fontSize: 9.5, padding: "1px 6px", borderRadius: 999, background: "rgba(168,85,247,0.14)", color: "#7c3aed", fontWeight: 600 }}>sponsor</span>
+                )}
+                {p.connection_sent_at && (
+                  <span style={{ fontSize: 9.5, padding: "1px 6px", borderRadius: 999, background: "rgba(10,102,194,0.12)", color: "#0a66c2", fontWeight: 600, whiteSpace: "nowrap" }}>connection sent · {fmtShort(p.connection_sent_at)}</span>
                 )}
               </div>
             </div>
