@@ -3,48 +3,67 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { T } from "@/lib/pipelineTheme"
 
-const RELEVANCE = [
-  { key: "all",                label: "All",                 color: T.textTertiary },
-  { key: "unrated",            label: "Unrated",             color: "#94a3b8" },
-  { key: "cfo_circle",         label: "CFO Circle",          color: "#f97316" },
-  { key: "stalliant",          label: "Stalliant",           color: "#0d9488" },
-  { key: "network_visibility", label: "Network visibility",  color: "#3b82f6" },
-  { key: "legacy",             label: "Legacy",              color: "#71717a" },
+// Role filters == the pills. Sourced from people.linkedin_connected (first-degree).
+const ROLES = [
+  { key: "all",        label: "All",         color: "#0a66c2" },
+  { key: "provisor",   label: "ProVisor",    color: "#7c3aed" },
+  { key: "sponsor",    label: "Sponsor",     color: "#0d9488" },
+  { key: "cfo",        label: "CFO",         color: "#f97316" },
+  { key: "referral",   label: "Referral",    color: "#3b82f6" },
+  { key: "cfo_circle", label: "CFO Circle",  color: "#ea580c" },
+  { key: "none",       label: "No role",     color: "#64748b" },
 ]
-const HEAT_COLOR = { hot: "#ef4444", warm: "#f59e0b", cold: "#64748b" }
-const STATUS_COLOR = { connected: "#10b981", pending_invite: "#f59e0b", withdrawn: "#94a3b8", disconnected: "#dc2626" }
 
-function fmtDate(s) {
-  if (!s) return "—"
-  return new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+function pillsFor(p) {
+  const r = p.roles || []
+  const out = []
+  if (p.provisors_member) out.push({ label: "ProVisor", color: "#7c3aed" })
+  if (r.includes("sponsor_contact")) out.push({ label: "Sponsor", color: "#0d9488" })
+  if (r.includes("cfo")) out.push({ label: "CFO", color: "#f97316" })
+  if (r.includes("referral_partner")) out.push({ label: "Referral", color: "#3b82f6" })
+  if (p.cfo_circle_member) out.push({ label: "CFO Circle", color: "#ea580c" })
+  return out
 }
 
 export default function LinkedInConnectionsPage() {
-  const [relevance, setRelevance] = useState("all")
-  const [heat, setHeat] = useState("all")
-  const [status, setStatus] = useState("connected")
+  const [role, setRole] = useState("all")
   const [q, setQ] = useState("")
+  const [limit, setLimit] = useState(100)
+  const [offset, setOffset] = useState(0)
+  const [reload, setReload] = useState(0)
   const [data, setData] = useState(null)
   const [err, setErr] = useState(null)
+  const [loading, setLoading] = useState(false)
 
   async function load() {
+    setLoading(true)
     try {
-      const params = new URLSearchParams({ relevance, heat, status })
+      const params = new URLSearchParams({ role, limit: String(limit), offset: String(offset) })
       if (q) params.set("q", q)
       const r = await fetch(`/api/linkedin-connections?${params}`, { cache: "no-store" })
       if (!r.ok) throw new Error("HTTP " + r.status)
       setData(await r.json())
-    } catch (e) { setErr(e.message) }
+      setErr(null)
+    } catch (e) { setErr(e.message) } finally { setLoading(false) }
   }
-  useEffect(function(){ load() }, [relevance, heat, status])
+  useEffect(function(){ load() }, [role, limit, offset, reload])
+
+  function pickRole(k) { setRole(k); setOffset(0) }
+  function runSearch() { setOffset(0); setReload(x => x + 1) }
+
+  const total = data ? data.total_filtered : 0
+  const from = total === 0 ? 0 : offset + 1
+  const to = Math.min(offset + limit, total)
+  const canPrev = offset > 0
+  const canNext = offset + limit < total
 
   return (
     <main style={{ padding: "32px 36px", maxWidth: 1200 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>LinkedIn connections</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>First-degree connections</h1>
           <p style={{ color: T.textSecondary, fontSize: 13, marginTop: 8, marginBottom: 20, maxWidth: 720 }}>
-            Mirror of your LinkedIn graph, curated for relevance. People show here regardless of whether they're in PeerChair as an active pipeline contact — when they ARE, the cross-reference appears on each row.
+            Everyone marked as a first-degree LinkedIn connection. Each row is a person in PeerChair — click the name to open their profile. Filter by role using the pills below.
           </p>
         </div>
         <Link href="/linkedin-connections/import"
@@ -53,122 +72,120 @@ export default function LinkedInConnectionsPage() {
         </Link>
       </div>
 
-      {/* Relevance filter chips */}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-        {RELEVANCE.map(function(r){
-          const active = relevance === r.key
-          const count = data && (r.key === "all" ? (data.counts && data.counts.total) : (data.counts && data.counts.relevance && data.counts.relevance[r.key]))
+      {/* Role filter pills */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+        {ROLES.map(function(r){
+          const active = role === r.key
+          const count = data && data.counts ? data.counts[r.key] : undefined
           return (
-            <button key={r.key} onClick={function(){ setRelevance(r.key) }}
+            <button key={r.key} onClick={function(){ pickRole(r.key) }}
               style={{
-                fontSize: 12, padding: "6px 10px", borderRadius: 16,
+                fontSize: 12, padding: "6px 11px", borderRadius: 16,
                 border: "1px solid " + (active ? r.color : T.border),
                 background: active ? r.color : "white",
                 color: active ? "white" : T.textPrimary,
-                cursor: "pointer", fontFamily: "inherit", fontWeight: active ? 600 : 400,
-                whiteSpace: "nowrap",
+                cursor: "pointer", fontFamily: "inherit", fontWeight: active ? 600 : 400, whiteSpace: "nowrap",
               }}>
-              {r.label}{count !== undefined && <span style={{ marginLeft: 6, opacity: 0.7, fontSize: 11 }}>{count}</span>}
+              {r.label}{count !== undefined && <span style={{ marginLeft: 6, opacity: 0.7, fontSize: 11 }}>{count.toLocaleString()}</span>}
             </button>
           )
         })}
       </div>
 
-      {/* Secondary controls: heat + status + search */}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 20, flexWrap: "wrap" }}>
-        <select value={heat} onChange={e => setHeat(e.target.value)}
-          style={{ fontSize: 12, padding: "5px 8px", borderRadius: 6, border: "1px solid " + T.border, background: "white", fontFamily: "inherit" }}>
-          <option value="all">Heat: all</option>
-          <option value="hot">Hot</option>
-          <option value="warm">Warm</option>
-          <option value="cold">Cold</option>
-        </select>
-        <select value={status} onChange={e => setStatus(e.target.value)}
-          style={{ fontSize: 12, padding: "5px 8px", borderRadius: 6, border: "1px solid " + T.border, background: "white", fontFamily: "inherit" }}>
-          <option value="all">Status: all</option>
-          <option value="connected">Connected</option>
-          <option value="pending_invite">Pending invite</option>
-          <option value="withdrawn">Withdrawn</option>
-          <option value="disconnected">Disconnected</option>
-        </select>
-        <input value={q} onChange={e => setQ(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") load() }}
+      {/* Search + page size */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+        <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === "Enter") runSearch() }}
           placeholder="Search name / company / title…"
-          style={{ flex: 1, minWidth: 220, fontSize: 13, padding: "6px 12px", borderRadius: 6, border: "1px solid " + T.border, background: "white", fontFamily: "inherit", boxSizing: "border-box" }} />
-        <button onClick={load}
-          style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textPrimary, cursor: "pointer", fontFamily: "inherit" }}>
+          style={{ flex: 1, minWidth: 220, fontSize: 13, padding: "7px 12px", borderRadius: 6, border: "1px solid " + T.border, background: "white", fontFamily: "inherit", boxSizing: "border-box" }} />
+        <button onClick={runSearch}
+          style={{ fontSize: 12, padding: "7px 14px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textPrimary, cursor: "pointer", fontFamily: "inherit" }}>
           Search
         </button>
+        <select value={limit} onChange={e => { setLimit(Number(e.target.value)); setOffset(0) }}
+          style={{ fontSize: 12, padding: "7px 8px", borderRadius: 6, border: "1px solid " + T.border, background: "white", fontFamily: "inherit" }}>
+          <option value={100}>100 / page</option>
+          <option value={500}>500 / page</option>
+        </select>
       </div>
 
       {err && <div style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>Error: {err}</div>}
       {data === null && !err && <div style={{ color: T.textTertiary, fontSize: 13 }}>Loading…</div>}
 
       {data && (
-        <div style={{ fontSize: 12, color: T.textTertiary, marginBottom: 8 }}>
-          {data.total_filtered.toLocaleString()} of {(data.counts && data.counts.total || 0).toLocaleString()} connections
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: T.textTertiary }}>
+            {total === 0 ? "No matches" : <>Showing <b>{from.toLocaleString()}–{to.toLocaleString()}</b> of <b>{total.toLocaleString()}</b></>}
+            {loading && <span style={{ marginLeft: 8, opacity: 0.6 }}>updating…</span>}
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button disabled={!canPrev} onClick={() => setOffset(Math.max(0, offset - limit))}
+              style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: canPrev ? T.textPrimary : T.textTertiary, cursor: canPrev ? "pointer" : "default", fontFamily: "inherit" }}>
+              ← Prev
+            </button>
+            <button disabled={!canNext} onClick={() => setOffset(offset + limit)}
+              style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: canNext ? T.textPrimary : T.textTertiary, cursor: canNext ? "pointer" : "default", fontFamily: "inherit" }}>
+              Next →
+            </button>
+          </div>
         </div>
       )}
 
-      {data && data.items.length === 0 && (
+      {data && data.items.length === 0 && !loading && (
         <div style={{ color: T.textTertiary, fontSize: 13, padding: "32px 0", textAlign: "center" }}>
-          {(data.counts && data.counts.total === 0)
-            ? <>No connections yet. <Link href="/linkedin-connections/import" style={{ color: "#3b82f6" }}>Import your LinkedIn export</Link> to get started.</>
-            : "No connections match the current filters."}
+          No first-degree connections match the current filter.
         </div>
       )}
 
       {data && data.items.length > 0 && (
         <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, overflow: "hidden" }}>
-          {data.items.map(function(c, idx){
-            const relConf = RELEVANCE.find(r => r.key === c.relevance) || RELEVANCE[1]
-            const isOverlap = !!c.peerchair_person_id
+          {data.items.map(function(p, idx){
+            const pills = pillsFor(p)
             return (
-              <div key={c.id} style={{
+              <div key={p.id} style={{
                 padding: "12px 16px",
                 borderBottom: idx < data.items.length - 1 ? "1px solid " + T.borderSoft : "none",
                 display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center",
               }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer"
-                       style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, textDecoration: "none" }}>
-                      {c.full_name || "(no name)"}
-                    </a>
-                    {isOverlap && (
-                      <Link href={`/people/${c.peerchair_person_id}`}
-                        style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "#10b981", color: "white", textDecoration: "none", fontWeight: 500 }}>
-                        Also in PeerChair {c.person && (c.person.roles || []).length > 0 ? "· " + c.person.roles.join(", ") : ""}
-                      </Link>
+                    <Link href={`/people/${p.id}`}
+                      style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, textDecoration: "none" }}>
+                      {p.full_name || "(no name)"}
+                    </Link>
+                    {p.linkedin_url && (
+                      <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize: 11, color: "#0a66c2", textDecoration: "none", fontWeight: 600 }}>in↗</a>
                     )}
                   </div>
-                  {(c.current_title || c.current_company) && (
+                  {(p.title || p.company) && (
                     <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>
-                      {[c.current_title, c.current_company].filter(Boolean).join(" · ")}
+                      {[p.title, p.company].filter(Boolean).join(" · ")}
                     </div>
                   )}
-                  <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <span>Connected: {fmtDate(c.connected_at)}</span>
-                    {c.location && <span>{c.location}</span>}
-                    {c.source && <span>Source: {c.source}</span>}
-                  </div>
+                  {p.location && <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 3 }}>{p.location}</div>}
                 </div>
-                <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                  <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: relConf.color, color: "white" }}>
-                    {relConf.label}
-                  </span>
-                  <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: HEAT_COLOR[c.heat] + "22", color: HEAT_COLOR[c.heat] }}>
-                    {c.heat}
-                  </span>
-                  {c.connection_status !== "connected" && (
-                    <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: STATUS_COLOR[c.connection_status] + "22", color: STATUS_COLOR[c.connection_status] }}>
-                      {c.connection_status.replace(/_/g, " ")}
-                    </span>
-                  )}
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: "#0a66c222", color: "#0a66c2" }}>1st</span>
+                  {pills.map(function(pl){
+                    return <span key={pl.label} style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: pl.color, color: "white" }}>{pl.label}</span>
+                  })}
                 </div>
               </div>
             )
           })}
+        </div>
+      )}
+
+      {data && data.items.length > 0 && (
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 12 }}>
+          <button disabled={!canPrev} onClick={() => setOffset(Math.max(0, offset - limit))}
+            style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: canPrev ? T.textPrimary : T.textTertiary, cursor: canPrev ? "pointer" : "default", fontFamily: "inherit" }}>
+            ← Prev
+          </button>
+          <button disabled={!canNext} onClick={() => setOffset(offset + limit)}
+            style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: canNext ? T.textPrimary : T.textTertiary, cursor: canNext ? "pointer" : "default", fontFamily: "inherit" }}>
+            Next →
+          </button>
         </div>
       )}
     </main>
