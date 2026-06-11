@@ -145,6 +145,7 @@ export default function PersonProfile() {
 
   // Action UI state
   const [noteText, setNoteText] = useState("")
+  const [expandedComms, setExpandedComms] = useState({})
   const [savingNote, setSavingNote] = useState(false)
   const [busy, setBusy] = useState(false)
   const [newStatusTag, setNewStatusTag] = useState("")
@@ -851,11 +852,22 @@ export default function PersonProfile() {
                 {c.subject && (
                   <div style={{ fontSize: 13, fontWeight: 500, marginTop: 4 }}>{c.subject}</div>
                 )}
-                {c.body && (
-                  <div style={{ fontSize: 13, color: T.textPrimary, marginTop: 4, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-                    {c.body.length > 600 ? c.body.slice(0, 600) + "…" : c.body}
-                  </div>
-                )}
+                {c.body && (() => {
+                  const long = c.body.length > 600
+                  const expanded = !!expandedComms[c.id]
+                  const shownBody = (long && !expanded) ? c.body.slice(0, 600) + "…" : c.body
+                  return (
+                    <div style={{ fontSize: 13, color: T.textPrimary, marginTop: 4, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                      {shownBody}
+                      {long && (
+                        <button onClick={function(){ setExpandedComms(function(s){ return Object.assign({}, s, { [c.id]: !expanded }) }) }}
+                          style={{ display: "block", marginTop: 6, padding: 0, background: "none", border: "none", color: "#3b82f6", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit" }}>
+                          {expanded ? "Show less" : `Show more (${c.body.length.toLocaleString()} chars)`}
+                        </button>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             )
           })}
