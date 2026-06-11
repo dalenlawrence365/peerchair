@@ -150,6 +150,13 @@ export default function ProvisorsPage() {
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
         <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: -0.4, margin: 0 }}>ProVisors</h1>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Link href="/provisors/meetings" style={{
+            fontSize: 12, padding: "6px 12px", borderRadius: 6, background: "white",
+            color: T.textSecondary, border: "1px solid " + T.border, cursor: "pointer",
+            fontWeight: 500, textDecoration: "none",
+          }}>
+            Meetings
+          </Link>
           <Link href="/provisors/review" style={{
             position: "relative", fontSize: 12, padding: "6px 12px", borderRadius: 6,
             background: "white", color: pending > 0 ? "#15803d" : T.textSecondary,
