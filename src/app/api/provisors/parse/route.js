@@ -27,6 +27,7 @@ const PROMPT = `You are extracting attendee records from a ProVisors meeting ros
 Return ONLY valid JSON (no prose, no markdown fences) of the shape:
 {
   "meetingGroup": "<the meeting's group, from the roster header/title>",
+  "meetingDate": "<the meeting date as YYYY-MM-DD if the roster states a specific date, else empty>",
   "people": [
     {
       "full_name": "First Last",
@@ -91,6 +92,7 @@ export async function POST(request) {
     return Response.json({ error: "could not parse model output as JSON", raw: text.slice(0, 2000) }, { status: 502 })
   }
   const meetingGroup = parsed.meetingGroup || null
+  const meetingDate = (parsed.meetingDate && /^\d{4}-\d{2}-\d{2}$/.test(parsed.meetingDate)) ? parsed.meetingDate : null
   const people = Array.isArray(parsed.people) ? parsed.people : []
 
   // 2) Dedupe analysis — annotate each person new/existing (read-only; no writes to people)
@@ -109,7 +111,7 @@ export async function POST(request) {
     meeting_group: meetingGroup,
     filename: body.filename || null,
     status: "pending",
-    payload: { meetingGroup, people },
+    payload: { meetingGroup, meetingDate, people },
     summary,
   }).select("id").single()
   if (error || !batch) return Response.json({ error: "could not stage batch", detail: error && error.message }, { status: 500 })
