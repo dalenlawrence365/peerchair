@@ -1,60 +1,30 @@
 export const dynamic = "force-dynamic"
 import { serverClient } from "@/lib/supabaseServer"
 
-// PATCH /api/meetings/[id]
-// Body: { tags?: string[] }  — full replacement of the tag set
-// Body: { add?: string[], remove?: string[] }  — incremental edit
-//
-// Used by the meetings page inline pill editor. Pass either `tags` (full
-// replace) or the add/remove combo (additive). Validation: tag values
-// must be in VALID_TAGS so typos / arbitrary strings don't leak in.
-
-const VALID_TAGS = new Set([
-  // Pipeline-type tags (one or zero per meeting)
-  "fit_call", "sponsor_discovery", "call",
-  // Role tags from attendees
-  "cfo", "sponsor", "referral",
-  // Networking + sub-tags
-  "networking", "provisors", "acg", "mixer", "troika",
-  // Other categories
-  "chapter_peer", "personal", "other",
-])
-
-export async function PATCH(req, { params }) {
-  const { id } = await params
-  const body = await req.json().catch(() => ({}))
+// GET /api/meetings/[id] — one meeting + the people who were there.
+export async function GET(request, { params }) {
+  const id = params?.id
+  if (!id) return Response.json({ error: "id required" }, { status: 400 })
   const sb = serverClient()
 
-  const { data: row, error: getErr } = await sb
-    .from("meetings").select("tags").eq("id", id).maybeSingle()
-  if (getErr) return Response.json({ error: getErr.message }, { status: 500 })
-  if (!row)   return Response.json({ error: "Meeting not found" }, { status: 404 })
+  const { data: meeting, error } = await sb.from("provisors_meetings")
+    .select("id, meeting_date, label, outlook_event_id, group_id, provisors_groups(name)")
+    .eq("id", id).maybeSingle()
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (!meeting) return Response.json({ error: "Meeting not found" }, { status: 404 })
 
-  let newTags
-  if (Array.isArray(body.tags)) {
-    newTags = body.tags
-  } else {
-    const current = new Set(row.tags || [])
-    for (const t of body.add || []) current.add(t)
-    for (const t of body.remove || []) current.delete(t)
-    newTags = Array.from(current)
-  }
+  const { data: att } = await sb.from("meeting_attendance")
+    .select("people(id, full_name, company, title, avatar_url, photo_url, linkedin_url, linkedin_connected, roles, provisors_member, sponsor_state)")
+    .eq("meeting_id", id)
+  const attendees = (att || []).map(r => r.people).filter(Boolean)
+    .sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""))
 
-  // Validation: every tag must be in the vocabulary, no duplicates
-  const invalid = newTags.filter(t => !VALID_TAGS.has(t))
-  if (invalid.length) {
-    return Response.json({ error: "Invalid tag(s): " + invalid.join(", ") }, { status: 400 })
-  }
-  newTags = Array.from(new Set(newTags))
-
-  const { error: upErr } = await sb.from("meetings")
-    .update({
-      tags: newTags,
-      tags_manually_edited: true,
-      updated_at: new Date().toISOString()
-    })
-    .eq("id", id)
-  if (upErr) return Response.json({ error: upErr.message }, { status: 500 })
-
-  return Response.json({ ok: true, tags: newTags })
+  return Response.json({
+    meeting: {
+      id: meeting.id, meeting_date: meeting.meeting_date, label: meeting.label,
+      group: meeting.provisors_groups ? meeting.provisors_groups.name : null,
+      outlook_event_id: meeting.outlook_event_id,
+    },
+    attendees,
+  })
 }
