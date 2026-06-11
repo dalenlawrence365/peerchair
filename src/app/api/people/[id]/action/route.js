@@ -91,6 +91,23 @@ export async function POST(request, { params }) {
     const actionType = (body.action_type || body.tag || "").trim()
     if (!actionType) return Response.json({ error: "action_type required" }, { status: 400 })
 
+    // Marking a connection accepted flips the LinkedIn pill to connected and lifts any
+    // pool/none role to 'audience' (a first-degree connection is, by definition, in the
+    // audience). Runs before the same-day de-dupe return so re-clicking accept always
+    // leaves the pill connected, even if the tag itself is a same-day dupe. Never demotes.
+    if (actionType === "connection_accepted") {
+      await sb.from("people").update({ linkedin_connected: true }).eq("id", id)
+      const { data: full } = await sb.from("people")
+        .select("roles, cfo_state, sponsor_state, referral_state").eq("id", id).maybeSingle()
+      const stateField = { cfo: "cfo_state", sponsor_contact: "sponsor_state", referral_partner: "referral_state" }
+      for (const role of (full?.roles || [])) {
+        const cur = full[stateField[role]]
+        if (cur === null || cur === undefined || cur === "" || cur === "pool") {
+          await sb.rpc("set_role_state", { p_person_id: id, p_role: RPC_ROLE[role] || role, p_new_state: "audience", p_set_by: "connection_accepted" })
+        }
+      }
+    }
+
     // De-dupe connection lifecycle tags to one-per-person-per-day so an accidental
     // double-click (or same-day re-click) doesn't write duplicate rows. A genuine re-send
     // on a later day still records. Backed by the uniq_conn_lifecycle_tag_per_day index.
