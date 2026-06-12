@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data: people, error } = await sb
     .from("people")
-    .select("id, full_name, first_name, last_name, title, company, email, linkedin_url, photo_url, linkedin_connected, cfo_circle_member, roles, cfo_state, sponsor_state, referral_state, last_meaningful_touch, notes")
+    .select("id, full_name, first_name, last_name, title, company, email, linkedin_url, photo_url, linkedin_connected, inbound_request, cfo_circle_member, roles, cfo_state, sponsor_state, referral_state, last_meaningful_touch, notes")
     .eq("provisors_member", true)
     .limit(2000)
   if (error) return Response.json({ error: error.message }, { status: 500 })
@@ -24,6 +24,24 @@ export async function GET() {
     const nm = row.provisors_groups?.name
     if (!nm) continue
     ;(groupsByPerson[row.person_id] ||= []).push(nm)
+  }
+
+  // Connection-sent markers: person_id -> latest sent date (drives the "Requested" pill)
+  const sentByPerson = {}
+  {
+    const ids = people.map(p => p.id)
+    if (ids.length) {
+      const { data: sentRows } = await sb
+        .from("person_action_tags")
+        .select("person_id, as_of_date, set_at")
+        .eq("action_type", "connection_sent")
+        .in("person_id", ids)
+      for (const r of (sentRows || [])) {
+        const d = r.as_of_date || (r.set_at ? String(r.set_at).slice(0, 10) : null)
+        if (!(r.person_id in sentByPerson)) sentByPerson[r.person_id] = d
+        else if (d && (!sentByPerson[r.person_id] || d > sentByPerson[r.person_id])) sentByPerson[r.person_id] = d
+      }
+    }
   }
 
   // Aggregate stats
@@ -69,6 +87,9 @@ export async function GET() {
     linkedin_url: p.linkedin_url,
     photo_url: p.photo_url,
     linkedin_connected: p.linkedin_connected,
+    connection_sent: (p.id in sentByPerson),
+    connection_sent_at: sentByPerson[p.id] || null,
+    inbound_request: p.inbound_request === true,
     groups: groupsByPerson[p.id] || [],
     roles: p.roles || [],
     provisors_member: true,
