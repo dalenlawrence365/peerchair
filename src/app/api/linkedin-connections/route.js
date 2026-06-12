@@ -13,7 +13,7 @@ function flagged() {
 // GET — paginated list of first-degree people (linkedin_connected), filtered by ROLE.
 // Sources from the people table (the unified superset), NOT the frozen linkedin_connections
 // snapshot. Counts use head:true so they are not capped at Supabase's 1000-row .select() limit.
-const SEL = "id, full_name, linkedin_url, title, company, headline, location, roles, provisors_member, cfo_circle_member, sponsor_state, cfo_state, referral_state, source"
+const SEL = "id, full_name, linkedin_url, title, company, headline, location, roles, provisors_member, cfo_circle_member, sponsor_state, cfo_state, referral_state, source, linkedin_connected"
 
 function applyRole(query, role) {
   switch (role) {

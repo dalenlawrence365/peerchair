@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { T } from "@/lib/pipelineTheme"
+import PersonBadges from "@/components/PersonBadges"
 
 function Pill({ bg, fg, text }) {
   return (
@@ -11,12 +12,6 @@ function Pill({ bg, fg, text }) {
       background: bg, color: fg, whiteSpace: "nowrap",
     }}>{text}</span>
   )
-}
-
-const ROLE_PILL = {
-  cfo:               { bg: "rgba(59,130,246,0.12)", fg: "#3b82f6", label: "CFO" },
-  sponsor_contact:   { bg: "rgba(22,163,74,0.14)",  fg: "#15803d", label: "Sponsor" },
-  referral_partner:  { bg: "rgba(59,130,246,0.10)", fg: "#1d4ed8", label: "Referral" },
 }
 
 // Short labels for Dalen's ProVisors groups
@@ -285,26 +280,20 @@ function ProvisorRow({ p, isLast, busy, onUnflag }) {
       borderBottom: isLast ? "none" : "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)"),
       opacity: busy ? 0.5 : 1,
     }}>
-      <Avatar name={p.name} src={p.photo_url} />
+      <Link href={`/people/${p.id}`} style={{ flexShrink: 0, textDecoration: "none" }}>
+        <Avatar name={p.name} src={p.photo_url} />
+      </Link>
 
-      <Link href={`/people/${p.id}`} style={{ flex: 1, minWidth: 0, textDecoration: "none", color: T.textPrimary }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 3 }}>
-          <span style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</span>
-          {(p.roles || []).map(r => {
-            const m = ROLE_PILL[r]
-            if (!m) return null
-            return <Pill key={r} bg={m.bg} fg={m.fg} text={m.label} />
-          })}
-          {p.linkedin_connected === true && (
-            <Pill bg="rgba(10,102,194,0.12)" fg="#0a66c2" text="✓ 1st" />
-          )}
-          {p.linkedin_connected === false && (
-            <Pill bg="rgba(0,0,0,0.05)" fg={T.textTertiary} text="not connected" />
-          )}
+          <Link href={`/people/${p.id}`} style={{ fontSize: 14, fontWeight: 500, color: T.textPrimary, textDecoration: "none" }}>{p.name}</Link>
+          <PersonBadges person={p} />
         </div>
-        <div style={{ fontSize: 12, color: T.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: (p.groups && p.groups.length) ? 5 : 0 }}>
-          {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
-        </div>
+        <Link href={`/people/${p.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+          <div style={{ fontSize: 12, color: T.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: (p.groups && p.groups.length) ? 5 : 0 }}>
+            {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
+          </div>
+        </Link>
         {p.groups && p.groups.length > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
             {p.groups.map(g => (
@@ -312,7 +301,7 @@ function ProvisorRow({ p, isLast, busy, onUnflag }) {
             ))}
           </div>
         )}
-      </Link>
+      </div>
 
       <div style={{ textAlign: "right", whiteSpace: "nowrap", fontSize: 11, color: T.textTertiary, lineHeight: 1.55, paddingTop: 1, minWidth: 130 }}>
         <div>Last touch {fmtRel(p.last_touch)}</div>
@@ -320,14 +309,6 @@ function ProvisorRow({ p, isLast, busy, onUnflag }) {
           <div>
             <a href={`mailto:${p.email}`} style={{ color: "#3b82f6", textDecoration: "none", fontWeight: 500 }}>
               ✉ {p.email.length > 22 ? p.email.slice(0, 20) + "…" : p.email}
-            </a>
-          </div>
-        )}
-        {p.linkedin_url && (
-          <div>
-            <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer"
-               style={{ color: "#0a66c2", textDecoration: "none", fontWeight: 500 }}>
-              in&nbsp;LinkedIn ↗
             </a>
           </div>
         )}

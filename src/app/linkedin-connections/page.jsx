@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { T } from "@/lib/pipelineTheme"
+import PersonBadges from "@/components/PersonBadges"
 
 // Role filters == the pills. Sourced from people.linkedin_connected (first-degree).
 const ROLES = [
@@ -13,17 +14,6 @@ const ROLES = [
   { key: "cfo_circle", label: "CFO Circle",  color: "#ea580c" },
   { key: "none",       label: "No role",     color: "#64748b" },
 ]
-
-function pillsFor(p) {
-  const r = p.roles || []
-  const out = []
-  if (p.provisors_member) out.push({ label: "ProVisor", color: "#7c3aed" })
-  if (r.includes("sponsor_contact")) out.push({ label: "Sponsor", color: "#0d9488" })
-  if (r.includes("cfo")) out.push({ label: "CFO", color: "#f97316" })
-  if (r.includes("referral_partner")) out.push({ label: "Referral", color: "#3b82f6" })
-  if (p.cfo_circle_member) out.push({ label: "CFO Circle", color: "#ea580c" })
-  return out
-}
 
 export default function LinkedInConnectionsPage() {
   const [role, setRole] = useState("all")
@@ -139,37 +129,25 @@ export default function LinkedInConnectionsPage() {
       {data && data.items.length > 0 && (
         <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, overflow: "hidden" }}>
           {data.items.map(function(p, idx){
-            const pills = pillsFor(p)
             return (
               <div key={p.id} style={{
                 padding: "12px 16px",
                 borderBottom: idx < data.items.length - 1 ? "1px solid " + T.borderSoft : "none",
-                display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center",
+                display: "flex", flexDirection: "column", gap: 2,
               }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <Link href={`/people/${p.id}`}
-                      style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, textDecoration: "none" }}>
-                      {p.full_name || "(no name)"}
-                    </Link>
-                    {p.linkedin_url && (
-                      <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer"
-                        style={{ fontSize: 11, color: "#0a66c2", textDecoration: "none", fontWeight: 600 }}>in↗</a>
-                    )}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <Link href={`/people/${p.id}`}
+                    style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, textDecoration: "none" }}>
+                    {p.full_name || "(no name)"}
+                  </Link>
+                  <PersonBadges person={p} />
+                </div>
+                {(p.title || p.company) && (
+                  <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>
+                    {[p.title, p.company].filter(Boolean).join(" · ")}
                   </div>
-                  {(p.title || p.company) && (
-                    <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>
-                      {[p.title, p.company].filter(Boolean).join(" · ")}
-                    </div>
-                  )}
-                  {p.location && <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 3 }}>{p.location}</div>}
-                </div>
-                <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: "#0a66c222", color: "#0a66c2" }}>1st</span>
-                  {pills.map(function(pl){
-                    return <span key={pl.label} style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: pl.color, color: "white" }}>{pl.label}</span>
-                  })}
-                </div>
+                )}
+                {p.location && <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 3 }}>{p.location}</div>}
               </div>
             )
           })}

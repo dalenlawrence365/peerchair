@@ -23,7 +23,9 @@ const CONFIG = {
   },
 }
 
-const SEL = "id, full_name, first_name, last_name, title, company, email, linkedin_url, avatar_url, last_meaningful_touch, next_action_date"
+// roles + connection flags are selected so the list can render the canonical
+// PersonBadges pill cluster (1st / ProVisor / Sponsor / CFO / Referral / CFO Circle).
+const SEL = "id, full_name, first_name, last_name, title, company, email, linkedin_url, avatar_url, last_meaningful_touch, next_action_date, roles, provisors_member, cfo_circle_member, linkedin_connected"
 
 export async function GET(request) {
   const url = new URL(request.url)
@@ -65,6 +67,10 @@ export async function GET(request) {
         id: p.id, name: p.full_name || `${p.first_name||""} ${p.last_name||""}`.trim(),
         title: p.title, company: p.company, email: p.email, linkedin_url: p.linkedin_url,
         avatar_url: p.avatar_url || null,
+        roles: p.roles || [],
+        provisors_member: p.provisors_member === true,
+        cfo_circle_member: p.cfo_circle_member === true,
+        linkedin_connected: p.linkedin_connected === true,
         stage: p[cfg.field], last_touch: p.last_meaningful_touch, next_action: p.next_action_date,
       }
     })

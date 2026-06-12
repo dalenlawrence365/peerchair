@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data: people, error } = await sb
     .from("people")
-    .select("id, full_name, first_name, last_name, title, company, email, linkedin_url, photo_url, linkedin_connected, roles, cfo_state, sponsor_state, referral_state, last_meaningful_touch, notes")
+    .select("id, full_name, first_name, last_name, title, company, email, linkedin_url, photo_url, linkedin_connected, cfo_circle_member, roles, cfo_state, sponsor_state, referral_state, last_meaningful_touch, notes")
     .eq("provisors_member", true)
     .limit(2000)
   if (error) return Response.json({ error: error.message }, { status: 500 })
@@ -71,6 +71,8 @@ export async function GET() {
     linkedin_connected: p.linkedin_connected,
     groups: groupsByPerson[p.id] || [],
     roles: p.roles || [],
+    provisors_member: true,
+    cfo_circle_member: p.cfo_circle_member === true,
     cfo_state: p.cfo_state,
     sponsor_state: p.sponsor_state,
     referral_state: p.referral_state,
