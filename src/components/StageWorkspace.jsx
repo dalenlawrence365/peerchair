@@ -83,8 +83,12 @@ export default function StageWorkspace({ stage }) {
     setLoading(true); setError(null)
     try {
       // 1. People in this CFO stage
+      // audience is derived (first-degree connected), every other stage is a stored cfo_state
+      var stageFilter = (stage === "audience")
+        ? "linkedin_connected=eq.true"
+        : "cfo_state=eq." + encodeURIComponent(stage)
       var peopleRows = await sbFetch(
-        "/people?cfo_state=eq." + encodeURIComponent(stage) +
+        "/people?" + stageFilter +
         "&roles=cs.{cfo}" +
         "&select=id,full_name,title,company,cfo_state,momentum,last_meaningful_touch,linkedin_url" +
         "&order=last_meaningful_touch.desc.nullslast"

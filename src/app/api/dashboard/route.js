@@ -32,7 +32,21 @@ export async function GET() {
     return out
   }
 
-  const cfoCounts      = await distribution("cfo_state", CFO_STAGES)
+  // CFO funnel — NESTED/DERIVED to match the pipeline page: pool = universe (all cfo-roled),
+  // audience = first-degree connected (derived from linkedin_connected, not a stored stage),
+  // engagement stages cumulative. Stages overlap, so they are NOT summed for the total.
+  async function cfoDistribution() {
+    const base = function(){ return sb.from("people").select("id", { count: "exact", head: true }).contains("roles", ["cfo"]) }
+    const [pool, audience, prospect, qualified, member] = await Promise.all([
+      base(),
+      base().eq("linkedin_connected", true),
+      base().in("cfo_state", ["prospect","qualified","member"]),
+      base().in("cfo_state", ["qualified","member"]),
+      base().eq("cfo_state", "member"),
+    ])
+    return { pool: pool.count||0, audience: audience.count||0, prospect: prospect.count||0, qualified: qualified.count||0, member: member.count||0 }
+  }
+  const cfoCounts      = await cfoDistribution()
   const sponsorCounts  = await distribution("sponsor_state", SPONSOR_STAGES)
   const referralCounts = await distribution("referral_state", REFERRAL_STAGES)
 
@@ -158,7 +172,7 @@ export async function GET() {
       cfo: cfoCounts,
       sponsor: sponsorCounts,
       referral: referralCounts,
-      cfo_total: Object.values(cfoCounts).reduce((a, b) => a + b, 0),
+      cfo_total: cfoCounts.pool,
       sponsor_total: Object.values(sponsorCounts).reduce((a, b) => a + b, 0),
       referral_total: Object.values(referralCounts).reduce((a, b) => a + b, 0),
       sponsor_companies: sponsorCompanies || 0,
