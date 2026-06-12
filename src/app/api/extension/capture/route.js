@@ -22,6 +22,7 @@ export async function POST(request) {
 
   const roles = Array.isArray(body.roles) ? body.roles.filter(r => ROLE_KEYS.includes(r)) : []
   const provisor = !!body.provisors_member
+  const inbound = !!body.inbound
   const connected = /^1/.test(String(body.connection_degree || "").trim())
   const url = canonicalUrl(body.linkedin_url)
   const fullName = (body.full_name || "").trim()
@@ -44,9 +45,13 @@ export async function POST(request) {
 
   if (matchId) {
     const { data: ex } = await sb.from("people")
-      .select("id, linkedin_url, roles, provisors_member, linkedin_connected, cfo_state, sponsor_state, referral_state")
+      .select("id, linkedin_url, roles, provisors_member, linkedin_connected, cfo_state, sponsor_state, referral_state, inbound_request")
       .eq("id", matchId).maybeSingle()
     if (!ex) return J({ error: "match_id not found" }, 404)
+
+    // Inbound is a permanent, one-time provenance event: "they reached out to me."
+    // Fire only on the false->true transition so re-captures never duplicate the event row.
+    const inboundNew = inbound && !ex.inbound_request
 
     const patch = { updated_at: new Date().toISOString() }
     if (url && !ex.linkedin_url) patch.linkedin_url = url
@@ -54,6 +59,12 @@ export async function POST(request) {
     if (body.headline) patch.headline = body.headline
     if (connected && !ex.linkedin_connected) patch.linkedin_connected = true
     if (provisor && !ex.provisors_member) patch.provisors_member = true
+
+    if (inboundNew) {
+      patch.inbound_request = true
+      patch.last_meaningful_touch = new Date().toISOString()
+      if (!ex.linkedin_connected) patch.linkedin_connected = true
+    }
 
     if (roles.length) {
       patch.roles = Array.from(new Set([...(ex.roles || []), ...roles]))
@@ -64,7 +75,10 @@ export async function POST(request) {
     }
     const { error } = await sb.from("people").update(patch).eq("id", ex.id)
     if (error) return J({ error: error.message }, 500)
-    return J({ ok: true, action: backstopped ? "linked_existing" : "updated", id: ex.id, backstopped })
+    if (inboundNew) {
+      await sb.rpc("set_action_tag", { p_person_id: ex.id, p_action_type: "inbound_request", p_set_by: "chrome_extension", p_notes: "Inbound connection request" })
+    }
+    return J({ ok: true, action: backstopped ? "linked_existing" : "updated", id: ex.id, backstopped, inbound: inboundNew })
   }
 
   if (!fullName) return J({ error: "full_name required to create" }, 400)
@@ -76,7 +90,15 @@ export async function POST(request) {
   if (body.about) ins.about = body.about
   if (body.headline) ins.headline = body.headline
   for (const r of roles) { const f = STATE_FIELD[r]; if (f) ins[f] = connected ? "audience" : "pool" }
+  if (inbound) {
+    ins.inbound_request = true
+    ins.linkedin_connected = true
+    ins.last_meaningful_touch = new Date().toISOString()
+  }
   const { data: row, error } = await sb.from("people").insert(ins).select("id").single()
   if (error || !row) return J({ error: error ? error.message : "insert failed" }, 500)
-  return J({ ok: true, action: "created", id: row.id })
+  if (inbound) {
+    await sb.rpc("set_action_tag", { p_person_id: row.id, p_action_type: "inbound_request", p_set_by: "chrome_extension", p_notes: "Inbound connection request" })
+  }
+  return J({ ok: true, action: "created", id: row.id, inbound })
 }
