@@ -217,8 +217,8 @@ export default function ProvisorsPage() {
       {/* Stat tiles — each one is a filter; click to filter the list, click again to clear */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginBottom: 24 }}>
         <Tile label="Total ProVisors" value={counts.all} color="#0891b2" active={filter === "all"} onClick={() => setFilter("all")} />
-        <Tile label="Provisor Audience" value={counts.connected} color="#0a66c2" active={filter === "connected"} onClick={() => pickFilter("connected")} />
-        <Tile label="Not connected" value={counts.not_connected} color="#b45309" active={filter === "not_connected"} onClick={() => pickFilter("not_connected")} />
+        <Tile label="Provisor Audience" value={counts.connected} color="#0a66c2" sub={counts.all ? Math.round(counts.connected / counts.all * 100) + "% of total" : null} active={filter === "connected"} onClick={() => pickFilter("connected")} />
+        <Tile label="Not connected" value={counts.not_connected} color="#b45309" sub={counts.all ? Math.round(counts.not_connected / counts.all * 100) + "% of total" : null} active={filter === "not_connected"} onClick={() => pickFilter("not_connected")} />
         <Tile label="No LinkedIn URL" value={counts.no_url} color="#6b7280" active={filter === "no_url"} onClick={() => pickFilter("no_url")} />
         <Tile label="Sponsors" value={counts.sponsors} color="#15803d" active={filter === "sponsors"} onClick={() => pickFilter("sponsors")} />
         <Tile label="Referral partners" value={counts.referral} color="#1d4ed8" active={filter === "referral"} onClick={() => pickFilter("referral")} />

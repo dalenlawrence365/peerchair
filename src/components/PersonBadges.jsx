@@ -23,6 +23,14 @@ export function rolePillsFor(p) {
     .map(function(d){ return { label: d.label, color: d.color } })
 }
 
+function fmtShortDate(d) {
+  if (!d) return ""
+  const parts = String(d).slice(0, 10).split("-")
+  if (parts.length < 3) return ""
+  const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(parts[1], 10) - 1]
+  return mon ? mon + " " + parseInt(parts[2], 10) : ""
+}
+
 function Badge({ bg, fg, children }) {
   return (
     <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: bg, color: fg, whiteSpace: "nowrap", lineHeight: 1.4 }}>
@@ -40,7 +48,7 @@ export default function PersonBadges({ person, showFirst = true, showLinkedIn = 
     <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
       {pills.map(function(pl){ return <Badge key={pl.label} bg={pl.color} fg="white">{pl.label}</Badge> })}
       {person.inbound_request === true && <Badge bg="#e11d4822" fg="#be123c">Inbound</Badge>}
-      {person.connection_sent === true && person.linkedin_connected !== true && <Badge bg="#64748b22" fg="#475569">Requested</Badge>}
+      {person.connection_sent === true && person.linkedin_connected !== true && <Badge bg="#64748b22" fg="#475569">{person.connection_sent_at ? "Requested · " + fmtShortDate(person.connection_sent_at) : "Requested"}</Badge>}
       {showFirst && isFirst && <Badge bg="#0a66c222" fg="#0a66c2">1st</Badge>}
       {person.silent === true && <Badge bg="#f59e0b22" fg="#b45309">Silent</Badge>}
       {showLinkedIn && url && (
