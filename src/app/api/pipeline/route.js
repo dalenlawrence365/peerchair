@@ -83,6 +83,20 @@ export async function GET(request) {
         stage: p[cfg.stateField], last_touch: p.last_meaningful_touch, next_action: p.next_action_date,
       }
     })
+
+    // Silent = connected CFO with no reply_received and not excluded — same definition as the dashboard funnel.
+    if (type === "cfo" && list.length) {
+      const ids = list.map(function(r){ return r.id })
+      const [replyRes, exclRes] = await Promise.all([
+        sb.from("person_action_tags").select("person_id").eq("action_type", "reply_received").in("person_id", ids),
+        sb.from("person_status_tags").select("person_id").is("removed_at", null).in("tag", ["do_not_contact", "opted_out", "not_a_fit"]).in("person_id", ids),
+      ])
+      const replied = new Set((replyRes.data || []).map(function(t){ return t.person_id }))
+      const excluded = new Set((exclRes.data || []).map(function(t){ return t.person_id }))
+      list = list.map(function(r){
+        return Object.assign({}, r, { silent: r.linkedin_connected === true && !replied.has(r.id) && !excluded.has(r.id) })
+      })
+    }
   }
 
   return Response.json({
