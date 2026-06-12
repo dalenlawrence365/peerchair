@@ -4,7 +4,7 @@
 // ONE source of truth for the pill cluster shown next to a person's name on
 // every list (CFO/Sponsor pipeline, ProVisors, LinkedIn connections).
 // Order, labels, and colors are identical everywhere:
-//     [1st]  [role pills…]  [in↗]
+//     [role pills…]  [1st]  [in↗]
 // Colors match the LinkedIn connections page (the approved look & feel).
 // The in↗ anchor stops propagation so it works inside clickable rows, and it
 // must always be rendered as a SIBLING of any profile <Link>, never nested.
@@ -38,8 +38,8 @@ export default function PersonBadges({ person, showFirst = true, showLinkedIn = 
   const url = person.linkedin_url
   return (
     <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-      {showFirst && isFirst && <Badge bg="#0a66c222" fg="#0a66c2">1st</Badge>}
       {pills.map(function(pl){ return <Badge key={pl.label} bg={pl.color} fg="white">{pl.label}</Badge> })}
+      {showFirst && isFirst && <Badge bg="#0a66c222" fg="#0a66c2">1st</Badge>}
       {showLinkedIn && url && (
         <a href={url} target="_blank" rel="noopener noreferrer"
           onClick={function(e){ e.stopPropagation() }}
