@@ -36,7 +36,7 @@ export async function GET(request) {
   const limit  = Math.min(Number(url.searchParams.get("limit")) || 100, 500)
   const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0)
 
-  const STATUS_TAG_ROLES = { hospitality: "hospitality_restaurant", cfo_era: "cfo_era" }
+  const STATUS_TAG_ROLES = { hospitality: "hospitality_restaurant", cfo_era: "cfo_era", legacy: "legacy" }
   const statusTag = STATUS_TAG_ROLES[role] || null
 
   let query
@@ -60,18 +60,20 @@ export async function GET(request) {
   const ids = (data || []).map(function(d){ return d.id })
   const hospSet = new Set()
   const eraSet = new Set()
+  const legSet = new Set()
   if (ids.length) {
     const { data: tags } = await sb.from("person_status_tags")
       .select("person_id, tag").in("person_id", ids)
-      .in("tag", ["hospitality_restaurant", "cfo_era"]).is("removed_at", null)
+      .in("tag", ["hospitality_restaurant", "cfo_era", "legacy"]).is("removed_at", null)
     for (const t of (tags || [])) {
       if (t.tag === "hospitality_restaurant") hospSet.add(t.person_id)
       else if (t.tag === "cfo_era") eraSet.add(t.person_id)
+      else if (t.tag === "legacy") legSet.add(t.person_id)
     }
   }
   const items = (data || []).map(function(d){
     const { person_status_tags, ...rest } = d
-    return { ...rest, hospitality_restaurant: hospSet.has(d.id), cfo_era: eraSet.has(d.id) }
+    return { ...rest, hospitality_restaurant: hospSet.has(d.id), cfo_era: eraSet.has(d.id), legacy: legSet.has(d.id) }
   })
 
   // Filter-chip counts — head:true so they reflect the true totals, not a 1000-row cap.
@@ -87,15 +89,15 @@ export async function GET(request) {
       .eq("tag", tag).is("removed_at", null).eq("people.linkedin_connected", true)
     return count || 0
   }
-  const [all, provisor, sponsor, cfo, referral, cfo_circle, none, hospitality, cfo_era] = await Promise.all([
+  const [all, provisor, sponsor, cfo, referral, cfo_circle, none, hospitality, cfo_era, legacy] = await Promise.all([
     cnt("all"), cnt("provisor"), cnt("sponsor"), cnt("cfo"), cnt("referral"), cnt("cfo_circle"), cnt("none"),
-    tagCnt("hospitality_restaurant"), tagCnt("cfo_era"),
+    tagCnt("hospitality_restaurant"), tagCnt("cfo_era"), tagCnt("legacy"),
   ])
 
   return Response.json({
     items: items,
     total_filtered: count || 0,
-    counts: { all, provisor, sponsor, cfo, referral, cfo_circle, none, hospitality, cfo_era },
+    counts: { all, provisor, sponsor, cfo, referral, cfo_circle, none, hospitality, cfo_era, legacy },
   })
 }
 

@@ -15,6 +15,7 @@ const ROLES = [
   { key: "none",       label: "No role",     color: "#64748b" },
   { key: "hospitality", label: "Hospitality/Restaurant", color: "#854d0e" },
   { key: "cfo_era",     label: "CFO Era",                color: "#0891b2" },
+  { key: "legacy",      label: "Legacy",                 color: "#78716c" },
 ]
 
 export default function LinkedInConnectionsPage() {
