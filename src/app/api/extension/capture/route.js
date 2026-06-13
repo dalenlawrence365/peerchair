@@ -13,6 +13,13 @@ const J = (data, status) => Response.json(data, { status: status || 200, headers
 const ROLE_KEYS = ["cfo", "sponsor_contact", "referral_partner"]
 const STATE_FIELD = { cfo: "cfo_state", sponsor_contact: "sponsor_state", referral_partner: "referral_state" }
 
+async function resolveCompanyId(sb, name) {
+  const n = (name || "").trim()
+  if (!n) return null
+  const { data } = await sb.from("companies").select("id").ilike("name", n).limit(2)
+  return (data && data.length === 1) ? data[0].id : null
+}
+
 export async function POST(request) {
   const auth = checkExtensionAuth(request)
   if (!auth.ok) return J({ error: "unauthorized" }, 401)
@@ -45,7 +52,7 @@ export async function POST(request) {
 
   if (matchId) {
     const { data: ex } = await sb.from("people")
-      .select("id, linkedin_url, roles, provisors_member, linkedin_connected, cfo_state, sponsor_state, referral_state, inbound_request")
+      .select("id, linkedin_url, roles, provisors_member, linkedin_connected, cfo_state, sponsor_state, referral_state, inbound_request, company_id, company")
       .eq("id", matchId).maybeSingle()
     if (!ex) return J({ error: "match_id not found" }, 404)
 
@@ -64,6 +71,11 @@ export async function POST(request) {
       patch.inbound_request = true
       patch.last_meaningful_touch = new Date().toISOString()
       if (!ex.linkedin_connected) patch.linkedin_connected = true
+    }
+
+    if (!ex.company_id) {
+      const cid = await resolveCompanyId(sb, body.company || ex.company)
+      if (cid) patch.company_id = cid
     }
 
     if (roles.length) {
@@ -86,6 +98,7 @@ export async function POST(request) {
   if (url) ins.linkedin_url = url
   if (body.title) ins.title = body.title
   if (body.company) ins.company = body.company
+  { const cid = await resolveCompanyId(sb, body.company); if (cid) ins.company_id = cid }
   if (body.location) ins.location = body.location
   if (body.about) ins.about = body.about
   if (body.headline) ins.headline = body.headline

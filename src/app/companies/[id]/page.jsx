@@ -262,6 +262,9 @@ export default function CompanyDetailPage() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [saveState, setSaveState] = useState("idle") // idle | saving | saved
+  const [adding, setAdding] = useState(false)
+  const [nc, setNc] = useState({ full_name: "", linkedin_url: "", role: "sponsor_contact" })
+  const [addBusy, setAddBusy] = useState(false)
 
   const reload = useCallback(async function(){
     try {
@@ -343,6 +346,31 @@ export default function CompanyDetailPage() {
     }))
   }
 
+  async function addContact() {
+    const name = nc.full_name.trim()
+    if (!name) return
+    setAddBusy(true); setSaveState("saving")
+    try {
+      const r = await fetch(`/api/people/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: name,
+          linkedin_url: nc.linkedin_url.trim() || null,
+          company_id: id,
+          company: data && data.company ? data.company.name : null,
+          roles: nc.role ? [nc.role] : [],
+          source: "company_page",
+        }),
+      })
+      const d = await r.json()
+      if (d.error) { setError(d.error) }
+      else { setNc({ full_name: "", linkedin_url: "", role: "sponsor_contact" }); setAdding(false); await reload() }
+      setSaveState("saved"); setTimeout(() => setSaveState("idle"), 1500)
+    } catch (e) { setError(e.message || String(e)) }
+    finally { setAddBusy(false) }
+  }
+
   if (error) return <main style={{ padding: 32 }}><div style={{ color: T.danger }}>⚠ {error}</div></main>
   if (!data) return <main style={{ padding: 32 }}><div style={{ color: T.textTertiary }}>Loading…</div></main>
 
@@ -416,8 +444,33 @@ export default function CompanyDetailPage() {
         ))}
       </Section>
 
-      {/* Contacts (read-only) */}
-      <Section title={`Contacts · ${data.contacts.length}`}>
+      {/* Contacts */}
+      <Section title={`Contacts · ${data.contacts.length}`} action={
+        <button onClick={() => setAdding(a => !a)}
+          style={{ background: "#3b82f6", border: "none", color: "white", padding: "7px 14px", borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: "pointer" }}>
+          {adding ? "Cancel" : "+ Add contact"}
+        </button>
+      }>
+        {adding && (
+          <div style={{ background: "white", border: "1px solid " + T.border, borderRadius: 8, padding: 14, marginBottom: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+            <input value={nc.full_name} onChange={e => setNc({ ...nc, full_name: e.target.value })} placeholder="Full name *" autoFocus
+              style={{ padding: "8px 10px", border: "1px solid " + T.border, borderRadius: 6, fontSize: 13, fontFamily: "inherit" }} />
+            <input value={nc.linkedin_url} onChange={e => setNc({ ...nc, linkedin_url: e.target.value })} placeholder="LinkedIn URL (optional)"
+              style={{ padding: "8px 10px", border: "1px solid " + T.border, borderRadius: 6, fontSize: 13, fontFamily: "inherit" }} />
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <select value={nc.role} onChange={e => setNc({ ...nc, role: e.target.value })}
+                style={{ padding: "8px 10px", border: "1px solid " + T.border, borderRadius: 6, fontSize: 13, fontFamily: "inherit" }}>
+                <option value="sponsor_contact">Sponsor</option>
+                <option value="cfo">CFO</option>
+                <option value="referral_partner">Referral</option>
+              </select>
+              <button onClick={addContact} disabled={addBusy || !nc.full_name.trim()}
+                style={{ background: "#16a34a", border: "none", color: "white", padding: "8px 16px", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: (addBusy || !nc.full_name.trim()) ? "default" : "pointer", opacity: (addBusy || !nc.full_name.trim()) ? 0.6 : 1 }}>
+                {addBusy ? "Adding…" : "Add to this company"}
+              </button>
+            </div>
+          </div>
+        )}
         {data.contacts.length === 0 ? (
           <div style={{ padding: 18, background: "white", border: "1px dashed " + T.border, borderRadius: 8, color: T.textTertiary, fontSize: 13, textAlign: "center" }}>
             No contacts at this firm yet.

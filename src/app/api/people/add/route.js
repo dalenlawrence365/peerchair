@@ -72,6 +72,7 @@ export async function POST(request) {
     linkedin_url: linkedin_url,
     title: String(body.title || "").trim() || null,
     company: String(body.company || "").trim() || null,
+    company_id: body.company_id || null,
     location: String(body.location || "").trim() || null,
     roles: roles,
     cfo_state: cfo_state,
