@@ -36,13 +36,40 @@ export async function GET(request) {
   const limit  = Math.min(Number(url.searchParams.get("limit")) || 100, 500)
   const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0)
 
-  let query = sb.from("people").select(SEL, { count: "exact" }).eq("linkedin_connected", true)
-  query = applyRole(query, role)
+  const HOSP_TAG = "hospitality_restaurant"
+  const isHosp = role === "hospitality"
+
+  let query
+  if (isHosp) {
+    query = sb.from("people")
+      .select(`${SEL}, person_status_tags!inner(tag, removed_at)`, { count: "exact" })
+      .eq("linkedin_connected", true)
+      .eq("person_status_tags.tag", HOSP_TAG)
+      .is("person_status_tags.removed_at", null)
+  } else {
+    query = sb.from("people").select(SEL, { count: "exact" }).eq("linkedin_connected", true)
+    query = applyRole(query, role)
+  }
   if (q) query = query.or(`full_name.ilike.%${q}%,company.ilike.%${q}%,title.ilike.%${q}%`)
   query = query.order("full_name", { ascending: true }).range(offset, offset + limit - 1)
 
   const { data, count, error } = await query
   if (error) return Response.json({ error: error.message }, { status: 500 })
+
+  // Attach the hospitality_restaurant flag for the pill.
+  let items
+  if (isHosp) {
+    items = (data || []).map(function(d){ const { person_status_tags, ...rest } = d; return { ...rest, hospitality_restaurant: true } })
+  } else {
+    const ids = (data || []).map(function(d){ return d.id })
+    let hospSet = new Set()
+    if (ids.length) {
+      const { data: tags } = await sb.from("person_status_tags")
+        .select("person_id").eq("tag", HOSP_TAG).is("removed_at", null).in("person_id", ids)
+      hospSet = new Set((tags || []).map(function(t){ return t.person_id }))
+    }
+    items = (data || []).map(function(d){ return { ...d, hospitality_restaurant: hospSet.has(d.id) } })
+  }
 
   // Filter-chip counts — head:true so they reflect the true totals, not a 1000-row cap.
   async function cnt(r) {
@@ -51,14 +78,20 @@ export async function GET(request) {
     const { count } = await qq
     return count || 0
   }
-  const [all, provisor, sponsor, cfo, referral, cfo_circle, none] = await Promise.all([
-    cnt("all"), cnt("provisor"), cnt("sponsor"), cnt("cfo"), cnt("referral"), cnt("cfo_circle"), cnt("none"),
+  async function hospCnt() {
+    const { count } = await sb.from("person_status_tags")
+      .select("person_id, people!inner(linkedin_connected)", { count: "exact", head: true })
+      .eq("tag", HOSP_TAG).is("removed_at", null).eq("people.linkedin_connected", true)
+    return count || 0
+  }
+  const [all, provisor, sponsor, cfo, referral, cfo_circle, none, hospitality] = await Promise.all([
+    cnt("all"), cnt("provisor"), cnt("sponsor"), cnt("cfo"), cnt("referral"), cnt("cfo_circle"), cnt("none"), hospCnt(),
   ])
 
   return Response.json({
-    items: data || [],
+    items: items,
     total_filtered: count || 0,
-    counts: { all, provisor, sponsor, cfo, referral, cfo_circle, none },
+    counts: { all, provisor, sponsor, cfo, referral, cfo_circle, none, hospitality },
   })
 }
 
