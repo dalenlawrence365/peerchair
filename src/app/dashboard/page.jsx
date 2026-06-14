@@ -66,13 +66,14 @@ export default function DashboardPage() {
       <SectionHeader title="My audience" />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 8 }}>
         {[
-          { label: "Total reachable", value: a.reachable, color: "#0a66c2", href: "/linkedin-connections" },
-          { label: "Total relevant", value: a.relevant, color: "#15803d", href: "/linkedin-connections" },
-          { label: "ProVisor audience", value: a.provisor, color: "#7c3aed", href: "/linkedin-connections?role=provisor" },
-          { label: "CFO audience", value: a.cfo, color: "#d97706", href: "/linkedin-connections?role=cfo" },
-          { label: "Sponsor audience", value: a.sponsor, color: "#a855f7", href: "/linkedin-connections?role=sponsor" },
+          { label: "Total reachable", value: a.reachable, color: "#0a66c2", href: "/linkedin-connections", wk: (a.wk || {}).reachable },
+          { label: "Total relevant", value: a.relevant, color: "#15803d", href: "/linkedin-connections", wk: (a.wk || {}).relevant },
+          { label: "ProVisor audience", value: a.provisor, color: "#7c3aed", href: "/linkedin-connections?role=provisor", wk: (a.wk || {}).provisor },
+          { label: "CFO audience", value: a.cfo, color: "#d97706", href: "/linkedin-connections?role=cfo", wk: (a.wk || {}).cfo },
+          { label: "Sponsor audience", value: a.sponsor, color: "#a855f7", href: "/linkedin-connections?role=sponsor", wk: (a.wk || {}).sponsor },
         ].sort(function(x, y){ return (y.value || 0) - (x.value || 0) }).map(function(t){
-          return <StatTile key={t.label} label={t.label} value={(t.value || 0).toLocaleString()} color={t.color} href={t.href} />
+          return <StatTile key={t.label} label={t.label} value={(t.value || 0).toLocaleString()} color={t.color} href={t.href}
+            pct={pctOf(t.value, a.reachable)} delta={t.wk} />
         })}
       </div>
       <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 24, lineHeight: 1.5 }}>
@@ -214,7 +215,12 @@ export default function DashboardPage() {
 }
 
 // ─── Reusable bits ───────────────────────────────────────────────────────────
-function StatTile({ label, value, color, href }) {
+function pctOf(v, total) {
+  if (!total || v == null) return null
+  const p = (v / total) * 100
+  return (p >= 100 ? "100" : p >= 10 ? p.toFixed(0) : p.toFixed(1)) + "%"
+}
+function StatTile({ label, value, color, href, pct, delta }) {
   const inner = (
     <div style={{
       background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10,
@@ -223,6 +229,16 @@ function StatTile({ label, value, color, href }) {
     }}>
       <div style={{ fontSize: 28, fontWeight: 600, color: T.textPrimary, lineHeight: 1 }}>{value}</div>
       <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 6 }}>{label}</div>
+      {(pct != null || delta != null) && (
+        <div style={{ display: "flex", gap: 10, alignItems: "baseline", marginTop: 7 }}>
+          {pct != null && <span style={{ fontSize: 13, fontWeight: 600, color: T.textSecondary }}>{pct}</span>}
+          {delta != null && (
+            <span style={{ fontSize: 11, fontWeight: 500, color: delta > 0 ? "#15803d" : T.textTertiary }}>
+              {delta > 0 ? "\u25B2 " + delta + " this wk" : "\u2014"}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
   return href ? <Link href={href} style={{ textDecoration: "none" }}>{inner}</Link> : inner

@@ -181,7 +181,26 @@ export async function GET() {
     const { count: legacy } = await sb.from("person_status_tags")
       .select("person_id", { count: "exact", head: true }).eq("tag", "legacy").is("removed_at", null)
     const reachable = reach.count || 0
-    return { reachable, relevant: reachable - (legacy || 0), provisor: prov.count || 0, cfo: cfo.count || 0, sponsor: spon.count || 0 }
+    // Weekly additions by TRUE connection date (as_of_date) — NOT set_at, which the
+    // export backfill stamped to now() across the whole base (would read ~4,000).
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const { data: recent } = await sb.from("person_action_tags")
+      .select("person_id").eq("action_type", "connection_accepted").gte("as_of_date", since)
+    const recentIds = [...new Set((recent || []).map(function(r){ return r.person_id }))]
+    let wkProvisor = 0, wkCfo = 0, wkSponsor = 0
+    if (recentIds.length) {
+      const [pw, cw, sw] = await Promise.all([
+        sb.from("people").select("id", { count: "exact", head: true }).in("id", recentIds).eq("provisors_member", true),
+        sb.from("people").select("id", { count: "exact", head: true }).in("id", recentIds).contains("roles", ["cfo"]),
+        sb.from("people").select("id", { count: "exact", head: true }).in("id", recentIds).contains("roles", ["sponsor_contact"]),
+      ])
+      wkProvisor = pw.count || 0; wkCfo = cw.count || 0; wkSponsor = sw.count || 0
+    }
+    const wkReachable = recentIds.length
+    return {
+      reachable, relevant: reachable - (legacy || 0), provisor: prov.count || 0, cfo: cfo.count || 0, sponsor: spon.count || 0,
+      wk: { reachable: wkReachable, relevant: wkReachable, provisor: wkProvisor, cfo: wkCfo, sponsor: wkSponsor },
+    }
   })()
 
   return Response.json({
