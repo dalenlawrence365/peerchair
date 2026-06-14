@@ -167,7 +167,25 @@ export async function GET() {
 
   const { data: segmentCounts } = await sb.rpc("connection_segment_counts")
 
+  // Audience row — reachable = every first-degree connection; relevant = reachable
+  // minus legacy (pre-2024); ProVisor/CFO/Sponsor are connected role cohorts that
+  // overlap each other and are never summed into the total.
+  const audience = await (async () => {
+    const base = function(){ return sb.from("people").select("id", { count: "exact", head: true }).eq("linkedin_connected", true) }
+    const [reach, prov, cfo, spon] = await Promise.all([
+      base(),
+      base().eq("provisors_member", true),
+      base().contains("roles", ["cfo"]),
+      base().contains("roles", ["sponsor_contact"]),
+    ])
+    const { count: legacy } = await sb.from("person_status_tags")
+      .select("person_id", { count: "exact", head: true }).eq("tag", "legacy").is("removed_at", null)
+    const reachable = reach.count || 0
+    return { reachable, relevant: reachable - (legacy || 0), provisor: prov.count || 0, cfo: cfo.count || 0, sponsor: spon.count || 0 }
+  })()
+
   return Response.json({
+    audience,
     counts: {
       cfo: cfoCounts,
       sponsor: sponsorCounts,

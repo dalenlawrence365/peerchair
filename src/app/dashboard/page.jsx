@@ -48,6 +48,7 @@ export default function DashboardPage() {
   if (!data) return <main style={{ padding: 32 }}><div style={{ color: T.textTertiary }}>Loading…</div></main>
 
   const c = data.counts
+  const a = data.audience || {}
   const q = data.queues
   const s = data.segments || {}
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
@@ -59,6 +60,23 @@ export default function DashboardPage() {
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontFamily: FONT_SERIF, fontSize: 32, fontWeight: 400, margin: 0, letterSpacing: -0.5 }}>{greeting()}, Dalen.</h1>
         <div style={{ fontSize: 13, color: T.textTertiary, marginTop: 4 }}>{today}</div>
+      </div>
+
+      {/* Audience — one row, largest to smallest */}
+      <SectionHeader title="My audience" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 8 }}>
+        {[
+          { label: "Total reachable", value: a.reachable, color: "#0a66c2", href: "/linkedin-connections" },
+          { label: "Total relevant", value: a.relevant, color: "#15803d", href: "/linkedin-connections" },
+          { label: "ProVisor audience", value: a.provisor, color: "#7c3aed", href: "/linkedin-connections?role=provisor" },
+          { label: "CFO audience", value: a.cfo, color: "#d97706", href: "/linkedin-connections?role=cfo" },
+          { label: "Sponsor audience", value: a.sponsor, color: "#a855f7", href: "/linkedin-connections?role=sponsor" },
+        ].sort(function(x, y){ return (y.value || 0) - (x.value || 0) }).map(function(t){
+          return <StatTile key={t.label} label={t.label} value={(t.value || 0).toLocaleString()} color={t.color} href={t.href} />
+        })}
+      </div>
+      <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 24, lineHeight: 1.5 }}>
+        Reachable = every first-degree LinkedIn connection. Relevant = reachable minus legacy (pre-2024). ProVisor / CFO / Sponsor overlap and never sum to the total.
       </div>
 
       {/* Top stat tiles */}
