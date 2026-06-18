@@ -10,6 +10,7 @@ const META = {
   invite_pending:     { label: "Invite Pending",     desc: "Invited on LinkedIn, not yet accepted.",          action: "Wait, or withdraw & re-invite",  color: "#b45309" },
   silent_connections: { label: "Silent Connections", desc: "Connected, but never replied to anything.",       action: "Re-ping about CFO Circle",        color: "#0f3d6e" },
   replied:            { label: "Replied",            desc: "CFOs who have ever replied to you (recovered from threads + tags).", action: "Move into the conversation / triage", color: "#15803d" },
+  cfo_circle:         { label: "CFO Circle",          desc: "Everyone carrying the CFO Circle label — members and Blueprint affiliates, regardless of LinkedIn connection.", action: "Nurture / keep warm", color: "#ea580c" },
 }
 
 function fmtShort(iso) { if (!iso) return null; try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }) } catch (e) { return iso } }

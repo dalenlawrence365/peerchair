@@ -85,6 +85,7 @@ export default function DashboardPage() {
         <StatTile label="CFO pipeline" value={c.cfo_total} color={ROLE_COLOR.cfo} href="/pipeline/cfo/pool" />
         <StatTile label="Sponsor contacts" value={c.sponsor_total} color={ROLE_COLOR.sponsor_contact} href="/pipeline/sponsor/pool" />
         <StatTile label="Referral partners" value={c.referral_total} color={ROLE_COLOR.referral_partner} href="/referral" />
+        <StatTile label="CFO Circle members" value={c.cfo_circle_total} color="#ea580c" href="/segment/cfo_circle" />
         <StatTile label="Sponsor companies" value={c.sponsor_companies} color="#3b82f6" href="/pipeline/sponsor/pool" />
         <StatTile label="Upcoming meetings (7d)" value={c.upcoming_meetings} color="#0d9488" href="/meetings" />
         <StatTile label={c.linkedin_connections_unrated > 0 ? `First-degree connections (${c.linkedin_connections_unrated} no role)` : "First-degree connections"}

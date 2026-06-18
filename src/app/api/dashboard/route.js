@@ -240,6 +240,14 @@ export async function GET() {
           .or("roles.is.null,roles.eq.{}")
         return count || 0
       })(),
+      cfo_circle_total: await (async () => {
+        // CFO Circle label — boolean across ALL people, orthogonal to roles and
+        // independent of LinkedIn connection (includes non-connections, e.g. Paul Wirth).
+        const { count } = await sb.from("people")
+          .select("id", { count: "exact", head: true })
+          .eq("cfo_circle_member", true)
+        return count || 0
+      })(),
     },
     segments: segmentCounts || {},
     queues: {
