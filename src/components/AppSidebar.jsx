@@ -51,12 +51,8 @@ export default function AppSidebar() {
       overflowY: "auto",
     }}>
       {/* Logo / brand */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 6px 16px", marginBottom: 12, borderBottom: "1px solid " + (T.sidebarBorder || "rgba(255,255,255,0.08)") }}>
-        <div style={{ width: 32, height: 32, background: "linear-gradient(135deg, #3b82f6, #1e40af)", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontFamily: FONT_SERIF, fontSize: 16, fontStyle: "italic" }}>C</div>
-        <div>
-          <div style={{ fontFamily: FONT_SERIF, fontSize: 16, color: "white", lineHeight: 1 }}>CFO Circle</div>
-          <div style={{ fontSize: 10, color: T.sidebarMuted || "rgba(255,255,255,0.5)", letterSpacing: 0.6, textTransform: "uppercase", marginTop: 2 }}>Los Angeles</div>
-        </div>
+      <div style={{ padding: "6px 6px 18px", marginBottom: 12, borderBottom: "1px solid " + (T.sidebarBorder || "rgba(255,255,255,0.08)") }}>
+        <img src="/cfo-circle-la-logo.png" alt="CFO Circle — Los Angeles" style={{ width: "100%", maxWidth: 200, height: "auto", display: "block" }} />
       </div>
 
       <SidebarSearch />
