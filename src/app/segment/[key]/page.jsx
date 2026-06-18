@@ -7,7 +7,8 @@ import Avatar from "@/components/Avatar"
 
 const META = {
   uninvited:          { label: "Uninvited",          desc: "CFOs you've never sent a connection request to.", action: "Send a connection request", color: "#64748b" },
-  invite_pending:     { label: "Invite Pending",     desc: "Invited on LinkedIn, not yet accepted.",          action: "Wait, or withdraw & re-invite",  color: "#b45309" },
+  invite_pending:     { label: "Invite Pending",     desc: "Invited within the last 30 days, not yet accepted.", action: "Wait — auto-withdraws at 30 days",  color: "#b45309" },
+  invite_lapsed:      { label: "Lapsed",             desc: "Invite auto-withdrawn after 30 days, never accepted — re-invitable next pass.", action: "Re-invite next pass", color: "#9a3412" },
   silent_connections: { label: "Silent Connections", desc: "Connected, but never replied to anything.",       action: "Re-ping about CFO Circle",        color: "#0f3d6e" },
   replied:            { label: "Replied",            desc: "CFOs who have ever replied to you (recovered from threads + tags).", action: "Move into the conversation / triage", color: "#15803d" },
   cfo_circle:         { label: "CFO Circle",          desc: "Everyone carrying the CFO Circle label — members and Blueprint affiliates, regardless of LinkedIn connection.", action: "Nurture / keep warm", color: "#ea580c" },
@@ -15,6 +16,13 @@ const META = {
 
 function fmtShort(iso) { if (!iso) return null; try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }) } catch (e) { return iso } }
 function daysSince(iso) { if (!iso) return null; const d = new Date(iso); if (isNaN(d)) return null; return Math.floor((Date.now() - d.getTime()) / 86400000) }
+function csvEscape(v) { if (v == null) return ""; const s = String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s }
+function buildCsv(rows) {
+  const cols = ["full_name", "title", "company", "cfo_state", "linkedin_url", "last_meaningful_touch", "next_action_date"]
+  const lines = [cols.join(",")]
+  rows.forEach(function (r) { lines.push(cols.map(function (c) { return csvEscape(r[c]) }).join(",")) })
+  return lines.join("\n")
+}
 
 export default function SegmentPage() {
   const params = useParams()
@@ -22,6 +30,17 @@ export default function SegmentPage() {
   const [people, setPeople] = useState(null)
   const [error, setError] = useState(null)
   const meta = META[key] || { label: key, desc: "", action: "", color: "#64748b" }
+
+  function downloadCsv() {
+    const csv = buildCsv(people || [])
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = key + "-" + new Date().toISOString().slice(0, 10) + ".csv"
+    document.body.appendChild(a); a.click(); a.remove()
+    URL.revokeObjectURL(url)
+  }
 
   useEffect(function () {
     if (!key) return
@@ -40,10 +59,17 @@ export default function SegmentPage() {
         <Link href="/dashboard" style={{ color: T.textTertiary, textDecoration: "none" }}>← Dashboard</Link>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-        <span style={{ width: 10, height: 10, borderRadius: 3, background: meta.color, display: "inline-block" }} />
-        <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.4, margin: 0 }}>{meta.label}</h1>
-        {people && <span style={{ fontSize: 15, color: T.textTertiary, fontWeight: 500 }}>· {people.length}</span>}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 3, background: meta.color, display: "inline-block" }} />
+          <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.4, margin: 0 }}>{meta.label}</h1>
+          {people && <span style={{ fontSize: 15, color: T.textTertiary, fontWeight: 500 }}>· {people.length}</span>}
+        </div>
+        {people && people.length > 0 && (
+          <button onClick={downloadCsv} style={{ fontSize: 12, fontWeight: 600, color: meta.color, background: "transparent", border: "1px solid " + meta.color, borderRadius: 8, padding: "6px 12px", cursor: "pointer", whiteSpace: "nowrap" }}>
+            ↓ Download CSV
+          </button>
+        )}
       </div>
       <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 4 }}>{meta.desc}</div>
       <div style={{ fontSize: 12, color: T.textTertiary, marginBottom: 18 }}>Next action: <strong style={{ color: meta.color }}>{meta.action}</strong></div>

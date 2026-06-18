@@ -105,11 +105,12 @@ export default function DashboardPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 8 }}>
         <StatTile label="Uninvited" value={s.uninvited ?? "—"} color="#64748b" />
         <StatTile label="Invite Pending" value={s.invite_pending ?? "—"} color="#b45309" href="/segment/invite_pending" />
+        <StatTile label="Lapsed" value={s.invite_lapsed ?? "—"} color="#9a3412" href="/segment/invite_lapsed" />
         <StatTile label="Silent Connections" value={s.silent_connections ?? "—"} color="#0f3d6e" href="/segment/silent_connections" />
         <StatTile label="Replied" value={s.replied ?? "—"} color="#15803d" href="/segment/replied" />
       </div>
       <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 24, lineHeight: 1.5 }}>
-        Click a tile for the list (Uninvited is count-only — too long to scroll). Excludes opt-outs / do-not-contact / not-a-fit.
+        Click a tile for the list (Uninvited is count-only — too long to scroll). Pending auto-moves to Lapsed once LinkedHelper withdraws at 30 days; Lapsed is your re-invite pool. Silent excludes anyone promoted to prospect. Excludes opt-outs / do-not-contact / not-a-fit.
       </div>
 
       {/* CFO + Sponsor pipeline distributions — side-by-side with clear separation */}
