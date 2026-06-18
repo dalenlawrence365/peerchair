@@ -10,11 +10,11 @@ const GROUP_LABEL = {
   "Valley Distributors & Manufacturers": "Valley D&M",
   "Mergers & Acquisitions 2": "M&A 2",
 }
+const gl = (g) => GROUP_LABEL[g] || g
 
 function Pill({ bg, fg, text }) {
   return <span style={{ display: "inline-block", padding: "1px 7px", borderRadius: 999, fontSize: 9.5, fontWeight: 600, background: bg, color: fg, whiteSpace: "nowrap" }}>{text}</span>
 }
-
 function fmtRel(iso) {
   if (!iso) return "—"
   const days = (Date.now() - new Date(iso)) / 86400000
@@ -23,10 +23,26 @@ function fmtRel(iso) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
+function ChangeLine({ c }) {
+  if (c.addGroups) {
+    return <div style={{ fontSize: 11.5, color: "#0891b2" }}>+ {c.addGroups.length} group{c.addGroups.length > 1 ? "s" : ""}: {c.addGroups.map(gl).join(", ")}</div>
+  }
+  return (
+    <div style={{ fontSize: 11.5, color: T.textSecondary }}>
+      <span style={{ color: T.textTertiary }}>{c.field}: </span>
+      {c.fill
+        ? <><span style={{ color: T.textTertiary, fontStyle: "italic" }}>set </span><span style={{ fontWeight: 500 }}>{c.to}</span></>
+        : <><span style={{ textDecoration: "line-through", color: T.textTertiary }}>{c.from || "—"}</span><span style={{ color: T.textTertiary }}> → </span><span style={{ fontWeight: 600, color: "#b45309" }}>{c.to}</span></>}
+    </div>
+  )
+}
+
 export default function ReviewQueue() {
   const [batches, setBatches] = useState(null)
   const [error, setError] = useState(null)
   const [expanded, setExpanded] = useState({})
+  const [detail, setDetail] = useState({})          // batch_id -> {summary, people}
+  const [loadingDetail, setLoadingDetail] = useState({})
   const [busy, setBusy] = useState(null)
   const [receipts, setReceipts] = useState({})
 
@@ -38,6 +54,20 @@ export default function ReviewQueue() {
     } catch (e) { setError(String(e)) }
   }
   useEffect(() => { load() }, [])
+
+  async function toggle(id) {
+    const open = !expanded[id]
+    setExpanded(e => ({ ...e, [id]: open }))
+    if (open && !detail[id]) {
+      setLoadingDetail(l => ({ ...l, [id]: true }))
+      try {
+        const r = await fetch(`/api/provisors/review/${id}`)
+        const d = await r.json()
+        if (!d.error) setDetail(p => ({ ...p, [id]: d }))
+      } catch (e) { /* leave undefined; UI shows load failure */ }
+      setLoadingDetail(l => ({ ...l, [id]: false }))
+    }
+  }
 
   async function act(batch_id, action) {
     setBusy(batch_id)
@@ -66,7 +96,7 @@ export default function ReviewQueue() {
         <Link href="/provisors" style={{ fontSize: 12, color: T.textTertiary, textDecoration: "none" }}>← ProVisors</Link>
       </div>
       <div style={{ fontSize: 13, color: T.textTertiary, marginTop: 4, marginBottom: 22 }}>
-        Parsed ProVisors rosters waiting for your approval. Approve to add/update people; dismiss to discard.
+        Parsed ProVisors rosters waiting for your approval. Open one to see the new people and exactly what will change on existing profiles before you approve.
       </div>
 
       {batches.length === 0 && (
@@ -77,9 +107,13 @@ export default function ReviewQueue() {
 
       {batches.map(b => {
         const sum = b.summary || {}
-        const people = (b.payload && b.payload.people) || []
         const isOpen = !!expanded[b.id]
+        const det = detail[b.id]
         const rcpt = receipts[b.id]
+        const people = det ? det.people : []
+        const newPeople = people.filter(p => p._status === "new")
+        const existPeople = people.filter(p => p._status === "existing")
+        const dsum = det ? det.summary : null
         return (
           <div key={b.id} style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, marginBottom: 16, overflow: "hidden" }}>
             <div style={{ padding: "14px 16px", borderBottom: "1px solid " + T.border, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -90,7 +124,7 @@ export default function ReviewQueue() {
                 </div>
               </div>
               <div style={{ display: "flex", gap: 6 }}>
-                <Pill bg="rgba(0,0,0,0.05)" fg={T.textSecondary} text={`${sum.total ?? people.length} on roster`} />
+                <Pill bg="rgba(0,0,0,0.05)" fg={T.textSecondary} text={`${sum.total ?? 0} on roster`} />
                 <Pill bg="rgba(22,163,74,0.14)" fg="#15803d" text={`${sum.new ?? 0} new`} />
                 <Pill bg="rgba(8,145,178,0.12)" fg="#0891b2" text={`${sum.existing ?? 0} existing`} />
               </div>
@@ -103,31 +137,63 @@ export default function ReviewQueue() {
             )}
 
             {isOpen && (
-              <div style={{ maxHeight: 360, overflow: "auto", borderBottom: "1px solid " + T.border }}>
-                {people.map((p, i) => (
-                  <div key={i} style={{ padding: "9px 16px", borderBottom: i === people.length - 1 ? "none" : "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)"), display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ fontWeight: 500 }}>{p.full_name}</span>
-                      {p.title && <span style={{ color: T.textTertiary }}> · {p.title}</span>}
-                      {p.company && <span style={{ color: T.textTertiary }}> · {p.company}</span>}
-                      {(p.groups || []).length > 0 && (
-                        <span style={{ marginLeft: 6, display: "inline-flex", gap: 4 }}>
-                          {p.groups.map((g, gi) => <Pill key={gi} bg="rgba(8,145,178,0.10)" fg="#0891b2" text={GROUP_LABEL[g] || g} />)}
-                        </span>
-                      )}
-                    </div>
-                    {p._status === "existing"
-                      ? <Pill bg="rgba(8,145,178,0.12)" fg="#0891b2" text="existing" />
-                      : <Pill bg="rgba(22,163,74,0.14)" fg="#15803d" text="new" />}
+              <div style={{ borderBottom: "1px solid " + T.border }}>
+                {loadingDetail[b.id] && <div style={{ padding: "12px 16px", fontSize: 12, color: T.textTertiary }}>Loading detail…</div>}
+                {!loadingDetail[b.id] && !det && <div style={{ padding: "12px 16px", fontSize: 12, color: T.danger }}>Couldn't load detail.</div>}
+                {det && (
+                  <div style={{ maxHeight: 460, overflow: "auto" }}>
+                    {/* NEW people — the ones actually being added */}
+                    {newPeople.length > 0 && (
+                      <div style={{ padding: "10px 16px 4px", fontSize: 11, fontWeight: 700, letterSpacing: 0.3, color: "#15803d", textTransform: "uppercase" }}>
+                        New — will be created ({newPeople.length})
+                      </div>
+                    )}
+                    {newPeople.map((p, i) => (
+                      <div key={"n" + i} style={{ padding: "8px 16px", background: "rgba(22,163,74,0.05)", borderBottom: "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)"), fontSize: 12.5 }}>
+                        <span style={{ fontWeight: 600 }}>{p.full_name}</span>
+                        {p.title && <span style={{ color: T.textTertiary }}> · {p.title}</span>}
+                        {p.company && <span style={{ color: T.textTertiary }}> · {p.company}</span>}
+                        {p.email && <span style={{ color: T.textTertiary }}> · {p.email}</span>}
+                        {(p.groups || []).length > 0 && (
+                          <span style={{ marginLeft: 6, display: "inline-flex", gap: 4 }}>
+                            {p.groups.map((g, gi) => <Pill key={gi} bg="rgba(8,145,178,0.10)" fg="#0891b2" text={gl(g)} />)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* EXISTING people — show exactly what will change */}
+                    {existPeople.length > 0 && (
+                      <div style={{ padding: "10px 16px 4px", fontSize: 11, fontWeight: 700, letterSpacing: 0.3, color: "#0891b2", textTransform: "uppercase" }}>
+                        Existing — profile updates ({dsum ? dsum.withChanges : 0} changing · {dsum ? dsum.unchanged : 0} unchanged)
+                      </div>
+                    )}
+                    {existPeople.map((p, i) => {
+                      const ch = p._changes || []
+                      return (
+                        <div key={"e" + i} style={{ padding: "8px 16px", borderBottom: i === existPeople.length - 1 ? "none" : "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)"), fontSize: 12.5 }}>
+                          <div>
+                            <span style={{ fontWeight: 500 }}>{p.full_name}</span>
+                            {p.company && <span style={{ color: T.textTertiary }}> · {p.company}</span>}
+                            {ch.length === 0 && <span style={{ marginLeft: 8, fontSize: 11, color: T.textTertiary, fontStyle: "italic" }}>no changes</span>}
+                          </div>
+                          {ch.length > 0 && (
+                            <div style={{ marginTop: 3, marginLeft: 10, display: "flex", flexDirection: "column", gap: 1 }}>
+                              {ch.map((c, ci) => <ChangeLine key={ci} c={c} />)}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
-                ))}
+                )}
               </div>
             )}
 
             <div style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-              <button onClick={() => setExpanded(e => ({ ...e, [b.id]: !isOpen }))}
+              <button onClick={() => toggle(b.id)}
                 style={{ fontSize: 12, padding: "5px 10px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>
-                {isOpen ? "Hide" : "Review"} {people.length} people
+                {isOpen ? "Hide" : "Review"} {sum.total ?? ""} people
               </button>
               <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                 <button disabled={busy === b.id} onClick={() => act(b.id, "dismiss")}
