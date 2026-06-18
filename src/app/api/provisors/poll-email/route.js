@@ -37,11 +37,13 @@ export async function GET(request) {
   const hours = Number.isFinite(hoursParam) && hoursParam > 0 ? Math.min(hoursParam, 720) : 72
   const since = new Date(Date.now() - hours * 3600 * 1000).toISOString()
 
+  // NOTE: no $orderby — combining a date filter + hasAttachments + $orderby can trip
+  // Graph's "inefficient filter" error and silently return nothing. We dedupe and
+  // process every match anyway, so order is irrelevant; $top=100 covers the window.
   const listUrl =
     `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages` +
     `?$filter=receivedDateTime ge ${since} and hasAttachments eq true` +
-    `&$select=id,subject,receivedDateTime,from,internetMessageId` +
-    `&$orderby=receivedDateTime desc&$top=50`
+    `&$select=id,subject,receivedDateTime,from,internetMessageId&$top=100`
   const res = await fetch(listUrl, { headers: { Authorization: "Bearer " + accessToken } })
   if (!res.ok) {
     const t = await res.text()
