@@ -87,12 +87,8 @@ export async function POST(request) {
   const peopleAdvance = PEOPLE_STATE_AFTER_OUTREACH[outreach_type] || null
   let stageUpdated = false
 
-  // Legacy contacts update (no-ops for people-only rows; fires trigger for migrated rows)
   if (newStage) {
-    await sb.from("contacts").update({ pipeline_stage: newStage, last_activity_date: new Date().toISOString() }).eq("id", contact_id)
     stageUpdated = true
-  } else {
-    await sb.from("contacts").update({ last_activity_date: new Date().toISOString() }).eq("id", contact_id)
   }
 
   // Unified people update — works for ALL records including people-only.

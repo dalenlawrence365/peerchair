@@ -201,7 +201,7 @@ export async function POST(request) {
     if (Object.keys(patch).length > 0) await sb.from("people").update(patch).eq("id", contact.id)
   }
 
-  // Pipeline link: advance state + action tag + legacy stage sync
+  // Pipeline link: advance state + action tag
   if (pipeline) {
     if ((contact.roles || []).includes(pipeline.role)) {
       const currentState = pipeline.role === "cfo" ? contact.cfo_state : contact.sponsor_state
@@ -210,7 +210,6 @@ export async function POST(request) {
       }
       await sb.rpc("set_action_tag", { p_person_id: contact.id, p_action_type: pipeline.actionTag, p_set_by: "calendly_webhook", p_notes: `${eventName} @ ${startTime}` })
     }
-    await sb.from("contacts").update({ pipeline_stage: pipeline.legacyStage, last_activity_date: new Date().toISOString() }).eq("id", contact.id)
   }
   // Generic link, matched: no stage change, no action tag — just the comm below.
 

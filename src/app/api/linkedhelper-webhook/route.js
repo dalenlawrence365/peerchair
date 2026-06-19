@@ -188,136 +188,62 @@ export async function POST(request) {
   }
 }
 
-// Look up pool record first — pool is the source of truth for who we targeted.
-// Returns the pool row (or null), used to populate contact fields on creation.
-async function findPoolRecord(sb, profileUrl) {
-  if (!profileUrl) return null
-  const { data: poolRow } = await sb.from("pool")
-    .select("linkedin_url, first_name, last_name, full_name, title, company, location, geo_segment, title_type, seed_batch_id, contact_id, internal_tags")
-    .eq("linkedin_url", profileUrl)
-    .maybeSingle()
-  return poolRow || null
-}
-
-async function findOrCreateContact(sb, lead, seedBatchTag, eventLabel, poolRow) {
+// Resolve the lead to a row in the unified people table. people is the sole CRM
+// entity table — there is no contacts/pool lookup any more. Match by LinkedIn
+// URL (www / non-www variants), then by name, and create a people row directly
+// for a genuinely net-new lead. Always returns { id, _peopleOnly:true } or null.
+async function findOrCreatePerson(sb, lead, eventLabel) {
   if (!lead.profileUrl && !lead.firstName) return null
 
-  // 1. If pool record is already promoted, follow the FK
-  if (poolRow && poolRow.contact_id) {
-    const { data: linked } = await sb.from("contacts")
-      .select("id, first_name, last_name, pipeline_stage, contact_type")
-      .eq("id", poolRow.contact_id)
-      .maybeSingle()
-    if (linked) return { ...linked, _alreadyExisted: true }
-  }
-
-  // 2. Find existing contact by URL
-  if (lead.profileUrl) {
-    const { data: existing } = await sb.from("contacts")
-      .select("id, first_name, last_name, pipeline_stage, contact_type")
-      .eq("linkedin_url", lead.profileUrl)
-      .maybeSingle()
-    if (existing) return { ...existing, _alreadyExisted: true }
-  }
-
-  // 3. Find by name as fallback
-  if (lead.firstName && lead.lastName) {
-    const { data: byName } = await sb.from("contacts")
-      .select("id, first_name, last_name, pipeline_stage, contact_type")
-      .ilike("first_name", lead.firstName)
-      .ilike("last_name", lead.lastName)
-      .maybeSingle()
-    if (byName) return { ...byName, _alreadyExisted: true }
-  }
-
-  // 3.5 Match the unified people table directly by LinkedIn URL. Leads seeded
-  // straight into people+pool have no contacts row, and creating one would trip
-  // the unique people.linkedin_url index via the contacts->people insert-sync
-  // trigger — aborting the insert and stranding the event in webhook_unmatched.
-  // When the person already exists in people, operate on that people row
-  // directly (_peopleOnly) and skip the contacts create entirely. This only
-  // fires when steps 1-3 found no contact, so the working contacts path is
-  // untouched.
   if (lead.profileUrl) {
     const urlVariants = Array.from(new Set([
       lead.profileUrl,
       lead.profileUrl.replace("https://www.linkedin.com", "https://linkedin.com"),
       lead.profileUrl.replace("https://linkedin.com", "https://www.linkedin.com"),
     ]))
-    const { data: pplByUrl } = await sb.from("people")
+    const { data: byUrl } = await sb.from("people")
       .select("id, cfo_state")
       .in("linkedin_url", urlVariants)
       .limit(1)
-    if (pplByUrl && pplByUrl.length) {
-      return { id: pplByUrl[0].id, pipeline_stage: pplByUrl[0].cfo_state || null, _alreadyExisted: true, _peopleOnly: true }
+    if (byUrl && byUrl.length) {
+      return { id: byUrl[0].id, pipeline_stage: byUrl[0].cfo_state || null, _alreadyExisted: true, _peopleOnly: true }
     }
   }
 
-  // 4. Create new — POOL DATA IS PRIMARY, webhook payload fills gaps
-  const insertRow = {
-    first_name: (poolRow && poolRow.first_name) || lead.firstName || (lead.fullName.split(" ")[0] || ""),
-    last_name: (poolRow && poolRow.last_name) || lead.lastName || lead.fullName.split(" ").slice(1).join(" ") || "",
-    company_name: (poolRow && poolRow.company) || lead.company || null,
-    title: (poolRow && poolRow.title) || lead.position || null,
-    linkedin_url: lead.profileUrl || (poolRow && poolRow.linkedin_url) || null,
-    email: lead.email || null,
-    linkedin_location: (poolRow && poolRow.location) || lead.location || null,
-    contact_type: "CFO_PROSPECT",
-    lead_source: "LinkedIn / LinkedHelper",
-    pipeline_stage: eventLabel,
-    last_activity_date: new Date().toISOString()
+  if (lead.firstName && lead.lastName) {
+    const { data: byName } = await sb.from("people")
+      .select("id, cfo_state")
+      .ilike("full_name", `${lead.firstName}%${lead.lastName}`)
+      .limit(1)
+    if (byName && byName.length) {
+      return { id: byName[0].id, pipeline_stage: byName[0].cfo_state || null, _alreadyExisted: true, _peopleOnly: true }
+    }
   }
-  const { data: newContact, error } = await sb.from("contacts").insert(insertRow).select("id, pipeline_stage").single()
 
+  // Net-new lead → create the people row directly.
+  const fullName = lead.fullName || `${lead.firstName || ""} ${lead.lastName || ""}`.trim()
+  const insertRow = {
+    full_name: fullName || lead.profileUrl || "Unknown",
+    linkedin_url: lead.profileUrl || null,
+    title: lead.position || null,
+    company: lead.company || null,
+    roles: ["cfo"],
+    source: "LinkedIn / LinkedHelper",
+    cfo_state: "pool",
+    linkedin_connected: false,
+  }
+  if (lead.avatar) insertRow.avatar_url = lead.avatar
+  const { data: created, error } = await sb.from("people").insert(insertRow).select("id, cfo_state").single()
   if (error) {
-    console.error("Contact insert error:", error.message)
+    console.error("People insert error:", error.message)
     return null
   }
-
-  // The contacts→people sync trigger (Phase 3) creates/updates a people row
-  // when a contact is inserted, but it does NOT propagate lead_source. Patch
-  // the resulting people row directly so the new app's people.source matches
-  // contacts.lead_source. Only sets if null so we never overwrite a more
-  // specific source set elsewhere.
-  try {
-    await sb.from("people").update({ source: "LinkedIn / LinkedHelper" }).eq("id", newContact.id).is("source", null)
-  } catch(e) { console.error("people.source patch failed:", e.message) }
-
-  // Capture LinkedIn avatar photo if LinkedHelper sent one and we don't have it yet
-  if (lead.avatar) {
-    try {
-      await sb.from("people").update({ avatar_url: lead.avatar }).eq("id", newContact.id).is("avatar_url", null)
-    } catch(e) { console.error("people.avatar_url patch failed:", e.message) }
-  }
-
-  return { ...newContact, _alreadyExisted: false }
+  return { id: created.id, pipeline_stage: created.cfo_state || null, _alreadyExisted: false, _peopleOnly: true }
 }
 
-// Update pool record with engagement state: last event, count, contact_id link
-async function updatePool(sb, profileUrl, eventType, contactId) {
-  if (!profileUrl) return
-  try {
-    // Get current event_count to increment
-    const { data: cur } = await sb.from("pool")
-      .select("event_count, contact_id")
-      .eq("linkedin_url", profileUrl)
-      .maybeSingle()
 
-    const patch = {
-      last_event_type: eventType,
-      last_event_at: new Date().toISOString(),
-      event_count: ((cur && cur.event_count) || 0) + 1,
-      updated_at: new Date().toISOString()
-    }
-    // Set contact_id only if not already set
-    if (contactId && (!cur || !cur.contact_id)) {
-      patch.contact_id = contactId
-    }
-    await sb.from("pool").update(patch).eq("linkedin_url", profileUrl)
-  } catch(e) {
-    console.error("Pool update error:", e.message)
-  }
-}
+
+
 
 async function logUnmatched(sb, eventType, lead, messageBody, rawPayload) {
   await sb.from("webhook_unmatched").insert({
@@ -332,8 +258,8 @@ async function logUnmatched(sb, eventType, lead, messageBody, rawPayload) {
 }
 
 // Persist people-only enrichment (About / headline) from the LinkedHelper
-// payload. people.id === contacts.id, so we key by the contact id returned from
-// findOrCreateContact. About is overwritten when present (LinkedHelper is the
+// payload. We key by the person id returned from findOrCreatePerson. About is
+// overwritten when present (LinkedHelper is the
 // freshest source); headline only fills a gap so we never clobber the curated
 // CSV headlines.
 async function enrichPersonFromLead(sb, personId, lead) {
@@ -351,30 +277,16 @@ async function enrichPersonFromLead(sb, personId, lead) {
 }
 
 async function handleSent(sb, lead, tags, seedBatchTag, raw) {
-  const poolRow = await findPoolRecord(sb, lead.profileUrl)
-  const contact = await findOrCreateContact(sb, lead, seedBatchTag, "Requested", poolRow)
+  const contact = await findOrCreatePerson(sb, lead, "Requested")
   if (!contact) {
     await logUnmatched(sb, "sent", lead, null, raw)
     return
   }
   await enrichPersonFromLead(sb, contact.id, lead)
 
-  // Move to Requested only if currently at pool or empty stage
-  if (!contact.pipeline_stage || contact.pipeline_stage === "pool") {
-    await sb.from("contacts").update({
-      pipeline_stage: "Requested",
-      last_activity_date: new Date().toISOString()
-    }).eq("id", contact.id)
-  } else {
-    await sb.from("contacts").update({
-      last_activity_date: new Date().toISOString()
-    }).eq("id", contact.id)
-  }
-
-  // Log the outbound connection request. People-only records have no contacts
-  // row, so key by person_id — communications.contact_id is a FK to contacts.
+  // Log the outbound connection request, keyed by person_id.
   await sb.from("communications").insert({
-    ...(contact._peopleOnly ? { person_id: contact.id } : { contact_id: contact.id }),
+    person_id: contact.id,
     direction: "OUT",
     channel: "LinkedIn",
     body: "Connection request sent" + (seedBatchTag ? ` (${seedBatchTag})` : ""),
@@ -391,38 +303,22 @@ async function handleSent(sb, lead, tags, seedBatchTag, raw) {
     p_set_by: "linkedhelper_webhook"
   })
 
-  // Update pool with event state + contact link
-  await updatePool(sb, lead.profileUrl, "sent", contact.id)
 }
 
 async function handleConnected(sb, lead, tags, seedBatchTag, raw) {
-  const poolRow = await findPoolRecord(sb, lead.profileUrl)
-  const contact = await findOrCreateContact(sb, lead, seedBatchTag, "Connected", poolRow)
+  const contact = await findOrCreatePerson(sb, lead, "Connected")
   if (!contact) {
     await logUnmatched(sb, "connected", lead, null, raw)
     return
   }
   await enrichPersonFromLead(sb, contact.id, lead)
 
-  // Always advance to Connected on accept (unless already past)
-  const advancedStages = ["Engaged","Fit Invite Sent","Fit Call Scheduled","Fit Call Completed","Strong Fit","Possible Fit","Active Member","Event Waitlist","Event Invited","Event Confirmed","Event Attended","Membership Conversation Scheduled","Membership Conversation Completed","Verbal Commitment"]
-  const stayPut = advancedStages.indexOf(contact.pipeline_stage) > -1
-
-  await sb.from("contacts").update({
-    pipeline_stage: stayPut ? contact.pipeline_stage : "Connected",
-    linkedin_connected_date: new Date().toISOString(),
-    last_activity_date: new Date().toISOString()
-  }).eq("id", contact.id)
-
-  // People-only records have no contacts row, so the contacts->people sync
-  // trigger never fires. Set the connected state on people directly and tag it.
-  if (contact._peopleOnly) {
-    await sb.from("people").update({ linkedin_connected: true, last_meaningful_touch: new Date().toISOString() }).eq("id", contact.id)
-    await sb.rpc("set_action_tag", { p_person_id: contact.id, p_action_type: "connection_accepted", p_set_by: "linkedhelper_webhook" })
-  }
+  // Mark connected on the people row and tag the acceptance.
+  await sb.from("people").update({ linkedin_connected: true, last_meaningful_touch: new Date().toISOString() }).eq("id", contact.id)
+  await sb.rpc("set_action_tag", { p_person_id: contact.id, p_action_type: "connection_accepted", p_set_by: "linkedhelper_webhook" })
 
   await sb.from("communications").insert({
-    ...(contact._peopleOnly ? { person_id: contact.id } : { contact_id: contact.id }),
+    person_id: contact.id,
     direction: "IN",
     channel: "LinkedIn",
     body: "Connection accepted" + (seedBatchTag ? ` (${seedBatchTag})` : ""),
@@ -431,15 +327,11 @@ async function handleConnected(sb, lead, tags, seedBatchTag, raw) {
     source: "LinkedHelper"
   })
 
-  await updatePool(sb, lead.profileUrl, "connected", contact.id)
 }
 
 async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
   const replyText = lead.lastReply || lead.lastMessage || ""
-  const poolRow = await findPoolRecord(sb, lead.profileUrl)
-  // We pass "Connected" as the eventLabel for new-contact creation only — we do NOT
-  // promote existing contacts to a higher stage. The reply tag carries the signal.
-  const contact = await findOrCreateContact(sb, lead, seedBatchTag, "Connected", poolRow)
+  const contact = await findOrCreatePerson(sb, lead, "Connected")
   if (!contact) {
     await logUnmatched(sb, "replied", lead, replyText, raw)
     return
@@ -462,14 +354,6 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
       return
     }
   }
-
-  // KEY CHANGE (2026-05-22): do NOT auto-advance pipeline_stage on reply.
-  // The system can't read intent — a reply might be "thanks" or might be
-  // substantive. Dalen reviews the inbox and advances manually.
-  // We still update last_activity_date so the timeline sort surfaces this.
-  await sb.from("contacts").update({
-    last_activity_date: new Date().toISOString()
-  }).eq("id", contact.id)
 
   // 2026-05-28: capture LinkedIn thread snapshot + inbox signals on the people row.
   // LinkedHelper now sends full_messaging_history (entire thread w/ timestamps),
@@ -506,7 +390,6 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
     p_notes: replyText ? replyText.slice(0, 200) : null
   })
 
-  await updatePool(sb, lead.profileUrl, "replied", contact.id)
 }
 
 // ============================================================================
