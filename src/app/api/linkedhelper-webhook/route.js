@@ -230,6 +230,29 @@ async function findOrCreateContact(sb, lead, seedBatchTag, eventLabel, poolRow) 
     if (byName) return { ...byName, _alreadyExisted: true }
   }
 
+  // 3.5 Match the unified people table directly by LinkedIn URL. Leads seeded
+  // straight into people+pool have no contacts row, and creating one would trip
+  // the unique people.linkedin_url index via the contacts->people insert-sync
+  // trigger — aborting the insert and stranding the event in webhook_unmatched.
+  // When the person already exists in people, operate on that people row
+  // directly (_peopleOnly) and skip the contacts create entirely. This only
+  // fires when steps 1-3 found no contact, so the working contacts path is
+  // untouched.
+  if (lead.profileUrl) {
+    const urlVariants = Array.from(new Set([
+      lead.profileUrl,
+      lead.profileUrl.replace("https://www.linkedin.com", "https://linkedin.com"),
+      lead.profileUrl.replace("https://linkedin.com", "https://www.linkedin.com"),
+    ]))
+    const { data: pplByUrl } = await sb.from("people")
+      .select("id, cfo_state")
+      .in("linkedin_url", urlVariants)
+      .limit(1)
+    if (pplByUrl && pplByUrl.length) {
+      return { id: pplByUrl[0].id, pipeline_stage: pplByUrl[0].cfo_state || null, _alreadyExisted: true, _peopleOnly: true }
+    }
+  }
+
   // 4. Create new — POOL DATA IS PRIMARY, webhook payload fills gaps
   const insertRow = {
     first_name: (poolRow && poolRow.first_name) || lead.firstName || (lead.fullName.split(" ")[0] || ""),
@@ -348,9 +371,10 @@ async function handleSent(sb, lead, tags, seedBatchTag, raw) {
     }).eq("id", contact.id)
   }
 
-  // Log the outbound connection request
+  // Log the outbound connection request. People-only records have no contacts
+  // row, so key by person_id — communications.contact_id is a FK to contacts.
   await sb.from("communications").insert({
-    contact_id: contact.id,
+    ...(contact._peopleOnly ? { person_id: contact.id } : { contact_id: contact.id }),
     direction: "OUT",
     channel: "LinkedIn",
     body: "Connection request sent" + (seedBatchTag ? ` (${seedBatchTag})` : ""),
@@ -390,8 +414,15 @@ async function handleConnected(sb, lead, tags, seedBatchTag, raw) {
     last_activity_date: new Date().toISOString()
   }).eq("id", contact.id)
 
+  // People-only records have no contacts row, so the contacts->people sync
+  // trigger never fires. Set the connected state on people directly and tag it.
+  if (contact._peopleOnly) {
+    await sb.from("people").update({ linkedin_connected: true, last_meaningful_touch: new Date().toISOString() }).eq("id", contact.id)
+    await sb.rpc("set_action_tag", { p_person_id: contact.id, p_action_type: "connection_accepted", p_set_by: "linkedhelper_webhook" })
+  }
+
   await sb.from("communications").insert({
-    contact_id: contact.id,
+    ...(contact._peopleOnly ? { person_id: contact.id } : { contact_id: contact.id }),
     direction: "IN",
     channel: "LinkedIn",
     body: "Connection accepted" + (seedBatchTag ? ` (${seedBatchTag})` : ""),
@@ -453,10 +484,11 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
   if (lead.hasUnreadMessages !== null)    peoplePatch.linkedin_has_unread = lead.hasUnreadMessages
   await sb.from("people").update(peoplePatch).eq("id", contact.id)
 
-  // Log the reply communication — dual-write person_id + contact_id
+  // Log the reply communication. Key by person_id always; attach contact_id
+  // only when a contacts row exists (contact_id is a FK to contacts).
   await sb.from("communications").insert({
     person_id: contact.id,
-    contact_id: contact.id,
+    ...(contact._peopleOnly ? {} : { contact_id: contact.id }),
     direction: "IN",
     channel: "LinkedIn",
     body: replyText || "(LinkedHelper reported a reply but no body was included)",
