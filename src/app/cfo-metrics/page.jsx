@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { T } from "@/lib/pipelineTheme"
+import CfoStatePills from "@/components/CfoStatePills"
 
 const STATE_COLOR = {
   audience:  { bg: "rgba(59, 130, 246, 0.12)", fg: "#3b82f6" },
@@ -81,7 +82,7 @@ export default function CfoMetricsPage() {
     <main style={{ padding: "26px 32px 80px", maxWidth: 1100 }}>
       <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: -0.4, margin: 0 }}>CFO outreach</h1>
       <div style={{ fontSize: 13, color: T.textTertiary, marginTop: 4, marginBottom: 22 }}>
-        {data.connected_total.toLocaleString()} connected CFOs (past Pool stage)
+        {data.connected_total.toLocaleString()} connected CFOs (first-degree)
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 24 }}>
@@ -120,7 +121,7 @@ function PersonRow({ p, isLast }) {
         {/* Line 1: name + state + status pills + activity pills */}
         <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
           <span style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</span>
-          <StatePill s={p.cfo_state} />
+          <CfoStatePills cfoState={p.cfo_state} connected={p.linkedin_connected} />
           {(p.status_tags || []).map(t => {
             const c = STATUS_LABEL[t]
             if (!c) return null

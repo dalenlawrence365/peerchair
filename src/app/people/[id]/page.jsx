@@ -409,18 +409,21 @@ export default function PersonProfile() {
                     const isPast = curIdx >= 0 && i < curIdx
                     const isAdjacent = curIdx >= 0 && Math.abs(i - curIdx) === 1
                     const rc = ROLE_COLOR[primaryRole] || "#475569"
+                    const isCfoAudienceNode = primaryRole === "cfo" && s === "audience"
+                    const audienceLit = isCfoAudienceNode && p.linkedin_connected === true
+                    const lit = isPast || audienceLit
                     return (
                       <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                         {i > 0 && <span style={{ color: T.border, fontSize: 12 }}>›</span>}
                         <button disabled={busy || isCur}
-                          onClick={function(){ if (!isCur) postAction({ action: "set_state", role: primaryRole, state: s }) }}
-                          title={isCur ? "Current stage" : (curIdx >= 0 && i < curIdx ? "Move back to " + s : "Advance to " + s)}
+                          onClick={function(){ if (isCfoAudienceNode) { postAction({ action: "set_connected", connected: !p.linkedin_connected }); return } if (!isCur) postAction({ action: "set_state", role: primaryRole, state: s }) }}
+                          title={isCfoAudienceNode ? (p.linkedin_connected ? "Connected (1st degree) — click to unmark" : "Not connected — click to mark 1st-degree") : (isCur ? "Current stage" : (curIdx >= 0 && i < curIdx ? "Move back to " + s : "Advance to " + s))}
                           style={{
                             fontSize: 11, padding: "4px 10px", borderRadius: 999, fontFamily: "inherit",
                             fontWeight: isCur ? 700 : 500,
                             cursor: isCur ? "default" : (busy ? "not-allowed" : "pointer"),
-                            background: isCur ? rc : (isPast ? rc + "22" : "white"),
-                            color: isCur ? "white" : (isPast ? rc : T.textSecondary),
+                            background: isCur ? rc : (lit ? rc + "22" : "white"),
+                            color: isCur ? "white" : (lit ? rc : T.textSecondary),
                             border: "1px solid " + (isCur ? rc : (isAdjacent ? rc + "88" : T.border)),
                             textTransform: "capitalize"
                           }}>{s}</button>

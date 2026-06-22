@@ -29,8 +29,8 @@ export async function GET() {
   // 1. Pull all connected CFOs
   const { data: cfos, error } = await sb
     .from("people")
-    .select("id, full_name, first_name, last_name, title, company, email, email2, linkedin_url, cfo_state, last_meaningful_touch")
-    .in("cfo_state", CONNECTED_STATES)
+    .select("id, full_name, first_name, last_name, title, company, email, email2, linkedin_url, cfo_state, linkedin_connected, last_meaningful_touch")
+    .eq("linkedin_connected", true)
     .contains("roles", ["cfo"])
     .limit(5000)
   if (error) return Response.json({ error: error.message }, { status: 500 })
@@ -98,6 +98,7 @@ export async function GET() {
       email: (p.email && p.email.trim()) || (p.email2 && p.email2.trim()) || null,
       linkedin_url: (p.linkedin_url && p.linkedin_url.trim()) || null,
       cfo_state: p.cfo_state,
+      linkedin_connected: p.linkedin_connected === true,
       last_touch: p.last_meaningful_touch,
       connected_at: connectedAtByPerson.get(p.id) || null,
       invite_sent_at: inviteSentAtByPerson.get(p.id) || null,
@@ -114,7 +115,7 @@ export async function GET() {
   }
 
   // Sort by cfo_state importance, then last_touch desc
-  const stateRank = { member: 0, qualified: 1, prospect: 2, audience: 3 }
+  const stateRank = { member: 0, qualified: 1, prospect: 2, audience: 3, pool: 4 }
   const sorter = (a, b) => {
     const r = (stateRank[a.cfo_state] ?? 9) - (stateRank[b.cfo_state] ?? 9)
     if (r !== 0) return r
