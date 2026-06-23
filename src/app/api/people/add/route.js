@@ -116,7 +116,6 @@ export async function POST(request) {
   if (body.first_note && body.first_note.trim()) {
     const { error: cErr } = await sb.from("communications").insert({
       person_id: personId,
-      contact_id: personId,            // dual-write so legacy queries also see it
       direction: "INTERNAL",
       channel: "Note",
       body: body.first_note.trim(),

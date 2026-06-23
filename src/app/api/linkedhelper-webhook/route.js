@@ -368,11 +368,9 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
   if (lead.hasUnreadMessages !== null)    peoplePatch.linkedin_has_unread = lead.hasUnreadMessages
   await sb.from("people").update(peoplePatch).eq("id", contact.id)
 
-  // Log the reply communication. Key by person_id always; attach contact_id
-  // only when a contacts row exists (contact_id is a FK to contacts).
+  // Log the reply communication, keyed by person_id.
   await sb.from("communications").insert({
     person_id: contact.id,
-    ...(contact._peopleOnly ? {} : { contact_id: contact.id }),
     direction: "IN",
     channel: "LinkedIn",
     body: replyText || "(LinkedHelper reported a reply but no body was included)",

@@ -97,12 +97,11 @@ export async function GET(request) {
     return Response.json({ status: "no_match", message: "Contact not found." })
   }
 
-  // Pull last 20 communications — match on person_id OR contact_id (migrated rows
-  // share the same id; new rows use person_id; legacy comms used contact_id)
+  // Pull last 20 communications — matched on person_id
   const { data: comms } = await sb
     .from("communications")
-    .select("occurred_at, direction, channel, body, step_label, subject, person_id, contact_id")
-    .or(`person_id.eq.${contact.id},contact_id.eq.${contact.id}`)
+    .select("occurred_at, direction, channel, body, step_label, subject, person_id")
+    .eq("person_id", contact.id)
     .order("occurred_at", { ascending: false })
     .limit(20)
 
