@@ -39,7 +39,7 @@ export async function GET(request) {
 
       // Log to communications so it appears in the thread
       await supabase.from('communications').insert({
-        contact_id:  action.contact_id,
+        person_id:   action.person_id,
         occurred_at: now,
         channel:     action.channel === 'linkedin' ? 'LinkedIn' : 'Email',
         direction:   'INTERNAL',

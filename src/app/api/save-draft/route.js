@@ -100,7 +100,7 @@ export async function POST(request) {
 
   // Log to communications
   await sb.from("communications").insert({
-    contact_id: contact.id,
+    person_id: contact.id,
     direction: "OUT",
     channel: "Email",
     body: `Subject: ${subject}\n\n${emailBody}`,

@@ -36,8 +36,7 @@ export async function POST(request) {
     return corsResponse({ error: "Contact not found" }, { status: 404 })
   }
 
-  // Write to communications table — dual-write person_id + contact_id so both
-  // new (people-based) and legacy (contact-based) readers find the note
+  // Write to communications table — write person_id (people-based)
   const { data: comm, error } = await sb
     .from("communications")
     .insert({
