@@ -44,18 +44,18 @@ export async function GET(request) {
   //    message that has been synced into email_messages.
   const { data: cached } = await sb
     .from("email_messages")
-    .select("id, contact_id, message_id, direction, subject, body, body_preview, sent_at, from_address, to_address, thread_id, is_read")
+    .select("id, person_id, message_id, direction, subject, body, body_preview, sent_at, from_address, to_address, thread_id, is_read")
     .eq("message_id", messageId)
     .maybeSingle()
 
   if (cached && cached.body && cached.body.length > 0) {
     // Optionally attach contact context
     let contact = null
-    if (cached.contact_id) {
+    if (cached.person_id) {
       const { data: c } = await sb
-        .from("contacts")
-        .select("id, first_name, last_name, company_name, pipeline_stage, contact_type")
-        .eq("id", cached.contact_id)
+        .from("people")
+        .select("id, first_name, last_name, company, roles, cfo_state, sponsor_state, referral_state")
+        .eq("id", cached.person_id)
         .maybeSingle()
       if (c) contact = c
     }

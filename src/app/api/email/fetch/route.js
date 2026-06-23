@@ -10,7 +10,7 @@ export async function GET() {
   const sb = serverClient()
 
   // Load contacts with emails
-  const { data:contacts } = await sb.from("contacts").select("id,first_name,last_name,company_name,email,pipeline_stage").not("email","is",null).limit(1000)
+  const { data:contacts } = await sb.from("people").select("id,first_name,last_name,company,email,cfo_state,sponsor_state").not("email","is",null).limit(1000)
   const byEmail = {}
   ;(contacts||[]).forEach(c=>{ if(c.email) byEmail[c.email.toLowerCase()]=c })
 
@@ -41,7 +41,7 @@ export async function GET() {
 
     matched.push({
       message_id:   msg.id,
-      contact_id:   contact.id,
+      person_id:    contact.id,
       direction:    msg.direction === "inbound" ? "IN" : "OUT",
       subject:      msg.subject || "",
       body:         cleanBody,
@@ -62,7 +62,7 @@ export async function GET() {
   if (matched.length > 0) {
     const rows = matched.map(m=>({
       message_id:  m.message_id,
-      contact_id:  m.contact_id,
+      person_id:   m.person_id,
       direction:   m.direction,
       subject:     m.subject,
       body:        m.body,
@@ -79,13 +79,13 @@ export async function GET() {
     // Also write to communications (for timeline visibility) — skip if already logged
     for (const m of matched) {
       const { data:existing } = await sb.from("communications")
-        .select("id").eq("contact_id", m.contact_id)
+        .select("id").eq("person_id", m.person_id)
         .ilike("body", m.body_preview.slice(0,50)+"%")
         .eq("channel","email").limit(1)
       if (existing && existing.length > 0) continue
 
       await sb.from("communications").insert({
-        contact_id:  m.contact_id,
+        person_id:   m.person_id,
         occurred_at: m.sent_at,
         channel:     "email",
         direction:   m.direction === "IN" ? "inbound" : "outbound",
@@ -99,7 +99,7 @@ export async function GET() {
   }
 
   return Response.json({
-    emails:  matched.map(m=>({ id:m.message_id, subject:m.subject, preview:m.body_preview, direction:m.direction==="IN"?"inbound":"outbound", received_at:m.sent_at, is_read:m.is_read, from_email:m.from_address, contact:{id:m.contact.id,name:m.contact.first_name+" "+m.contact.last_name,company:m.contact.company_name,stage:m.contact.pipeline_stage,email:m.contact.email} })),
+    emails:  matched.map(m=>({ id:m.message_id, subject:m.subject, preview:m.body_preview, direction:m.direction==="IN"?"inbound":"outbound", received_at:m.sent_at, is_read:m.is_read, from_email:m.from_address, contact:{id:m.contact.id,name:m.contact.first_name+" "+m.contact.last_name,company:m.contact.company,stage:m.contact.cfo_state||m.contact.sponsor_state||null,email:m.contact.email} })),
     total:   matched.length,
     synced,
     generated_at: new Date().toISOString()
