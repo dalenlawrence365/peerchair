@@ -6,9 +6,6 @@ import { createClient } from '@supabase/supabase-js'
 import { serverClient } from "@/lib/supabaseServer"
 import { logCronRun } from "@/lib/cron-audit"
 
-const HR_KEY  = process.env.HEYREACH_API_KEY
-const HR_BASE = "https://api.heyreach.io/api/public"
-const SITE    = "https://www.peerchair.com"
 
 export async function GET(request) {
   const authHeader = request.headers.get('authorization')
@@ -64,53 +61,13 @@ export async function GET(request) {
 
       try {
         if (action.channel === 'linkedin') {
-          // Send via HeyReach MCP proxy
-          const sendRes = await fetch(`${SITE}/api/follow-up-queue/send`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              conversationId:    action.conversation_id,
-              linkedInAccountId: action.linkedin_account_id || 185228,
-              message:           action.message_body,
-            })
-          })
-          const sendData = await sendRes.json()
-
-          if (sendData.success || sendData.status === 'sent') {
-            await supabase.from('scheduled_actions').update({
-              status: 'sent',
-              message_id: sendData.messageId || null,
-              status_updated_at: new Date().toISOString()
-            }).eq('id', action.id)
-
-            // Log communication
-            await supabase.from('communications').insert({
-              contact_id:   action.contact_id,
-              occurred_at:  new Date().toISOString(),
-              channel:      'LinkedIn',
-              direction:    'OUT',
-              step_label:   'Scheduled Send',
-              body:         action.message_body,
-              source:       'PeerChair Scheduled',
-              logged_by:    'system',
-            })
-
-            results.fired.push(action.contact_first_name + ' ' + action.contact_last_name)
-
-            // Schedule verification check in 5 minutes (next cron will confirm)
-            await supabase.from('scheduled_actions').update({
-              status: 'sent',
-              status_updated_at: new Date().toISOString()
-            }).eq('id', action.id)
-
-            // Send confirmation email to Dalen
-            await sendAlert(
-              '✓ Scheduled message sent',
-              `Your scheduled LinkedIn message to ${action.contact_first_name} ${action.contact_last_name} at ${action.contact_company} was sent successfully.\n\nMessage:\n"${action.message_body}"`
-            )
-          } else {
-            throw new Error(sendData.error || 'Send returned non-success')
-          }
+          // LinkedIn auto-send retired (sending is manual via LinkedHelper) — resurface the draft
+          await supabase.from('scheduled_actions').update({
+            status: 'resurfaced',
+            failure_reason: 'LinkedIn auto-send retired — resurfaced for manual send',
+            status_updated_at: new Date().toISOString()
+          }).eq('id', action.id)
+          results.resurfaced.push(action.contact_first_name + ' ' + action.contact_last_name + ' (LinkedIn — send manually)')
         }
 
         if (action.channel === 'email') {
@@ -143,51 +100,6 @@ export async function GET(request) {
     }
   }
 
-  // ── Verify recently sent messages (sent > 5 min ago, not yet confirmed) ──
-  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
-  const { data: toVerify } = await supabase
-    .from('scheduled_actions')
-    .select('*')
-    .eq('status', 'sent')
-    .eq('channel', 'linkedin')
-    .lt('send_attempted_at', fiveMinAgo)
-    .limit(10)
-
-  for (const action of (toVerify || [])) {
-    try {
-      const threadRes = await fetch(
-        `${SITE}/api/follow-up-queue/thread?conversationId=${encodeURIComponent(action.conversation_id)}&linkedInAccountId=${action.linkedin_account_id || 185228}&contactId=${action.contact_id}`
-      )
-      const threadData = await threadRes.json()
-      const messages = threadData.messages || []
-
-      // Check if our message appears in the thread
-      const sendTime = new Date(action.send_attempted_at).getTime()
-      const confirmed = messages.some(function(m) {
-        return m.sender === 'ME' && Math.abs(new Date(m.sentAt).getTime() - sendTime) < 600000
-      })
-
-      if (confirmed) {
-        await supabase.from('scheduled_actions').update({
-          status: 'confirmed',
-          send_confirmed_at: new Date().toISOString(),
-          status_updated_at: new Date().toISOString()
-        }).eq('id', action.id)
-        results.verified.push(action.contact_first_name + ' ' + action.contact_last_name)
-      } else {
-        await supabase.from('scheduled_actions').update({
-          status: 'unconfirmed',
-          failure_reason: 'Message not found in LinkedIn thread after 5 minutes',
-          status_updated_at: new Date().toISOString()
-        }).eq('id', action.id)
-
-        await sendAlert(
-          '⚠️ Delivery unconfirmed',
-          `Your scheduled message to ${action.contact_first_name} ${action.contact_last_name} was sent but could not be verified in LinkedIn.\n\nPlease check their LinkedIn conversation manually.`
-        )
-      }
-    } catch(e) { console.warn('Verification failed:', e.message) }
-  }
 
   const total = results.fired.length + results.resurfaced.length
   await logCronRun(
