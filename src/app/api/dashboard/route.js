@@ -144,18 +144,18 @@ export async function GET() {
 
   // Recent activity — last 15 communications across all people
   const { data: activityRaw } = await sb.from("communications")
-    .select("id, person_id, contact_id, occurred_at, direction, channel, step_label, body")
+    .select("id, person_id, occurred_at, direction, channel, step_label, body")
     .order("occurred_at", { ascending: false })
     .limit(15)
 
-  const actPersonIds = [...new Set((activityRaw || []).map(c => c.person_id || c.contact_id).filter(Boolean))]
+  const actPersonIds = [...new Set((activityRaw || []).map(c => c.person_id).filter(Boolean))]
   const { data: actPeople } = actPersonIds.length > 0
     ? await sb.from("people").select("id, full_name, avatar_url").in("id", actPersonIds)
     : { data: [] }
   const actById = {}
   ;(actPeople || []).forEach(function(p){ actById[p.id] = p })
   const activity = (activityRaw || []).map(function(c){
-    const id = c.person_id || c.contact_id
+    const id = c.person_id
     const p = actById[id]
     return {
       id: c.id, occurred_at: c.occurred_at, channel: c.channel,

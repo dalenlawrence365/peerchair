@@ -23,13 +23,13 @@ export async function GET() {
 
   // Most recent inbound LinkedIn body per person, for preview
   const { data: comms } = await sb.from("communications")
-    .select("person_id, contact_id, body, occurred_at, channel, direction")
+    .select("person_id, body, occurred_at, channel, direction")
     .in("person_id", ids)
     .order("occurred_at", { ascending: false })
 
   const latestInbound = {}
   ;(comms || []).forEach(function(c){
-    const id = c.person_id || c.contact_id
+    const id = c.person_id
     if (!id) return
     if ((c.direction === "IN" || c.direction === "inbound") && !latestInbound[id]) latestInbound[id] = c
   })

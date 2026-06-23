@@ -16,10 +16,10 @@ export async function GET(request, { params }) {
   if (pErr) return Response.json({ error: pErr.message }, { status: 500 })
   if (!person) return Response.json({ error: "Person not found" }, { status: 404 })
 
-  // Communications — latest 50, match by person_id OR contact_id (migrated rows share id)
+  // Communications — latest 50, matched by person_id
   const { data: comms } = await sb.from("communications")
     .select("id, occurred_at, direction, channel, body, step_label, source, subject")
-    .or(`person_id.eq.${id},contact_id.eq.${id}`)
+    .eq("person_id", id)
     .order("occurred_at", { ascending: false })
     .limit(50)
 
