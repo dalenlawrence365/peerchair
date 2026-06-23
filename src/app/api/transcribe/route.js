@@ -39,7 +39,7 @@ export async function POST(request) {
     whisperForm.append('file', audio, 'recording.webm')
     whisperForm.append('model', 'whisper-1')
     whisperForm.append('language', 'en')
-    whisperForm.append('prompt', 'CFO Circle, Stalliant, HeyReach, DigitalOcean, Calendly, Supabase, PeerChair, Sales Navigator, LinkedIn, Los Angeles, Dalen Lawrence')
+    whisperForm.append('prompt', 'CFO Circle, Stalliant, DigitalOcean, Calendly, Supabase, PeerChair, Sales Navigator, LinkedIn, Los Angeles, Dalen Lawrence')
 
     const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method:  'POST',

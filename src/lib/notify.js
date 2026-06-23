@@ -80,18 +80,6 @@ export async function alertFitCallCanceled(name) {
   )
 }
 
-export async function alertCampaignStopped() {
-  return sendAlert(
-    '🚨 HeyReach Campaign Stopped',
-    'Your HeyReach campaign has stopped. Check your LinkedIn connection immediately.',
-    `<div style="font-family:sans-serif;max-width:480px;padding:20px">
-      <h2 style="color:#e74c3c;margin:0 0 8px">🚨 Campaign Stopped</h2>
-      <p style="font-size:16px;margin:0 0 16px">Your HeyReach campaign has stopped running. Check your LinkedIn / Sales Navigator connection immediately — your pipeline has stopped growing.</p>
-      <a href="https://app.heyreach.io" style="background:#e74c3c;color:#fff;padding:10px 20px;border-radius:5px;text-decoration:none;font-weight:bold">Open HeyReach →</a>
-    </div>`
-  )
-}
-
 export async function alertEngagementExpired(contacts) {
   const list = contacts.map(function(c){ return '<li>' + c + '</li>' }).join('')
   return sendAlert(

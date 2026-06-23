@@ -12,7 +12,6 @@ export async function GET() {
         <li>LinkedIn replies</li>
         <li>Fit calls booked or canceled</li>
         <li>14-day engagement window expiring</li>
-        <li>HeyReach campaign stopped</li>
       </ul>
       <a href="https://www.peerchair.com" style="background:#f0c84a;color:#000;padding:10px 20px;border-radius:5px;text-decoration:none;font-weight:bold">Open PeerChair →</a>
     </div>`
