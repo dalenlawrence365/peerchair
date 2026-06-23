@@ -83,7 +83,7 @@ export async function GET(request) {
       // were written with person_id or the legacy contact_id, same UUID).
       const { data: existing } = await sb.from("communications")
         .select("id")
-        .or(`person_id.eq.${person.id},contact_id.eq.${person.id}`)
+        .eq("person_id", person.id)
         .eq("channel", "email").eq("direction", "outbound")
         .eq("occurred_at", msg.sentDateTime)
         .limit(1)

@@ -343,7 +343,7 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
     const cutoff = new Date(Date.now() - 7*24*60*60*1000).toISOString()
     const { data: existing } = await sb.from("communications")
       .select("id")
-      .or(`person_id.eq.${contact.id},contact_id.eq.${contact.id}`)
+      .eq("person_id", contact.id)
       .eq("direction", "IN")
       .eq("channel", "LinkedIn")
       .ilike("body", `%${replyText.slice(0, 60).replace(/[%_]/g, "")}%`)

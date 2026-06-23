@@ -96,7 +96,7 @@ export async function GET(request) {
       // Matched path — write to the person's timeline (existing behavior)
       const { data: existing } = await sb.from("communications")
         .select("id")
-        .or(`person_id.eq.${person.id},contact_id.eq.${person.id}`)
+        .eq("person_id", person.id)
         .eq("channel", "email").eq("direction", "inbound")
         .eq("occurred_at", msg.receivedDateTime)
         .limit(1)

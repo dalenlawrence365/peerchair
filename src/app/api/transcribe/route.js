@@ -25,7 +25,7 @@ export async function POST(request) {
     const { data: cmd } = await supabase
       .from('voice_commands')
       .insert({
-        contact_id:  contactId,
+        person_id:   contactId,
         source,
         status:      'transcribing',
         occurred_at: new Date().toISOString()
