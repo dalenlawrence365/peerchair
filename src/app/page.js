@@ -66,9 +66,6 @@ export default function Home() {
             fontSize:13, fontWeight:600, letterSpacing:1, fontFamily:'inherit'
           }}>Enter</button>
         </form>
-        <div style={{textAlign:'center', marginTop:20, fontSize:10, color:'#3a5a74'}}>
-          <a href="/legacy" style={{color:'#3a5a74', textDecoration:'none'}}>Legacy interface →</a>
-        </div>
       </div>
     </div>
   )
