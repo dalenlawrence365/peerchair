@@ -19,7 +19,7 @@ export default function MeetingsList() {
   const [meetings, setMeetings] = useState(null)
   const [error, setError] = useState(null)
   useEffect(() => {
-    fetch("/api/meetings").then(r => r.json()).then(d => {
+    fetch("/api/provisors/meetings").then(r => r.json()).then(d => {
       if (d.error) setError(d.error); else setMeetings(d.meetings || [])
     }).catch(e => setError(String(e)))
   }, [])
