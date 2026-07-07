@@ -43,7 +43,7 @@ export async function GET(request) {
   const listUrl =
     `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages` +
     `?$filter=receivedDateTime ge ${since} and hasAttachments eq true` +
-    `&$select=id,subject,receivedDateTime,from,internetMessageId&$top=100`
+    `&$select=id,subject,bodyPreview,receivedDateTime,from,internetMessageId&$top=100`
   const res = await fetch(listUrl, { headers: { Authorization: "Bearer " + accessToken } })
   if (!res.ok) {
     const t = await res.text()
@@ -75,10 +75,17 @@ export async function GET(request) {
       const aRes = await fetch(aUrl, { headers: { Authorization: "Bearer " + accessToken } })
       if (!aRes.ok) continue
       const { value: atts } = await aRes.json()
+      // Roster signal: filename OR the email envelope (subject/body) mentions a
+      // "photo list"/"roster". Leaders name the PDF inconsistently — this one is
+      // "VDAM 7-8-2026.pdf", which the filename regex misses — but the body almost
+      // always says "photo list" (here: "Sorry for the late sending of the PhotoList").
+      // Envelope text is the reliable trigger; the Claude parser + tracked-group
+      // filter remain the final gatekeeper on whether the PDF is actually a roster.
+      const envelopeIsRoster = ROSTER_NAME.test(`${msg.subject || ""} ${msg.bodyPreview || ""}`)
       const target = (atts || []).find(a => {
         const name = a.name || ""
         const isPdf = /pdf/i.test(a.contentType || "") || /\.pdf$/i.test(name)
-        return isPdf && ROSTER_NAME.test(name)
+        return isPdf && (ROSTER_NAME.test(name) || envelopeIsRoster)
       })
       if (!target) continue
       scanned++
