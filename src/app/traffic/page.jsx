@@ -80,15 +80,15 @@ function Empty({ text }) {
 
 function pct(n, d) { return d > 0 ? Math.round((n / d) * 100) : 0 }
 
-function Bar({ label, value, of, color }) {
-  const p = pct(value, of)
+function Bar({ label, value, max, color }) {
+  const p = max > 0 ? Math.min(Math.round((value / max) * 100), 100) : 0
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
         <span style={{ color: T.textSecondary, fontWeight: 500 }}>{label}</span>
-        <span style={{ color: T.textTertiary }}>{value.toLocaleString()} <span style={{ color: T.textTertiary }}>· {p}%</span></span>
+        <span style={{ color: T.textTertiary }}>{value.toLocaleString()}</span>
       </div>
-      <div style={{ height: 8, background: T.borderSoft, borderRadius: 999 }}>
+      <div style={{ height: 8, background: T.borderSoft, borderRadius: 999, overflow: "hidden" }}>
         <div style={{ width: p + "%", height: "100%", background: color, borderRadius: 999 }} />
       </div>
     </div>
@@ -183,12 +183,19 @@ export default function TrafficPage() {
               )}
             </Card>
 
-            <Card title="Page-chain reach" note="unique visitors per step">
-              <Bar label="Brochure" value={funnel.overview || 0} of={Math.max(funnel.overview || 0, 1)} color={T.audienceText} />
-              <Bar label="Assessment" value={funnel.assessment || 0} of={Math.max(funnel.overview || 0, 1)} color="#7c3aed" />
-              <Bar label="Meeting" value={funnel.meeting || 0} of={Math.max(funnel.overview || 0, 1)} color={T.success} />
+            <Card title="Page reach" note="unique visitors per page">
+              {(function () {
+                const pages = [
+                  { label: "Home",       v: funnel.home || 0,       c: T.textTertiary },
+                  { label: "Brochure",   v: funnel.overview || 0,   c: T.audienceText },
+                  { label: "Assessment", v: funnel.assessment || 0, c: "#7c3aed" },
+                  { label: "Meeting",    v: funnel.meeting || 0,    c: T.success },
+                ]
+                const max = Math.max(1, ...pages.map(p => p.v))
+                return pages.map(p => <Bar key={p.label} label={p.label} value={p.v} max={max} color={p.c} />)
+              })()}
               <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 6 }}>
-                Bars are % of brochure reach — the drop-off from brochure → assessment → meeting is where the funnel leaks.
+                Unique visitors per page, scaled to the busiest page. These pages are independently reachable (Message 3 links straight to Meeting), so this is reach — not a gated funnel. A true brochure → assessment → meeting drop-off needs per-person sequencing, which lights up once tokenized traffic flows.
               </div>
             </Card>
           </div>
