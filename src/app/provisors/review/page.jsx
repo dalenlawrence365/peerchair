@@ -162,29 +162,36 @@ export default function ReviewQueue() {
                       </div>
                     ))}
 
-                    {/* EXISTING people — show exactly what will change */}
-                    {existPeople.length > 0 && (
-                      <div style={{ padding: "10px 16px 4px", fontSize: 11, fontWeight: 700, letterSpacing: 0.3, color: "#0891b2", textTransform: "uppercase" }}>
-                        Existing — profile updates ({dsum ? dsum.withChanges : 0} changing · {dsum ? dsum.unchanged : 0} unchanged)
-                      </div>
-                    )}
-                    {existPeople.map((p, i) => {
-                      const ch = p._changes || []
+                    {/* EXISTING people — only the ones that actually change; the rest collapse to a single count */}
+                    {(() => {
+                      const changedPeople = existPeople.filter(p => (p._changes || []).length > 0)
+                      const unchangedCount = dsum ? dsum.unchanged : (existPeople.length - changedPeople.length)
                       return (
-                        <div key={"e" + i} style={{ padding: "8px 16px", borderBottom: i === existPeople.length - 1 ? "none" : "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)"), fontSize: 12.5 }}>
-                          <div>
-                            <span style={{ fontWeight: 500 }}>{p.full_name}</span>
-                            {p.company && <span style={{ color: T.textTertiary }}> · {p.company}</span>}
-                            {ch.length === 0 && <span style={{ marginLeft: 8, fontSize: 11, color: T.textTertiary, fontStyle: "italic" }}>no changes</span>}
-                          </div>
-                          {ch.length > 0 && (
-                            <div style={{ marginTop: 3, marginLeft: 10, display: "flex", flexDirection: "column", gap: 1 }}>
-                              {ch.map((c, ci) => <ChangeLine key={ci} c={c} />)}
+                        <>
+                          {changedPeople.length > 0 && (
+                            <div style={{ padding: "10px 16px 4px", fontSize: 11, fontWeight: 700, letterSpacing: 0.3, color: "#0891b2", textTransform: "uppercase" }}>
+                              Updates ({changedPeople.length})
                             </div>
                           )}
-                        </div>
+                          {changedPeople.map((p, i) => (
+                            <div key={"e" + i} style={{ padding: "8px 16px", borderBottom: i === changedPeople.length - 1 ? "none" : "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)"), fontSize: 12.5 }}>
+                              <div>
+                                <span style={{ fontWeight: 500 }}>{p.full_name}</span>
+                                {p.company && <span style={{ color: T.textTertiary }}> · {p.company}</span>}
+                              </div>
+                              <div style={{ marginTop: 3, marginLeft: 10, display: "flex", flexDirection: "column", gap: 1 }}>
+                                {(p._changes || []).map((c, ci) => <ChangeLine key={ci} c={c} />)}
+                              </div>
+                            </div>
+                          ))}
+                          {unchangedCount > 0 && (
+                            <div style={{ padding: "10px 16px", fontSize: 12, color: T.textTertiary, borderTop: changedPeople.length > 0 ? "1px solid " + (T.borderSoft || "rgba(0,0,0,0.05)") : "none" }}>
+                              ✓ {unchangedCount} already current — no changes
+                            </div>
+                          )}
+                        </>
                       )
-                    })}
+                    })()}
                   </div>
                 )}
               </div>
