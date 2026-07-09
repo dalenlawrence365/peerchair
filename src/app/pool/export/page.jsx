@@ -15,6 +15,8 @@ export default function PoolExportPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [committed, setCommitted] = useState(null)
+  const [backfill, setBackfill] = useState(null)
+  const [backfillLoading, setBackfillLoading] = useState(false)
 
   function defaultBatch() {
     if (batchLabel) return batchLabel
@@ -71,6 +73,41 @@ export default function PoolExportPage() {
       setError(err.message || String(err))
     }
     setLoading(false)
+  }
+
+  async function backfillPreview() {
+    setBackfillLoading(true); setError(null); setBackfill(null)
+    try {
+      const res = await fetch("/api/pool/export-tokens", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dry_run: true })
+      })
+      const data = await res.json()
+      if (!res.ok) setError(data.error || "Backfill preview failed")
+      else setBackfill(data)
+    } catch (err) { setError(err.message || String(err)) }
+    setBackfillLoading(false)
+  }
+
+  async function backfillDownload() {
+    setBackfillLoading(true); setError(null)
+    try {
+      const res = await fetch("/api/pool/export-tokens", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dry_run: false })
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(function(){ return { error: "Backfill failed" } })
+        setError(d.error || "Backfill failed"); setBackfillLoading(false); return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url; a.download = "linkedhelper-token-backfill.csv"
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(function(){ URL.revokeObjectURL(url) }, 500)
+    } catch (err) { setError(err.message || String(err)) }
+    setBackfillLoading(false)
   }
 
   return (
@@ -172,6 +209,37 @@ export default function PoolExportPage() {
           </div>
         </div>
       )}
+
+      <section style={{ marginTop: 34, padding: "18px 18px 20px", background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 600, margin: "0 0 6px", color: T.textPrimary }}>Token backfill — people already in LinkedHelper</h2>
+        <p style={{ fontSize: 13, color: T.textSecondary, margin: "0 0 14px", maxWidth: 760 }}>
+          The export above only seeds <em>new</em> people. This produces a variables-only CSV for everyone already sitting in a
+          LinkedHelper campaign, so their <strong>remaining</strong> messages carry tokenized links. Upload it in LinkedHelper as
+          CRM-level custom variables — it matches on Profile URL. Read-only: no tags written, nothing re-sent.
+        </p>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button onClick={backfillPreview} disabled={backfillLoading} style={{
+            padding: "8px 14px", borderRadius: 7, border: "1px solid " + T.border, background: "white",
+            color: T.textPrimary, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+            {backfillLoading ? "Working…" : "Preview backfill"}
+          </button>
+          <button onClick={backfillDownload} disabled={backfillLoading} style={{
+            padding: "8px 14px", borderRadius: 7, border: "none", background: T.accent,
+            color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            Download CSV
+          </button>
+        </div>
+        {backfill && (
+          <div style={{ marginTop: 14, fontSize: 13, color: T.textSecondary }}>
+            <div><strong style={{ color: T.textPrimary }}>{backfill.exportable}</strong> exportable of {backfill.in_linkedhelper} in LinkedHelper
+              {backfill.skipped_missing_url_or_token > 0 && <span style={{ color: T.warning }}> · {backfill.skipped_missing_url_or_token} skipped (no LinkedIn URL)</span>}
+            </div>
+            <div style={{ marginTop: 6, fontSize: 12, color: T.textTertiary }}>
+              By channel tag: {Object.entries(backfill.by_src || {}).map(function(e){ return e[0] + " (" + e[1] + ")" }).join(" · ")}
+            </div>
+          </div>
+        )}
+      </section>
     </main>
   )
 }
