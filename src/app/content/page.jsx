@@ -187,6 +187,28 @@ export default function ContentPage() {
                   onBlur={e => { if (e.target.value !== String(p.boost_spend_usd ?? "")) patch(p.id, { boost_spend_usd: e.target.value }) }} />
               )}
             </div>
+            <details style={{ marginTop: 12 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12, color: T.textSecondary, userSelect: "none" }}>
+                Copy &amp; transcript {(p.body || p.transcript) ? "" : "(empty)"}
+              </summary>
+              <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>Post copy</div>
+                  <textarea rows={6} defaultValue={p.body || ""} placeholder="The LinkedIn post copy, as published"
+                    onBlur={e => { if (e.target.value !== (p.body || "")) patch(p.id, { body: e.target.value }) }}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid " + T.border,
+                      fontSize: 13, fontFamily: "inherit", lineHeight: 1.5, color: T.textPrimary, resize: "vertical", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>Transcript</div>
+                  <textarea rows={8} defaultValue={p.transcript || ""} placeholder="Verbatim video/audio transcript"
+                    onBlur={e => { if (e.target.value !== (p.transcript || "")) patch(p.id, { transcript: e.target.value }) }}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid " + T.border,
+                      fontSize: 13, fontFamily: "inherit", lineHeight: 1.5, color: T.textPrimary, resize: "vertical", boxSizing: "border-box" }} />
+                </div>
+              </div>
+            </details>
+
             {p.boosted && (
               <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 8 }}>
                 Boost started {p.boost_started_at ? new Date(p.boost_started_at).toLocaleString() : "—"}. A boosted post keeps one link,

@@ -49,7 +49,9 @@ export async function POST(req) {
     scheduled_for: b.scheduled_for || null,
     published_at: status === "published" ? (b.published_at || new Date().toISOString()) : (b.published_at || null),
     post_url: (b.post_url || "").trim() || null,
-    notes: (b.notes || "").trim() || null
+    notes: (b.notes || "").trim() || null,
+    body: (b.body || "").trim() || null,
+    transcript: (b.transcript || "").trim() || null
   }
 
   const { data, error } = await sb.from("content_posts").insert(row).select("id").single()
@@ -75,6 +77,8 @@ export async function PATCH(req) {
   if (b.scheduled_for !== undefined) patch.scheduled_for = b.scheduled_for || null
   if (b.post_url !== undefined) patch.post_url = (b.post_url || "").trim() || null
   if (b.notes !== undefined) patch.notes = (b.notes || "").trim() || null
+  if (b.body !== undefined) patch.body = (b.body || "").trim() || null
+  if (b.transcript !== undefined) patch.transcript = (b.transcript || "").trim() || null
   if (b.boosted !== undefined) {
     patch.boosted = !!b.boosted
     // Turning the boost on stamps the moment paid traffic begins, so clicks
