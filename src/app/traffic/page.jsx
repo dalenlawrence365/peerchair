@@ -112,6 +112,8 @@ export default function TrafficPage() {
   const funnel = data?.funnel || {}
   const bySource = data?.by_source || []
   const byPage = data?.by_page || []
+  const byDevice = data?.by_device || []
+  const byGeo = data?.by_geo || []
   const recent = data?.recent || []
 
   return (
@@ -201,6 +203,50 @@ export default function TrafficPage() {
               })()}
               <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 6 }}>
                 Unique visitors per page, scaled to the busiest page. These pages are independently reachable (Message 3 links straight to Meeting), so this is reach — not a gated funnel. A true brochure → assessment → meeting drop-off needs per-person sequencing, which lights up once tokenized traffic flows.
+              </div>
+            </Card>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+            <Card title="Device" note="unique visitors">
+              {byDevice.length === 0 ? <Empty text="No traffic yet." /> : (function () {
+                const max = Math.max(1, ...byDevice.map(d => d.unique_visitors))
+                const COLOR = { mobile: "#7c3aed", desktop: T.accent, tablet: "#0891b2" }
+                return byDevice.map(d => (
+                  <Bar key={d.device} label={d.device} value={d.unique_visitors} max={max} color={COLOR[d.device] || T.textTertiary} />
+                ))
+              })()}
+              <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 6 }}>
+                Heavy mobile share means the brochure is being read on a phone — worth checking how the PDF opens there.
+              </div>
+            </Card>
+
+            <Card title="Location" note="top cities, unique visitors">
+              {byGeo.length === 0 ? <Empty text="No traffic yet." /> : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ textAlign: "left", color: T.textTertiary, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                      <th style={{ padding: "0 0 8px", fontWeight: 500 }}>City</th>
+                      <th style={{ padding: "0 0 8px", fontWeight: 500, textAlign: "right" }}>Unique</th>
+                      <th style={{ padding: "0 0 8px", fontWeight: 500, textAlign: "right" }}>Views</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {byGeo.map(function (g, i) {
+                      const place = [g.city, g.region, g.country].filter(Boolean).join(", ")
+                      return (
+                        <tr key={i} style={{ borderTop: "1px solid " + T.borderSoft }}>
+                          <td style={{ padding: "8px 0", color: T.textPrimary }}>{place || "(unknown)"}</td>
+                          <td style={{ padding: "8px 0", textAlign: "right", color: T.textSecondary }}>{g.unique_visitors.toLocaleString()}</td>
+                          <td style={{ padding: "8px 0", textAlign: "right", color: T.textSecondary }}>{g.views.toLocaleString()}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+              <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 10 }}>
+                Approximate, from network location. LA-area traffic is your target market; everything else is noise or referral spillover.
               </div>
             </Card>
           </div>

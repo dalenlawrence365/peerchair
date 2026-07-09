@@ -10,7 +10,13 @@ export const dynamic = "force-dynamic"
 // }
 //
 // Returns: CSV file with columns:
-//   Profile URL, First Name, Last Name, Company, Position, Location, Tags
+//   Profile URL, First Name, Last Name, Company, Position, Location, Tags,
+//   Brochure URL, Assessment URL, Meeting URL
+//
+// The three URL columns are per-person tokenized links (?t=<token>&src=<batch>).
+// Reference them as variables in the LinkedHelper message template — the message
+// COPY is never touched, only the link carries the token. Views of these links
+// resolve to the person in page_events, which powers per-person attribution.
 //
 // As a side effect, tags every exported person with action_type='export_to_linkedhelper'
 // (unless dry_run=true), so they're excluded from future exports.
@@ -124,8 +130,35 @@ export async function POST(request) {
     })
   }
 
+  // ---- Tokenized links -------------------------------------------------
+  // Every person gets one stable opaque token (track_tokens). Backfill covered
+  // everyone existing; anyone created since is minted here, lazily, on export.
+  const selIds = selected.map(p => p.id)
+  const { data: existingTokens, error: tokErr } = await sb
+    .from("track_tokens").select("token, person_id").in("person_id", selIds)
+  if (tokErr) return Response.json({ error: "Token lookup failed: " + tokErr.message }, { status: 500 })
+
+  const tokenByPerson = new Map((existingTokens || []).map(r => [r.person_id, r.token]))
+  const missing = selIds.filter(id => !tokenByPerson.has(id))
+  if (missing.length > 0) {
+    const { data: minted, error: mintErr } = await sb
+      .from("track_tokens")
+      .insert(missing.map(id => ({ person_id: id })))
+      .select("token, person_id")
+    if (mintErr) return Response.json({ error: "Token mint failed: " + mintErr.message }, { status: 500 })
+    ;(minted || []).forEach(r => tokenByPerson.set(r.person_id, r.token))
+  }
+
+  const SITE = "https://la-cfo.com"
+  function trackedUrl(path, personId) {
+    const tok = tokenByPerson.get(personId)
+    if (!tok) return ""
+    const qs = "?t=" + encodeURIComponent(tok) + "&src=" + encodeURIComponent(batchLabel)
+    return SITE + path + qs
+  }
+
   // Build CSV
-  const headers = ["Profile URL","First Name","Last Name","Company","Position","Location","Tags"]
+  const headers = ["Profile URL","First Name","Last Name","Company","Position","Location","Tags","Brochure URL","Assessment URL","Meeting URL"]
   const lines = [headers.join(",")]
   selected.forEach(p => {
     const fn = p.first_name || ((p.full_name || "").split(" ")[0] || "")
@@ -137,7 +170,10 @@ export async function POST(request) {
       csvEscape(p.company || ""),
       csvEscape(p.title || ""),
       csvEscape(p.location || ""),
-      csvEscape(batchLabel)
+      csvEscape(batchLabel),
+      csvEscape(trackedUrl("/overview", p.id)),
+      csvEscape(trackedUrl("/assessment", p.id)),
+      csvEscape(trackedUrl("/meeting", p.id))
     ].join(","))
   })
   const csv = lines.join("\n") + "\n"
@@ -176,7 +212,8 @@ export async function POST(request) {
       "Content-Disposition": `attachment; filename="${batchLabel}.csv"`,
       "X-PeerChair-Exported": String(selected.length),
       "X-PeerChair-Tagged": String(taggedCount),
-      "X-PeerChair-BatchLabel": batchLabel
+      "X-PeerChair-BatchLabel": batchLabel,
+      "X-PeerChair-TokensMinted": String(missing.length)
     }
   })
 }

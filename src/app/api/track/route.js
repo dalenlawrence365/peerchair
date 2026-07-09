@@ -11,6 +11,38 @@ const BOT_RE = /(bot|crawler|spider|crawl|slurp|facebookexternalhit|linkedinbot|
 
 function isBot(ua) { return !ua || BOT_RE.test(ua) }
 
+// Device / browser / OS from the UA we already store. Deliberately coarse —
+// enough to answer "is my brochure being read on a phone", not fingerprinting.
+function parseUA(ua) {
+  if (!ua) return { device_type: null, browser: null, os: null }
+  const u = ua.toLowerCase()
+  const tablet = /ipad|tablet|playbook|silk|(android(?!.*mobile))/.test(u)
+  const mobile = /mobile|iphone|ipod|android|blackberry|iemobile|opera mini/.test(u)
+  const device_type = tablet ? "tablet" : (mobile ? "mobile" : "desktop")
+
+  let browser = "other"
+  if (/edg\//.test(u)) browser = "Edge"
+  else if (/opr\/|opera/.test(u)) browser = "Opera"
+  else if (/chrome|crios/.test(u)) browser = "Chrome"
+  else if (/firefox|fxios/.test(u)) browser = "Firefox"
+  else if (/safari/.test(u)) browser = "Safari"
+
+  let os = "other"
+  if (/iphone|ipad|ipod|ios/.test(u)) os = "iOS"
+  else if (/android/.test(u)) os = "Android"
+  else if (/mac os x|macintosh/.test(u)) os = "macOS"
+  else if (/windows/.test(u)) os = "Windows"
+  else if (/linux/.test(u)) os = "Linux"
+
+  return { device_type: device_type, browser: browser, os: os }
+}
+
+function decodeHeader(v) {
+  // Vercel percent-encodes non-ASCII city names (e.g. "S%C3%A3o%20Paulo")
+  if (!v) return null
+  try { return decodeURIComponent(v) } catch { return v }
+}
+
 function pageFromPath(path) {
   if (!path) return null
   const p = (path.replace(/\/+$/, "") || "/")
@@ -58,6 +90,12 @@ export async function POST(req) {
   const page = pageFromPath((body.path || "").toString())
   const visitor = (body.v || body.visitor_id || "").toString().slice(0, 64) || null
 
+  // Geo: free from the Vercel edge on every request. No IP is stored.
+  const country = req.headers.get("x-vercel-ip-country") || null
+  const region  = req.headers.get("x-vercel-ip-country-region") || null
+  const city    = decodeHeader(req.headers.get("x-vercel-ip-city"))
+  const dev     = parseUA(ua)
+
   const sb = serverClient()
 
   let person_id = null
@@ -75,7 +113,13 @@ export async function POST(req) {
     visitor_id: visitor,
     is_bot: bot,
     user_agent: ua.slice(0, 300),
-    referrer: referrer ? referrer.toString().slice(0, 300) : null
+    referrer: referrer ? referrer.toString().slice(0, 300) : null,
+    country: country,
+    region: region,
+    city: city ? city.slice(0, 80) : null,
+    device_type: dev.device_type,
+    browser: dev.browser,
+    os: dev.os
   })
 
   return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": "*" } })
