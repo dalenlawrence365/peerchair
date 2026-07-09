@@ -156,7 +156,7 @@ export default function TrafficPage() {
           </Card>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginTop: 0 }}>
-            <Card title="By channel" note="which source drives traffic">
+            <Card title="How they arrived" note="tagged channel, else referring site">
               {bySource.length === 0 ? <Empty text="No traffic yet." /> : (
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
@@ -181,6 +181,11 @@ export default function TrafficPage() {
                   </tbody>
                 </table>
               )}
+              <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 10 }}>
+                Entry points only (internal page-to-page hops excluded). A <code>?src=</code> tag on your link always wins;
+                otherwise this is the referring site. <strong>(direct)</strong> means no referrer was sent — typed URL, the LinkedIn
+                mobile app, or a mail client — not that nobody referred them.
+              </div>
             </Card>
 
             <Card title="Page reach" note="unique visitors per page">

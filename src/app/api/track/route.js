@@ -40,7 +40,11 @@ export async function POST(req) {
   } catch { /* malformed → drop quietly, still 204 */ }
 
   const ua = req.headers.get("user-agent") || ""
-  const referrer = req.headers.get("referer") || body.ref || null
+  // body.ref is document.referrer read on the la-cfo.com page = the TRUE upstream
+  // source (linkedin.com, google.com, ""). The HTTP Referer header on this beacon
+  // request is always la-cfo.com itself (the page that fired it), so it must NOT
+  // be used as the visitor's referrer. Header is kept only as a sanity/debug echo.
+  const referrer = (body.ref != null ? String(body.ref) : "") || null
   const bot = isBot(ua)
 
   const token = (body.t || body.token || "").toString().trim() || null
