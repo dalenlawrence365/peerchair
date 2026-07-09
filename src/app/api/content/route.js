@@ -75,6 +75,18 @@ export async function PATCH(req) {
   if (b.scheduled_for !== undefined) patch.scheduled_for = b.scheduled_for || null
   if (b.post_url !== undefined) patch.post_url = (b.post_url || "").trim() || null
   if (b.notes !== undefined) patch.notes = (b.notes || "").trim() || null
+  if (b.boosted !== undefined) {
+    patch.boosted = !!b.boosted
+    // Turning the boost on stamps the moment paid traffic begins, so clicks
+    // before it stay attributable to organic reach. Turning it off clears both.
+    if (patch.boosted && !b.boost_started_at) patch.boost_started_at = new Date().toISOString()
+    if (!patch.boosted) { patch.boost_started_at = null; patch.boost_spend_usd = null }
+  }
+  if (b.boost_started_at !== undefined) patch.boost_started_at = b.boost_started_at || null
+  if (b.boost_spend_usd !== undefined) {
+    const n = parseFloat(b.boost_spend_usd)
+    patch.boost_spend_usd = Number.isFinite(n) && n >= 0 ? n : null
+  }
   for (const k of ["impressions", "reactions", "comments"]) {
     if (b[k] !== undefined) {
       const n = parseInt(b[k], 10)

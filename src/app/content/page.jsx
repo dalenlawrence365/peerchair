@@ -131,6 +131,7 @@ export default function ContentPage() {
               <Pill text={p.status} bg={sc.bg} fg={sc.fg} />
               <Pill text={p.format} bg="rgba(59,130,246,0.12)" fg="#3b82f6" />
               {p.destination !== "none" && <Pill text={"→ " + p.destination} bg="rgba(168,85,247,0.14)" fg="#a855f7" />}
+              {p.boosted && <Pill text="boosted" bg="rgba(217,119,6,0.16)" fg="#b45309" />}
               <span style={{ marginLeft: "auto", fontSize: 11, color: T.textTertiary }}>
                 {p.published_at ? "Published " + fmtDate(p.published_at) : p.scheduled_for ? "Scheduled " + fmtDate(p.scheduled_for) : "Draft"}
               </span>
@@ -156,6 +157,9 @@ export default function ContentPage() {
               <Metric label="Engaged" value={p.engaged} />
               <Metric label="Assessment reach" value={p.assessment_reach} strong />
               {p.ctr_pct != null && <Metric label="CTR" value={p.ctr_pct + "%"} />}
+              {p.boosted && <Metric label="Organic clicks" value={p.clicks_organic} />}
+              {p.boosted && <Metric label="After boost" value={p.clicks_after_boost} />}
+              {p.cost_per_assessment != null && <Metric label="Cost / assessment" value={"$" + p.cost_per_assessment} strong />}
             </div>
 
             <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -172,7 +176,23 @@ export default function ContentPage() {
                 defaultValue={p.impressions ?? ""} onBlur={e => { if (e.target.value !== String(p.impressions ?? "")) patch(p.id, { impressions: e.target.value }) }} />
               <input style={Object.assign({}, input, { width: 100 })} placeholder="Reactions" type="number"
                 defaultValue={p.reactions ?? ""} onBlur={e => { if (e.target.value !== String(p.reactions ?? "")) patch(p.id, { reactions: e.target.value }) }} />
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.textSecondary, cursor: "pointer", whiteSpace: "nowrap" }}>
+                <input type="checkbox" checked={!!p.boosted} disabled={busy}
+                  onChange={e => patch(p.id, { boosted: e.target.checked })} />
+                Boosted
+              </label>
+              {p.boosted && (
+                <input style={Object.assign({}, input, { width: 110 })} placeholder="Spend $" type="number" step="0.01"
+                  defaultValue={p.boost_spend_usd ?? ""}
+                  onBlur={e => { if (e.target.value !== String(p.boost_spend_usd ?? "")) patch(p.id, { boost_spend_usd: e.target.value }) }} />
+              )}
             </div>
+            {p.boosted && (
+              <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 8 }}>
+                Boost started {p.boost_started_at ? new Date(p.boost_started_at).toLocaleString() : "—"}. A boosted post keeps one link,
+                so paid and organic clicks share a tag — the split above is by time, not by source. Clicks before the boost began are organic.
+              </div>
+            )}
           </section>
         )
       })}
