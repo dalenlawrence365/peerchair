@@ -1,0 +1,89 @@
+export const dynamic = "force-dynamic"
+import { serverClient } from "@/lib/supabaseServer"
+
+// GET  /api/content            -> all posts + automatic performance (clicks, unique, assessment reach)
+// POST /api/content            -> create a post; server generates src_tag when destination != 'none'
+// PATCH /api/content           -> update a post (publish, paste permalink, enter manual metrics)
+
+const DESTINATIONS = ["none", "overview", "assessment", "meeting"]
+const FORMATS = ["video", "text", "carousel", "image", "poll", "article"]
+const STATUSES = ["draft", "scheduled", "published"]
+
+export async function GET() {
+  const sb = serverClient()
+  const { data, error } = await sb
+    .from("v_content_post_performance")
+    .select("*")
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("scheduled_for", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json({ posts: data || [] })
+}
+
+export async function POST(req) {
+  const sb = serverClient()
+  let b
+  try { b = await req.json() } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }) }
+
+  const title = (b.title || "").trim()
+  if (!title) return Response.json({ error: "Title is required" }, { status: 400 })
+
+  const format = FORMATS.includes(b.format) ? b.format : "text"
+  const destination = DESTINATIONS.includes(b.destination) ? b.destination : "none"
+  const status = STATUSES.includes(b.status) ? b.status : "draft"
+
+  // src_tag generated server-side, from the scheduled date when present
+  let src_tag = null
+  if (destination !== "none") {
+    const tagDate = (b.scheduled_for ? new Date(b.scheduled_for) : new Date()).toISOString().slice(0, 10)
+    const { data: tag, error: tagErr } = await sb.rpc("gen_src_tag", {
+      p_format: format, p_title: title, p_date: tagDate
+    })
+    if (tagErr) return Response.json({ error: "Tag generation failed: " + tagErr.message }, { status: 500 })
+    src_tag = tag
+  }
+
+  const row = {
+    title, format, destination, status, src_tag,
+    scheduled_for: b.scheduled_for || null,
+    published_at: status === "published" ? (b.published_at || new Date().toISOString()) : (b.published_at || null),
+    post_url: (b.post_url || "").trim() || null,
+    notes: (b.notes || "").trim() || null
+  }
+
+  const { data, error } = await sb.from("content_posts").insert(row).select("id").single()
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+
+  const destination_url = src_tag && destination !== "none"
+    ? `https://la-cfo.com/${destination}?src=${src_tag}` : null
+
+  return Response.json({ id: data.id, src_tag, destination_url })
+}
+
+export async function PATCH(req) {
+  const sb = serverClient()
+  let b
+  try { b = await req.json() } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }) }
+  if (!b.id) return Response.json({ error: "id is required" }, { status: 400 })
+
+  const patch = {}
+  if (typeof b.title === "string" && b.title.trim()) patch.title = b.title.trim()
+  if (STATUSES.includes(b.status)) patch.status = b.status
+  if (b.status === "published" && !b.published_at) patch.published_at = new Date().toISOString()
+  if (b.published_at !== undefined) patch.published_at = b.published_at || null
+  if (b.scheduled_for !== undefined) patch.scheduled_for = b.scheduled_for || null
+  if (b.post_url !== undefined) patch.post_url = (b.post_url || "").trim() || null
+  if (b.notes !== undefined) patch.notes = (b.notes || "").trim() || null
+  for (const k of ["impressions", "reactions", "comments"]) {
+    if (b[k] !== undefined) {
+      const n = parseInt(b[k], 10)
+      patch[k] = Number.isFinite(n) && n >= 0 ? n : null
+    }
+  }
+  if (Object.keys(patch).length === 0) return Response.json({ error: "Nothing to update" }, { status: 400 })
+
+  const { error } = await sb.from("content_posts").update(patch).eq("id", b.id)
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json({ ok: true })
+}

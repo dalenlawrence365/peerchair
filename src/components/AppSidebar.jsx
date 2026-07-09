@@ -14,6 +14,7 @@ const NAV = [
     { label: "CFO Pipeline",    href: "/pipeline/cfo/prospect", matches: function(p){ return p.startsWith("/pipeline/cfo") } },
     { label: "CFO outreach",    href: "/cfo-metrics",           matches: function(p){ return p.startsWith("/cfo-metrics") } },
     { label: "Site traffic",    href: "/traffic",               matches: function(p){ return p.startsWith("/traffic") } },
+    { label: "Content",        href: "/content",               matches: function(p){ return p.startsWith("/content") } },
     { label: "Unmatched",       href: "/unmatched",             matches: function(p){ return p.startsWith("/unmatched") } },
     { label: "Sponsors",        href: "/pipeline/sponsor/pool", matches: function(p){ return p.startsWith("/pipeline/sponsor") } },
     { label: "ProVisors",       href: "/provisors",             matches: function(p){ return p.startsWith("/provisors") } },
