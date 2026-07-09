@@ -11,7 +11,11 @@ export const dynamic = "force-dynamic"
 //
 // Returns: CSV file with columns:
 //   Profile URL, First Name, Last Name, Company, Position, Location, Tags,
-//   Brochure URL, Assessment URL, Meeting URL
+//   brochure_url, assessment_url, meeting_url
+//
+// The three link columns use snake_case headers deliberately: LinkedHelper turns
+// CSV column headers into custom template variable names, and a name with spaces
+// resolves unreliably in {braces}. Reference them as {brochure_url} etc.
 //
 // The three URL columns are per-person tokenized links (?t=<token>&src=<batch>).
 // Reference them as variables in the LinkedHelper message template — the message
@@ -158,7 +162,7 @@ export async function POST(request) {
   }
 
   // Build CSV
-  const headers = ["Profile URL","First Name","Last Name","Company","Position","Location","Tags","Brochure URL","Assessment URL","Meeting URL"]
+  const headers = ["Profile URL","First Name","Last Name","Company","Position","Location","Tags","brochure_url","assessment_url","meeting_url"]
   const lines = [headers.join(",")]
   selected.forEach(p => {
     const fn = p.first_name || ((p.full_name || "").split(" ")[0] || "")
