@@ -3,7 +3,7 @@ import { serverClient } from "@/lib/supabaseServer"
 
 // GET  /api/content            -> all posts + automatic performance (clicks, unique, assessment reach)
 // POST /api/content            -> create a post; server generates src_tag when destination != 'none'
-// PATCH /api/content           -> update a post (publish, paste permalink, enter manual metrics)
+// PATCH /api/content           -> update a post (publish, paste permalink, enter manual metrics, attach/detach graphic)
 
 const DESTINATIONS = ["none", "overview", "assessment", "meeting"]
 const FORMATS = ["video", "text", "carousel", "image", "poll", "article"]
@@ -18,7 +18,17 @@ export async function GET() {
     .order("scheduled_for", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
   if (error) return Response.json({ error: error.message }, { status: 500 })
-  return Response.json({ posts: data || [] })
+
+  // Attach a fresh 1h signed URL for any post that has a graphic (private bucket).
+  const posts = await Promise.all((data || []).map(async function (p) {
+    if (!p.graphic_storage_path) return p
+    const { data: signed } = await sb.storage
+      .from("content-media")
+      .createSignedUrl(p.graphic_storage_path, 60 * 60)
+    return Object.assign({}, p, { graphic_url: signed ? signed.signedUrl : null })
+  }))
+
+  return Response.json({ posts })
 }
 
 export async function POST(req) {
@@ -79,6 +89,7 @@ export async function PATCH(req) {
   if (b.notes !== undefined) patch.notes = (b.notes || "").trim() || null
   if (b.body !== undefined) patch.body = (b.body || "").trim() || null
   if (b.transcript !== undefined) patch.transcript = (b.transcript || "").trim() || null
+  if (b.graphic_asset_id !== undefined) patch.graphic_asset_id = b.graphic_asset_id || null
   if (b.boosted !== undefined) {
     patch.boosted = !!b.boosted
     // Turning the boost on stamps the moment paid traffic begins, so clicks
