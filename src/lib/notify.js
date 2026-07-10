@@ -1,7 +1,25 @@
+import { serverClient } from "@/lib/supabaseServer"
 // PeerChair Notification Service
 // Sends alerts via Resend email (SMS via Twilio when A2P registration completes)
 
-export async function sendAlert(subject, message, html) {
+async function logInApp(subject, message, opts = {}) {
+  try {
+    const sb = serverClient()
+    await sb.from("notifications").insert({
+      kind: opts.kind || "alert",
+      person_id: opts.person_id || null,
+      title: subject,
+      body: message || null,
+      href: opts.href || null,
+      dedup_key: opts.dedup_key || null,
+    })
+  } catch (e) { console.error("in-app notify failed:", e) }
+}
+
+export async function sendAlert(subject, message, html, opts = {}) {
+  // in-app notification (badge) — fire regardless of email config
+  await logInApp(subject, message, opts)
+
   const apiKey = process.env.RESEND_API_KEY
   const to     = process.env.ALERT_EMAIL
   if (!apiKey || !to) { console.error('Resend not configured'); return false }
