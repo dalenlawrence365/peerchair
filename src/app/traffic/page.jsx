@@ -114,6 +114,7 @@ export default function TrafficPage() {
   const byPage = data?.by_page || []
   const byDevice = data?.by_device || []
   const byGeo = data?.by_geo || []
+  const actions = data?.actions || {}
   const recent = data?.recent || []
 
   return (
@@ -152,6 +153,20 @@ export default function TrafficPage() {
             <Tile label="People reached" value={t.attributed_people} color="#7c3aed" />
             <Tile label="Bots filtered" value={t.bot_views} color={T.textTertiary} />
           </div>
+
+          <Card title="Leaving the site" note="outbound handoffs — the only conversions that count">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+              <Tile label="Reached assessment" value={actions.assessment_reach} color="#0891b2" />
+              <Tile label="Clicked to the form" value={actions.assessment_clicked}
+                    sub={actions.handoff_rate_pct != null ? actions.handoff_rate_pct + "% of them" : null} color={T.success} />
+              <Tile label="Clicked fit call" value={actions.fit_call_clicked} color="#7c3aed" />
+              <Tile label="Opened brochure PDF" value={actions.pdf_opened} color={T.accent} />
+            </div>
+            <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 12 }}>
+              These fire when someone leaves for JotForm, Calendly, or the PDF. <strong>Clicking through is not completing</strong> —
+              what happens inside Paul&apos;s form is invisible to PeerChair.
+            </div>
+          </Card>
 
           <Card title="Views over time" note={days + "-day trend · brass = attributed to a person"}>
             <Trend rows={data.by_day} />

@@ -155,11 +155,12 @@ export default function ContentPage() {
               <Metric label="Clicks" value={p.clicks} />
               <Metric label="Unique" value={p.unique_visitors} />
               <Metric label="Engaged" value={p.engaged} />
-              <Metric label="Assessment reach" value={p.assessment_reach} strong />
+              <Metric label="Assessment reach" value={p.assessment_reach} />
+              <Metric label="Clicked to form" value={p.assessment_clicks} strong />
               {p.ctr_pct != null && <Metric label="CTR" value={p.ctr_pct + "%"} />}
               {p.boosted && <Metric label="Organic clicks" value={p.clicks_organic} />}
               {p.boosted && <Metric label="After boost" value={p.clicks_after_boost} />}
-              {p.cost_per_assessment != null && <Metric label="Cost / assessment" value={"$" + p.cost_per_assessment} strong />}
+              {p.cost_per_assessment_click != null && <Metric label="Cost / form click" value={"$" + p.cost_per_assessment_click} strong />}
             </div>
 
             <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap", alignItems: "center" }}>
