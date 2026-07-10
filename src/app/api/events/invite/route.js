@@ -87,14 +87,20 @@ export async function GET(req) {
 
   const attendee = token ? await loadAttendee(sb, event.id, token) : null
   if (attendee) {
-    payload.invited = true
-    payload.status = attendee.status
-    payload.responded_at = attendee.responded_at
-    payload.first_name = attendee.people?.first_name || null
-    payload.private = {
-      venue_name: event.venue_name,
-      address_line: event.address_line,
-      parking_instructions: event.parking_instructions,
+    if (attendee.status === "Requested") {
+      // Self-registered but not yet approved: acknowledge, but never the address.
+      payload.pending = true
+      payload.first_name = attendee.people?.first_name || null
+    } else {
+      payload.invited = true
+      payload.status = attendee.status
+      payload.responded_at = attendee.responded_at
+      payload.first_name = attendee.people?.first_name || null
+      payload.private = {
+        venue_name: event.venue_name,
+        address_line: event.address_line,
+        parking_instructions: event.parking_instructions,
+      }
     }
   }
 

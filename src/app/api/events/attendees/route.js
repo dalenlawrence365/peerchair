@@ -37,7 +37,7 @@ export async function GET(req) {
 
   const { data: rows } = await sb
     .from("event_attendees")
-    .select("id, status, invited_at, responded_at, invite_token, person_id, people:person_id ( first_name, last_name, full_name, email, title, cfo_state )")
+    .select("id, status, invited_at, responded_at, invite_token, person_id, notes, people:person_id ( first_name, last_name, full_name, email, title, cfo_state )")
     .eq("event_id", event.id)
     .order("invited_at", { ascending: true })
 
@@ -49,6 +49,7 @@ export async function GET(req) {
     title: r.people?.title || null,
     cfo_state: r.people?.cfo_state || null,
     status: r.status,
+    notes: r.notes || null,
     invited_at: r.invited_at,
     responded_at: r.responded_at,
     invite_url: inviteUrl(event.slug, r.invite_token),
@@ -56,12 +57,14 @@ export async function GET(req) {
 
   const count = s => attendees.filter(a => a.status === s).length
   const confirmed = count("Confirmed")
+  const requested = count("Requested")
 
   return Response.json({
     event,
     attendees,
     counts: {
       invited: attendees.length,
+      requested,
       confirmed,
       declined: count("Declined"),
       no_response: count("Invited"),
@@ -102,6 +105,28 @@ export async function POST(req) {
     ok: true,
     added: (rows || []).map(r => ({ person_id: r.person_id, invite_url: inviteUrl(event.slug, r.invite_token) })),
   })
+}
+
+export async function PATCH(req) {
+  let body = {}
+  try { body = await req.json() } catch { return Response.json({ error: "bad_request" }, { status: 400 }) }
+
+  const id = (body.id || "").toString().trim()
+  const status = (body.status || "").toString().trim()
+  const ALLOWED = new Set(["Invited", "Confirmed", "Declined", "Requested"])
+  if (!id || !ALLOWED.has(status)) return Response.json({ error: "bad_request" }, { status: 400 })
+
+  const sb = serverClient()
+  const { data, error } = await sb
+    .from("event_attendees")
+    .update({ status })
+    .eq("id", id)
+    .select("id, invite_token, event_id")
+    .single()
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+
+  const { data: ev } = await sb.from("events").select("slug").eq("id", data.event_id).maybeSingle()
+  return Response.json({ ok: true, status, invite_url: ev ? inviteUrl(ev.slug, data.invite_token) : null })
 }
 
 export async function DELETE(req) {
