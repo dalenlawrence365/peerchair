@@ -50,6 +50,9 @@ function pageFromPath(path) {
   if (p.startsWith("/overview")) return "overview"
   if (p.startsWith("/assessment")) return "assessment"
   if (p.startsWith("/meeting")) return "meeting"
+  // Event pages get a stable, per-event page id so /traffic can break out
+  // views by event rather than lumping them under a raw path.
+  if (p.startsWith("/events/")) return ("event:" + p.slice(8)).slice(0, 64)
   return p.slice(0, 64)
 }
 
