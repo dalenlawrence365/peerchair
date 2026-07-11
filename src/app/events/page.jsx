@@ -20,6 +20,7 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState("")
   const [busy, setBusy] = useState(null)
+  const [draftUrl, setDraftUrl] = useState(null)
 
   const load = useCallback(function () {
     fetch("/api/events/attendees?slug=" + SLUG)
@@ -36,11 +37,13 @@ export default function EventsPage() {
       .then(function (r) { return r.json() })
       .then(function (d) {
         if (d && d.ok && status === "Invited") {
-          if (d.emailed) {
-            setMsg("Approved " + (name || "") + " — I emailed them their invite link with the venue details.")
+          setDraftUrl(null)
+          if (d.drafted) {
+            setMsg("Approved " + (name || "") + " — a draft invite email is in your Outlook drafts. Review it, then send.")
+            if (d.draft_url) setDraftUrl(d.draft_url)
           } else {
             try { navigator.clipboard.writeText(d.invite_url) } catch (e) {}
-            setMsg("Approved " + (name || "") + " — invite link copied (auto-email didn't send; paste it to them).")
+            setMsg("Approved " + (name || "") + " — invite link copied (couldn't create a draft; paste it to them).")
           }
         } else if (d && d.ok && status === "Declined") {
           setMsg("Declined " + (name || "") + ".")
@@ -78,7 +81,7 @@ export default function EventsPage() {
         <Stat label="Declined" value={c.declined || 0} sub="" />
       </div>
 
-      {msg ? <div style={{ background: "#fffdf5", border: "1px solid #f1e2b8", color: T.textPrimary, borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 18 }}>{msg}</div> : null}
+      {msg ? <div style={{ background: "#fffdf5", border: "1px solid #f1e2b8", color: T.textPrimary, borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 18 }}>{msg}{draftUrl ? <a href={draftUrl} target="_blank" rel="noopener" style={{ color: T.accent, marginLeft: 10, fontWeight: 600, textDecoration: "none" }}>Open draft →</a> : null}</div> : null}
 
       {/* Pending */}
       <div style={{ fontSize: 13, fontWeight: 600, color: T.brass || "#b7791f", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 10 }}>Pending requests</div>

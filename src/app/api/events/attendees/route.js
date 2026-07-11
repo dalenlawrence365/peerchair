@@ -108,7 +108,7 @@ export async function POST(req) {
   })
 }
 
-async function sendInviteEmail({ to, first_name, invite_url }) {
+async function createInviteDraft({ to, first_name, invite_url }) {
   try {
     const token = await getAccessToken()
     const hi = first_name ? ("Hi " + first_name + ",") : "Hi,"
@@ -120,21 +120,20 @@ async function sendInviteEmail({ to, first_name, invite_url }) {
       '<p style="margin:0 0 22px"><a href="' + invite_url + '" style="background:#c39a4e;color:#121a3c;padding:12px 22px;border-radius:3px;text-decoration:none;font-weight:bold;font-family:Arial,sans-serif;font-size:14px">View details &amp; RSVP &rarr;</a></p>' +
       '<p style="font-size:14px;line-height:1.6;color:#54596b;margin:0">Looking forward to it,<br>Dalen Lawrence<br>Chapter Director, CFO Circle Los Angeles</p>' +
       '</div>'
-    const text = hi + "\n\nYour seat is confirmed for The 8 Key Drivers of CFO Success — CFO Circle Los Angeles.\nTuesday, August 11 · 8:30–11:30 AM · Century City.\n\nDetails, venue, and RSVP: " + invite_url + "\n\nLooking forward to it,\nDalen Lawrence"
-    const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+    // POST /me/messages creates a DRAFT (not sent) so Dalen reviews before sending.
+    const res = await fetch("https://graph.microsoft.com/v1.0/me/messages", {
       method: "POST",
       headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: {
-          subject: "You're in — August 11 CFO Circle workshop",
-          body: { contentType: "HTML", content: html },
-          toRecipients: [{ emailAddress: { address: to } }],
-        },
-        saveToSentItems: true,
+        subject: "You're in — August 11 CFO Circle workshop",
+        body: { contentType: "HTML", content: html },
+        toRecipients: [{ emailAddress: { address: to } }],
       }),
     })
-    return res.ok
-  } catch (e) { console.error("invite email failed:", e); return false }
+    if (!res.ok) return { ok: false, webLink: null }
+    const data = await res.json().catch(() => ({}))
+    return { ok: true, webLink: data.webLink || null }
+  } catch (e) { console.error("invite draft failed:", e); return { ok: false, webLink: null } }
 }
 
 export async function PATCH(req) {
@@ -160,13 +159,16 @@ export async function PATCH(req) {
   const slug = cur.events?.slug
   const invite_url = slug ? inviteUrl(slug, cur.invite_token) : null
 
-  // On approval (Requested -> Invited), email the registrant their invite link.
-  let emailed = false
+  // On approval (Requested -> Invited), draft the invite email for review.
+  let drafted = false
+  let draft_url = null
   if (status === "Invited" && cur.status === "Requested" && cur.people?.email && invite_url) {
-    emailed = await sendInviteEmail({ to: cur.people.email, first_name: cur.people?.first_name, invite_url })
+    const d = await createInviteDraft({ to: cur.people.email, first_name: cur.people?.first_name, invite_url })
+    drafted = d.ok
+    draft_url = d.webLink
   }
 
-  return Response.json({ ok: true, status, invite_url, emailed })
+  return Response.json({ ok: true, status, invite_url, drafted, draft_url })
 }
 
 export async function DELETE(req) {
