@@ -46,13 +46,14 @@ const NAV = [
 export default function AppSidebar() {
   const pathname = usePathname() || ""
   const [unread, setUnread] = useState(0)
+  const [eventsPending, setEventsPending] = useState(0)
 
   // Poll the unread notification count for the badge.
   useEffect(function(){
     var alive = true
     function load(){
       fetch("/api/notifications").then(function(r){ return r.json() }).then(function(d){
-        if (alive) setUnread((d && d.unread) || 0)
+        if (alive) { setUnread((d && d.unread) || 0); setEventsPending((d && d.events_pending) || 0) }
       }).catch(function(){})
     }
     load()
@@ -83,7 +84,8 @@ export default function AppSidebar() {
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.6, color: T.sidebarSectionLabel || "rgba(255,255,255,0.4)", padding: "0 8px 6px", fontWeight: 500 }}>{section.section}</div>
               {section.items.map(function(item){
                 const active = item.matches(pathname)
-                const showBadge = item.href === "/notifications" && unread > 0
+                const badgeCount = item.href === "/notifications" ? unread : (item.href === "/events" ? eventsPending : 0)
+                const showBadge = badgeCount > 0
                 return (
                   <Link key={item.href} href={item.href} style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
@@ -102,7 +104,7 @@ export default function AppSidebar() {
                         background: "#dc2626", color: "white", fontSize: 11, fontWeight: 600,
                         minWidth: 18, height: 18, borderRadius: 999, padding: "0 5px",
                         display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
-                      }}>{unread > 99 ? "99+" : unread}</span>
+                      }}>{badgeCount > 99 ? "99+" : badgeCount}</span>
                     ) : null}
                   </Link>
                 )

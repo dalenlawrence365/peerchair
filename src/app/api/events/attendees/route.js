@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 import { serverClient } from "@/lib/supabaseServer"
+import { getAccessToken } from "@/lib/microsoft-auth"
 
 /* Admin-side attendee management. Same-origin (PeerChair UI) only — no CORS.
 
@@ -107,6 +108,35 @@ export async function POST(req) {
   })
 }
 
+async function sendInviteEmail({ to, first_name, invite_url }) {
+  try {
+    const token = await getAccessToken()
+    const hi = first_name ? ("Hi " + first_name + ",") : "Hi,"
+    const html =
+      '<div style="font-family:Georgia,serif;max-width:520px;color:#20242f">' +
+      '<p style="font-size:16px;margin:0 0 14px">' + hi + '</p>' +
+      '<p style="font-size:15px;line-height:1.6;margin:0 0 14px">Your seat is confirmed for <strong>The 8 Key Drivers of CFO Success</strong> — CFO Circle Los Angeles.</p>' +
+      '<p style="font-size:15px;line-height:1.6;margin:0 0 18px">Tuesday, August 11 &middot; 8:30&ndash;11:30 AM &middot; Century City. Tap below for the venue address, parking, and to let me know you will be there.</p>' +
+      '<p style="margin:0 0 22px"><a href="' + invite_url + '" style="background:#c39a4e;color:#121a3c;padding:12px 22px;border-radius:3px;text-decoration:none;font-weight:bold;font-family:Arial,sans-serif;font-size:14px">View details &amp; RSVP &rarr;</a></p>' +
+      '<p style="font-size:14px;line-height:1.6;color:#54596b;margin:0">Looking forward to it,<br>Dalen Lawrence<br>Chapter Director, CFO Circle Los Angeles</p>' +
+      '</div>'
+    const text = hi + "\n\nYour seat is confirmed for The 8 Key Drivers of CFO Success — CFO Circle Los Angeles.\nTuesday, August 11 · 8:30–11:30 AM · Century City.\n\nDetails, venue, and RSVP: " + invite_url + "\n\nLooking forward to it,\nDalen Lawrence"
+    const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: {
+          subject: "You're in — August 11 CFO Circle workshop",
+          body: { contentType: "HTML", content: html },
+          toRecipients: [{ emailAddress: { address: to } }],
+        },
+        saveToSentItems: true,
+      }),
+    })
+    return res.ok
+  } catch (e) { console.error("invite email failed:", e); return false }
+}
+
 export async function PATCH(req) {
   let body = {}
   try { body = await req.json() } catch { return Response.json({ error: "bad_request" }, { status: 400 }) }
@@ -117,16 +147,26 @@ export async function PATCH(req) {
   if (!id || !ALLOWED.has(status)) return Response.json({ error: "bad_request" }, { status: 400 })
 
   const sb = serverClient()
-  const { data, error } = await sb
+  const { data: cur } = await sb
     .from("event_attendees")
-    .update({ status })
+    .select("id, status, invite_token, event_id, people:person_id ( first_name, email ), events:event_id ( slug )")
     .eq("id", id)
-    .select("id, invite_token, event_id")
-    .single()
+    .maybeSingle()
+  if (!cur) return Response.json({ error: "not_found" }, { status: 404 })
+
+  const { error } = await sb.from("event_attendees").update({ status }).eq("id", id)
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
-  const { data: ev } = await sb.from("events").select("slug").eq("id", data.event_id).maybeSingle()
-  return Response.json({ ok: true, status, invite_url: ev ? inviteUrl(ev.slug, data.invite_token) : null })
+  const slug = cur.events?.slug
+  const invite_url = slug ? inviteUrl(slug, cur.invite_token) : null
+
+  // On approval (Requested -> Invited), email the registrant their invite link.
+  let emailed = false
+  if (status === "Invited" && cur.status === "Requested" && cur.people?.email && invite_url) {
+    emailed = await sendInviteEmail({ to: cur.people.email, first_name: cur.people?.first_name, invite_url })
+  }
+
+  return Response.json({ ok: true, status, invite_url, emailed })
 }
 
 export async function DELETE(req) {

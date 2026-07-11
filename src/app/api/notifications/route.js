@@ -13,7 +13,11 @@ export async function GET() {
     .from("notifications")
     .select("id", { count: "exact", head: true })
     .eq("is_read", false)
-  return Response.json({ unread: count || 0, items: items || [] })
+  const { count: eventsPending } = await sb
+    .from("event_attendees")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "Requested")
+  return Response.json({ unread: count || 0, events_pending: eventsPending || 0, items: items || [] })
 }
 
 // POST /api/notifications  { action:"read_all" } | { id }

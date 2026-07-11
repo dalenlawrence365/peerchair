@@ -35,9 +35,13 @@ export default function EventsPage() {
     fetch("/api/events/attendees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id, status: status }) })
       .then(function (r) { return r.json() })
       .then(function (d) {
-        if (d && d.ok && status === "Invited" && d.invite_url) {
-          try { navigator.clipboard.writeText(d.invite_url) } catch (e) {}
-          setMsg("Approved " + (name || "") + " — invite link copied. Paste it into your email or DM.")
+        if (d && d.ok && status === "Invited") {
+          if (d.emailed) {
+            setMsg("Approved " + (name || "") + " — I emailed them their invite link with the venue details.")
+          } else {
+            try { navigator.clipboard.writeText(d.invite_url) } catch (e) {}
+            setMsg("Approved " + (name || "") + " — invite link copied (auto-email didn't send; paste it to them).")
+          }
         } else if (d && d.ok && status === "Declined") {
           setMsg("Declined " + (name || "") + ".")
         }
