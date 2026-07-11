@@ -42,16 +42,40 @@ export async function POST(req) {
     .eq("slug", slug).eq("published", true).maybeSingle()
   if (!event) return json({ error: "not_found" }, 404)
 
-  // Match existing person by email, then LinkedIn; else create.
-  let person_id = null
-  const { data: byEmail } = await sb.from("people").select("id").ilike("email", email).maybeSingle()
-  if (byEmail) person_id = byEmail.id
-  if (!person_id && linkedin) {
-    const { data: byLi } = await sb.from("people").select("id").ilike("linkedin_url", linkedin).maybeSingle()
-    if (byLi) person_id = byLi.id
+  const full_name = (first_name + " " + last_name).trim()
+
+  // Match an existing person on strong signals only: email, LinkedIn, or name+company.
+  // Most LinkedIn-sourced records have no email and registrants rarely paste a
+  // LinkedIn URL, so name+company is the realistic catch — and every match also
+  // backfills the email/LinkedIn we just captured onto the existing record.
+  let matched = null
+  {
+    const { data } = await sb.from("people").select("id, email, linkedin_url").ilike("email", email).maybeSingle()
+    if (data) matched = data
   }
-  if (!person_id) {
-    const full_name = (first_name + " " + last_name).trim()
+  if (!matched && linkedin) {
+    const { data } = await sb.from("people").select("id, email, linkedin_url").ilike("linkedin_url", linkedin).maybeSingle()
+    if (data) matched = data
+  }
+  if (!matched && company) {
+    const { data } = await sb.from("people").select("id, email, linkedin_url")
+      .ilike("first_name", first_name).ilike("last_name", last_name).ilike("company", company).limit(2)
+    if (data && data.length === 1) matched = data[0]
+  }
+
+  let person_id = null
+  let dupFlag = ""
+  if (matched) {
+    person_id = matched.id
+    // Enrich: fill in the email / LinkedIn we just captured if the record lacked them.
+    const patch = {}
+    if (!matched.email && email) patch.email = email
+    if (!matched.linkedin_url && linkedin) patch.linkedin_url = linkedin
+    if (Object.keys(patch).length) await sb.from("people").update(patch).eq("id", person_id)
+  } else {
+    // No confident match — flag same-name records so Dalen can merge at review.
+    const { data: sameName } = await sb.from("people").select("id").ilike("full_name", full_name).limit(1)
+    if (sameName && sameName.length) dupFlag = "\u26a0 Possible duplicate (same name already in PeerChair) \u2014 review before approving. "
     const { data: np, error: perr } = await sb.from("people").insert({
       first_name,
       last_name: last_name || "",
@@ -76,7 +100,7 @@ export async function POST(req) {
     ctype || null,
     linkedin || null,
   ].filter(Boolean)
-  const note = "Self-registered (Aug 11): " + (noteBits.join(" · ") || "no details")
+  const note = dupFlag + "Self-registered (Aug 11): " + (noteBits.join(" · ") || "no details")
 
   // Insert as Requested; never downgrade an already-Invited person.
   await sb.from("event_attendees").upsert(
