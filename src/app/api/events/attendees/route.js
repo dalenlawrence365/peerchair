@@ -131,10 +131,14 @@ async function createInviteDraft({ to, first_name, invite_url }) {
         toRecipients: [{ emailAddress: { address: to } }],
       }),
     })
-    if (!res.ok) return { ok: false, webLink: null }
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "")
+      console.error("invite draft: Graph " + res.status + " " + errText.slice(0, 500))
+      return { ok: false, webLink: null, error: "Graph " + res.status + (errText ? (": " + errText.slice(0, 160)) : "") }
+    }
     const data = await res.json().catch(() => ({}))
     return { ok: true, webLink: data.webLink || null }
-  } catch (e) { console.error("invite draft failed:", e); return { ok: false, webLink: null } }
+  } catch (e) { console.error("invite draft failed:", e); return { ok: false, webLink: null, error: (e && e.message) || "exception" } }
 }
 
 export async function PATCH(req) {
@@ -163,13 +167,15 @@ export async function PATCH(req) {
   // On approval (Requested -> Invited), draft the invite email for review.
   let drafted = false
   let draft_url = null
+  let draft_error = null
   if (status === "Invited" && (cur.status === "Registered" || cur.status === "Requested") && cur.people?.email && invite_url) {
     const d = await createInviteDraft({ to: cur.people.email, first_name: cur.people?.first_name, invite_url })
     drafted = d.ok
     draft_url = d.webLink
+    draft_error = d.error || null
   }
 
-  return Response.json({ ok: true, status, invite_url, drafted, draft_url })
+  return Response.json({ ok: true, status, invite_url, drafted, draft_url, draft_error })
 }
 
 export async function DELETE(req) {

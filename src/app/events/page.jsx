@@ -53,7 +53,7 @@ export default function EventsPage() {
             if (d.draft_url) setDraftUrl(d.draft_url)
           } else {
             try { navigator.clipboard.writeText(d.invite_url) } catch (e) {}
-            setMsg("Approved " + (name || "") + " — invite link copied (couldn't create a draft; paste it to them).")
+            setMsg("Approved " + (name || "") + " — invite link copied. Draft not created" + (d.draft_error ? " (" + d.draft_error + ")" : "") + ".")
           }
         } else if (d && d.ok && status === "Declined") {
           setMsg("Declined " + (name || "") + ".")
