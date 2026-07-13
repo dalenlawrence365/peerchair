@@ -168,7 +168,7 @@ export async function PATCH(req) {
 
   const id = (body.id || "").toString().trim()
   const status = (body.status || "").toString().trim()
-  const ALLOWED = new Set(["Registered", "Invited", "Confirmed", "Declined", "Requested"])
+  const ALLOWED = new Set(["Registered", "Invited", "Confirmed", "Declined", "Requested", "No-show"])
   if (!id || !ALLOWED.has(status)) return Response.json({ error: "bad_request" }, { status: 400 })
 
   const sb = serverClient()

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { T } from "@/lib/pipelineTheme"
 import Avatar from "@/components/Avatar"
 import ProfileTodoCard from "@/components/ProfileTodoCard"
+import EventLinkCard from "@/components/EventLinkCard"
 
 const ROLE_LABEL = { cfo: "CFO", sponsor_contact: "Sponsor", referral_partner: "Referral Partner" }
 const ROLE_COLOR = { cfo: "#d97706", sponsor_contact: "#a855f7", referral_partner: "#10b981" }
@@ -590,6 +591,8 @@ export default function PersonProfile() {
         ...(p.provisors_member ? [{ key: "groups", label: "Groups" }] : []),
         ...(p.provisors_member ? [{ key: "meetings", label: "Meetings" }] : []),
       ]} />
+
+      <EventLinkCard personId={p.id} />
 
       {/* TAB: To-dos */}
       {tab === "todos" && (

@@ -84,6 +84,8 @@ export default function EventsPage() {
           }
         } else if (d && d.ok && status === "Declined") {
           setMsg("Declined " + (name || "") + ".")
+        } else if (d && d.ok && status === "No-show") {
+          setMsg("Marked " + (name || "") + " as a no-show.")
         }
         load()
       })
@@ -164,7 +166,10 @@ export default function EventsPage() {
                   <div style={{ marginTop: 6 }}><PillTrack a={a} /></div>
                   {a.notes || a.title ? <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 5 }}>{a.notes || a.title}</div> : null}
                 </div>
-                <button onClick={function () { copy(a.invite_url) }} style={Object.assign({ flexShrink: 0 }, btnLink)}>Copy approved link</button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-end", flexShrink: 0 }}>
+                  <button onClick={function () { copy(a.invite_url) }} style={btnLink}>Copy approved link</button>
+                  {a.status !== "No-show" ? <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "No-show", a.name) }} style={{ background: "transparent", color: "#b3452f", border: "none", fontSize: 12, cursor: "pointer" }}>Mark no-show</button> : null}
+                </div>
               </div>
             )
           })}
