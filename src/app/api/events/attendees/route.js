@@ -112,15 +112,24 @@ export async function POST(req) {
   })
 }
 
-async function createInviteDraft({ to, first_name, invite_url }) {
+async function createInviteDraft({ to, first_name, invite_url, event }) {
   try {
     const hi = first_name ? ("Hi " + first_name + ",") : "Hi,"
+    const ev = event || {}
+    let whenStr = "Tuesday, August 11 &middot; 8:30&ndash;11:30 AM"
+    try { if (ev.event_date) whenStr = new Date(String(ev.event_date).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) + " &middot; 8:30&ndash;11:30 AM" } catch (e) {}
+    const row = (label, value) => value ? ('<p style="margin:0 0 9px;font-size:15px;line-height:1.5"><strong>' + label + '</strong> ' + value + '</p>') : ""
+    const where = [ev.venue_name, ev.address_line].filter(Boolean).join(", ")
     const html =
-      '<div style="font-family:Georgia,serif;max-width:520px;color:#20242f">' +
+      '<div style="font-family:Georgia,serif;max-width:560px;color:#20242f">' +
       '<p style="font-size:16px;margin:0 0 14px">' + hi + '</p>' +
-      '<p style="font-size:15px;line-height:1.6;margin:0 0 14px">Your seat is confirmed for <strong>The 8 Key Drivers of CFO Success</strong> — CFO Circle Los Angeles.</p>' +
-      '<p style="font-size:15px;line-height:1.6;margin:0 0 18px">Tuesday, August 11 &middot; 8:30&ndash;11:30 AM &middot; Century City. Tap below for the venue address, parking, and to let me know you will be there.</p>' +
-      '<p style="margin:0 0 22px"><a href="' + invite_url + '" style="background:#c39a4e;color:#121a3c;padding:12px 22px;border-radius:3px;text-decoration:none;font-weight:bold;font-family:Arial,sans-serif;font-size:14px">View details &amp; RSVP &rarr;</a></p>' +
+      '<p style="font-size:15px;line-height:1.6;margin:0 0 16px">You\u2019re confirmed for <strong>' + (ev.name || "the CFO Circle workshop") + '</strong> \u2014 CFO Circle Los Angeles. Here\u2019s everything you need:</p>' +
+      row("When:", whenStr) +
+      row("Where:", where) +
+      row("Parking:", ev.parking_instructions) +
+      row("Check-in:", ev.check_in_instructions) +
+      row("Breakfast:", ev.breakfast_note) +
+      '<p style="margin:18px 0 22px"><a href="' + invite_url + '" style="background:#c39a4e;color:#121a3c;padding:12px 22px;border-radius:3px;text-decoration:none;font-weight:bold;font-family:Arial,sans-serif;font-size:14px">View details &amp; RSVP online &rarr;</a></p>' +
       '<p style="font-size:14px;line-height:1.6;color:#54596b;margin:0">Looking forward to it,<br>Dalen Lawrence<br>Chapter Director, CFO Circle Los Angeles</p>' +
       '</div>'
     // POST /me/messages creates a DRAFT (not sent) so Dalen reviews before sending.
@@ -165,7 +174,7 @@ export async function PATCH(req) {
   const sb = serverClient()
   const { data: cur } = await sb
     .from("event_attendees")
-    .select("id, status, invite_token, event_id, people:person_id ( first_name, email ), events:event_id ( slug )")
+    .select("id, status, invite_token, event_id, people:person_id ( first_name, email ), events:event_id ( slug, name, event_date, venue_name, address_line, parking_instructions, check_in_instructions, breakfast_note )")
     .eq("id", id)
     .maybeSingle()
   if (!cur) return Response.json({ error: "not_found" }, { status: 404 })
@@ -183,7 +192,7 @@ export async function PATCH(req) {
   let draft_url = null
   let draft_error = null
   if (status === "Invited" && (cur.status === "Registered" || cur.status === "Requested") && cur.people?.email && invite_url) {
-    const d = await createInviteDraft({ to: cur.people.email, first_name: cur.people?.first_name, invite_url })
+    const d = await createInviteDraft({ to: cur.people.email, first_name: cur.people?.first_name, invite_url, event: cur.events })
     drafted = d.ok
     draft_url = d.webLink
     draft_error = d.error || null

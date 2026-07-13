@@ -80,7 +80,7 @@ export default function EventsPage() {
             if (d.draft_url) setDraftUrl(d.draft_url)
           } else {
             try { navigator.clipboard.writeText(d.invite_url) } catch (e) {}
-            setMsg("Approved " + (name || "") + " — invite link copied. Draft not created" + (d.draft_error ? " (" + d.draft_error + ")" : "") + ".")
+            setMsg("Approved " + (name || "") + " — approved link copied. Draft not created" + (d.draft_error ? " (" + d.draft_error + ")" : "") + ".")
           }
         } else if (d && d.ok && status === "Declined") {
           setMsg("Declined " + (name || "") + ".")
@@ -92,7 +92,7 @@ export default function EventsPage() {
   }
 
   function copy(url) {
-    try { navigator.clipboard.writeText(url); setMsg("Invite link copied.") } catch (e) {}
+    try { navigator.clipboard.writeText(url); setMsg("Approved link copied.") } catch (e) {}
   }
 
   if (loading) return <div style={{ padding: "28px 32px", color: T.textTertiary }}>Loading…</div>
@@ -164,7 +164,7 @@ export default function EventsPage() {
                   <div style={{ marginTop: 6 }}><PillTrack a={a} /></div>
                   {a.notes || a.title ? <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 5 }}>{a.notes || a.title}</div> : null}
                 </div>
-                <button onClick={function () { copy(a.invite_url) }} style={Object.assign({ flexShrink: 0 }, btnLink)}>Copy invite link</button>
+                <button onClick={function () { copy(a.invite_url) }} style={Object.assign({ flexShrink: 0 }, btnLink)}>Copy approved link</button>
               </div>
             )
           })}
