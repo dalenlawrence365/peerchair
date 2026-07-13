@@ -110,7 +110,10 @@ export default function EventsPage() {
   return (
     <div style={{ padding: "28px 32px", maxWidth: 900 }}>
       <div style={{ marginBottom: 6, fontSize: 22, fontWeight: 600, color: T.textPrimary }}>{ev.name || "Event"}</div>
-      <div style={{ color: T.textTertiary, fontSize: 13, marginBottom: 18 }}>Tuesday, August 11, 2026 · 8:30–11:30 AM · Century City</div>
+      <div style={{ color: T.textTertiary, fontSize: 13, marginBottom: 14 }}>Tuesday, August 11, 2026 · 8:30–11:30 AM · Century City</div>
+      <div style={{ marginBottom: 18 }}>
+        <a href={"/api/events/campaign-export?slug=" + SLUG + "&src=li-dm"} style={{ display: "inline-block", fontSize: 12.5, fontWeight: 600, color: T.accent, textDecoration: "none", border: "1px solid " + T.border, borderRadius: 8, padding: "7px 12px", background: "white" }}>↓ Export CFO campaign CSV (LinkedHelper)</a>
+      </div>
 
       {/* Counts */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 22 }}>
