@@ -111,7 +111,6 @@ export async function POST(req) {
 
 async function createInviteDraft({ to, first_name, invite_url }) {
   try {
-    const token = await getAccessToken()
     const hi = first_name ? ("Hi " + first_name + ",") : "Hi,"
     const html =
       '<div style="font-family:Georgia,serif;max-width:520px;color:#20242f">' +
@@ -122,15 +121,25 @@ async function createInviteDraft({ to, first_name, invite_url }) {
       '<p style="font-size:14px;line-height:1.6;color:#54596b;margin:0">Looking forward to it,<br>Dalen Lawrence<br>Chapter Director, CFO Circle Los Angeles</p>' +
       '</div>'
     // POST /me/messages creates a DRAFT (not sent) so Dalen reviews before sending.
-    const res = await fetch("https://graph.microsoft.com/v1.0/me/messages", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        subject: "You're in — August 11 CFO Circle workshop",
-        body: { contentType: "HTML", content: html },
-        toRecipients: [{ emailAddress: { address: to } }],
-      }),
+    const payload = JSON.stringify({
+      subject: "You're in — August 11 CFO Circle workshop",
+      body: { contentType: "HTML", content: html },
+      toRecipients: [{ emailAddress: { address: to } }],
     })
+    function post(tok) {
+      return fetch("https://graph.microsoft.com/v1.0/me/messages", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+        body: payload,
+      })
+    }
+    let token = await getAccessToken()
+    let res = await post(token)
+    if (res.status === 401) {
+      // Cached token was rejected as expired — force a fresh one and retry once.
+      token = await getAccessToken({ force: true })
+      res = await post(token)
+    }
     if (!res.ok) {
       const errText = await res.text().catch(() => "")
       console.error("invite draft: Graph " + res.status + " " + errText.slice(0, 500))

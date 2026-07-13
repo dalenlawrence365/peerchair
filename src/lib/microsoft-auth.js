@@ -1,13 +1,13 @@
 import { createClient } from "@supabase/supabase-js"
 
-export async function getAccessToken() {
+export async function getAccessToken(opts = {}) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )
   const { data: row } = await supabase.from("microsoft_tokens").select("*").eq("id","dalen").single()
   if (!row) throw new Error("No Microsoft token. Visit /api/auth/microsoft to authorize.")
-  if (new Date(row.expires_at) > new Date(Date.now() + 5*60000)) return row.access_token
+  if (!opts.force && new Date(row.expires_at) > new Date(Date.now() + 5*60000)) return row.access_token
 
   const res = await fetch(
     `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/oauth2/v2.0/token`,
