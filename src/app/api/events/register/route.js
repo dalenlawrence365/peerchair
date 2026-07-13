@@ -104,7 +104,7 @@ export async function POST(req) {
 
   // Insert as Registered; never downgrade an already-Invited person.
   await sb.from("event_attendees").upsert(
-    [{ event_id: event.id, person_id, status: "Registered", notes: note }],
+    [{ event_id: event.id, person_id, status: "Registered", notes: note, registered_at: new Date().toISOString(), source: src || "direct" }],
     { onConflict: "event_id,person_id", ignoreDuplicates: true }
   )
 

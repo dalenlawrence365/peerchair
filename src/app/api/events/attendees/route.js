@@ -38,7 +38,7 @@ export async function GET(req) {
 
   const { data: rows } = await sb
     .from("event_attendees")
-    .select("id, status, invited_at, responded_at, invite_token, person_id, notes, people:person_id ( first_name, last_name, full_name, email, title, company, cfo_state )")
+    .select("id, status, invited_at, responded_at, invite_token, person_id, notes, source, registered_at, approved_at, people:person_id ( first_name, last_name, full_name, email, title, company, cfo_state )")
     .eq("event_id", event.id)
     .order("invited_at", { ascending: true })
 
@@ -52,6 +52,9 @@ export async function GET(req) {
     cfo_state: r.people?.cfo_state || null,
     status: r.status,
     notes: r.notes || null,
+    source: r.source || null,
+    registered_at: r.registered_at || null,
+    approved_at: r.approved_at || null,
     invited_at: r.invited_at,
     responded_at: r.responded_at,
     invite_url: inviteUrl(event.slug, r.invite_token),
@@ -92,7 +95,7 @@ export async function POST(req) {
   // to call repeatedly. Existing tokens are preserved.
   const { error } = await sb
     .from("event_attendees")
-    .upsert(ids.map(pid => ({ event_id: event.id, person_id: pid, status: "Invited" })),
+    .upsert(ids.map(pid => ({ event_id: event.id, person_id: pid, status: "Invited", source: "invited", approved_at: new Date().toISOString() })),
             { onConflict: "event_id,person_id", ignoreDuplicates: true })
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
@@ -167,7 +170,9 @@ export async function PATCH(req) {
     .maybeSingle()
   if (!cur) return Response.json({ error: "not_found" }, { status: 404 })
 
-  const { error } = await sb.from("event_attendees").update({ status }).eq("id", id)
+  const patch = { status }
+  if (status === "Invited" && (cur.status === "Registered" || cur.status === "Requested")) patch.approved_at = new Date().toISOString()
+  const { error } = await sb.from("event_attendees").update(patch).eq("id", id)
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
   const slug = cur.events?.slug

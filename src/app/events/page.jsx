@@ -25,6 +25,33 @@ function statusChip(status) {
   return <Chip label="Invited" bg={T.audienceBg} color={T.audienceText} />
 }
 
+const PILL = { registered: "#d97706", approved: "#16a34a", confirmed: "#0f766e", noshow: "#dc2626" }
+function Pill({ label, date, bg, on }) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 999, lineHeight: 1.3,
+      background: on ? bg : "transparent", color: on ? "#ffffff" : "#94a3b8",
+      border: "1px solid " + (on ? bg : "#cbd5e1"), whiteSpace: "nowrap",
+    }}>
+      <span>{label}</span>
+      {on && date ? <span style={{ fontWeight: 400, opacity: 0.85 }}>{date}</span> : null}
+    </span>
+  )
+}
+function PillTrack({ a }) {
+  const isLi = a.source === "li-event"
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <Pill label={isLi ? "LinkedIn" : "Invited"} date={shortDate(a.invited_at)} bg={isLi ? "#0a66c2" : "#1a2550"} on={true} />
+      <Pill label="Registered" date={shortDate(a.registered_at)} bg={PILL.registered} on={!!a.registered_at} />
+      <Pill label="Approved" date={shortDate(a.approved_at)} bg={PILL.approved} on={!!a.approved_at} />
+      <Pill label="Confirmed" date={shortDate(a.responded_at)} bg={PILL.confirmed} on={a.status === "Confirmed"} />
+      {a.status === "No-show" ? <Pill label="No-show" date="" bg={PILL.noshow} on={true} /> : null}
+    </div>
+  )
+}
+
 export default function EventsPage() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -107,7 +134,7 @@ export default function EventsPage() {
                     <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>{a.name || "(no name)"}{a.company ? <span style={{ fontWeight: 400, color: T.textSecondary }}>{"  ·  " + a.company}</span> : null}</div>
                     <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>{a.email || ""}</div>
                     {a.notes ? <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 6 }}>{a.notes}</div> : null}
-                    <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 6 }}>Registered {shortDate(a.invited_at)}</div>
+                    <div style={{ marginTop: 8 }}><PillTrack a={a} /></div>
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                     <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Invited", a.name) }} style={btnPrimary}>Approve</button>
@@ -132,10 +159,10 @@ export default function EventsPage() {
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                     <span style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600 }}>{a.name || "(no name)"}</span>
-                    {statusChip(a.status)}
                     {a.company ? <span style={{ fontSize: 13, color: T.textSecondary, fontWeight: 500 }}>{a.company}</span> : null}
                   </div>
-                  <div style={{ fontSize: 12.5, color: T.textTertiary, marginTop: 3 }}>{[(a.notes || a.title || ""), rosterDate(a)].filter(Boolean).join("  ·  ")}</div>
+                  <div style={{ marginTop: 6 }}><PillTrack a={a} /></div>
+                  {a.notes || a.title ? <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 5 }}>{a.notes || a.title}</div> : null}
                 </div>
                 <button onClick={function () { copy(a.invite_url) }} style={Object.assign({ flexShrink: 0 }, btnLink)}>Copy invite link</button>
               </div>
