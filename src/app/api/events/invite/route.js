@@ -56,7 +56,7 @@ async function loadEvent(sb, slug) {
   if (!slug || !/^[\w-]{1,64}$/.test(slug)) return null
   const { data } = await sb
     .from("events")
-    .select("id, slug, name, summary, event_date, ends_at, location, venue_name, address_line, parking_instructions, host_name, host_logo_url, agenda, published")
+    .select("id, slug, name, summary, event_date, ends_at, location, venue_name, address_line, parking_instructions, host_name, host_logo_url, agenda, published, check_in_instructions, breakfast_note")
     .eq("slug", slug)
     .eq("published", true)
     .maybeSingle()
@@ -100,6 +100,8 @@ export async function GET(req) {
         venue_name: event.venue_name,
         address_line: event.address_line,
         parking_instructions: event.parking_instructions,
+        check_in_instructions: event.check_in_instructions,
+        breakfast_note: event.breakfast_note,
       }
     }
   }
