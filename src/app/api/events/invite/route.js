@@ -87,7 +87,7 @@ export async function GET(req) {
 
   const attendee = token ? await loadAttendee(sb, event.id, token) : null
   if (attendee) {
-    if (attendee.status === "Requested") {
+    if (attendee.status === "Registered" || attendee.status === "Requested") {
       // Self-registered but not yet approved: acknowledge, but never the address.
       payload.pending = true
       payload.first_name = attendee.people?.first_name || null

@@ -4,6 +4,16 @@ import { T } from "@/lib/pipelineTheme"
 
 const SLUG = "august-11-workshop"
 
+function shortDate(iso) {
+  if (!iso) return ""
+  try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) } catch (e) { return "" }
+}
+function rosterDate(a) {
+  if ((a.status === "Confirmed" || a.status === "Declined") && a.responded_at) return a.status + " " + shortDate(a.responded_at)
+  if (a.invited_at) return "Invited " + shortDate(a.invited_at)
+  return ""
+}
+
 function Chip({ label, bg, color }) {
   return <span style={{ background: bg, color: color, fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 999 }}>{label}</span>
 }
@@ -11,7 +21,7 @@ function Chip({ label, bg, color }) {
 function statusChip(status) {
   if (status === "Confirmed") return <Chip label="Confirmed" bg={T.memberBg} color={T.memberText} />
   if (status === "Declined")  return <Chip label="Declined" bg={T.dangerBg} color={T.danger} />
-  if (status === "Requested") return <Chip label="Requested" bg={T.qualifiedBg} color={T.qualifiedText} />
+  if (status === "Registered" || status === "Requested") return <Chip label="Registered" bg={T.qualifiedBg} color={T.qualifiedText} />
   return <Chip label="Invited" bg={T.audienceBg} color={T.audienceText} />
 }
 
@@ -64,8 +74,8 @@ export default function EventsPage() {
   const ev = data.event || {}
   const c = data.counts || {}
   const all = data.attendees || []
-  const pending = all.filter(function (a) { return a.status === "Requested" })
-  const roster = all.filter(function (a) { return a.status !== "Requested" })
+  const pending = all.filter(function (a) { return a.status === "Registered" || a.status === "Requested" })
+  const roster = all.filter(function (a) { return a.status !== "Registered" && a.status !== "Requested" })
   const shortOf = Math.max(0, (ev.min_to_run || 8) - (c.confirmed || 0))
 
   return (
@@ -76,7 +86,7 @@ export default function EventsPage() {
       {/* Counts */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 22 }}>
         <Stat label="Confirmed" value={c.confirmed || 0} sub={shortOf > 0 ? (shortOf + " short of " + (ev.min_to_run || 8)) : "at go threshold"} good={shortOf === 0} />
-        <Stat label="Pending requests" value={c.requested || 0} sub="awaiting your review" highlight={(c.requested || 0) > 0} />
+        <Stat label="Registered" value={c.registered || 0} sub="awaiting your review" highlight={(c.registered || 0) > 0} />
         <Stat label="Invited" value={c.invited || 0} sub="total on the list" />
         <Stat label="Declined" value={c.declined || 0} sub="" />
       </div>
@@ -97,6 +107,7 @@ export default function EventsPage() {
                     <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>{a.name || "(no name)"}{a.company ? <span style={{ fontWeight: 400, color: T.textSecondary }}>{"  ·  " + a.company}</span> : null}</div>
                     <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>{a.email || ""}</div>
                     {a.notes ? <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 6 }}>{a.notes}</div> : null}
+                    <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 6 }}>Registered {shortDate(a.invited_at)}</div>
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                     <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Invited", a.name) }} style={btnPrimary}>Approve</button>
@@ -124,7 +135,7 @@ export default function EventsPage() {
                     {statusChip(a.status)}
                     {a.company ? <span style={{ fontSize: 13, color: T.textSecondary, fontWeight: 500 }}>{a.company}</span> : null}
                   </div>
-                  <div style={{ fontSize: 12.5, color: T.textTertiary, marginTop: 3 }}>{a.notes || a.title || ""}</div>
+                  <div style={{ fontSize: 12.5, color: T.textTertiary, marginTop: 3 }}>{[(a.notes || a.title || ""), rosterDate(a)].filter(Boolean).join("  ·  ")}</div>
                 </div>
                 <button onClick={function () { copy(a.invite_url) }} style={Object.assign({ flexShrink: 0 }, btnLink)}>Copy invite link</button>
               </div>

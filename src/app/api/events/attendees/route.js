@@ -59,14 +59,14 @@ export async function GET(req) {
 
   const count = s => attendees.filter(a => a.status === s).length
   const confirmed = count("Confirmed")
-  const requested = count("Requested")
+  const registered = count("Registered") + count("Requested")
 
   return Response.json({
     event,
     attendees,
     counts: {
       invited: attendees.length,
-      requested,
+      registered,
       confirmed,
       declined: count("Declined"),
       no_response: count("Invited"),
@@ -143,7 +143,7 @@ export async function PATCH(req) {
 
   const id = (body.id || "").toString().trim()
   const status = (body.status || "").toString().trim()
-  const ALLOWED = new Set(["Invited", "Confirmed", "Declined", "Requested"])
+  const ALLOWED = new Set(["Registered", "Invited", "Confirmed", "Declined", "Requested"])
   if (!id || !ALLOWED.has(status)) return Response.json({ error: "bad_request" }, { status: 400 })
 
   const sb = serverClient()
@@ -163,7 +163,7 @@ export async function PATCH(req) {
   // On approval (Requested -> Invited), draft the invite email for review.
   let drafted = false
   let draft_url = null
-  if (status === "Invited" && cur.status === "Requested" && cur.people?.email && invite_url) {
+  if (status === "Invited" && (cur.status === "Registered" || cur.status === "Requested") && cur.people?.email && invite_url) {
     const d = await createInviteDraft({ to: cur.people.email, first_name: cur.people?.first_name, invite_url })
     drafted = d.ok
     draft_url = d.webLink

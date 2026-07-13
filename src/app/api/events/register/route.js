@@ -102,15 +102,15 @@ export async function POST(req) {
   ].filter(Boolean)
   const note = dupFlag + "Self-registered (Aug 11): " + (noteBits.join(" · ") || "no details")
 
-  // Insert as Requested; never downgrade an already-Invited person.
+  // Insert as Registered; never downgrade an already-Invited person.
   await sb.from("event_attendees").upsert(
-    [{ event_id: event.id, person_id, status: "Requested", notes: note }],
+    [{ event_id: event.id, person_id, status: "Registered", notes: note }],
     { onConflict: "event_id,person_id", ignoreDuplicates: true }
   )
 
   const { data: att } = await sb.from("event_attendees")
     .select("status").eq("event_id", event.id).eq("person_id", person_id).maybeSingle()
-  const status = att?.status || "Requested"
+  const status = att?.status || "Registered"
 
   // Badge — deduped per person+event so re-submits don't spam.
   const fullName = (first_name + " " + last_name).trim() || email
@@ -135,5 +135,5 @@ export async function POST(req) {
     user_agent: (req.headers.get("user-agent") || "").slice(0, 300),
   })
 
-  return json({ ok: true, status: status === "Requested" ? "requested" : "invited" })
+  return json({ ok: true, status: (status === "Registered" || status === "Requested") ? "registered" : "invited" })
 }
