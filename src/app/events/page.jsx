@@ -94,7 +94,7 @@ export default function EventsPage() {
               <div key={a.id} style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: "14px 16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>{a.name || "(no name)"}</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>{a.name || "(no name)"}{a.company ? <span style={{ fontWeight: 400, color: T.textSecondary }}>{"  ·  " + a.company}</span> : null}</div>
                     <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>{a.email || ""}</div>
                     {a.notes ? <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 6 }}>{a.notes}</div> : null}
                   </div>
@@ -117,13 +117,16 @@ export default function EventsPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {roster.map(function (a) {
             return (
-              <div key={a.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: T.cardBg, border: "1px solid " + T.border, borderRadius: 8, padding: "10px 14px" }}>
-                <div style={{ minWidth: 0, display: "flex", gap: 10, alignItems: "center" }}>
-                  <span style={{ fontSize: 14, color: T.textPrimary, fontWeight: 500 }}>{a.name || "(no name)"}</span>
-                  {statusChip(a.status)}
-                  {a.title ? <span style={{ fontSize: 12.5, color: T.textTertiary }}>{a.title}</span> : null}
+              <div key={a.id} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, background: T.cardBg, border: "1px solid " + T.border, borderRadius: 8, padding: "11px 14px" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600 }}>{a.name || "(no name)"}</span>
+                    {statusChip(a.status)}
+                    {a.company ? <span style={{ fontSize: 13, color: T.textSecondary, fontWeight: 500 }}>{a.company}</span> : null}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: T.textTertiary, marginTop: 3 }}>{a.notes || a.title || ""}</div>
                 </div>
-                <button onClick={function () { copy(a.invite_url) }} style={btnLink}>Copy invite link</button>
+                <button onClick={function () { copy(a.invite_url) }} style={Object.assign({ flexShrink: 0 }, btnLink)}>Copy invite link</button>
               </div>
             )
           })}
