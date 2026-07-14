@@ -8,7 +8,13 @@ const DESTINATIONS = [
   { v: "assessment", label: "Assessment" },
   { v: "overview", label: "Brochure" },
   { v: "meeting", label: "Meeting" },
+  { v: "investment", label: "Investment" },
+  { v: "events/august-11-workshop", label: "Event · Aug 11 Workshop" },
 ]
+const DEST_PILL = {
+  overview: "Brochure", assessment: "Assessment", meeting: "Meeting",
+  investment: "Investment", "events/august-11-workshop": "Aug 11 Event",
+}
 
 const STATUS_COLOR = {
   draft:     { bg: "rgba(100,116,139,0.13)", fg: "#475569" },
@@ -193,7 +199,7 @@ export default function ContentPage() {
                 <strong style={{ fontSize: 14, color: T.textPrimary }}>{p.title}</strong>
                 <Pill text={p.status} bg={sc.bg} fg={sc.fg} />
                 <Pill text={p.format} bg="rgba(59,130,246,0.12)" fg="#3b82f6" />
-                {p.destination !== "none" && <Pill text={"→ " + p.destination} bg="rgba(168,85,247,0.14)" fg="#a855f7" />}
+                {p.destination !== "none" && <Pill text={"→ " + (DEST_PILL[p.destination] || p.destination)} bg="rgba(168,85,247,0.14)" fg="#a855f7" />}
                 {p.boosted && <Pill text="boosted" bg="rgba(217,119,6,0.16)" fg="#b45309" />}
                 <span style={{ marginLeft: "auto", fontSize: 11, color: T.textTertiary }}>
                   {p.published_at ? "Published " + fmtDate(p.published_at) : p.scheduled_for ? "Scheduled " + fmtDate(p.scheduled_for) : "Draft"}

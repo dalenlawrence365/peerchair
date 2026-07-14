@@ -5,7 +5,9 @@ import { serverClient } from "@/lib/supabaseServer"
 // POST /api/content            -> create a post; server generates src_tag when destination != 'none'
 // PATCH /api/content           -> update a post (publish, paste permalink, enter manual metrics, attach/detach graphic)
 
-const DESTINATIONS = ["none", "overview", "assessment", "meeting"]
+// Post destinations. Any page path on la-cfo.com works — slashes are fine, the
+// URL builder concatenates directly. Add a new event here (one line) as they launch.
+const DESTINATIONS = ["none", "overview", "assessment", "meeting", "investment", "events/august-11-workshop"]
 const FORMATS = ["video", "text", "carousel", "image", "poll", "article"]
 const STATUSES = ["draft", "scheduled", "published"]
 
