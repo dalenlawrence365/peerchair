@@ -125,7 +125,7 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
     const row = (label, value) => value ? ('<p style="margin:0 0 9px;font-size:15px;line-height:1.5"><strong>' + label + '</strong> ' + value + '</p>') : ""
     const where = [ev.venue_name, ev.address_line].filter(Boolean).join(", ")
     // Universal add-to-calendar: .ics (Apple/Outlook) + Google link.
-    const icsUrl = "https://peerchair.com/api/events/ics?slug=" + encodeURIComponent(ev.slug || "")
+    const icsUrl = "https://www.peerchair.com/api/events/ics?slug=" + encodeURIComponent(ev.slug || "")
     const gcalStamp = function (iso) { try { const d = new Date(iso); const p = n => String(n).padStart(2, "0"); return d.getUTCFullYear() + p(d.getUTCMonth() + 1) + p(d.getUTCDate()) + "T" + p(d.getUTCHours()) + p(d.getUTCMinutes()) + "00Z" } catch (e) { return "" } }
     const gcal = "https://calendar.google.com/calendar/render?action=TEMPLATE"
       + "&text=" + encodeURIComponent((ev.name || "CFO Circle workshop") + " \u2014 CFO Circle Los Angeles")
