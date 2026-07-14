@@ -1,4 +1,5 @@
 "use client"
+import Link from "next/link"
 import { useEffect, useState, useCallback } from "react"
 import { T } from "@/lib/pipelineTheme"
 
@@ -138,7 +139,7 @@ export default function EventsPage() {
                   <div style={{ display: "flex", gap: 12, minWidth: 0 }}>
                     <Avatar name={a.name} src={a.avatar_url} />
                     <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>{a.name || "(no name)"}{a.company ? <span style={{ fontWeight: 400, color: T.textSecondary }}>{"  ·  " + a.company}</span> : null}</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>{a.person_id ? <Link href={"/people/" + a.person_id} style={{ color: T.textPrimary, textDecoration: "none" }}>{a.name || "(no name)"}</Link> : (a.name || "(no name)")}{a.company ? <span style={{ fontWeight: 400, color: T.textSecondary }}>{"  ·  " + a.company}</span> : null}</div>
                     <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>{a.email || ""}</div>
                     {a.notes ? <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 6 }}>{a.notes}</div> : null}
                     <div style={{ marginTop: 8 }}><PillTrack a={a} /></div>
@@ -168,7 +169,7 @@ export default function EventsPage() {
                   <Avatar name={a.name} src={a.avatar_url} size={36} />
                   <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600 }}>{a.name || "(no name)"}</span>
+                    {a.person_id ? <Link href={"/people/" + a.person_id} style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600, textDecoration: "none" }}>{a.name || "(no name)"}</Link> : <span style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600 }}>{a.name || "(no name)"}</span>}
                     {a.company ? <span style={{ fontSize: 13, color: T.textSecondary, fontWeight: 500 }}>{a.company}</span> : null}
                   </div>
                   <div style={{ marginTop: 6 }}><PillTrack a={a} /></div>
