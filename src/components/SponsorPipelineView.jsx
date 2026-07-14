@@ -252,7 +252,16 @@ export default function SponsorPipelineView({ stage }) {
                         }}>
                           <Avatar name={p.name} src={p.avatar_url} size={28} />
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
+                            <div style={{ fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+                              {p.linkedin_connected ? (
+                                <span title="1st-degree LinkedIn connection" style={{
+                                  flexShrink: 0, fontSize: 9.5, fontWeight: 700, lineHeight: 1,
+                                  padding: "2px 5px", borderRadius: 3, background: "#e3edfb",
+                                  border: "1px solid #b9d0ee", color: "#1a5fb4", letterSpacing: 0.2,
+                                }}>1st</span>
+                              ) : null}
+                            </div>
                             <div style={{ fontSize: 11, color: T.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {p.title || "—"}
                             </div>

@@ -129,6 +129,7 @@ export async function GET(request) {
         avatar_url: p.avatar_url || null,
         linkedin_url: p.linkedin_url,
         email: p.email,
+        linkedin_connected: !!p.linkedin_connected,
       })
     }
   }
