@@ -91,6 +91,14 @@ export async function POST(req) {
     }).select("id").single()
     if (perr) return json({ error: "person_insert_failed" }, 500)
     person_id = np.id
+    // Newly created from a self-registration — not confidently matched to an
+    // existing record. Flag for review on /unmatched (carries an 'unmatched'
+    // pill) so Dalen verifies identity/role and merges any duplicate.
+    await sb.rpc("set_status_tag", {
+      p_person_id: person_id,
+      p_tag: "unmatched",
+      p_set_by: "event_registration",
+    })
   }
 
   const noteBits = [

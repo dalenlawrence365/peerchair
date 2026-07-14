@@ -692,9 +692,9 @@ export default function PersonProfile() {
                 return (
                   <span key={"s_" + t.tag} title={`Set ${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
                     fontSize: 11, padding: "3px 6px 3px 9px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 500,
-                    background: t.tag === "needs_role_review" ? "#fef3c7" : "#eaf0f8",
-                    border: "1px solid " + (t.tag === "needs_role_review" ? "#fcd34d" : "#c7d5ea"),
-                    color: t.tag === "needs_role_review" ? "#92400e" : "#1e3a5f"
+                    background: t.tag === "needs_role_review" ? "#fef3c7" : (t.tag === "unmatched" ? "#ffe4d6" : "#eaf0f8"),
+                    border: "1px solid " + (t.tag === "needs_role_review" ? "#fcd34d" : (t.tag === "unmatched" ? "#f4a273" : "#c7d5ea")),
+                    color: t.tag === "needs_role_review" ? "#92400e" : (t.tag === "unmatched" ? "#9a3412" : "#1e3a5f")
                   }}>
                     {t.tag}
                     <span onClick={function(){ postAction({ action: "remove_tag", tag: t.tag }) }} style={{ cursor: "pointer", opacity: 0.5, fontWeight: 700 }} title="Remove tag">×</span>
