@@ -38,7 +38,7 @@ export async function GET(req) {
 
   const { data: rows } = await sb
     .from("event_attendees")
-    .select("id, status, invited_at, responded_at, invite_token, person_id, notes, source, registered_at, approved_at, people:person_id ( first_name, last_name, full_name, email, title, company, cfo_state, avatar_url )")
+    .select("id, status, invited_at, responded_at, invite_token, person_id, notes, source, registered_at, approved_at, confirmation_drafted_at, confirmation_draft_weblink, confirmation_sent_at, people:person_id ( first_name, last_name, full_name, email, title, company, cfo_state, avatar_url )")
     .eq("event_id", event.id)
     .order("invited_at", { ascending: true })
 
@@ -56,6 +56,9 @@ export async function GET(req) {
     source: r.source || null,
     registered_at: r.registered_at || null,
     approved_at: r.approved_at || null,
+    confirmation_drafted_at: r.confirmation_drafted_at || null,
+    confirmation_draft_weblink: r.confirmation_draft_weblink || null,
+    confirmation_sent_at: r.confirmation_sent_at || null,
     invited_at: r.invited_at,
     responded_at: r.responded_at,
     invite_url: inviteUrl(event.slug, r.invite_token),
@@ -121,6 +124,20 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
     try { if (ev.event_date) whenStr = new Date(String(ev.event_date).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) + " &middot; 8:30&ndash;11:30 AM" } catch (e) {}
     const row = (label, value) => value ? ('<p style="margin:0 0 9px;font-size:15px;line-height:1.5"><strong>' + label + '</strong> ' + value + '</p>') : ""
     const where = [ev.venue_name, ev.address_line].filter(Boolean).join(", ")
+    // Universal add-to-calendar: .ics (Apple/Outlook) + Google link.
+    const icsUrl = "https://peerchair.com/api/events/ics?slug=" + encodeURIComponent(ev.slug || "")
+    const gcalStamp = function (iso) { try { const d = new Date(iso); const p = n => String(n).padStart(2, "0"); return d.getUTCFullYear() + p(d.getUTCMonth() + 1) + p(d.getUTCDate()) + "T" + p(d.getUTCHours()) + p(d.getUTCMinutes()) + "00Z" } catch (e) { return "" } }
+    const gcal = "https://calendar.google.com/calendar/render?action=TEMPLATE"
+      + "&text=" + encodeURIComponent((ev.name || "CFO Circle workshop") + " \u2014 CFO Circle Los Angeles")
+      + (ev.event_date ? ("&dates=" + gcalStamp(ev.event_date) + "/" + gcalStamp(ev.ends_at || ev.event_date)) : "")
+      + "&location=" + encodeURIComponent(where)
+      + "&details=" + encodeURIComponent("CFO Circle Los Angeles. See your confirmation email for parking, check-in and breakfast details.")
+    const calBlock =
+      '<p style="font-size:14px;line-height:1.5;margin:20px 0 8px;color:#20242f"><strong>Add it to your calendar</strong> so it\u2019s locked in \u2014 works on any device:</p>' +
+      '<p style="margin:0 0 20px">' +
+      '<a href="' + icsUrl + '" style="display:inline-block;background:#20242f;color:#fff;padding:10px 18px;border-radius:3px;text-decoration:none;font-weight:bold;font-family:Arial,sans-serif;font-size:13px;margin:0 8px 8px 0">Apple / Outlook</a>' +
+      '<a href="' + gcal + '" style="display:inline-block;background:#20242f;color:#fff;padding:10px 18px;border-radius:3px;text-decoration:none;font-weight:bold;font-family:Arial,sans-serif;font-size:13px;margin:0 8px 8px 0">Google Calendar</a>' +
+      '</p>'
     const html =
       '<div style="font-family:Georgia,serif;max-width:560px;color:#20242f">' +
       '<p style="font-size:16px;margin:0 0 14px">' + hi + '</p>' +
@@ -130,6 +147,7 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
       row("Parking:", ev.parking_instructions) +
       row("Check-in:", ev.check_in_instructions) +
       row("Breakfast:", ev.breakfast_note) +
+      calBlock +
       '<p style="margin:18px 0 22px"><a href="' + invite_url + '" style="background:#c39a4e;color:#121a3c;padding:12px 22px;border-radius:3px;text-decoration:none;font-weight:bold;font-family:Arial,sans-serif;font-size:14px">View details &amp; RSVP online &rarr;</a></p>' +
       '<p style="font-size:14px;line-height:1.6;color:#54596b;margin:0">Looking forward to it,<br>Dalen Lawrence<br>Chapter Director, CFO Circle Los Angeles</p>' +
       '</div>'
@@ -168,6 +186,16 @@ export async function PATCH(req) {
   try { body = await req.json() } catch { return Response.json({ error: "bad_request" }, { status: 400 }) }
 
   const id = (body.id || "").toString().trim()
+  // Mark the confirmation as sent (Dalen sent it from Outlook). Truthful roster state.
+  if (body.mark_confirmation === "sent" || body.mark_confirmation === "unsent") {
+    const sb2 = serverClient()
+    const val = body.mark_confirmation === "sent" ? new Date().toISOString() : null
+    const { error: mErr } = await sb2.from("event_attendees").update({ confirmation_sent_at: val }).eq("id", id)
+    if (mErr) return Response.json({ error: mErr.message }, { status: 500 })
+    return Response.json({ ok: true, confirmation_sent_at: val })
+  }
+
+
   const status = (body.status || "").toString().trim()
   const ALLOWED = new Set(["Registered", "Invited", "Confirmed", "Declined", "Requested", "No-show"])
   if (!id || !ALLOWED.has(status)) return Response.json({ error: "bad_request" }, { status: 400 })
@@ -197,6 +225,12 @@ export async function PATCH(req) {
     drafted = d.ok
     draft_url = d.webLink
     draft_error = d.error || null
+    if (d.ok) {
+      await sb.from("event_attendees").update({
+        confirmation_drafted_at: new Date().toISOString(),
+        confirmation_draft_weblink: d.webLink || null,
+      }).eq("id", id)
+    }
   }
 
   return Response.json({ ok: true, status, invite_url, drafted, draft_url, draft_error })

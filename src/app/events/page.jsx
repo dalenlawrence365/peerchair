@@ -94,6 +94,15 @@ export default function EventsPage() {
       .finally(function () { setBusy(null) })
   }
 
+  function markConfirmation(id, sent) {
+    setBusy(id)
+    fetch("/api/events/attendees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id, mark_confirmation: sent ? "sent" : "unsent" }) })
+      .then(function (r) { return r.json() })
+      .then(function (d) { if (d && d.ok) { load() } else { setMsg("Couldn't update confirmation.") } })
+      .catch(function () { setMsg("Something went wrong.") })
+      .finally(function () { setBusy(null) })
+  }
+
   function copy(url) {
     try { navigator.clipboard.writeText(url); setMsg("Approved link copied.") } catch (e) {}
   }
@@ -177,6 +186,17 @@ export default function EventsPage() {
                   </div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-end", flexShrink: 0 }}>
+                  {a.confirmation_sent_at ? (
+                    <span style={{ fontSize: 11.5, fontWeight: 600, color: "#15803d", background: "#dcfce7", border: "1px solid #a7e0b8", borderRadius: 6, padding: "3px 8px", whiteSpace: "nowrap" }}>✓ Confirmation sent {shortDate(a.confirmation_sent_at)}</span>
+                  ) : a.confirmation_draft_weblink ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                      <span style={{ fontSize: 11.5, fontWeight: 700, color: "#9a3412", background: "#ffe4d6", border: "1px solid #f4a273", borderRadius: 6, padding: "3px 8px", whiteSpace: "nowrap" }}>⚠ Confirmation NOT sent</span>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <a href={a.confirmation_draft_weblink} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#0a66c2", textDecoration: "none" }}>Open draft</a>
+                        <button disabled={busy === a.id} onClick={function () { markConfirmation(a.id, true) }} style={{ background: "transparent", color: "#15803d", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Mark sent</button>
+                      </div>
+                    </div>
+                  ) : null}
                   <button onClick={function () { copy(a.invite_url) }} style={btnLink}>Copy approved link</button>
                   {a.status !== "No-show" ? <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "No-show", a.name) }} style={{ background: "transparent", color: "#b3452f", border: "none", fontSize: 12, cursor: "pointer" }}>Mark no-show</button> : null}
                 </div>
