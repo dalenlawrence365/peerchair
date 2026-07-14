@@ -266,6 +266,16 @@ export default function SponsorPipelineView({ stage }) {
                               {p.title || "—"}
                             </div>
                           </div>
+                          {p.linkedin_url ? (
+                            <span
+                              role="button"
+                              title="Open LinkedIn — send invite"
+                              onClick={function(e){ e.preventDefault(); e.stopPropagation(); window.open(p.linkedin_url, "_blank", "noopener,noreferrer") }}
+                              style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                width: 24, height: 24, borderRadius: 4, background: "#0a66c2", color: "white",
+                                fontSize: 11, fontWeight: 800, cursor: "pointer", lineHeight: 1 }}
+                            >in</span>
+                          ) : null}
                           <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtRel(p.last_touch)}</div>
                         </div>
                       </Link>
