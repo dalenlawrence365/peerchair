@@ -206,18 +206,24 @@ export default function TrafficPage() {
             </Card>
 
             <Card title="Page reach" note="unique visitors per page">
-              {(function () {
-                const pages = [
-                  { label: "Home",       v: funnel.home || 0,       c: T.textTertiary },
-                  { label: "Brochure",   v: funnel.overview || 0,   c: T.audienceText },
-                  { label: "Assessment", v: funnel.assessment || 0, c: "#7c3aed" },
-                  { label: "Meeting",    v: funnel.meeting || 0,    c: T.success },
-                ]
-                const max = Math.max(1, ...pages.map(p => p.v))
-                return pages.map(p => <Bar key={p.label} label={p.label} value={p.v} max={max} color={p.c} />)
+              {byPage.length === 0 ? <Empty text="No traffic yet." /> : (function () {
+                const LABEL = { home: "Home", overview: "Brochure", assessment: "Assessment", meeting: "Meeting", investment: "Investment" }
+                const COLOR = { home: T.textTertiary, overview: T.audienceText, assessment: "#7c3aed", meeting: T.success, investment: "#0891b2" }
+                function label(pg) {
+                  if (LABEL[pg]) return LABEL[pg]
+                  if (pg && pg.indexOf("event:") === 0) return "Event · " + pg.slice(6).replace(/-/g, " ")
+                  return pg
+                }
+                const rows = byPage.slice().sort((a, b) => b.unique_visitors - a.unique_visitors)
+                const max = Math.max(1, ...rows.map(r => r.unique_visitors))
+                return rows.map(r => (
+                  <Bar key={r.page} label={label(r.page)} value={r.unique_visitors} max={max}
+                       color={COLOR[r.page] || (r.page && r.page.indexOf("event:") === 0 ? "#b45309" : T.textTertiary)} />
+                ))
               })()}
               <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 6 }}>
-                Unique visitors per page, scaled to the busiest page. These pages are independently reachable (Message 3 links straight to Meeting), so this is reach — not a gated funnel. A true brochure → assessment → meeting drop-off needs per-person sequencing, which lights up once tokenized traffic flows.
+                Unique visitors per page, scaled to the busiest. Every page on the site appears here automatically —
+                new pages show up on their first visit, no config. These are independently reachable, so this is reach, not a gated funnel.
               </div>
             </Card>
           </div>

@@ -45,15 +45,18 @@ function decodeHeader(v) {
 
 function pageFromPath(path) {
   if (!path) return null
-  const p = (path.replace(/\/+$/, "") || "/")
-  if (p === "/") return "home"
-  if (p.startsWith("/overview")) return "overview"
-  if (p.startsWith("/assessment")) return "assessment"
-  if (p.startsWith("/meeting")) return "meeting"
-  // Event pages get a stable, per-event page id so /traffic can break out
-  // views by event rather than lumping them under a raw path.
-  if (p.startsWith("/events/")) return ("event:" + p.slice(8)).slice(0, 64)
-  return p.slice(0, 64)
+  // Ignore file:// paths — a local copy opened on disk fires the beacon against a
+  // filesystem path (/Users/.../Claude/...). Not real site traffic.
+  if (/Users\/|\/home\/|Application%20Support|\/Library\//i.test(path)) return null
+  let p = path.split("?")[0].split("#")[0]
+  p = p.replace(/\/index\.html?$/i, "")
+  p = p.replace(/\/+$/, "")          // trailing slash
+  p = p.replace(/^\/+/, "")          // leading slash -> "investment"
+  if (p === "") return "home"
+  p = p.replace(/^events\//i, "event:")     // events/august-11-workshop -> event:august-11-workshop
+  p = p.toLowerCase().replace(/[^a-z0-9:_-]+/g, "-")  // collapse anything else (incl. remaining slashes) to hyphen
+  p = p.replace(/^-+|-+$/g, "")
+  return p.slice(0, 64) || "home"
 }
 
 export async function OPTIONS() {
