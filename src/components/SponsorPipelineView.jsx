@@ -261,21 +261,21 @@ export default function SponsorPipelineView({ stage }) {
                                   border: "1px solid #b9d0ee", color: "#1a5fb4", letterSpacing: 0.2,
                                 }}>1st</span>
                               ) : null}
+                              {p.linkedin_url ? (
+                                <span
+                                  role="button"
+                                  title="Open LinkedIn — send invite"
+                                  onClick={function(e){ e.preventDefault(); e.stopPropagation(); window.open(p.linkedin_url, "_blank", "noopener,noreferrer") }}
+                                  style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                    height: 18, padding: "0 6px", borderRadius: 3, background: "#0a66c2", color: "white",
+                                    fontSize: 10, fontWeight: 800, cursor: "pointer", lineHeight: 1, letterSpacing: 0.2 }}
+                                >in</span>
+                              ) : null}
                             </div>
                             <div style={{ fontSize: 11, color: T.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {p.title || "—"}
                             </div>
                           </div>
-                          {p.linkedin_url ? (
-                            <span
-                              role="button"
-                              title="Open LinkedIn — send invite"
-                              onClick={function(e){ e.preventDefault(); e.stopPropagation(); window.open(p.linkedin_url, "_blank", "noopener,noreferrer") }}
-                              style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                width: 24, height: 24, borderRadius: 4, background: "#0a66c2", color: "white",
-                                fontSize: 11, fontWeight: 800, cursor: "pointer", lineHeight: 1 }}
-                            >in</span>
-                          ) : null}
                           <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtRel(p.last_touch)}</div>
                         </div>
                       </Link>
