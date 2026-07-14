@@ -135,11 +135,14 @@ export default function EventsPage() {
             return (
               <div key={a.id} style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: "14px 16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", gap: 12, minWidth: 0 }}>
+                    <Avatar name={a.name} src={a.avatar_url} />
+                    <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>{a.name || "(no name)"}{a.company ? <span style={{ fontWeight: 400, color: T.textSecondary }}>{"  ·  " + a.company}</span> : null}</div>
                     <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>{a.email || ""}</div>
                     {a.notes ? <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 6 }}>{a.notes}</div> : null}
                     <div style={{ marginTop: 8 }}><PillTrack a={a} /></div>
+                    </div>
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                     <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Invited", a.name) }} style={btnPrimary}>Approve</button>
@@ -161,13 +164,16 @@ export default function EventsPage() {
           {roster.map(function (a) {
             return (
               <div key={a.id} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, background: T.cardBg, border: "1px solid " + T.border, borderRadius: 8, padding: "11px 14px" }}>
-                <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", gap: 12, minWidth: 0 }}>
+                  <Avatar name={a.name} src={a.avatar_url} size={36} />
+                  <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                     <span style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600 }}>{a.name || "(no name)"}</span>
                     {a.company ? <span style={{ fontSize: 13, color: T.textSecondary, fontWeight: 500 }}>{a.company}</span> : null}
                   </div>
                   <div style={{ marginTop: 6 }}><PillTrack a={a} /></div>
                   {a.notes || a.title ? <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 5 }}>{a.notes || a.title}</div> : null}
+                  </div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-end", flexShrink: 0 }}>
                   <button onClick={function () { copy(a.invite_url) }} style={btnLink}>Copy approved link</button>
@@ -180,6 +186,19 @@ export default function EventsPage() {
       )}
     </div>
   )
+}
+
+function Avatar({ name, src, size }) {
+  const s = size || 40
+  const initials = (name || "?").split(/\s+/).map(function (w) { return w[0] }).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?"
+  const [broken, setBroken] = useState(false)
+  const box = { width: s, height: s, borderRadius: "50%", flexShrink: 0, background: T.borderSoft }
+  if (src && !broken) {
+    return <img src={src} alt={name || ""} onError={function () { setBroken(true) }}
+      style={Object.assign({}, box, { objectFit: "cover" })} />
+  }
+  return <div style={Object.assign({}, box, { display: "flex", alignItems: "center", justifyContent: "center",
+    fontSize: s * 0.36, fontWeight: 600, color: T.textSecondary })}>{initials}</div>
 }
 
 function Stat({ label, value, sub, highlight, good }) {

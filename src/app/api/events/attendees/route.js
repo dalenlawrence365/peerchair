@@ -38,7 +38,7 @@ export async function GET(req) {
 
   const { data: rows } = await sb
     .from("event_attendees")
-    .select("id, status, invited_at, responded_at, invite_token, person_id, notes, source, registered_at, approved_at, people:person_id ( first_name, last_name, full_name, email, title, company, cfo_state )")
+    .select("id, status, invited_at, responded_at, invite_token, person_id, notes, source, registered_at, approved_at, people:person_id ( first_name, last_name, full_name, email, title, company, cfo_state, avatar_url )")
     .eq("event_id", event.id)
     .order("invited_at", { ascending: true })
 
@@ -50,6 +50,7 @@ export async function GET(req) {
     title: r.people?.title || null,
     company: r.people?.company || null,
     cfo_state: r.people?.cfo_state || null,
+    avatar_url: r.people?.avatar_url || null,
     status: r.status,
     notes: r.notes || null,
     source: r.source || null,
