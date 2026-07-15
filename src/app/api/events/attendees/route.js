@@ -208,8 +208,12 @@ export async function PATCH(req) {
     .maybeSingle()
   if (!cur) return Response.json({ error: "not_found" }, { status: 404 })
 
-  const patch = { status }
-  if (status === "Invited" && (cur.status === "Registered" || cur.status === "Requested")) patch.approved_at = new Date().toISOString()
+  // Approval is terminal: approving a registrant confirms the seat outright.
+  // The page's "I'll be there" button is being retired, and it was the only
+  // other writer of 'Confirmed' — so approval must write it or headcount reads zero.
+  const isApproval = (status === "Invited" || status === "Confirmed") && (cur.status === "Registered" || cur.status === "Requested")
+  const patch = { status: isApproval ? "Confirmed" : status }
+  if (isApproval) patch.approved_at = new Date().toISOString()
   const { error } = await sb.from("event_attendees").update(patch).eq("id", id)
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
@@ -220,7 +224,7 @@ export async function PATCH(req) {
   let drafted = false
   let draft_url = null
   let draft_error = null
-  if (status === "Invited" && (cur.status === "Registered" || cur.status === "Requested") && cur.people?.email && invite_url) {
+  if (isApproval && cur.people?.email && invite_url) {
     const d = await createInviteDraft({ to: cur.people.email, first_name: cur.people?.first_name, invite_url, event: cur.events })
     drafted = d.ok
     draft_url = d.webLink
@@ -233,7 +237,7 @@ export async function PATCH(req) {
     }
   }
 
-  return Response.json({ ok: true, status, invite_url, drafted, draft_url, draft_error })
+  return Response.json({ ok: true, status: patch.status, invite_url, drafted, draft_url, draft_error })
 }
 
 export async function DELETE(req) {
