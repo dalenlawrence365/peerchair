@@ -162,7 +162,19 @@ export default function ReviewQueue() {
 
             {rcpt && (
               <div style={{ padding: "10px 16px", fontSize: 12, background: rcpt.error ? "rgba(220,38,38,0.06)" : "rgba(22,163,74,0.06)", color: rcpt.error ? T.danger : "#15803d", borderBottom: "1px solid " + T.border }}>
-                {rcpt.error ? `⚠ ${rcpt.error}` : `✓ Added ${rcpt.created_count}, updated ${rcpt.updated_count}${rcpt.skipped_count ? `, skipped ${rcpt.skipped_count}` : ""}${rcpt.excluded_count ? ` · ${rcpt.excluded_count} left out by you` : ""}.`}
+                {rcpt.error ? `⚠ ${rcpt.error}` : (
+                  <>
+                    <div>✓ Added {rcpt.created_count}, updated {rcpt.updated_count}{rcpt.skipped_count ? `, skipped ${rcpt.skipped_count}` : ""}{rcpt.excluded_count ? ` · ${rcpt.excluded_count} left out by you` : ""}.</div>
+                    {rcpt.attendance && (
+                      <div style={{ marginTop: 3 }}>
+                        🗓 Roll call: {rcpt.attendance.recorded} of {rcpt.attendance.roster_size} on the roster marked present.
+                        {(rcpt.attendance.not_recorded || []).length > 0 && (
+                          <span style={{ color: "#92400e" }}> Couldn't place: {rcpt.attendance.not_recorded.join(", ")}.</span>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
@@ -179,7 +191,7 @@ export default function ReviewQueue() {
                     {selfPeople.length > 0 && (
                       <div style={{ padding: "10px 16px", background: "rgba(245,158,11,0.08)", borderBottom: "1px solid " + T.border, fontSize: 12.5, color: "#92400e" }}>
                         <strong>You're on this roster</strong> — {selfPeople.map(x => x.full_name).join(", ")} ({selfPeople.map(x => x.email).filter(Boolean).join(", ")}).
-                        Excluded and not selectable; a roster can't create or rewrite your own record.
+                        Excluded and not selectable \u2014 a roster can't create or rewrite your own record. You'll still be marked present.
                       </div>
                     )}
 
@@ -196,7 +208,7 @@ export default function ReviewQueue() {
                         Select none
                       </button>
                       <span style={{ fontSize: 11, color: T.textTertiary, marginLeft: "auto" }}>
-                        Only ticked rows are imported.
+                        Ticked = write their profile. Everyone on the roster is marked present either way.
                       </span>
                     </div>
 

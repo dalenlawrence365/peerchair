@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic"
 import { serverClient } from "@/lib/supabaseServer"
-import { ingestProvisors } from "@/lib/provisorsIngest"
+import { ingestProvisors, matchPerson } from "@/lib/provisorsIngest"
 
 // GET  /api/provisors/review            -> list pending batches (+ optional ?status=)
 // POST /api/provisors/review {batch_id, action:'approve'|'dismiss', selected?: number[]}
@@ -92,14 +92,53 @@ export async function POST(request) {
           meetingId = newM ? newM.id : null
         }
         if (meetingId) {
-          const ids = [...(result.created || []), ...(result.updated || [])].map(x => x.id).filter(Boolean)
+          // Roll call is a FACT off the roster; the import veto is a DECISION
+          // about whether to write someone's profile. They are not the same
+          // question, and deriving attendance from created+updated silently
+          // let one answer the other: unticking a duplicate erased a person
+          // from a meeting they demonstrably attended, and the owner — skipped
+          // so his own record is never rewritten — never got recorded at all.
+          //
+          // So: everyone ON THE ROSTER who resolves to a person is marked
+          // present, whether or not you chose to touch their profile.
+          const presentIds = new Set()
+          const unresolved = []
+          for (const row of allPeople) {
+            const nm = (row.full_name || "").trim()
+            if (!nm) continue
+            let pid = row._match && row._match.id ? row._match.id : null
+            if (!pid) {
+              // Resolve live — the payload is a snapshot from parse time and a
+              // person may have been merged or aliased since it was staged.
+              const m = await matchPerson(sb, {
+                full_name: nm,
+                email: (row.email || "").trim().toLowerCase(),
+                company: (row.company || "").trim(),
+                linkedin_url: (row.linkedin_url || "").trim(),
+              })
+              if (m) pid = m.id
+            }
+            if (pid) presentIds.add(pid)
+            else unresolved.push(nm)
+          }
+          // Anyone newly created by this import was on the roster too.
+          for (const c of (result.created || [])) if (c.id) presentIds.add(c.id)
+
+          const ids = Array.from(presentIds)
           if (ids.length) {
             await sb.from("meeting_attendance").upsert(
               ids.map(pid => ({ meeting_id: meetingId, person_id: pid })),
               { onConflict: "meeting_id,person_id", ignoreDuplicates: true }
             )
           }
-          attendance = { meeting_id: meetingId, recorded: ids.length }
+          attendance = {
+            meeting_id: meetingId,
+            recorded: ids.length,
+            roster_size: allPeople.length,
+            // Named, not swallowed: a roster row we can't tie to anyone is the
+            // one case where attendance genuinely cannot be recorded.
+            not_recorded: unresolved,
+          }
         }
       }
     }
