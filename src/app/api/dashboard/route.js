@@ -181,11 +181,16 @@ export async function GET() {
     const { count: legacy } = await sb.from("person_status_tags")
       .select("person_id", { count: "exact", head: true }).eq("tag", "legacy").is("removed_at", null)
     const reachable = reach.count || 0
-    // Weekly additions by TRUE connection date (as_of_date) — NOT set_at, which the
-    // export backfill stamped to now() across the whole base (would read ~4,000).
+    // Weekly additions by effective_date — the generated coalesce(as_of_date,
+    // set_at::date). Neither input works alone: as_of_date is the true date on
+    // the 4,086 CSV-backfilled rows but NULL on every live one, while set_at is
+    // right on live rows and stamped at import time on the backfill. This
+    // filtered on as_of_date, and NULL silently fails a >= comparison, so every
+    // acceptance that happened in real time was invisible — 21 CFOs accepted in
+    // a week and the tile read "+1".
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
     const { data: recent } = await sb.from("person_action_tags")
-      .select("person_id").eq("action_type", "connection_accepted").gte("as_of_date", since)
+      .select("person_id").eq("action_type", "connection_accepted").gte("effective_date", since)
     const recentIds = [...new Set((recent || []).map(function(r){ return r.person_id }))]
     let wkProvisor = 0, wkCfo = 0, wkSponsor = 0
     if (recentIds.length) {
