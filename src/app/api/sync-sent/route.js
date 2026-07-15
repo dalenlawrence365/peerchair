@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
 import { corsResponse, handleOptions } from "@/lib/cors"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
-import { getAccessToken } from "@/lib/microsoft-auth"
+import { getAccessToken, graphFetch } from "@/lib/microsoft-auth"
 import { logCronRun } from "@/lib/cron-audit"
 
 export async function OPTIONS() { return handleOptions() }
@@ -37,9 +37,8 @@ export async function GET(request) {
   const hours = Number.isFinite(hoursParam) && hoursParam > 0 ? Math.min(hoursParam, 720) : 2
   const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
 
-  const res = await fetch(
-    `https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages?$filter=sentDateTime ge ${since}&$select=id,subject,sentDateTime,toRecipients,bodyPreview&$orderby=sentDateTime desc&$top=100`,
-    { headers: { Authorization: "Bearer " + accessToken } }
+  const res = await graphFetch(
+    `https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages?$filter=sentDateTime ge ${since}&$select=id,subject,sentDateTime,toRecipients,bodyPreview&$orderby=sentDateTime desc&$top=100`
   )
   if (!res.ok) {
     await logCronRun("sync-sent", "Outlook fetch failed", [`HTTP ${res.status}`])

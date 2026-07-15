@@ -25,3 +25,22 @@ export async function getAccessToken(opts = {}) {
   await supabase.from("microsoft_tokens").upsert({id:"dalen",access_token:tokens.access_token,refresh_token:tokens.refresh_token||row.refresh_token,expires_at:exp,updated_at:new Date().toISOString()},{onConflict:"id"})
   return tokens.access_token
 }
+
+
+// Every Graph call must survive a stale cached token. getAccessToken() trusts the
+// stored expires_at, which can say "valid" while Graph considers the token expired
+// (401 InvalidAuthenticationToken). That silently killed the sync crons. One forced
+// refresh + retry fixes it, and self-heals the stored token for the next caller.
+export async function graphFetch(url, init = {}) {
+  let token = await getAccessToken()
+  const call = (t) => fetch(url, {
+    ...init,
+    headers: { ...(init.headers || {}), Authorization: "Bearer " + t },
+  })
+  let res = await call(token)
+  if (res.status === 401) {
+    token = await getAccessToken({ force: true })
+    res = await call(token)
+  }
+  return res
+}

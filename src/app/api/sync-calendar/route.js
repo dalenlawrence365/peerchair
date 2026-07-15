@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic"
 import { serverClient } from "@/lib/supabaseServer"
-import { getAccessToken } from "@/lib/microsoft-auth"
+import { getAccessToken, graphFetch } from "@/lib/microsoft-auth"
 import { logCronRun } from "@/lib/cron-audit"
 
 const CFO_CIRCLE_EMAIL = "dalen.lawrence@cfo-circle.com"
@@ -172,9 +172,7 @@ export async function GET(request) {
   const end   = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
 
   const url = `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${start}&endDateTime=${end}&$top=200&$select=id,subject,bodyPreview,start,end,isAllDay,showAs,isCancelled,location,isOrganizer,attendees,organizer,webLink&$orderby=start/dateTime`
-  const res = await fetch(url, {
-    headers: { Authorization: "Bearer " + accessToken, Prefer: 'outlook.timezone="UTC"' },
-  })
+  const res = await graphFetch(url, { headers: { Prefer: 'outlook.timezone="UTC"' } })
   if (!res.ok) {
     const t = await res.text().catch(() => "")
     await logCronRun("sync-calendar", "Calendar fetch failed", [`HTTP ${res.status}: ${t.slice(0,200)}`])

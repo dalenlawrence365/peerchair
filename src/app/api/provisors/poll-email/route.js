@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
 import { serverClient } from "@/lib/supabaseServer"
-import { getAccessToken } from "@/lib/microsoft-auth"
+import { getAccessToken, graphFetch } from "@/lib/microsoft-auth"
 import { parseAndStageRoster } from "@/lib/provisorsParse"
 import { sendAlert } from "@/lib/notify"
 import { logCronRun } from "@/lib/cron-audit"
@@ -44,7 +44,7 @@ export async function GET(request) {
     `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages` +
     `?$filter=receivedDateTime ge ${since} and hasAttachments eq true` +
     `&$select=id,subject,bodyPreview,receivedDateTime,from,internetMessageId&$top=100`
-  const res = await fetch(listUrl, { headers: { Authorization: "Bearer " + accessToken } })
+  const res = await graphFetch(listUrl)
   if (!res.ok) {
     const t = await res.text()
     await logCronRun("provisors-poll-email", "Outlook fetch failed", [`HTTP ${res.status}`])
@@ -72,7 +72,7 @@ export async function GET(request) {
 
       // List attachments; find a roster-looking PDF.
       const aUrl = `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(msg.id)}/attachments?$select=id,name,contentType,size`
-      const aRes = await fetch(aUrl, { headers: { Authorization: "Bearer " + accessToken } })
+      const aRes = await graphFetch(aUrl)
       if (!aRes.ok) continue
       const { value: atts } = await aRes.json()
       // Roster signal: filename OR the email envelope (subject/body) mentions a
@@ -92,7 +92,7 @@ export async function GET(request) {
 
       // Download the attachment bytes (single-attachment GET includes contentBytes).
       const dUrl = `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(msg.id)}/attachments/${encodeURIComponent(target.id)}`
-      const dRes = await fetch(dUrl, { headers: { Authorization: "Bearer " + accessToken } })
+      const dRes = await graphFetch(dUrl)
       if (!dRes.ok) { errors.push(`attachment download failed for ${imid}`); continue }
       const att = await dRes.json()
       const b64 = att.contentBytes
