@@ -211,7 +211,7 @@ export async function PATCH(req) {
   const sb = serverClient()
   const { data: cur } = await sb
     .from("event_attendees")
-    .select("id, status, invite_token, event_id, people:person_id ( first_name, email ), events:event_id ( slug, name, event_date, ends_at, venue_name, address_line, parking_instructions, check_in_instructions, breakfast_note )")
+    .select("id, status, registered_at, approved_at, invite_token, event_id, people:person_id ( first_name, email ), events:event_id ( slug, name, event_date, ends_at, venue_name, address_line, parking_instructions, check_in_instructions, breakfast_note )")
     .eq("id", id)
     .maybeSingle()
   if (!cur) return Response.json({ error: "not_found" }, { status: 404 })
@@ -219,7 +219,12 @@ export async function PATCH(req) {
   // Approval is terminal: approving a registrant confirms the seat outright.
   // The page's "I'll be there" button is being retired, and it was the only
   // other writer of 'Confirmed' — so approval must write it or headcount reads zero.
-  const isApproval = (status === "Invited" || status === "Confirmed") && (cur.status === "Registered" || cur.status === "Requested")
+  // An approval is defined the same way the review queue is: they registered and
+  // haven't been approved yet. Keying off cur.status === 'Registered' silently
+  // no-op'd anyone invited directly who then self-registered (status stays 'Invited').
+  const wasAwaitingReview = !cur.approved_at &&
+    (!!cur.registered_at || cur.status === "Registered" || cur.status === "Requested")
+  const isApproval = (status === "Invited" || status === "Confirmed") && wasAwaitingReview
   const patch = { status: isApproval ? "Confirmed" : status }
   if (isApproval) patch.approved_at = new Date().toISOString()
   const { error } = await sb.from("event_attendees").update(patch).eq("id", id)
