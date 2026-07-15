@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic"
 // GET /api/auth/microsoft/callback
 // Exchanges OAuth code for access + refresh tokens, stores in Supabase
 
-import { createClient } from "@supabase/supabase-js"
+import { adminClient } from "@/lib/supabaseServer"
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
@@ -48,10 +48,7 @@ export async function GET(request) {
   const tokens = await tokenRes.json()
 
   // Store tokens in Supabase
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const supabase = adminClient()
 
   const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000)).toISOString()
 

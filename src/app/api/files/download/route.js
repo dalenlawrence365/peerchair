@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic'
-import { createClient } from "@supabase/supabase-js"
+import { adminClient } from "@/lib/supabaseServer"
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
@@ -8,10 +8,7 @@ export async function GET(request) {
   if (!id && !name) return Response.json({ error:"No id or name" }, {status:400})
 
   // Use service role key to bypass RLS for storage reads
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = adminClient()
 
   let row
   if (id) {

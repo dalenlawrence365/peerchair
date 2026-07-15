@@ -1,5 +1,26 @@
 import { createClient } from "@supabase/supabase-js"
 
+// THE bug this file kept losing to:
+// supabase-js reads are GET requests, and Next.js caches GET fetches in its Data
+// Cache even on a force-dynamic route. lib/supabaseServer.js already documents
+// this and defeats it with a no-store fetch — but this file called createClient()
+// raw, so the token row was a frozen snapshot from 2026-07-09. Every caller then
+// refreshed a corpse, and the "fix" of trusting the JWT exp claim only made the
+// app read the stale row's expiry more accurately.
+// Reads AND the Azure refresh POST must both bypass the cache. No exceptions.
+const noStoreFetch = (url, opts = {}) => fetch(url, { ...opts, cache: "no-store" })
+
+function tokenClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { fetch: noStoreFetch },
+    }
+  )
+}
+
 // A Graph access token states its own expiry in its `exp` claim. Trust THAT, not
 // the expires_at column — the column has been observed claiming "valid for 45 more
 // minutes" while holding a token that actually died six days earlier, which made
@@ -16,10 +37,7 @@ function tokenExpiryMs(jwt) {
 }
 
 export async function getAccessToken(opts = {}) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const supabase = tokenClient()
   const { data: row } = await supabase.from("microsoft_tokens").select("*").eq("id","dalen").single()
   if (!row) throw new Error("No Microsoft token. Visit /api/auth/microsoft to authorize.")
   // Prefer the token's own exp claim; fall back to the column only if it won't parse.
@@ -28,7 +46,7 @@ export async function getAccessToken(opts = {}) {
 
   const res = await fetch(
     `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/oauth2/v2.0/token`,
-    { method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"},
+    { method:"POST", cache:"no-store", headers:{"Content-Type":"application/x-www-form-urlencoded"},
       body: new URLSearchParams({
         client_id:process.env.AZURE_CLIENT_ID, client_secret:process.env.AZURE_CLIENT_SECRET,
         refresh_token:row.refresh_token, grant_type:"refresh_token",

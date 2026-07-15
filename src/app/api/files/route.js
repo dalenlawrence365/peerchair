@@ -4,13 +4,10 @@ export const dynamic = "force-dynamic"
 // POST /api/files         — upload a new file
 // DELETE /api/files?id=xx — delete a file
 
-import { createClient } from "@supabase/supabase-js"
+import { adminClient } from "@/lib/supabaseServer"
 
 function getSb() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  return adminClient()
 }
 
 // GET — list files

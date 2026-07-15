@@ -18,3 +18,20 @@ export function serverClient() {
     }
   )
 }
+
+// Service-role client for crons, auth and any non-request-scoped work.
+// Same no-store discipline as serverClient(). Use this instead of calling
+// createClient() directly — a raw client froze the Microsoft token row on a
+// 2026-07-09 snapshot, which 401'd every Outlook sync for six days, and froze
+// cron-health's view of audit_log so it screamed STALE about crons that were
+// running fine. If you are reaching for createClient(), use this.
+export function adminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { fetch: (url, opts = {}) => fetch(url, { ...opts, cache: "no-store" }) },
+    }
+  )
+}

@@ -9,7 +9,7 @@
 
 export const dynamic = "force-dynamic"
 
-import { createClient } from "@supabase/supabase-js"
+import { adminClient } from "@/lib/supabaseServer"
 import { sendAlert } from "@/lib/notify"
 import { logCronRun } from "@/lib/cron-audit"
 
@@ -31,10 +31,7 @@ export async function GET(request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = adminClient()
 
   const now = Date.now()
   const checks = {}

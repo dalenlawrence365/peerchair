@@ -8,7 +8,9 @@ export async function logCronRun(cronName, summary, errors) {
   try {
     const sb = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      { auth: { persistSession: false, autoRefreshToken: false },
+        global: { fetch: (url, opts = {}) => fetch(url, { ...opts, cache: "no-store" }) } }
     )
     await sb.from("audit_log").insert({
       run_at: new Date().toISOString(),

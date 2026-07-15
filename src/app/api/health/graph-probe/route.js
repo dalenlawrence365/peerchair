@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 import { getAccessToken } from "@/lib/microsoft-auth"
-import { createClient } from "@supabase/supabase-js"
+import { adminClient } from "@/lib/supabaseServer"
 
 // Graph probe. Diagnostic only.
 //
@@ -66,10 +66,7 @@ export async function GET(request) {
     return Response.json({ error: "not found" }, { status: 404 })
   }
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const sb = adminClient()
   const { data: row } = await sb.from("microsoft_tokens").select("*").eq("id", "dalen").single()
 
   const stored = {

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { logCronRun } from "@/lib/cron-audit"
+import { adminClient } from "@/lib/supabaseServer"
 
 export async function GET(request) {
   const auth = request.headers.get("authorization")
@@ -10,10 +11,7 @@ export async function GET(request) {
 
   try {
     const { createClient } = await import("@supabase/supabase-js")
-    const sb = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
+    const sb = adminClient()
 
     const { data: row } = await sb.from("microsoft_tokens").select("*").eq("id", "dalen").single()
     if (!row) {
