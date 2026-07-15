@@ -200,23 +200,31 @@ export async function POST(req, { params }) {
   }
 
   if (action === "add_to_peerchair") {
-    const { first_name, last_name, role, company, title, email } = body
+    const { first_name, last_name, role, company, title, email, note } = body
     if (!first_name || !last_name || !role) {
       return Response.json({ error: "first_name, last_name, role required" }, { status: 400 })
     }
-    const validRoles = ["cfo", "sponsor_contact", "referral_partner"]
+    // 'contact' = someone who belongs in PeerChair but isn't in a pipeline.
+    // Not a new role — it writes NO role, which is what 4,099 of the 6,595
+    // existing people already are. Two ways to express the same thing is how
+    // you get drift, so a Contact is stored identically to what's already there.
+    const validRoles = ["contact", "cfo", "sponsor_contact", "referral_partner"]
     if (!validRoles.includes(role)) {
       return Response.json({ error: "Invalid role: " + role }, { status: 400 })
     }
 
     const stateCol = role === "sponsor_contact" ? "sponsor_state"
                    : role === "cfo"             ? "cfo_state"
-                   :                              "referral_state"
+                   : role === "referral_partner" ? "referral_state"
+                   :                              null
 
     // Email defaults to the unmatched row's from_address, but the form can
     // override — important for transactional senders (e.g. Calendly), where
     // the actual person's email lives in the body, not the From: header.
     const finalEmail = (email && email.trim()) || row.from_address
+
+    const autoNote = `Added via inbox triage on ${new Date().toISOString().slice(0, 10)}` +
+                     (row.subject ? ` — first inbound: "${row.subject}"` : "")
 
     const insertPayload = {
       first_name,
@@ -225,12 +233,13 @@ export async function POST(req, { params }) {
       email: finalEmail,
       company: company || null,
       title: title || null,
-      roles: [role],
-      [stateCol]: "pool",
+      roles: role === "contact" ? [] : [role],
       source: "inbox_triage",
-      notes: `Added via inbox triage on ${new Date().toISOString().slice(0,10)}` +
-             (row.subject ? ` — first inbound: "${row.subject}"` : ""),
+      // Why is this person here? For a Contact this is the only thing that
+      // explains them later, so it leads.
+      notes: (note && note.trim() ? note.trim() + "\n\n" : "") + autoNote,
     }
+    if (stateCol) insertPayload[stateCol] = "pool"
 
     const { data: newPerson, error: insErr } = await sb.from("people")
       .insert(insertPayload)
@@ -251,10 +260,32 @@ export async function POST(req, { params }) {
     }).eq("id", id)
     if (uErr) return Response.json({ error: uErr.message }, { status: 500 })
 
+    // Same retro-sweep as merge: identifying someone once should clear every
+    // message already sitting here from that address, not just the one clicked.
+    let also_linked = 0
+    if (row.from_address && finalEmail === row.from_address) {
+      const { data: siblings } = await sb.from("unmatched_communications")
+        .select("*")
+        .eq("from_address", row.from_address)
+        .in("status", ["new", "filed"])
+      for (const sib of siblings || []) {
+        const { error: sErr } = await writeToTimeline(sb, sib, newPerson.id)
+        if (sErr) { console.warn("retro-sweep timeline write failed:", sErr.message); continue }
+        const { error: sUErr } = await sb.from("unmatched_communications").update({
+          status: "added_to_peerchair",
+          resulted_in_person_id: newPerson.id,
+          actioned_at: new Date().toISOString(),
+        }).eq("id", sib.id)
+        if (!sUErr) also_linked++
+      }
+    }
+
     return Response.json({
       success: true,
       action: "added",
-      person: { id: newPerson.id, full_name: newPerson.full_name }
+      person: { id: newPerson.id, full_name: newPerson.full_name },
+      role_written: role === "contact" ? "none (Contact)" : role,
+      also_linked,
     })
   }
 

@@ -284,9 +284,13 @@ function AddPanel({ item, onCancel, onDone }) {
   const [firstName, setFirstName] = useState(guessed.first_name)
   const [lastName, setLastName] = useState(guessed.last_name)
   const [email, setEmail] = useState(item.from_address || "")
-  const [role, setRole] = useState("sponsor_contact")
+  // Default to Contact — the honest answer for most people, and what 4,099 of
+  // the 6,595 records already are. You promote into a pipeline once you know
+  // something, not on the way in.
+  const [role, setRole] = useState("contact")
   const [company, setCompany] = useState(guessCompany(item.from_address))
   const [title, setTitle] = useState("")
+  const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
 
   async function submit() {
@@ -295,10 +299,11 @@ function AddPanel({ item, onCancel, onDone }) {
     try {
       const r = await fetch(`/api/inbox/unmatched/${item.id}/action`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "add_to_peerchair", first_name: firstName, last_name: lastName, email, role, company, title })
+        body: JSON.stringify({ action: "add_to_peerchair", first_name: firstName, last_name: lastName, email, role, company, title, note })
       })
       const j = await r.json()
       if (!r.ok) { alert("Failed: " + (j.error || r.status)); return }
+      if (j.also_linked) alert(`${j.also_linked} other message${j.also_linked === 1 ? "" : "s"} from ${item.from_address} moved onto their timeline too.`)
       await onDone()
     } finally { setBusy(false) }
   }
@@ -317,10 +322,26 @@ function AddPanel({ item, onCancel, onDone }) {
         <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 4 }}>Role</div>
         <select value={role} onChange={e => setRole(e.target.value)}
           style={{ fontSize: 13, padding: "6px 10px", borderRadius: 6, border: "1px solid " + T.border, background: "white", fontFamily: "inherit" }}>
+          <option value="contact">Contact — not in a pipeline</option>
           <option value="cfo">CFO prospect</option>
           <option value="sponsor_contact">Sponsor contact</option>
-          <option value="referral_partner">Referral partner</option>
         </select>
+        <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 6, lineHeight: 1.5 }}>
+          {role === "contact"
+            ? "They get a record and a timeline, and stay out of your CFO and sponsor pipelines. Promote them later when you know more."
+            : role === "cfo"
+              ? "Enters the CFO pipeline at 'pool'."
+              : "Enters the sponsor pipeline at 'pool' — the list you actually work."}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 4 }}>
+          Why are they here? <span style={{ color: T.textTertiary }}>(optional, goes on their record)</span>
+        </div>
+        <input value={note} onChange={e => setNote(e.target.value)}
+          placeholder="e.g. Vendor — pitched DIPSY at the VIP Lunch"
+          style={{ fontSize: 13, padding: "6px 10px", borderRadius: 6, border: "1px solid " + T.border, width: "100%", boxSizing: "border-box", fontFamily: "inherit" }} />
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={submit} disabled={busy} style={btnStyle("#10b981", "white")}>
