@@ -74,7 +74,7 @@ export default function EventsPage() {
     fetch("/api/events/attendees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id, status: status }) })
       .then(function (r) { return r.json() })
       .then(function (d) {
-        if (d && d.ok && status === "Invited") {
+        if (d && d.ok && (status === "Invited" || status === "Confirmed")) {
           setDraftUrl(null)
           if (d.drafted) {
             setMsg("Approved " + (name || "") + " — a draft invite email is in your Outlook drafts. Review it, then send.")
@@ -208,6 +208,7 @@ export default function EventsPage() {
                     </div>
                   ) : null}
                   <button onClick={function () { copy(a.invite_url) }} style={btnLink}>Copy approved link</button>
+                  {!a.approved_at && a.status !== "No-show" && a.status !== "Declined" ? <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Confirmed", a.name) }} title="They told you they're coming — confirm them and draft their details email" style={{ background: "transparent", color: "#15803d", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Mark confirmed</button> : null}
                   {a.status !== "No-show" ? <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "No-show", a.name) }} style={{ background: "transparent", color: "#b3452f", border: "none", fontSize: 12, cursor: "pointer" }}>Mark no-show</button> : null}
                 </div>
               </div>

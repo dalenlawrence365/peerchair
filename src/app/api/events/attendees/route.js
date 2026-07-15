@@ -219,12 +219,11 @@ export async function PATCH(req) {
   // Approval is terminal: approving a registrant confirms the seat outright.
   // The page's "I'll be there" button is being retired, and it was the only
   // other writer of 'Confirmed' — so approval must write it or headcount reads zero.
-  // An approval is defined the same way the review queue is: they registered and
-  // haven't been approved yet. Keying off cur.status === 'Registered' silently
-  // no-op'd anyone invited directly who then self-registered (status stays 'Invited').
-  const wasAwaitingReview = !cur.approved_at &&
-    (!!cur.registered_at || cur.status === "Registered" || cur.status === "Requested")
-  const isApproval = (status === "Invited" || status === "Confirmed") && wasAwaitingReview
+  // Approving = granting a seat to someone who doesn't have one yet — whichever
+  // door they came through. A registrant approved from the queue, OR a direct
+  // invite who just replied "I'll be there" and never touched the form.
+  // Both stamp approved_at, flip to Confirmed, and draft the confirmation.
+  const isApproval = !cur.approved_at && (status === "Invited" || status === "Confirmed")
   const patch = { status: isApproval ? "Confirmed" : status }
   if (isApproval) patch.approved_at = new Date().toISOString()
   const { error } = await sb.from("event_attendees").update(patch).eq("id", id)
