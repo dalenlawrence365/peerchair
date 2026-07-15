@@ -337,7 +337,23 @@ function MergePanel({ item, onCancel, onDone }) {
   const [results, setResults] = useState([])
   const [selected, setSelected] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [suggestions, setSuggestions] = useState(null)
   const timerRef = useRef(null)
+
+  // Who is this probably? Suggestions are evidence, not decisions — nothing is
+  // written until a button is pressed.
+  useEffect(function(){
+    let cancelled = false
+    ;(async function(){
+      try {
+        const r = await fetch(`/api/inbox/unmatched/${item.id}/suggestions`, { cache: "no-store" })
+        if (!r.ok) { if (!cancelled) setSuggestions([]); return }
+        const j = await r.json()
+        if (!cancelled) setSuggestions(j.suggestions || [])
+      } catch (e) { if (!cancelled) setSuggestions([]) }
+    })()
+    return function(){ cancelled = true }
+  }, [item.id])
 
   useEffect(function(){
     clearTimeout(timerRef.current)
@@ -364,13 +380,56 @@ function MergePanel({ item, onCancel, onDone }) {
       })
       const j = await r.json()
       if (!r.ok) { alert("Failed: " + (j.error || r.status)); return }
+      const bits = []
+      if (j.alias_learned) bits.push(`${j.address} is now saved as one of their addresses \u2014 mail from it will match automatically from here on.`)
+      if (j.also_merged) bits.push(`${j.also_merged} other message${j.also_merged === 1 ? "" : "s"} from that address moved to their timeline too.`)
+      if (bits.length) alert(bits.join("\n\n"))
       await onDone()
     } finally { setBusy(false) }
   }
 
   return (
     <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid " + T.borderSoft }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Already in PeerChair as…</div>
+      {suggestions === null && (
+        <div style={{ fontSize: 12, color: T.textTertiary, marginBottom: 10 }}>Looking for a likely match\u2026</div>
+      )}
+      {suggestions && suggestions.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+            Probably this person
+          </div>
+          {suggestions.map(function(sg){
+            const isSel = selected && selected.id === sg.id
+            return (
+              <div key={sg.id} onClick={function(){ setSelected(sg); setQuery(sg.full_name) }}
+                style={{
+                  border: "1px solid " + (isSel ? "#10b981" : T.border),
+                  background: isSel ? "rgba(16,185,129,0.06)" : "white",
+                  borderRadius: 8, padding: "10px 12px", marginBottom: 6, cursor: "pointer",
+                }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: T.textPrimary }}>{sg.full_name}</span>
+                  <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 4, ...confChip(sg.confidence) }}>{sg.confidence}</span>
+                  {sg.company && <span style={{ fontSize: 11.5, color: T.textTertiary }}>{sg.company}</span>}
+                </div>
+                <div style={{ fontSize: 11, color: T.textSecondary, marginTop: 4 }}>
+                  On file as {(sg.known_addresses || []).join(", ") || "(no address)"}
+                </div>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 16, fontSize: 11, color: T.textTertiary, lineHeight: 1.5 }}>
+                  {sg.reasons.map(function(rs, i){ return <li key={i}>{rs}</li> })}
+                </ul>
+              </div>
+            )
+          })}
+          <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 4 }}>
+            A guess, not a match \u2014 nothing moves until you press Merge. Search below if none of these is right.
+          </div>
+        </div>
+      )}
+
+      <div style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>
+        {suggestions && suggestions.length > 0 ? "\u2026or find someone else" : "Already in PeerChair as\u2026"}
+      </div>
       <input value={query} onChange={e => { setQuery(e.target.value); setSelected(null) }}
         placeholder="Search by name or email…"
         autoFocus
@@ -389,8 +448,10 @@ function MergePanel({ item, onCancel, onDone }) {
         </div>
       )}
       {selected && (
-        <div style={{ marginTop: 10, padding: 10, background: "rgba(16,185,129,0.08)", borderRadius: 6, fontSize: 12, color: T.textPrimary }}>
-          → Will merge into <strong>{selected.full_name}</strong> ({selected.email || "no email on file"}). This message will appear on their timeline.
+        <div style={{ marginTop: 10, padding: 10, background: "rgba(16,185,129,0.08)", borderRadius: 6, fontSize: 12, color: T.textPrimary, lineHeight: 1.55 }}>
+          &rarr; Merges into <strong>{selected.full_name}</strong> ({selected.email || "no email on file"}) and puts this message on their timeline.
+          <br />
+          &rarr; Saves <strong>{item.from_address}</strong> as one of their addresses, so mail from it matches automatically from now on \u2014 and sweeps up every other message already sitting here from that address.
         </div>
       )}
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
@@ -411,6 +472,13 @@ function Field({ label, value, onChange }) {
         style={{ fontSize: 13, padding: "6px 10px", borderRadius: 6, border: "1px solid " + T.border, width: "100%", boxSizing: "border-box", fontFamily: "inherit" }} />
     </div>
   )
+}
+
+function confChip(c) {
+  if (c === "high")     return { background: "rgba(16,185,129,0.14)", color: "#047857" }
+  if (c === "likely")   return { background: "rgba(59,130,246,0.12)", color: "#1d4ed8" }
+  if (c === "possible") return { background: "#fef3c7", color: "#92400e" }
+  return { background: "#f1f5f9", color: "#64748b" }
 }
 
 function dispChip(d) {

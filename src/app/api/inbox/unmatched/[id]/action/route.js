@@ -120,6 +120,43 @@ export async function POST(req, { params }) {
       .single()
     if (tgtErr || !target) return Response.json({ error: "Target person not found" }, { status: 404 })
 
+    // --- Teach the system, don't just move one message. ---
+    // Record this address as the person's alias so mail from it is matched on
+    // arrival forever. Without this, merging is a one-time act that learns
+    // nothing: the same person's next message from the same address lands
+    // right back in the queue and the work is done again.
+    let alias_learned = false
+    let alias_conflict = null
+    if (row.from_address) {
+      const { data: claimed } = await sb.from("person_emails")
+        .select("person_id, email")
+        .eq("email", row.from_address)
+        .maybeSingle()
+
+      if (claimed && claimed.person_id !== personId) {
+        // Address already belongs to someone else. Do NOT silently reassign —
+        // that would quietly move mail off another person's timeline.
+        const { data: owner } = await sb.from("people")
+          .select("full_name").eq("id", claimed.person_id).maybeSingle()
+        return Response.json({
+          error: `${row.from_address} is already on file as ${owner ? owner.full_name : "another contact"}.`
+               + ` One address can only belong to one person — fix that record first.`
+        }, { status: 409 })
+      }
+
+      if (!claimed) {
+        const { error: aliasErr } = await sb.from("person_emails").insert({
+          person_id: personId,
+          email: row.from_address,
+          label: "alternate",
+          is_primary: false,
+          source: "inbox_merge",
+        })
+        if (aliasErr) alias_conflict = aliasErr.message
+        else alias_learned = true
+      }
+    }
+
     const { error: commErr } = await writeToTimeline(sb, row, personId)
     if (commErr) return Response.json({ error: "Timeline write failed: " + commErr.message }, { status: 500 })
 
@@ -130,10 +167,35 @@ export async function POST(req, { params }) {
     }).eq("id", id)
     if (uErr) return Response.json({ error: uErr.message }, { status: 500 })
 
+    // --- Retro-sweep: if this address was theirs all along, every other queued
+    // message from it was theirs too. Clear them in one go rather than making
+    // Dalen identify the same person three more times.
+    let also_merged = 0
+    if (row.from_address) {
+      const { data: siblings } = await sb.from("unmatched_communications")
+        .select("*")
+        .eq("from_address", row.from_address)
+        .in("status", ["new", "filed"])
+      for (const sib of siblings || []) {
+        const { error: sErr } = await writeToTimeline(sb, sib, personId)
+        if (sErr) { console.warn("retro-sweep timeline write failed:", sErr.message); continue }
+        const { error: sUErr } = await sb.from("unmatched_communications").update({
+          status: "merged_into_existing",
+          merged_into_person_id: personId,
+          actioned_at: new Date().toISOString(),
+        }).eq("id", sib.id)
+        if (!sUErr) also_merged++
+      }
+    }
+
     return Response.json({
       success: true,
       action: "merged",
-      merged_into: { id: personId, full_name: target.full_name }
+      merged_into: { id: personId, full_name: target.full_name },
+      alias_learned,
+      alias_conflict,
+      also_merged,
+      address: row.from_address,
     })
   }
 

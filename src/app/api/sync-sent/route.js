@@ -5,6 +5,7 @@ import { corsResponse, handleOptions } from "@/lib/cors"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { getAccessToken, graphFetch } from "@/lib/microsoft-auth"
 import { logCronRun } from "@/lib/cron-audit"
+import { resolvePeopleByEmail } from "@/lib/resolvePeople"
 
 export async function OPTIONS() { return handleOptions() }
 
@@ -60,15 +61,18 @@ export async function GET(request) {
     return corsResponse({ synced: 0, message: "No recipients found" })
   }
 
-  // Match against PEOPLE (unified table), not legacy contacts
-  const { data: people } = await sb.from("people").select("id, email").in("email", allEmails)
-  if (!people?.length) {
+  // Match through person_emails — mail you send TO someone's alternate address
+  // belongs on their timeline too.
+  let emailToPerson
+  try { emailToPerson = await resolvePeopleByEmail(sb, allEmails) }
+  catch (e) {
+    await logCronRun("sync-sent", "Person resolve failed", [e.message])
+    return corsResponse({ error: e.message }, { status: 500 })
+  }
+  if (!Object.keys(emailToPerson).length) {
     await logCronRun("sync-sent", "No matching people in sent items")
     return corsResponse({ synced: 0, message: "No matching people in sent items" })
   }
-
-  const emailToPerson = {}
-  for (const p of people) { if (p.email) emailToPerson[p.email.toLowerCase()] = p }
 
   let synced = 0
   const loggedFor = []

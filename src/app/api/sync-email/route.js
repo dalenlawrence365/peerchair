@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
 import { getAccessToken, graphFetch } from "@/lib/microsoft-auth"
 import { logCronRun } from "@/lib/cron-audit"
+import { resolvePeopleByEmail } from "@/lib/resolvePeople"
 
 // Inbound email sync — the counterpart to sync-sent.
 // Pulls RECEIVED Outlook messages straight from Microsoft Graph, matches
@@ -47,9 +48,14 @@ export async function GET(request) {
   const senderEmails = [...new Set(
     messages.map(m => m.from?.emailAddress?.address?.toLowerCase()).filter(Boolean)
   )]
-  const { data: people } = await sb.from("people").select("id, email").in("email", senderEmails)
-  const emailToPerson = {}
-  for (const p of (people || [])) { if (p.email) emailToPerson[p.email.toLowerCase()] = p }
+  // Resolve through person_emails: a contact's second address is still that
+  // contact, not a stranger.
+  let emailToPerson
+  try { emailToPerson = await resolvePeopleByEmail(sb, senderEmails) }
+  catch (e) {
+    await logCronRun("sync-email", "Person resolve failed", [e.message])
+    return Response.json({ error: e.message }, { status: 500 })
+  }
 
   let synced = 0
   let unmatched = 0

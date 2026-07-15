@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 import { serverClient } from "@/lib/supabaseServer"
 import { getAccessToken, graphFetch } from "@/lib/microsoft-auth"
 import { logCronRun } from "@/lib/cron-audit"
+import { resolvePeopleByEmail } from "@/lib/resolvePeople"
 
 const CFO_CIRCLE_EMAIL = "dalen.lawrence@cfo-circle.com"
 
@@ -193,10 +194,11 @@ export async function GET(request) {
     }
   }
   const emailList = Array.from(allEmails)
+  // Attendees resolve through person_emails — someone who accepts an invite
+  // from their work address is still the person you know.
   let emailToPerson = {}
   if (emailList.length) {
-    const { data: people } = await sb.from("people").select("id, email").in("email", emailList)
-    for (const p of (people || [])) if (p.email) emailToPerson[p.email.toLowerCase()] = p
+    emailToPerson = await resolvePeopleByEmail(sb, emailList)
   }
 
   let upserted = 0, matched = 0, canceled = 0
