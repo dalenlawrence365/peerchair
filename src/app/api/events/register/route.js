@@ -110,15 +110,31 @@ export async function POST(req) {
   ].filter(Boolean)
   const note = dupFlag + "Self-registered (Aug 11): " + (noteBits.join(" · ") || "no details")
 
-  // Insert as Registered; never downgrade an already-Invited person.
-  await sb.from("event_attendees").upsert(
-    [{ event_id: event.id, person_id, status: "Registered", notes: note, registered_at: new Date().toISOString(), source: src || "direct" }],
-    { onConflict: "event_id,person_id", ignoreDuplicates: true }
-  )
+  // New registrant -> insert as Registered. Someone who already has a row
+  // (e.g. Dalen invited them directly) -> RECORD the registration on that row
+  // without downgrading their status. Ignoring the conflict would silently throw
+  // away registered_at and their qualifying answers.
+  const nowIso = new Date().toISOString()
+  const { data: existingRow } = await sb.from("event_attendees")
+    .select("id, status, notes, registered_at, source")
+    .eq("event_id", event.id).eq("person_id", person_id).maybeSingle()
 
-  const { data: att } = await sb.from("event_attendees")
-    .select("status").eq("event_id", event.id).eq("person_id", person_id).maybeSingle()
-  const status = att?.status || "Registered"
+  let status = "Registered"
+  if (!existingRow) {
+    await sb.from("event_attendees").insert({
+      event_id: event.id, person_id, status: "Registered", notes: note,
+      registered_at: nowIso, source: src || "direct",
+    })
+  } else {
+    const already = (existingRow.notes || "")
+    const merged = already && already.indexOf("Self-registered") === -1 ? (already + "  |  " + note) : (already || note)
+    await sb.from("event_attendees").update({
+      registered_at: existingRow.registered_at || nowIso,
+      notes: merged,
+      source: existingRow.source || src || "direct",
+    }).eq("id", existingRow.id)
+    status = existingRow.status || "Registered"
+  }
 
   // Badge — deduped per person+event so re-submits don't spam.
   const fullName = (first_name + " " + last_name).trim() || email
