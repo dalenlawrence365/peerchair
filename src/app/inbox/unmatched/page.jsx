@@ -173,7 +173,7 @@ export default function UnmatchedInboxPage() {
 }
 
 function UnmatchedRow({ item, isExpanded, onToggle, onActioned }) {
-  const [mode, setMode] = useState(null)  // 'add' | 'merge' | null
+  const [mode, setMode] = useState(null)  // 'add' | 'merge' | 'org' | null
   // A filed row has had no human decision made on it — it can still be
   // added/merged/ignored straight from the Filed tab.
   const showActions = item.status === "new" || item.status === "filed"
@@ -236,6 +236,8 @@ function UnmatchedRow({ item, isExpanded, onToggle, onActioned }) {
               style={btnStyle("#10b981", "white")}>Add to PeerChair</button>
             <button onClick={function(){ setMode("merge"); onToggle() }}
               style={btnStyle("white", T.textPrimary, T.border)}>Already in PeerChair</button>
+            <button onClick={function(){ setMode("org"); onToggle() }}
+              style={btnStyle("white", "#1d4ed8", "#bfdbfe")}>Not a person — organization</button>
             <button onClick={async function(){
               if (!confirm("Ignore this message? You can undo by switching to the Ignored tab.")) return
               const r = await fetch(`/api/inbox/unmatched/${item.id}/action`, {
@@ -274,6 +276,9 @@ function UnmatchedRow({ item, isExpanded, onToggle, onActioned }) {
       )}
       {isExpanded && mode === "merge" && (
         <MergePanel item={item} onCancel={function(){ setMode(null); onToggle() }} onDone={onActioned} />
+      )}
+      {isExpanded && mode === "org" && (
+        <OrgPanel item={item} onCancel={function(){ setMode(null); onToggle() }} onDone={onActioned} />
       )}
     </div>
   )
@@ -478,6 +483,81 @@ function MergePanel({ item, onCancel, onDone }) {
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <button onClick={submit} disabled={!selected || busy} style={btnStyle(selected ? "#3b82f6" : "#9ca3af", "white")}>
           {busy ? "Merging…" : "Merge"}
+        </button>
+        <button onClick={onCancel} style={btnStyle("transparent", T.textSecondary)}>Cancel</button>
+      </div>
+    </div>
+  )
+}
+
+function guessOrgName(fromName, fromAddress) {
+  // "ProVisors" from provisors@provisors.com; prefer a display name that isn't
+  // just the address back at you.
+  const domain = (fromAddress || "").split("@")[1] || ""
+  const root = domain.split(".").slice(-2, -1)[0] || ""
+  if (fromName && !/@/.test(fromName) && fromName.length > 2) return fromName
+  if (!root) return ""
+  return root[0].toUpperCase() + root.slice(1)
+}
+
+function OrgPanel({ item, onCancel, onDone }) {
+  const [name, setName] = useState(guessOrgName(item.from_name, item.from_address))
+  const [scope, setScope] = useState("address")
+  const [busy, setBusy] = useState(false)
+  const domain = (item.from_address || "").split("@")[1] || ""
+
+  async function submit() {
+    if (!name.trim()) { alert("Give the organization a name."); return }
+    setBusy(true)
+    try {
+      const r = await fetch(`/api/inbox/unmatched/${item.id}/action`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "file_as_organization", organization_name: name, scope })
+      })
+      const j = await r.json()
+      if (!r.ok) { alert(j.error || ("Failed: " + r.status)); return }
+      alert(`${j.organization} saved as an organization.\n\nRule: ${j.rule}\n${j.filed} message${j.filed === 1 ? "" : "s"} filed out of your queue.\n\nNo person record was created.`)
+      await onDone()
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid " + T.borderSoft }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+        File as an organization
+      </div>
+      <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 12, lineHeight: 1.5 }}>
+        For entities that mail you rather than people \u2014 ProVisors, ACG, an association or chapter.
+        Creates the organization and a routing rule so their mail files itself from now on.
+        <strong> Nothing is added to your people file.</strong>
+      </div>
+
+      <div style={{ marginBottom: 12, maxWidth: 380 }}>
+        <Field label="Organization name" value={name} onChange={setName} />
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 6 }}>What should the rule cover?</div>
+        {[
+          { key: "address", label: "Just " + (item.from_address || ""), hint: "Safest. Other addresses at this domain still reach you." },
+          { key: "domain",  label: "Everything from @" + domain,        hint: "Wider. Refused if any real person sends from this domain." },
+        ].map(function(o){
+          const on = scope === o.key
+          return (
+            <label key={o.key} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "7px 0", cursor: "pointer" }}>
+              <input type="radio" name={"scope-" + item.id} checked={on} onChange={function(){ setScope(o.key) }} style={{ marginTop: 3 }} />
+              <span>
+                <span style={{ fontSize: 13, color: T.textPrimary }}>{o.label}</span>
+                <span style={{ display: "block", fontSize: 11, color: T.textTertiary }}>{o.hint}</span>
+              </span>
+            </label>
+          )
+        })}
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={submit} disabled={busy} style={btnStyle("#1d4ed8", "white")}>
+          {busy ? "Filing\u2026" : "Save organization + file their mail"}
         </button>
         <button onClick={onCancel} style={btnStyle("transparent", T.textSecondary)}>Cancel</button>
       </div>

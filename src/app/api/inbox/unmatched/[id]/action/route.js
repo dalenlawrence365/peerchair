@@ -44,6 +44,96 @@ export async function POST(req, { params }) {
     return Response.json({ success: true, action: "deleted" })
   }
 
+  // --- FILE AS ORGANIZATION: it isn't a person, so don't make one ---
+  // ProVisors and ACG mail you as entities. They don't belong in `people` (not
+  // human) and they aren't sponsors (you don't sell to them). This writes the
+  // routing rule + the organization, links them, and sweeps every message from
+  // that sender out of the queue. Nothing is ever added to `people`.
+  if (action === "file_as_organization") {
+    const orgName = (body.organization_name || "").trim()
+    if (!orgName) return Response.json({ error: "organization_name required" }, { status: 400 })
+    if (!row.from_address) return Response.json({ error: "Row has no sender address" }, { status: 400 })
+
+    const scope = body.scope === "domain" ? "domain" : "address"
+    const domain = row.from_address.split("@")[1] || ""
+    const pattern = scope === "domain" ? domain : row.from_address
+    if (scope === "domain" && !domain) {
+      return Response.json({ error: "Could not read a domain from " + row.from_address }, { status: 400 })
+    }
+
+    // Refuse to file a domain that real people send from — that is exactly how
+    // a human gets swallowed. (mhenderson@acg.org is why this check exists.)
+    if (scope === "domain") {
+      const { data: humans } = await sb.from("person_emails")
+        .select("email").ilike("email", "%@" + domain).limit(5)
+      if (humans && humans.length) {
+        return Response.json({
+          error: `${humans.length} person(s) in PeerChair send from @${domain} `
+               + `(e.g. ${humans[0].email}). Filing the whole domain would hide their mail. `
+               + `File just ${row.from_address} instead.`
+        }, { status: 409 })
+      }
+    }
+
+    // The organization itself. is_sponsor=false and sponsor_state=null keep it
+    // out of the sponsor pipeline, which gates every query on is_sponsor=true.
+    let companyId = null
+    const { data: existingCo } = await sb.from("companies")
+      .select("id, org_type").ilike("name", orgName).limit(1).maybeSingle()
+    if (existingCo) {
+      companyId = existingCo.id
+      if (!existingCo.org_type) {
+        await sb.from("companies").update({ org_type: "organization" }).eq("id", companyId)
+      }
+    } else {
+      const { data: newCo, error: coErr } = await sb.from("companies").insert({
+        name: orgName,
+        org_type: "organization",
+        is_sponsor: false,
+        sponsor_state: null,
+        source: "inbox_triage",
+        notes: `Organization created from inbox triage on ${new Date().toISOString().slice(0, 10)} — files mail from ${pattern}.`,
+      }).select("id").single()
+      if (coErr) return Response.json({ error: "Company insert failed: " + coErr.message }, { status: 500 })
+      companyId = newCo.id
+    }
+
+    const { error: ruleErr } = await sb.from("sender_rules").upsert({
+      pattern,
+      match_type: scope,
+      label: orgName,
+      disposition: "file",
+      company_id: companyId,
+      active: true,
+      notes: `Filed as an organization from inbox triage on ${new Date().toISOString().slice(0, 10)}.`,
+    }, { onConflict: "match_type,pattern" })
+    if (ruleErr) return Response.json({ error: "Rule write failed: " + ruleErr.message }, { status: 500 })
+
+    // Sweep every queued message this rule now covers.
+    let q = sb.from("unmatched_communications")
+      .update({
+        status: "filed",
+        filed_label: orgName,
+        filed_disposition: "file",
+        filed_at: new Date().toISOString(),
+      })
+      .in("status", ["new"])
+    q = scope === "domain"
+      ? q.ilike("from_address", "%@" + domain)
+      : q.eq("from_address", row.from_address)
+    const { data: swept, error: sweepErr } = await q.select("id")
+    if (sweepErr) return Response.json({ error: sweepErr.message }, { status: 500 })
+
+    return Response.json({
+      success: true,
+      action: "filed_as_organization",
+      organization: orgName,
+      company_id: companyId,
+      rule: (scope === "domain" ? "*@" : "") + pattern,
+      filed: (swept || []).length,
+    })
+  }
+
   // --- UNFILE: pull a rule-filed message back into the triage queue ---
   // This is the escape hatch. If a rule filed something that actually needs
   // Dalen, one click returns it AND records an explicit 'queue' override so the
