@@ -463,13 +463,15 @@ export default function PersonProfile() {
               {p.company || <span style={{ color: T.textTertiary, fontWeight: 400 }}>No company set</span>}
             </div>
             {(firmoRows.length > 0 || firmoWebsite) ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {firmoRows.map(function(r){
                   return (
                     <div key={r[0]}>
                       <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>{r[0]}</div>
-                      <div style={{ fontSize: 13, color: T.textPrimary }}>{r[1]}</div>
-                      <SourceChip meta={firmoSrc[r[2]]} />
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13, color: T.textPrimary }}>{r[1]}</span>
+                        <SourceChip meta={firmoSrc[r[2]]} />
+                      </div>
                     </div>
                   )
                 })}
@@ -999,7 +1001,7 @@ function Chip({ active, color, label, count, onClick }) {
 
 function fmtSrcDate(iso) {
   if (!iso) return ""
-  try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) } catch (e) { return "" }
+  try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) } catch (e) { return "" }
 }
 
 // Provenance for one figure. A revenue a CFO told you and a revenue Sales
@@ -1007,9 +1009,9 @@ function fmtSrcDate(iso) {
 function SourceChip({ meta }) {
   if (!meta || !meta.source) {
     return (
-      <div style={{ fontSize: 10, color: "#b45309", marginTop: 2 }} title="No source recorded — you can't tell where this came from">
+      <span style={{ fontSize: 9.5, color: "#b45309", whiteSpace: "nowrap" }} title="No source recorded — you can't tell where this came from">
         ⚠ source unknown
-      </div>
+      </span>
     )
   }
   const w = sourceWeight(meta.source)
@@ -1017,12 +1019,12 @@ function SourceChip({ meta }) {
           : w === 1 ? { bg: "#fef3c7", fg: "#92400e" }                  // a guess
           :           { bg: "rgba(59,130,246,0.10)", fg: "#1d4ed8" }    // researched
   return (
-    <div style={{ marginTop: 3, display: "flex", alignItems: "center", gap: 5 }}>
+    <span style={{ display: "inline-flex", alignItems: "baseline", gap: 4, whiteSpace: "nowrap" }}>
       <span style={{ fontSize: 9.5, padding: "1px 6px", borderRadius: 4, background: c.bg, color: c.fg, fontWeight: 600 }}>
         {sourceLabel(meta.source)}
       </span>
       {meta.at && <span style={{ fontSize: 9.5, color: "#9ca3af" }}>{fmtSrcDate(meta.at)}</span>}
-    </div>
+    </span>
   )
 }
 
