@@ -29,9 +29,16 @@ export async function GET(request) {
       return {
         id: p.id,
         name: p.full_name || `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+        // The unmatched merge picker renders r.full_name and r.email. Both were
+        // selected from the DB and then dropped here, so the dialog showed a blank
+        // name and "(no email)" for everyone — you couldn't tell which person you
+        // were about to attribute a message to.
+        full_name: p.full_name || `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+        email: p.email || null,
         title: p.title || null,
         company: p.company || null,
-        roles: p.roles || []
+        roles: p.roles || [],
+        cfo_state: p.cfo_state || null
       }
     })
   })
