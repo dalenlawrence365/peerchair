@@ -26,6 +26,22 @@ export async function GET(_request, { params }) {
   // resolve the owner here too and let the flag apply retroactively.
   const { data: owners } = await sb.from("people").select("id").eq("is_owner", true)
   const ownerIds = new Set((owners || []).map(function (o) { return o.id }))
+  // Match by address as well as id: a batch staged before the owner's alias
+  // existed has no _match at all, so an id-only check can never fire on the
+  // exact rows that are broken. Every address he is known by counts.
+  const ownerEmails = new Set()
+  if (ownerIds.size) {
+    const { data: oe } = await sb.from("person_emails")
+      .select("email").in("person_id", Array.from(ownerIds))
+    for (const r of oe || []) ownerEmails.add(String(r.email).toLowerCase())
+  }
+  const isOwnerRow = function (p) {
+    if (p._status === "self") return true
+    if (p._match && p._match.is_owner) return true
+    if (p._match && p._match.id && ownerIds.has(p._match.id)) return true
+    const e = String(p.email || "").trim().toLowerCase()
+    return !!e && ownerEmails.has(e)
+  }
 
   // Pull current DB state for matched (existing) people in one shot.
   const ids = [...new Set(people.map(p => p._match && p._match.id).filter(Boolean))]
@@ -51,7 +67,7 @@ export async function GET(_request, { params }) {
   let withChanges = 0, unchanged = 0, newCount = 0, selfCount = 0
   const enriched = people.map((p, i) => {
     // The owner is on every roster he attends. Never importable.
-    if (p._status === "self" || (p._match && p._match.is_owner) || ownerIds.has(p._match && p._match.id)) {
+    if (isOwnerRow(p)) {
       selfCount++
       return { ...p, _index: i, _status: "self", _changes: null }
     }

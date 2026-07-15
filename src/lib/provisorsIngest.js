@@ -45,18 +45,21 @@ export async function ingestProvisors(sb, { meetingGroup, source, people } = {})
   for (const p of people) {
     const fullName = (p.full_name || "").trim()
     if (!fullName) { skipped.push({ reason: "no name", row: p }); continue }
-    // A roster lists everyone in the room, which includes Dalen. Importing him
-    // either duplicates him or overwrites his own record with roster data.
-    // Belt-and-braces: the parser flags this, and the ingest refuses anyway.
-    if (p._status === "self" || (p._match && p._match.is_owner)) {
-      skipped.push({ reason: "owner — never imported from a roster", row: { full_name: fullName } })
-      continue
-    }
     const email = (p.email || "").trim().toLowerCase()
     const company = (p.company || "").trim()
     const linkedin_url = (p.linkedin_url || "").trim()
 
     const existing = await matchPerson(sb, { full_name: fullName, email, company, linkedin_url })
+
+    // A roster lists everyone in the room, which includes Dalen. Importing him
+    // either duplicates him or overwrites his own record with roster data.
+    // This check sits AFTER the live match on purpose: p._status/_match come
+    // from a payload frozen at parse time, so a batch staged before he was
+    // identified still carries "stranger". The live match is the truth.
+    if (p._status === "self" || (p._match && p._match.is_owner) || (existing && existing.is_owner)) {
+      skipped.push({ reason: "owner — never imported from a roster", row: { full_name: fullName } })
+      continue
+    }
 
     const fg = Object.assign({}, (existing && existing.firmographics) || {})
     for (const [k, v] of [["industry", p.industry], ["website", p.website], ["address", p.address], ["zip", p.zip]]) {
