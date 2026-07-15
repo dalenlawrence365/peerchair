@@ -113,8 +113,15 @@ export default function EventsPage() {
   const ev = data.event || {}
   const c = data.counts || {}
   const all = data.attendees || []
-  const pending = all.filter(function (a) { return a.status === "Registered" || a.status === "Requested" })
-  const roster = all.filter(function (a) { return a.status !== "Registered" && a.status !== "Requested" })
+  // Awaiting review = registered but not yet approved. Keying off status alone
+  // hid anyone who was invited directly AND then self-registered.
+  const TERMINAL = ["Declined", "No-show", "Attended"]
+  const awaitingReview = function (a) {
+    return TERMINAL.indexOf(a.status) === -1 && !a.approved_at &&
+      (!!a.registered_at || a.status === "Registered" || a.status === "Requested")
+  }
+  const pending = all.filter(awaitingReview)
+  const roster = all.filter(function (a) { return !awaitingReview(a) })
   const shortOf = Math.max(0, (ev.min_to_run || 8) - (c.confirmed || 0))
 
   return (

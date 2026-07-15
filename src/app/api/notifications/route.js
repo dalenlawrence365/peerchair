@@ -16,7 +16,9 @@ export async function GET() {
   const { count: eventsPending } = await sb
     .from("event_attendees")
     .select("id", { count: "exact", head: true })
-    .in("status", ["Registered", "Requested"])
+    .is("approved_at", null)
+    .not("registered_at", "is", null)
+    .not("status", "in", "(Declined,No-show,Attended)")
   return Response.json({ unread: count || 0, events_pending: eventsPending || 0, items: items || [] })
 }
 

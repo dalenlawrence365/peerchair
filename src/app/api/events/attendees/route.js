@@ -68,7 +68,13 @@ export async function GET(req) {
 
   const count = s => attendees.filter(a => a.status === s).length
   const confirmed = count("Confirmed")
-  const registered = count("Registered") + count("Requested")
+  // "Awaiting your review" is a fact about timestamps, not a status label:
+  // registered, not yet approved. Someone you invited directly who then also
+  // self-registered carries status 'Invited' — they still need reviewing.
+  const TERMINAL = new Set(["Declined", "No-show", "Attended"])
+  const isAwaitingReview = a => !TERMINAL.has(a.status) && !a.approved_at &&
+    (!!a.registered_at || a.status === "Registered" || a.status === "Requested")
+  const registered = attendees.filter(isAwaitingReview).length
 
   return Response.json({
     event,
