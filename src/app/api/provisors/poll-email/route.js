@@ -118,7 +118,10 @@ export async function GET(request) {
           <p style="margin:0 0 12px">${s.new || 0} new · ${s.existing || 0} updates · ${s.total || 0} total<br>
             <span style="color:#888">from: ${msg.subject || ""}</span></p>
           <a href="https://www.peerchair.com/provisors/review" style="background:#f0c84a;color:#000;padding:10px 20px;border-radius:5px;text-decoration:none;font-weight:bold">Review &amp; Approve →</a>
-        </div>`
+        </div>`,
+        // The in-app badge fires from sendAlert regardless of email config, but
+        // without an href it was a dead-end notification. Point it at the queue.
+        { kind: "roster_staged", href: "/provisors/review", dedup_key: `roster:${result.batch_id}` }
       )
     } catch (e) {
       errors.push(String(e && e.message || e))
