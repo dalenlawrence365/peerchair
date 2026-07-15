@@ -53,41 +53,31 @@ export async function GET(request) {
 
   let synced = 0
   let unmatched = 0
-  let skipped_noise = 0
+  let filed_noise = 0
   const loggedFor = []
   const errors = []
 
-  // Auto-skip conservative patterns — only obvious automation. Conservative
-  // because false positives (real mail filtered out) are worse than false
-  // negatives (noise in the triage queue).
+  // Pattern-level automation catch. These are shapes, not senders, so they
+  // can't live in the sender_rules registry — but they are no longer DROPPED.
+  // They get written with status 'filed' and a label, so they stay inspectable
+  // on the Filed tab. Nothing this cron sees disappears without a row.
   const SKIP_LOCAL_PARTS = /^(no-?reply|noreply-|donotreply|mailer-daemon|postmaster|bounces?|automated?)(@|-|\.)/i
   const SKIP_SUBJECTS = /^\s*(out of office|automatic reply|auto-reply|auto reply)\b/i
-  // Specific known-automated senders that are recurring and should NOT enter
-  // the unmatched triage queue. Their content (e.g., Calendly booking details)
-  // is captured by a different layer (sync-calendar / Outlook calendar sync).
-  const SKIP_EXACT_ADDRESSES = new Set([
-    "notifications@calendly.com",
-    "no-reply@calendly.com",
-    "notifications@slack.com",
-    "noreply@github.com",
-    "linkedin@em.linkedin.com",
-    "messages-noreply@linkedin.com",
-    "invitations@linkedin.com",
-    "calendar-notification@google.com",
-  ])
+  // NOTE: the old SKIP_EXACT_ADDRESSES set lived here and returned `continue`,
+  // which meant those messages were never recorded anywhere at all. They are now
+  // rows in public.sender_rules (disposition 'ignore') and are routed by the
+  // apply_sender_rules() BEFORE INSERT trigger — filed, visible, reversible.
 
   for (const msg of messages) {
     const fromAddr = msg.from?.emailAddress?.address?.toLowerCase()
     const fromName = msg.from?.emailAddress?.name || null
     if (!fromAddr || fromAddr === CFO_CIRCLE_EMAIL.toLowerCase()) continue
 
-    // Conservative auto-skip
-    if (SKIP_EXACT_ADDRESSES.has(fromAddr) ||
-        SKIP_LOCAL_PARTS.test(fromAddr) ||
-        (msg.subject && SKIP_SUBJECTS.test(msg.subject))) {
-      skipped_noise++
-      continue
-    }
+    // Shape-level automation: label it, but never drop it. preLabel is passed
+    // to the unmatched insert below, which files the row instead of queueing it.
+    let preLabel = null
+    if (SKIP_LOCAL_PARTS.test(fromAddr)) preLabel = "Automated sender (no-reply)"
+    else if (msg.subject && SKIP_SUBJECTS.test(msg.subject)) preLabel = "Out-of-office auto-reply"
 
     const person = emailToPerson[fromAddr]
 
@@ -116,7 +106,10 @@ export async function GET(request) {
       loggedFor.push(fromAddr)
     } else {
       // Unmatched path — write to holding table for triage
-      const { error: unErr } = await sb.from("unmatched_communications").insert({
+      // Person match already failed above. The apply_sender_rules() trigger
+      // classifies on insert: a matching rule sets status='filed' with the rule
+      // recorded; no match leaves status='new' and it lands in the queue.
+      const unmatchedRow = {
         direction: "inbound",
         channel: "email",
         from_address: fromAddr,
@@ -125,25 +118,40 @@ export async function GET(request) {
         body_preview: msg.bodyPreview || null,
         occurred_at: msg.receivedDateTime,
         external_id: msg.id,
-      })
+      }
+      if (preLabel) {
+        // Pre-set status short-circuits the trigger's classification, by design.
+        unmatchedRow.status = "filed"
+        unmatchedRow.filed_label = preLabel
+        unmatchedRow.filed_disposition = "ignore"
+        unmatchedRow.filed_at = new Date().toISOString()
+      }
+      const { data: unRow, error: unErr } = await sb
+        .from("unmatched_communications")
+        .insert(unmatchedRow)
+        .select("status")
+        .single()
       // Ignore unique-constraint duplicates silently (already captured a prior run)
       if (unErr && !String(unErr.message).includes("duplicate key")) {
         errors.push("unmatched insert: " + unErr.message)
         continue
       }
-      if (!unErr) unmatched++
+      if (!unErr) {
+        if (unRow && unRow.status === "filed") filed_noise++
+        else unmatched++
+      }
     }
   }
 
   await logCronRun(
     "sync-email",
-    `matched=${synced} unmatched=${unmatched} skipped_noise=${skipped_noise} (last ${hours}h)`,
+    `matched=${synced} unmatched=${unmatched} filed_noise=${filed_noise} (last ${hours}h)`,
     errors.length ? errors : null,
   )
   return Response.json({
     synced,
     unmatched,
-    skipped_noise,
+    filed_noise,
     lookback_hours: hours,
     recipients_logged: [...new Set(loggedFor)],
     errors,

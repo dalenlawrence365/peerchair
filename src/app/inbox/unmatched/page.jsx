@@ -40,30 +40,35 @@ function guessCompany(fromAddress) {
 
 export default function UnmatchedInboxPage() {
   const [status, setStatus] = useState("new")
+  const [disposition, setDisposition] = useState(null)  // Filed sub-filter: null | 'file' | 'ignore'
   const [data, setData] = useState(null)
   const [err, setErr] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
+  const [showRules, setShowRules] = useState(false)
 
   async function load() {
     try {
-      const r = await fetch(`/api/inbox/unmatched?status=${status}`, { cache: "no-store" })
+      const qs = `status=${status}` + (status === "filed" && disposition ? `&disposition=${disposition}` : "")
+      const r = await fetch(`/api/inbox/unmatched?${qs}`, { cache: "no-store" })
       if (!r.ok) throw new Error("HTTP " + r.status)
       const j = await r.json()
       setData(j)
     } catch (e) { setErr(e.message) }
   }
-  useEffect(function(){ load() }, [status])
+  useEffect(function(){ load() }, [status, disposition])
+  useEffect(function(){ if (status !== "filed") setDisposition(null) }, [status])
 
   return (
     <main style={{ padding: "32px 36px", maxWidth: 980 }}>
       <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>Unmatched inbox</h1>
       <p style={{ color: T.textSecondary, fontSize: 13, marginTop: 8, marginBottom: 20, maxWidth: 700 }}>
-        Emails from senders not yet in PeerChair. Triage each one: add the sender as a new contact, merge into someone who's already in PeerChair under a different email, ignore (keeps the record), archive (out of view, recoverable), or delete (permanent).
+        Emails from senders not yet in PeerChair. <strong>Needs you</strong> is the only tab that wants a decision \u2014 org blasts and system mail are routed to <strong>Filed</strong> by the sender registry. Nothing is deleted by a rule: every filed message stays here, shows which rule filed it, and can be pulled back into the queue in one click.
       </p>
 
       <div style={{ display: "flex", gap: 4, borderBottom: "1px solid " + T.border, marginBottom: 20 }}>
         {[
-          { key: "new", label: "Needs triage" },
+          { key: "new", label: "Needs you" },
+          { key: "filed", label: "Filed \u2014 org & system" },
           { key: "added_to_peerchair", label: "Added" },
           { key: "merged_into_existing", label: "Merged" },
           { key: "archived", label: "Archived" },
@@ -71,9 +76,7 @@ export default function UnmatchedInboxPage() {
           { key: "all", label: "All" },
         ].map(function(t){
           const isActive = status === t.key
-          const count = data && data.counts && (t.key === "all"
-            ? Object.values(data.counts).reduce((s, n) => s + n, 0)
-            : (data.counts[t.key] || 0))
+          const count = data && data.counts ? (data.counts[t.key] || 0) : 0
           return (
             <button key={t.key} onClick={function(){ setStatus(t.key) }}
               style={{
@@ -92,11 +95,67 @@ export default function UnmatchedInboxPage() {
         })}
       </div>
 
+      {status === "filed" && data && (
+        <div style={{ background: "#f8fafc", border: "1px solid " + T.border, borderRadius: 10, padding: 14, marginBottom: 16 }}>
+          <div style={{ fontSize: 12.5, color: T.textSecondary, lineHeight: 1.5 }}>
+            These were routed out of your queue by a sender rule \u2014 not deleted, not hidden. Every row below names the rule that filed it.
+            If something in here actually needs you, hit <strong>Pull back into queue</strong>: it returns every message from that sender and
+            pins them to the queue permanently.
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
+            {[
+              { key: null, label: "Everything filed", n: data.counts.filed || 0 },
+              { key: "file", label: "Organizations", n: (data.filed_breakdown || {}).org || 0 },
+              { key: "ignore", label: "System noise", n: (data.filed_breakdown || {}).noise || 0 },
+            ].map(function(f){
+              const on = disposition === f.key
+              return (
+                <button key={String(f.key)} onClick={function(){ setDisposition(f.key) }}
+                  style={{
+                    fontSize: 12, padding: "5px 11px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
+                    border: "1px solid " + (on ? T.textPrimary : T.border),
+                    background: on ? T.textPrimary : "white",
+                    color: on ? "white" : T.textSecondary, fontWeight: on ? 600 : 400,
+                  }}>
+                  {f.label} <span style={{ opacity: 0.7 }}>{f.n}</span>
+                </button>
+              )
+            })}
+            <button onClick={function(){ setShowRules(!showRules) }}
+              style={{ marginLeft: "auto", fontSize: 12, padding: "5px 11px", borderRadius: 999, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>
+              {showRules ? "Hide" : "Show"} the {(data.rules || []).length} rules doing this
+            </button>
+          </div>
+
+          {showRules && (
+            <div style={{ marginTop: 12, borderTop: "1px solid " + T.borderSoft, paddingTop: 10 }}>
+              {(data.rules || []).map(function(r){
+                return (
+                  <div key={r.id} style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "5px 0", fontSize: 12, borderBottom: "1px solid " + T.borderSoft }}>
+                    <code style={{ fontSize: 11.5, color: T.textPrimary, minWidth: 260 }}>
+                      {r.match_type === "domain" ? "*@" + r.pattern : r.pattern}
+                    </code>
+                    <span style={{ color: T.textSecondary, flex: 1 }}>{r.label}</span>
+                    <span style={{ fontSize: 10.5, padding: "1px 7px", borderRadius: 4, ...dispChip(r.disposition) }}>{r.disposition}</span>
+                  </div>
+                )
+              })}
+              <div style={{ fontSize: 11.5, color: T.textTertiary, marginTop: 10, lineHeight: 1.5 }}>
+                Order of operations: <strong>known person &rarr; sender rule &rarr; your queue</strong>. A rule can never intercept mail from
+                someone already in PeerChair. Address rules beat domain rules, so a <em>queue</em> override always wins.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {err && <div style={{ color: "#dc2626", fontSize: 13 }}>Error: {err}</div>}
       {!data && !err && <div style={{ color: T.textTertiary, fontSize: 13 }}>Loading…</div>}
       {data && data.items.length === 0 && (
         <div style={{ color: T.textTertiary, fontSize: 13, padding: "32px 0", textAlign: "center" }}>
-          {status === "new" ? "Nothing to triage. Inbox is clean." : "No items in this tab."}
+          {status === "new" ? "Nothing needs you. Inbox is clean."
+            : status === "filed" ? "Nothing filed yet."
+            : "No items in this tab."}
         </div>
       )}
 
@@ -115,7 +174,22 @@ export default function UnmatchedInboxPage() {
 
 function UnmatchedRow({ item, isExpanded, onToggle, onActioned }) {
   const [mode, setMode] = useState(null)  // 'add' | 'merge' | null
-  const showActions = item.status === "new"
+  // A filed row has had no human decision made on it — it can still be
+  // added/merged/ignored straight from the Filed tab.
+  const showActions = item.status === "new" || item.status === "filed"
+  const isFiled = item.status === "filed"
+
+  async function unfile() {
+    if (!confirm(`Pull ${item.from_address} back into the queue?\n\nThis returns every filed message from this sender and stops them ever being filed again.`)) return
+    const r = await fetch(`/api/inbox/unmatched/${item.id}/action`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "unfile" })
+    })
+    const j = await r.json().catch(function(){ return {} })
+    if (!r.ok) { alert("Failed: " + (j.error || r.status)); return }
+    alert(`Returned ${j.restored} message${j.restored === 1 ? "" : "s"} from ${j.sender} to the queue.`)
+    await onActioned()
+  }
 
   return (
     <div style={{
@@ -138,11 +212,26 @@ function UnmatchedRow({ item, isExpanded, onToggle, onActioned }) {
           )}
           <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 8 }}>
             {fmtDate(item.occurred_at)} · {item.direction}
-            {item.status !== "new" && <span style={{ marginLeft: 8, padding: "1px 6px", borderRadius: 4, background: "#e7e5e4", color: T.textSecondary }}>{item.status.replace(/_/g, " ")}</span>}
+            {item.status !== "new" && !isFiled && <span style={{ marginLeft: 8, padding: "1px 6px", borderRadius: 4, background: "#e7e5e4", color: T.textSecondary }}>{item.status.replace(/_/g, " ")}</span>}
+            {item.unfiled_at && <span style={{ marginLeft: 8, padding: "1px 6px", borderRadius: 4, background: "#fef3c7", color: "#92400e" }}>pulled back from filing</span>}
           </div>
+          {isFiled && (
+            <div style={{ marginTop: 8, fontSize: 11, color: T.textTertiary, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10.5, padding: "1px 7px", borderRadius: 4, ...dispChip(item.filed_disposition) }}>
+                {item.filed_disposition === "ignore" ? "system noise" : "organization"}
+              </span>
+              <span>Filed by rule: <strong style={{ color: T.textSecondary }}>{item.filed_label || "(unlabelled rule)"}</strong></span>
+              <span>· no decision needed from you</span>
+            </div>
+          )}
         </div>
         {showActions && !isExpanded && (
-          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {isFiled && (
+              <button onClick={unfile} style={btnStyle("#fffbeb", "#92400e", "#fcd34d")}>
+                Pull back into queue
+              </button>
+            )}
             <button onClick={function(){ setMode("add"); onToggle() }}
               style={btnStyle("#10b981", "white")}>Add to PeerChair</button>
             <button onClick={function(){ setMode("merge"); onToggle() }}
@@ -322,6 +411,12 @@ function Field({ label, value, onChange }) {
         style={{ fontSize: 13, padding: "6px 10px", borderRadius: 6, border: "1px solid " + T.border, width: "100%", boxSizing: "border-box", fontFamily: "inherit" }} />
     </div>
   )
+}
+
+function dispChip(d) {
+  if (d === "ignore") return { background: "#f1f5f9", color: "#64748b" }
+  if (d === "queue")  return { background: "#fef3c7", color: "#92400e" }
+  return { background: "rgba(59,130,246,0.1)", color: "#1d4ed8" }   // 'file'
 }
 
 function btnStyle(bg, fg, border) {

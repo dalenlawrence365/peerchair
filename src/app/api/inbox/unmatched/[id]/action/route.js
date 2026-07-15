@@ -44,8 +44,51 @@ export async function POST(req, { params }) {
     return Response.json({ success: true, action: "deleted" })
   }
 
-  // All other actions require the row to be in 'new' state
-  if (row.status !== "new") {
+  // --- UNFILE: pull a rule-filed message back into the triage queue ---
+  // This is the escape hatch. If a rule filed something that actually needs
+  // Dalen, one click returns it AND records an explicit 'queue' override so the
+  // same sender is never filed again. Repeatedly rescuing from one rule is the
+  // signal that the rule is too broad.
+  if (action === "unfile") {
+    if (row.status !== "filed") {
+      return Response.json({ error: `Only filed rows can be unfiled (this one is '${row.status}').` }, { status: 409 })
+    }
+
+    // Pin the sender back to the queue permanently.
+    if (row.from_address) {
+      const { error: ruleErr } = await sb.from("sender_rules").upsert({
+        pattern: row.from_address,
+        match_type: "address",
+        label: (row.from_name || row.from_address) + " — pulled back by Dalen",
+        disposition: "queue",
+        notes: `Unfiled from "${row.filed_label || "a rule"}" on ${new Date().toISOString().slice(0, 10)}.`
+             + ` Original rule id: ${row.filed_by_rule_id || "n/a"}.`,
+        active: true,
+      }, { onConflict: "match_type,pattern" })
+      if (ruleErr) return Response.json({ error: "Override write failed: " + ruleErr.message }, { status: 500 })
+    }
+
+    // Return every filed message from this sender, not just the one clicked —
+    // if one was wrong, the rest from that sender are wrong too.
+    const { data: restored, error } = await sb.from("unmatched_communications")
+      .update({ status: "new", unfiled_at: new Date().toISOString() })
+      .eq("from_address", row.from_address)
+      .eq("status", "filed")
+      .select("id")
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+
+    return Response.json({
+      success: true,
+      action: "unfiled",
+      restored: (restored || []).length,
+      sender: row.from_address,
+    })
+  }
+
+  // All other actions require an un-actioned row. 'filed' counts as un-actioned:
+  // a rule routed it, but no human decision has been made, so Dalen can still
+  // add/merge/ignore straight from the Filed tab without unfiling first.
+  if (row.status !== "new" && row.status !== "filed") {
     return Response.json({ error: `Already actioned (${row.status}). Reload the list.` }, { status: 409 })
   }
 
