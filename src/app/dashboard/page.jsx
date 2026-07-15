@@ -68,7 +68,10 @@ export default function DashboardPage() {
         {[
           { label: "Total reachable", value: a.reachable, color: "#0a66c2", href: "/linkedin-connections", wk: (a.wk || {}).reachable },
           { label: "Total relevant", value: a.relevant, color: "#15803d", href: "/linkedin-connections", wk: (a.wk || {}).relevant },
-          { label: "ProVisor audience", value: a.provisor, color: "#7c3aed", href: "/linkedin-connections?role=provisor", wk: (a.wk || {}).provisor },
+          // ProVisors has its own page. A tile labelled "ProVisor audience" that
+          // lands on a LinkedIn-filtered list answers a different question than
+          // the one that was clicked.
+          { label: "ProVisor audience", value: a.provisor, color: "#7c3aed", href: "/provisors", wk: (a.wk || {}).provisor },
           { label: "CFO audience", value: a.cfo, color: "#d97706", href: "/linkedin-connections?role=cfo", wk: (a.wk || {}).cfo },
           { label: "Sponsor audience", value: a.sponsor, color: "#a855f7", href: "/linkedin-connections?role=sponsor", wk: (a.wk || {}).sponsor },
         ].sort(function(x, y){ return (y.value || 0) - (x.value || 0) }).map(function(t){
