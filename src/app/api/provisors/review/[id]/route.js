@@ -22,6 +22,11 @@ export async function GET(_request, { params }) {
   const meetingGroup = payload.meetingGroup || batch.meeting_group || null
   const people = Array.isArray(payload.people) ? payload.people : []
 
+  // Batches staged before the owner flag existed carry no _status:'self', so
+  // resolve the owner here too and let the flag apply retroactively.
+  const { data: owners } = await sb.from("people").select("id").eq("is_owner", true)
+  const ownerIds = new Set((owners || []).map(function (o) { return o.id }))
+
   // Pull current DB state for matched (existing) people in one shot.
   const ids = [...new Set(people.map(p => p._match && p._match.id).filter(Boolean))]
   const curById = {}
@@ -43,11 +48,16 @@ export async function GET(_request, { params }) {
     }
   }
 
-  let withChanges = 0, unchanged = 0, newCount = 0
-  const enriched = people.map(p => {
+  let withChanges = 0, unchanged = 0, newCount = 0, selfCount = 0
+  const enriched = people.map((p, i) => {
+    // The owner is on every roster he attends. Never importable.
+    if (p._status === "self" || (p._match && p._match.is_owner) || ownerIds.has(p._match && p._match.id)) {
+      selfCount++
+      return { ...p, _index: i, _status: "self", _changes: null }
+    }
     if (p._status === "new" || !(p._match && p._match.id)) {
       newCount++
-      return { ...p, _status: "new", _changes: null }
+      return { ...p, _index: i, _status: "new", _changes: null }
     }
     const cur = curById[p._match.id] || {}
     const changes = []
@@ -72,12 +82,12 @@ export async function GET(_request, { params }) {
     if (newGroups.length) changes.push({ field: "Groups", addGroups: newGroups })
 
     if (changes.length) withChanges++; else unchanged++
-    return { ...p, _status: "existing", _changes: changes }
+    return { ...p, _index: i, _status: "existing", _changes: changes }
   })
 
   return Response.json({
     batch: { id: batch.id, meeting_group: meetingGroup, meetingDate: payload.meetingDate || null, filename: batch.filename, source: batch.source, status: batch.status, created_at: batch.created_at },
-    summary: { total: people.length, new: newCount, existing: withChanges + unchanged, withChanges, unchanged },
+    summary: { total: people.length, new: newCount, existing: withChanges + unchanged, withChanges, unchanged, self: selfCount },
     people: enriched,
   })
 }

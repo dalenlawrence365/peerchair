@@ -31,7 +31,7 @@ export async function matchPerson(sb, { full_name, email, company, linkedin_url 
   })
   if (error || !pid) return null
   const { data } = await sb.from("people")
-    .select("id, email, firmographics, headline, full_name, company, linkedin_url")
+    .select("id, email, firmographics, headline, full_name, company, linkedin_url, is_owner")
     .eq("id", pid).maybeSingle()
   return data || null
 }
@@ -45,6 +45,13 @@ export async function ingestProvisors(sb, { meetingGroup, source, people } = {})
   for (const p of people) {
     const fullName = (p.full_name || "").trim()
     if (!fullName) { skipped.push({ reason: "no name", row: p }); continue }
+    // A roster lists everyone in the room, which includes Dalen. Importing him
+    // either duplicates him or overwrites his own record with roster data.
+    // Belt-and-braces: the parser flags this, and the ingest refuses anyway.
+    if (p._status === "self" || (p._match && p._match.is_owner)) {
+      skipped.push({ reason: "owner — never imported from a roster", row: { full_name: fullName } })
+      continue
+    }
     const email = (p.email || "").trim().toLowerCase()
     const company = (p.company || "").trim()
     const linkedin_url = (p.linkedin_url || "").trim()

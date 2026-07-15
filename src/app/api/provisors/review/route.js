@@ -3,9 +3,18 @@ import { serverClient } from "@/lib/supabaseServer"
 import { ingestProvisors } from "@/lib/provisorsIngest"
 
 // GET  /api/provisors/review            -> list pending batches (+ optional ?status=)
-// POST /api/provisors/review {batch_id, action:'approve'|'dismiss'}
-//   approve -> runs the shared ingest on the staged payload, marks batch approved, stores receipt
+// POST /api/provisors/review {batch_id, action:'approve'|'dismiss', selected?: number[]}
+//   approve -> ingests the staged payload, marks batch approved, stores receipt
 //   dismiss -> marks batch dismissed (no writes to people)
+//
+// `selected` is an array of row indices into payload.people. Approve used to be
+// all-or-nothing: one roster, one button, 31 people. If a single row was wrong
+// the only options were to accept it or reject the whole roster — so a bad row
+// held 30 good ones hostage. Omit `selected` and every row is included, which
+// keeps older callers working.
+//
+// Rows NOT selected are recorded on the batch rather than silently dropped:
+// "I chose not to import this" is a decision worth being able to look up.
 
 export async function GET(request) {
   const sb = serverClient()
@@ -23,7 +32,7 @@ export async function GET(request) {
 export async function POST(request) {
   let body
   try { body = await request.json() } catch (e) { return Response.json({ error: "invalid JSON" }, { status: 400 }) }
-  const { batch_id, action } = body || {}
+  const { batch_id, action, selected } = body || {}
   if (!batch_id || !["approve", "dismiss"].includes(action)) {
     return Response.json({ error: "batch_id and action(approve|dismiss) required" }, { status: 400 })
   }
@@ -38,11 +47,30 @@ export async function POST(request) {
   }
 
   const payload = batch.payload || {}
+  const allPeople = Array.isArray(payload.people) ? payload.people : []
+
+  // Resolve the selection. No `selected` key => everything (back-compatible).
+  let chosen = allPeople
+  let excluded = []
+  if (Array.isArray(selected)) {
+    const keep = new Set(selected.map(Number).filter(function (n) { return Number.isInteger(n) }))
+    chosen = allPeople.filter(function (_p, i) { return keep.has(i) })
+    excluded = allPeople
+      .map(function (p, i) { return { i: i, p: p } })
+      .filter(function (x) { return !keep.has(x.i) })
+      .map(function (x) {
+        return { index: x.i, full_name: x.p.full_name || null, email: x.p.email || null, status: x.p._status || null }
+      })
+    if (!chosen.length) {
+      return Response.json({ error: "Nothing selected — pick at least one person, or Dismiss the batch." }, { status: 400 })
+    }
+  }
+
   try {
     const result = await ingestProvisors(sb, {
       meetingGroup: payload.meetingGroup || batch.meeting_group,
       source: batch.source || "email",
-      people: payload.people || [],
+      people: chosen,
     })
 
     // Record meeting attendance — rides on the approval. Needs a date + a known group.
@@ -77,9 +105,19 @@ export async function POST(request) {
     }
 
     await sb.from("provisor_import_batches").update({
-      status: "approved", reviewed_at: new Date().toISOString(), ingest_result: result,
+      status: "approved",
+      reviewed_at: new Date().toISOString(),
+      ingest_result: Object.assign({}, result, {
+        selected_count: chosen.length,
+        total_rows: allPeople.length,
+        excluded_by_reviewer: excluded,
+      }),
     }).eq("id", batch_id)
-    return Response.json({ ok: true, status: "approved", ...result, attendance })
+    return Response.json({
+      ok: true, status: "approved", ...result, attendance,
+      selected_count: chosen.length, total_rows: allPeople.length,
+      excluded_count: excluded.length,
+    })
   } catch (e) {
     await sb.from("provisor_import_batches").update({ error: String(e && e.message || e) }).eq("id", batch_id)
     return Response.json({ error: String(e && e.message || e) }, { status: 500 })

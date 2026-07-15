@@ -96,9 +96,16 @@ export async function parseAndStageRoster(sb, { pdf_base64, filename = null, sou
 
   // 2) Dedupe analysis — annotate each person new/existing (read-only)
   let nNew = 0, nExisting = 0
+  let nSelf = 0
   for (const p of people) {
     const m = await matchPerson(sb, { full_name: p.full_name, email: p.email, company: p.company, linkedin_url: p.linkedin_url })
-    if (m) { p._match = { id: m.id, name: m.full_name, company: m.company }; p._status = "existing"; nExisting++ }
+    if (m && m.is_owner) {
+      // Dalen is on every roster he attends. Flag, don't import.
+      p._match = { id: m.id, name: m.full_name, company: m.company, is_owner: true }
+      p._status = "self"
+      nSelf++
+    }
+    else if (m) { p._match = { id: m.id, name: m.full_name, company: m.company }; p._status = "existing"; nExisting++ }
     else { p._status = "new"; nNew++ }
   }
   const summary = { total: people.length, new: nNew, existing: nExisting }
