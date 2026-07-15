@@ -71,7 +71,11 @@ export async function GET(req) {
   // "Awaiting your review" is a fact about timestamps, not a status label:
   // registered, not yet approved. Someone you invited directly who then also
   // self-registered carries status 'Invited' — they still need reviewing.
-  const TERMINAL = new Set(["Declined", "No-show", "Attended"])
+  // Terminal for THIS EVENT'S queue — they need nothing further from you today.
+  // 'Unavailable' belongs here (there's no seat decision left to make) but it is
+  // emphatically NOT a decline: they still want in, just not on this date, and
+  // they live on in event_carry_forward.
+  const TERMINAL = new Set(["Declined", "No-show", "Attended", "Unavailable"])
   const isAwaitingReview = a => !TERMINAL.has(a.status) && !a.approved_at &&
     (!!a.registered_at || a.status === "Registered" || a.status === "Requested")
   const registered = attendees.filter(isAwaitingReview).length
@@ -84,6 +88,9 @@ export async function GET(req) {
       registered,
       confirmed,
       declined: count("Declined"),
+      // Counted apart from declined on purpose. Collapsing them would read as
+      // "5 people said no" when four of them said "not that Tuesday".
+      unavailable: count("Unavailable"),
       no_response: count("Invited"),
       // The go/no-go number. Manual: do not run under 8 confirmed CFOs.
       short_of_minimum: Math.max(0, (event.min_to_run || 8) - confirmed),
@@ -205,13 +212,13 @@ export async function PATCH(req) {
 
 
   const status = (body.status || "").toString().trim()
-  const ALLOWED = new Set(["Registered", "Invited", "Confirmed", "Declined", "Requested", "No-show"])
+  const ALLOWED = new Set(["Registered", "Invited", "Confirmed", "Declined", "Requested", "No-show", "Unavailable"])
   if (!id || !ALLOWED.has(status)) return Response.json({ error: "bad_request" }, { status: 400 })
 
   const sb = serverClient()
   const { data: cur } = await sb
     .from("event_attendees")
-    .select("id, status, registered_at, approved_at, invite_token, event_id, people:person_id ( first_name, email ), events:event_id ( slug, name, event_date, ends_at, venue_name, address_line, parking_instructions, check_in_instructions, breakfast_note )")
+    .select("id, status, registered_at, approved_at, invite_token, event_id, person_id, people:person_id ( first_name, email ), events:event_id ( slug, name, event_date, ends_at, venue_name, address_line, parking_instructions, check_in_instructions, breakfast_note )")
     .eq("id", id)
     .maybeSingle()
   if (!cur) return Response.json({ error: "not_found" }, { status: 404 })
@@ -226,8 +233,52 @@ export async function PATCH(req) {
   const isApproval = !cur.approved_at && (status === "Invited" || status === "Confirmed")
   const patch = { status: isApproval ? "Confirmed" : status }
   if (isApproval) patch.approved_at = new Date().toISOString()
+
+  // Unavailable is not Declined. Declined answers "do you want this?" —
+  // Unavailable answers "can you make that Tuesday?". It costs a seat, not a
+  // prospect, so it records what they said, what you promised, and queues them
+  // for next time. "I'll keep you in mind" is precisely the promise that dies
+  // in an inbox; this is where it stops being a memory.
+  let carried = false
+  if (status === "Unavailable") {
+    patch.unavailable_at = new Date().toISOString()
+    if (body.note) patch.unavailable_note = String(body.note).trim() || null
+  }
+
   const { error } = await sb.from("event_attendees").update(patch).eq("id", id)
   if (error) return Response.json({ error: error.message }, { status: 500 })
+
+  if (status === "Unavailable" && cur.person_id) {
+    const carry = body.carry_to_next !== false   // default: yes, keep them in mind
+    if (carry) {
+      // One open promise per person — being unavailable twice doesn't make them
+      // two people waiting. The partial unique index enforces it; ignore the
+      // conflict rather than erroring out on a second miss.
+      const { error: cErr } = await sb.from("event_carry_forward").insert({
+        person_id: cur.person_id,
+        from_event_id: cur.event_id,
+        reason: body.note ? String(body.note).trim() : "Unavailable on this date",
+        promised: body.promised ? String(body.promised).trim() : null,
+      })
+      carried = !cErr
+    }
+
+    // Their timeline should say why, in their words, not just show a status flip.
+    const bits = ["Can't attend " + (cur.events?.name || "the session") + " — date conflict, not a decline."]
+    if (body.note) bits.push("They said: " + String(body.note).trim())
+    if (body.promised) bits.push("You told them: " + String(body.promised).trim())
+    if (carried) bits.push("Queued for the next session.")
+    await sb.from("communications").insert({
+      person_id: cur.person_id,
+      direction: "outbound",
+      channel: "note",
+      subject: "Unavailable — " + (cur.events?.name || "event"),
+      body: bits.join("\n\n"),
+      occurred_at: new Date().toISOString(),
+      step_label: "Marked unavailable",
+      source: "events",
+    })
+  }
 
   const slug = cur.events?.slug
   const invite_url = slug ? inviteUrl(slug, cur.invite_token) : null
@@ -249,7 +300,7 @@ export async function PATCH(req) {
     }
   }
 
-  return Response.json({ ok: true, status: patch.status, invite_url, drafted, draft_url, draft_error })
+  return Response.json({ ok: true, status: patch.status, invite_url, drafted, draft_url, draft_error, carried })
 }
 
 export async function DELETE(req) {

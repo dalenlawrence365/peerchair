@@ -10,6 +10,7 @@ function shortDate(iso) {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) } catch (e) { return "" }
 }
 function rosterDate(a) {
+  if (a.status === "Unavailable" && a.unavailable_at) return "Unavailable " + shortDate(a.unavailable_at)
   if ((a.status === "Confirmed" || a.status === "Declined") && a.responded_at) return a.status + " " + shortDate(a.responded_at)
   if (a.invited_at) return "Invited " + shortDate(a.invited_at)
   return ""
@@ -22,6 +23,8 @@ function Chip({ label, bg, color }) {
 function statusChip(status) {
   if (status === "Confirmed") return <Chip label="Confirmed" bg={T.memberBg} color={T.memberText} />
   if (status === "Declined")  return <Chip label="Declined" bg={T.dangerBg} color={T.danger} />
+  // Amber, not red. They didn't say no to you — they said no to a Tuesday.
+  if (status === "Unavailable") return <Chip label="Unavailable" bg="#fef3c7" color="#92400e" />
   if (status === "Registered" || status === "Requested") return <Chip label="Registered" bg={T.qualifiedBg} color={T.qualifiedText} />
   return <Chip label="Invited" bg={T.audienceBg} color={T.audienceText} />
 }
@@ -69,9 +72,58 @@ export default function EventsPage() {
 
   useEffect(function () { load() }, [load])
 
-  function setStatus(id, status, name) {
+  // People carried over from a session they couldn't make. Kept out of the
+  // roster counts — they aren't attendees yet — but shown here so the promise
+  // is in front of you while there are still seats.
+  const [waiting, setWaiting] = useState([])
+  const loadWaiting = useCallback(function () {
+    const slug = data && data.event ? data.event.slug : null
+    fetch("/api/events/carry-forward" + (slug ? "?exclude_event_slug=" + encodeURIComponent(slug) : ""), { cache: "no-store" })
+      .then(function (r) { return r.json() })
+      .then(function (d) { setWaiting((d && d.waiting) || []) })
+      .catch(function () {})
+  }, [data && data.event && data.event.slug])
+  useEffect(function () { loadWaiting() }, [loadWaiting])
+
+  function inviteFromWaiting(w) {
+    const slug = data && data.event ? data.event.slug : null
+    if (!slug) return
+    fetch("/api/events/attendees", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: slug, person_ids: [w.person_id] }),
+    })
+      .then(function (r) { return r.json() })
+      .then(function () {
+        return fetch("/api/events/carry-forward", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ person_id: w.person_id, event_slug: slug, action: "fulfil" }),
+        })
+      })
+      .then(function () { setMsg(w.full_name + " added to this session — promise kept."); load(); loadWaiting() })
+      .catch(function () { setMsg("Couldn't add " + w.full_name + ".") })
+  }
+
+  // "Can't make it" is a different event from "no thanks", and the difference is
+  // worth two prompts: what they said, and what you promised back. Otherwise
+  // "I'll keep you in mind for the next one" lives only in your head.
+  function markUnavailable(a) {
+    const name = a.name || "them"
+    const note = window.prompt(
+      "What did " + name + " say?\n\nTheir words, roughly — this goes on their timeline so future-you knows this was a date conflict, not a decline.",
+      "Travelling that week."
+    )
+    if (note === null) return
+    const promised = window.prompt(
+      "What did you promise " + name + "?\n\nLeave blank if nothing. They'll be queued for the next session either way.",
+      "Keep them in mind for the next session."
+    )
+    if (promised === null) return
+    setStatus(a.id, "Unavailable", name, { note: note, promised: promised })
+  }
+
+  function setStatus(id, status, name, extra) {
     setBusy(id)
-    fetch("/api/events/attendees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id, status: status }) })
+    fetch("/api/events/attendees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ id: id, status: status }, extra || {})) })
       .then(function (r) { return r.json() })
       .then(function (d) {
         if (d && d.ok && (status === "Invited" || status === "Confirmed")) {
@@ -83,6 +135,8 @@ export default function EventsPage() {
             try { navigator.clipboard.writeText(d.invite_url) } catch (e) {}
             setMsg("Approved " + (name || "") + " — approved link copied. Draft not created" + (d.draft_error ? " (" + d.draft_error + ")" : "") + ".")
           }
+        } else if (d && d.ok && status === "Unavailable") {
+          setMsg(name + " marked unavailable — not a decline." + (d.carried ? " Queued for the next session." : ""))
         } else if (d && d.ok && status === "Declined") {
           setMsg("Declined " + (name || "") + ".")
         } else if (d && d.ok && status === "No-show") {
@@ -115,7 +169,7 @@ export default function EventsPage() {
   const all = data.attendees || []
   // Awaiting review = registered but not yet approved. Keying off status alone
   // hid anyone who was invited directly AND then self-registered.
-  const TERMINAL = ["Declined", "No-show", "Attended"]
+  const TERMINAL = ["Declined", "No-show", "Attended", "Unavailable"]
   const awaitingReview = function (a) {
     return TERMINAL.indexOf(a.status) === -1 && !a.approved_at &&
       (!!a.registered_at || a.status === "Registered" || a.status === "Requested")
@@ -138,7 +192,53 @@ export default function EventsPage() {
         <Stat label="Registered" value={c.registered || 0} sub="awaiting your review" highlight={(c.registered || 0) > 0} />
         <Stat label="Invited" value={c.invited || 0} sub="total on the list" />
         <Stat label="Declined" value={c.declined || 0} sub="" />
+        <Stat label="Unavailable" value={c.unavailable || 0} sub="wants the next one" />
       </div>
+
+      {waiting.length > 0 && (
+        <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: 14, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#92400e" }}>
+            {waiting.length} {waiting.length === 1 ? "person is" : "people are"} waiting for a session
+          </div>
+          <div style={{ fontSize: 12, color: "#92400e", opacity: 0.85, marginTop: 3, lineHeight: 1.5 }}>
+            They wanted in but couldn&rsquo;t make a previous date, and you said you&rsquo;d keep them in mind.
+            They are not on this roster yet.
+          </div>
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 7 }}>
+            {waiting.map(function (w) {
+              return (
+                <div key={w.id} style={{ background: "white", border: "1px solid #fde68a", borderRadius: 8, padding: "9px 11px", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.textPrimary }}>
+                      {w.full_name}
+                      {w.company && <span style={{ fontWeight: 400, color: T.textTertiary }}> · {w.company}</span>}
+                    </div>
+                    {w.reason && <div style={{ fontSize: 11.5, color: T.textSecondary, marginTop: 2 }}>Said: {w.reason}</div>}
+                    {w.promised && <div style={{ fontSize: 11.5, color: "#92400e", marginTop: 2 }}>You promised: {w.promised}</div>}
+                    <div style={{ fontSize: 10.5, color: T.textTertiary, marginTop: 3 }}>
+                      Missed {w.from_event || "a previous session"}{w.from_event_date ? " · " + shortDate(w.from_event_date) : ""}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button onClick={function () { inviteFromWaiting(w) }}
+                      style={{ fontSize: 11.5, fontWeight: 600, padding: "5px 11px", borderRadius: 6, border: "none", background: "#16a34a", color: "white", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                      Add to this session
+                    </button>
+                    <button onClick={function () {
+                        if (!confirm("Stop carrying " + w.full_name + " forward? The record stays on their timeline.")) return
+                        fetch("/api/events/carry-forward", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person_id: w.person_id, action: "drop" }) })
+                          .then(function () { loadWaiting() })
+                      }}
+                      style={{ fontSize: 11.5, padding: "5px 9px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textTertiary, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                      Not this one
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {msg ? <div style={{ background: "#fffdf5", border: "1px solid #f1e2b8", color: T.textPrimary, borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 18 }}>{msg}{draftUrl ? <a href={draftUrl} target="_blank" rel="noopener" style={{ color: T.accent, marginLeft: 10, fontWeight: 600, textDecoration: "none" }}>Open draft →</a> : null}</div> : null}
 
@@ -163,6 +263,7 @@ export default function EventsPage() {
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                     <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Invited", a.name) }} style={btnPrimary}>Approve</button>
+                    <button disabled={busy === a.id} onClick={function () { markUnavailable(a) }} style={btnGhost}>Can't make it</button>
                     <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Declined", a.name) }} style={btnGhost}>Decline</button>
                   </div>
                 </div>
