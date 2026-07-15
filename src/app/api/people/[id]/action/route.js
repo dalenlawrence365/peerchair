@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
+import { stampSources, isValidSource } from "@/lib/firmoSources"
 
 // POST /api/people/[id]/action
 // Body: { action, ... }
@@ -157,9 +158,23 @@ export async function POST(request, { params }) {
     if (!body.firmographics || typeof body.firmographics !== "object") {
       return Response.json({ error: "firmographics object required" }, { status: 400 })
     }
-    const { error } = await sb.from("people").update({ firmographics: body.firmographics, last_meaningful_touch: new Date().toISOString() }).eq("id", id)
+    // body.source (optional) records WHERE these figures came from — a number a
+    // CFO told you on a fit call and a number Sales Navigator guessed are not
+    // worth the same, and without this they look identical forever.
+    // Stamped per field, and only on fields whose value actually changed, so
+    // re-saving the form can't relabel something you were told as something you
+    // looked up.
+    const src = body.source || null
+    if (src && !isValidSource(src)) {
+      return Response.json({ error: "Unknown source: " + src }, { status: 400 })
+    }
+
+    const { data: cur } = await sb.from("people").select("firmographics").eq("id", id).maybeSingle()
+    const merged = stampSources(cur && cur.firmographics, body.firmographics, src)
+
+    const { error } = await sb.from("people").update({ firmographics: merged, last_meaningful_touch: new Date().toISOString() }).eq("id", id)
     if (error) return Response.json({ error: error.message }, { status: 500 })
-    return Response.json({ ok: true })
+    return Response.json({ ok: true, firmographics: merged })
   }
 
   if (action === "set_avatar") {

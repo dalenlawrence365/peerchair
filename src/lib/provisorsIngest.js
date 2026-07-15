@@ -18,6 +18,8 @@ async function findGroupId(sb, name, cache) {
 }
 
 // Resolve an existing person by email, then name+company. Returns the row or null.
+const FIRMO_SOURCE_KEY = "_sources"
+
 export async function matchPerson(sb, { full_name, email, company, linkedin_url }) {
   // Delegates to the find_existing_person SQL matcher (single source of truth):
   // normalized URL slug -> email -> normalized name+company. Normalization strips
@@ -62,9 +64,17 @@ export async function ingestProvisors(sb, { meetingGroup, source, people } = {})
     }
 
     const fg = Object.assign({}, (existing && existing.firmographics) || {})
+    // Gap-fill only, and stamp where it came from. A figure with no provenance
+    // is indistinguishable from one someone told you — record the roster.
+    const fgSrc = Object.assign({}, fg[FIRMO_SOURCE_KEY] || {})
+    const stampedAt = new Date().toISOString()
     for (const [k, v] of [["industry", p.industry], ["website", p.website], ["address", p.address], ["zip", p.zip]]) {
-      if ((fg[k] === undefined || fg[k] === null || fg[k] === "") && v) fg[k] = v
+      if ((fg[k] === undefined || fg[k] === null || fg[k] === "") && v) {
+        fg[k] = v
+        if (k === "industry" || k === "website") fgSrc[k] = { source: "provisors_roster", at: stampedAt }
+      }
     }
+    if (Object.keys(fgSrc).length) fg[FIRMO_SOURCE_KEY] = fgSrc
 
     let personId
     if (existing) {

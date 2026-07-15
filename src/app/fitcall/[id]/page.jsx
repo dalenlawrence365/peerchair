@@ -125,7 +125,7 @@ export default function FitCallPage() {
       `NOTES\n${notes || "—"}`
     try {
       // 1. Structured firmographics (so the profile can display them)
-      await fetch(`/api/people/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "set_firmographics", firmographics }) })
+      await fetch(`/api/people/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "set_firmographics", firmographics, source: "self_reported" }) })
       // 2. Timeline note (human-readable narrative)
       await fetch(`/api/people/${id}/action`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "note", body: noteBody }) })
       // 3. Stage — explicit choice wins; fall back to the outcome default

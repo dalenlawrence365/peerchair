@@ -6,6 +6,7 @@ import { T } from "@/lib/pipelineTheme"
 import Avatar from "@/components/Avatar"
 import ProfileTodoCard from "@/components/ProfileTodoCard"
 import EventLinkCard from "@/components/EventLinkCard"
+import { SOURCES, SOURCE_KEY, sourceLabel, sourceWeight } from "@/lib/firmoSources"
 
 const ROLE_LABEL = { cfo: "CFO", sponsor_contact: "Sponsor", referral_partner: "Referral Partner" }
 const ROLE_COLOR = { cfo: "#d97706", sponsor_contact: "#a855f7", referral_partner: "#10b981" }
@@ -269,6 +270,8 @@ export default function PersonProfile() {
       cfo_circle_member: !!person.cfo_circle_member,
       industry: f.industry || "", revenue: f.revenue || "", employees: f.employees || "",
       finance_team: f.finance_team || "", ownership: f.ownership || "", website: f.website || "",
+      // Where anything you change in THIS edit came from. Blank = don't relabel.
+      _source: "",
     })
     setEditing(true)
   }
@@ -294,7 +297,7 @@ export default function PersonProfile() {
       if (Object.keys(merged).length > 0) {
         const r2 = await fetch(`/api/people/${id}/action`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "set_firmographics", firmographics: merged }),
+          body: JSON.stringify({ action: "set_firmographics", firmographics: merged, source: form._source || null }),
         }).then(function(r){ return r.json() })
         if (r2.error) throw new Error(r2.error)
       }
@@ -318,7 +321,8 @@ export default function PersonProfile() {
 
   const p = data.person
   const firmo = p.firmographics || {}
-  const firmoRows = [["Industry", firmo.industry], ["Revenue", firmo.revenue], ["Employees", firmo.employees], ["Finance team", firmo.finance_team], ["Ownership", firmo.ownership], ["Reports to", firmo.reports_to]].filter(function(r){ return r[1] })
+  const firmoRows = [["Industry", firmo.industry, "industry"], ["Revenue", firmo.revenue, "revenue"], ["Employees", firmo.employees, "employees"], ["Finance team", firmo.finance_team, "finance_team"], ["Ownership", firmo.ownership, "ownership"], ["Reports to", firmo.reports_to, "reports_to"]].filter(function(r){ return r[1] })
+  const firmoSrc = firmo[SOURCE_KEY] || {}
   const firmoWebsite = firmo.website ? (/^https?:\/\//i.test(firmo.website) ? firmo.website : "https://" + firmo.website) : null
   const editInput = { width: "100%", padding: "6px 9px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }
   const editLabel = { fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3, display: "block" }
@@ -465,6 +469,7 @@ export default function PersonProfile() {
                     <div key={r[0]}>
                       <div style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>{r[0]}</div>
                       <div style={{ fontSize: 13, color: T.textPrimary }}>{r[1]}</div>
+                      <SourceChip meta={firmoSrc[r[2]]} />
                     </div>
                   )
                 })}
@@ -571,6 +576,20 @@ export default function PersonProfile() {
                 </label>
               </div>
             </div>
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid " + T.borderSoft }}>
+              <label style={editLabel}>Where did these company figures come from?</label>
+              <select disabled={busy} value={form._source || ""}
+                onChange={function(e){ const v = e.target.value; setForm(function(s){ return Object.assign({}, s, { _source: v }) }) }}
+                style={{ fontSize: 13, padding: "6px 10px", borderRadius: 6, border: "1px solid " + T.border, background: "white", fontFamily: "inherit", marginTop: 4, width: "100%", maxWidth: 320 }}>
+                <option value="">— leave sources as they are —</option>
+                {SOURCES.map(function(o){ return <option key={o.key} value={o.key}>{o.label}</option> })}
+              </select>
+              <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 5, lineHeight: 1.5 }}>
+                Applies only to the figures you actually changed here — revenue, employees, industry, finance team, ownership, website.
+                Anything you didn't touch keeps the source it already had, so re-saving this form can't relabel a number they told you as one you looked up.
+              </div>
+            </div>
+
             <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
               <button disabled={busy} onClick={function(){ saveEdit(p) }}
                 style={{ padding: "7px 16px", fontSize: 13, borderRadius: 6, border: "none", background: "#3b82f6", color: "white", cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: 600 }}>{busy ? "Saving…" : "Save"}</button>
@@ -975,6 +994,35 @@ function Chip({ active, color, label, count, onClick }) {
       {label}
       <span style={{ fontSize: 11, opacity: 0.85, fontWeight: 400 }}>{count}</span>
     </button>
+  )
+}
+
+function fmtSrcDate(iso) {
+  if (!iso) return ""
+  try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) } catch (e) { return "" }
+}
+
+// Provenance for one figure. A revenue a CFO told you and a revenue Sales
+// Navigator guessed read identically without this.
+function SourceChip({ meta }) {
+  if (!meta || !meta.source) {
+    return (
+      <div style={{ fontSize: 10, color: "#b45309", marginTop: 2 }} title="No source recorded — you can't tell where this came from">
+        ⚠ source unknown
+      </div>
+    )
+  }
+  const w = sourceWeight(meta.source)
+  const c = w === 3 ? { bg: "rgba(16,185,129,0.12)", fg: "#047857" }   // they told us
+          : w === 1 ? { bg: "#fef3c7", fg: "#92400e" }                  // a guess
+          :           { bg: "rgba(59,130,246,0.10)", fg: "#1d4ed8" }    // researched
+  return (
+    <div style={{ marginTop: 3, display: "flex", alignItems: "center", gap: 5 }}>
+      <span style={{ fontSize: 9.5, padding: "1px 6px", borderRadius: 4, background: c.bg, color: c.fg, fontWeight: 600 }}>
+        {sourceLabel(meta.source)}
+      </span>
+      {meta.at && <span style={{ fontSize: 9.5, color: "#9ca3af" }}>{fmtSrcDate(meta.at)}</span>}
+    </div>
   )
 }
 
