@@ -179,10 +179,13 @@ export default function EventsPage() {
                   <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                     {a.person_id ? <Link href={"/people/" + a.person_id} style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600, textDecoration: "none" }}>{a.name || "(no name)"}</Link> : <span style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600 }}>{a.name || "(no name)"}</span>}
+                    {a.linkedin_url ? <a href={a.linkedin_url} target="_blank" rel="noopener noreferrer" title="Open in LinkedIn" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: 3, background: "#0a66c2", color: "#fff", fontSize: 10, fontWeight: 700, textDecoration: "none", lineHeight: 1, flexShrink: 0 }}>in</a> : null}
+                    {a.linkedin_connected ? <span title="First-degree connection — you can DM them" style={{ fontSize: 10, fontWeight: 700, color: "#0a66c2", border: "1px solid #0a66c2", borderRadius: 999, padding: "1px 6px", lineHeight: 1.5 }}>1st</span> : null}
                     {a.company ? <span style={{ fontSize: 13, color: T.textSecondary, fontWeight: 500 }}>{a.company}</span> : null}
                   </div>
                   <div style={{ marginTop: 6 }}><PillTrack a={a} /></div>
-                  {a.notes || a.title ? <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 5 }}>{a.notes || a.title}</div> : null}
+                  {a.email ? <div style={{ marginTop: 5 }}><a href={"mailto:" + a.email} style={{ fontSize: 12, color: T.accent, textDecoration: "none" }}>{a.email}</a></div> : null}
+                  {a.notes || a.title ? <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 3 }}>{a.notes || a.title}</div> : null}
                   </div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-end", flexShrink: 0 }}>
