@@ -148,7 +148,7 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
       row("Check-in:", ev.check_in_instructions) +
       row("Breakfast:", ev.breakfast_note) +
       calBlock +
-      '<p style="margin:18px 0 22px"><a href="' + invite_url + '" style="background:#c39a4e;color:#121a3c;padding:12px 22px;border-radius:3px;text-decoration:none;font-weight:bold;font-family:Arial,sans-serif;font-size:14px">View details &amp; RSVP online &rarr;</a></p>' +
+      '<p style="font-size:14px;line-height:1.6;margin:0 0 22px"><a href="' + invite_url + '" style="color:#1a2550">View all the details online &rarr;</a></p>' +
       '<p style="font-size:14px;line-height:1.6;color:#54596b;margin:0">Looking forward to it,<br>Dalen Lawrence<br>Chapter Director, CFO Circle Los Angeles</p>' +
       '</div>'
     // POST /me/messages creates a DRAFT (not sent) so Dalen reviews before sending.
@@ -203,7 +203,7 @@ export async function PATCH(req) {
   const sb = serverClient()
   const { data: cur } = await sb
     .from("event_attendees")
-    .select("id, status, invite_token, event_id, people:person_id ( first_name, email ), events:event_id ( slug, name, event_date, venue_name, address_line, parking_instructions, check_in_instructions, breakfast_note )")
+    .select("id, status, invite_token, event_id, people:person_id ( first_name, email ), events:event_id ( slug, name, event_date, ends_at, venue_name, address_line, parking_instructions, check_in_instructions, breakfast_note )")
     .eq("id", id)
     .maybeSingle()
   if (!cur) return Response.json({ error: "not_found" }, { status: 404 })
