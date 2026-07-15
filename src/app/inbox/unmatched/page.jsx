@@ -293,7 +293,7 @@ function MergePanel({ item, onCancel, onDone }) {
               <div key={r.id} onClick={function(){ setSelected(r); setQuery(r.full_name) }}
                 style={{ padding: "8px 12px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid " + T.borderSoft }}>
                 <div style={{ fontWeight: 500 }}>{r.full_name}</div>
-                <div style={{ fontSize: 11, color: T.textTertiary }}>{r.email || "(no email)"} · {(r.roles || []).join(", ") || "(no role)"}</div>
+                <div style={{ fontSize: 11, color: T.textTertiary }}>{[r.email || "(no email)", r.company, (r.roles || []).join(", ") || "(no role)"].filter(Boolean).join(" · ")}</div>
               </div>
             )
           })}

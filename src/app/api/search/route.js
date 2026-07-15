@@ -62,6 +62,12 @@ export async function GET(request) {
       return {
         id: p.id,
         name: p.full_name || `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+        // full_name + email are what identify a person in a picker. They were
+        // selected from the DB but never returned, so the unmatched merge dialog
+        // rendered a blank name and "(no email)" for everyone — you couldn't tell
+        // which Cyrus you were about to attribute an email to.
+        full_name: p.full_name || `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+        email: p.email || null,
         title: p.title || null,
         company: p.company || null,
         type: rolesToType(p.roles),
