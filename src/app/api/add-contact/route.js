@@ -3,7 +3,7 @@ import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { corsResponse, handleOptions } from "@/lib/cors"
 import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
-import { getAccessToken } from "@/lib/microsoft-auth"
+import { graphFetch } from "@/lib/microsoft-auth"
 
 // GPT Action: add a contact (and optionally an Outlook contact).
 // CHANGED 2026-05-27: writes to unified `people` table instead of legacy
@@ -25,7 +25,6 @@ function contactTypeToRole(ct) {
 
 async function addToOutlook({ first_name, last_name, email, company, title, phone }) {
   try {
-    const accessToken = await getAccessToken()
     const outlookContact = {
       givenName: first_name,
       surname: last_name || "",
@@ -34,9 +33,9 @@ async function addToOutlook({ first_name, last_name, email, company, title, phon
       ...(title ? { jobTitle: title } : {}),
       ...(phone ? { businessPhones: [phone] } : {})
     }
-    const oRes = await fetch("https://graph.microsoft.com/v1.0/me/contacts", {
+    const oRes = await graphFetch("https://graph.microsoft.com/v1.0/me/contacts", {
       method: "POST",
-      headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(outlookContact)
     })
     if (!oRes.ok) {

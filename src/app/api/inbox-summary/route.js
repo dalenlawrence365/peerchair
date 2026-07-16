@@ -3,7 +3,7 @@ import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { corsResponse, handleOptions } from "@/lib/cors"
 import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
-import { getAccessToken } from "@/lib/microsoft-auth"
+import { graphFetch } from "@/lib/microsoft-auth"
 
 // Team members always surfaced regardless of PeerChair presence
 const TEAM_EMAILS = [
@@ -25,20 +25,16 @@ export async function GET(request) {
 
   const sb = serverClient()
 
-  // Get Microsoft access token (helper handles fetch + refresh + persist)
-  let accessToken
+  // Fetch recent inbox messages from Outlook
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
+  let msgRes
   try {
-    accessToken = await getAccessToken()
+    msgRes = await graphFetch(
+      `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$filter=receivedDateTime ge ${since}&$select=id,subject,receivedDateTime,from,isRead,bodyPreview&$orderby=receivedDateTime desc&$top=50`
+    )
   } catch (e) {
     return corsResponse({ error: e.message }, { status: 401 })
   }
-
-  // Fetch recent inbox messages from Outlook
-  const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
-  const msgRes = await fetch(
-    `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$filter=receivedDateTime ge ${since}&$select=id,subject,receivedDateTime,from,isRead,bodyPreview&$orderby=receivedDateTime desc&$top=50`,
-    { headers: { Authorization: "Bearer " + accessToken } }
-  )
 
   if (!msgRes.ok) {
     const err = await msgRes.text()

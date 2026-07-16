@@ -1,11 +1,8 @@
-import { getAccessToken } from "@/lib/microsoft-auth"
+import { graphFetch } from "@/lib/microsoft-auth"
 import { createClient }   from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
 
 export async function GET() {
-  let token
-  try { token = await getAccessToken() }
-  catch(e) { return Response.json({ error:e.message, needs_auth:true }, {status:401}) }
 
   const sb = serverClient()
 
@@ -16,13 +13,19 @@ export async function GET() {
 
   if (!Object.keys(byEmail).length) return Response.json({ emails:[], total:0, synced:0 })
 
-  const headers = { "Authorization":"Bearer "+token }
-
   // Fetch inbox + sent
-  const [inboxRes, sentRes] = await Promise.all([
-    fetch("https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$top=100&$orderby=receivedDateTime desc&$select=id,subject,bodyPreview,body,from,toRecipients,receivedDateTime,isRead,conversationId", {headers}),
-    fetch("https://graph.microsoft.com/v1.0/me/mailFolders/sentItems/messages?$top=100&$orderby=receivedDateTime desc&$select=id,subject,bodyPreview,body,from,toRecipients,receivedDateTime,conversationId", {headers})
-  ])
+  let inboxRes, sentRes
+  try {
+    ;[inboxRes, sentRes] = await Promise.all([
+      graphFetch("https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$top=100&$orderby=receivedDateTime desc&$select=id,subject,bodyPreview,body,from,toRecipients,receivedDateTime,isRead,conversationId"),
+      graphFetch("https://graph.microsoft.com/v1.0/me/mailFolders/sentItems/messages?$top=100&$orderby=receivedDateTime desc&$select=id,subject,bodyPreview,body,from,toRecipients,receivedDateTime,conversationId")
+    ])
+  }
+  catch(e) { return Response.json({ error:e.message, needs_auth:true }, {status:401}) }
+  if (!inboxRes.ok || !sentRes.ok) {
+    const bad = !inboxRes.ok ? inboxRes : sentRes
+    return Response.json({ error:"Outlook fetch failed: "+await bad.text() }, {status:500})
+  }
 
   const inbox = ((await inboxRes.json()).value||[]).map(m=>({...m,direction:"inbound"}))
   const sent  = ((await sentRes.json()).value||[]).map(m=>({...m,direction:"outbound"}))

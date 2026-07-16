@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
 import { corsResponse, handleOptions } from "@/lib/cors"
 import { verifyGptActionKey } from "@/lib/gpt-auth"
-import { getAccessToken } from "@/lib/microsoft-auth"
+import { graphFetch } from "@/lib/microsoft-auth"
 
 export async function OPTIONS() { return handleOptions() }
 
@@ -33,23 +33,22 @@ export async function GET(request) {
 
   const sb = serverClient()
 
-  // Get Microsoft access token (helper handles fetch + refresh + persist)
-  let accessToken
-  try {
-    accessToken = await getAccessToken()
-  } catch (e) {
-    return corsResponse({ error: e.message }, { status: 401 })
-  }
-
   // Calculate 8-25 day window in PST
   const now = new Date()
   const start = new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000)
   const end = new Date(now.getTime() + 25 * 24 * 60 * 60 * 1000)
 
-  const res = await fetch(
-    `https://graph.microsoft.com/v1.0/me/calendarview?startDateTime=${start.toISOString()}&endDateTime=${end.toISOString()}&$select=subject,start,end,location,bodyPreview&$orderby=start/dateTime&$top=100`,
-    { headers: { Authorization: "Bearer " + accessToken, Prefer: 'outlook.timezone="America/Los_Angeles"' } }
-  )
+  // graphFetch force-refreshes and retries once on 401 — a raw fetch here
+  // silently returned "no availability" whenever the stored token was stale.
+  let res
+  try {
+    res = await graphFetch(
+      `https://graph.microsoft.com/v1.0/me/calendarview?startDateTime=${start.toISOString()}&endDateTime=${end.toISOString()}&$select=subject,start,end,location,bodyPreview&$orderby=start/dateTime&$top=100`,
+      { headers: { Prefer: 'outlook.timezone="America/Los_Angeles"' } }
+    )
+  } catch (e) {
+    return corsResponse({ error: e.message }, { status: 401 })
+  }
 
   if (!res.ok) {
     const err = await res.text()

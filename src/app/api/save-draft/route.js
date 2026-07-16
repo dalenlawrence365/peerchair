@@ -3,7 +3,7 @@ import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { corsResponse, handleOptions } from "@/lib/cors"
 import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
-import { getAccessToken } from "@/lib/microsoft-auth"
+import { graphFetch } from "@/lib/microsoft-auth"
 
 const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024 // 3MB
 
@@ -27,14 +27,6 @@ export async function POST(request) {
   const { data: contact } = await sb.from("people").select("id, first_name, last_name, email").eq("id", contact_id).maybeSingle()
   if (!contact || !contact.email) {
     return corsResponse({ error: "Contact not found or has no email address" }, { status: 404 })
-  }
-
-  // Get Microsoft access token (helper handles fetch + refresh + persist)
-  let accessToken
-  try {
-    accessToken = await getAccessToken()
-  } catch (e) {
-    return corsResponse({ error: e.message }, { status: 401 })
   }
 
   // Resolve attachment if requested
@@ -82,14 +74,16 @@ export async function POST(request) {
     ...(attachments.length > 0 ? { attachments } : {})
   }
 
-  const draftRes = await fetch("https://graph.microsoft.com/v1.0/me/messages", {
-    method: "POST",
-    headers: {
-      "Authorization": "Bearer " + accessToken,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(message)
-  })
+  let draftRes
+  try {
+    draftRes = await graphFetch("https://graph.microsoft.com/v1.0/me/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(message)
+    })
+  } catch (e) {
+    return corsResponse({ error: e.message }, { status: 401 })
+  }
 
   if (!draftRes.ok) {
     const err = await draftRes.text()

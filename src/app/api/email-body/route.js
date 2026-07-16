@@ -3,7 +3,7 @@ import { verifyGptActionKey } from "@/lib/gpt-auth"
 import { corsResponse, handleOptions } from "@/lib/cors"
 import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
-import { getAccessToken } from "@/lib/microsoft-auth"
+import { graphFetch } from "@/lib/microsoft-auth"
 
 // Strip HTML and decode the most common entities, then collapse whitespace.
 function htmlToText(html) {
@@ -78,15 +78,13 @@ export async function GET(request) {
   // 2) Fallback: pull live from Microsoft Graph. This covers messages from
   //    unknown senders (not yet in PeerChair) and anything the sync hasn't
   //    picked up yet.
-  let accessToken
+  const graphUrl = `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(messageId)}?$select=id,subject,body,bodyPreview,from,toRecipients,receivedDateTime,sentDateTime,isRead,conversationId`
+  let res
   try {
-    accessToken = await getAccessToken()
+    res = await graphFetch(graphUrl)
   } catch (e) {
     return corsResponse({ error: e.message }, { status: 401 })
   }
-
-  const graphUrl = `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(messageId)}?$select=id,subject,body,bodyPreview,from,toRecipients,receivedDateTime,sentDateTime,isRead,conversationId`
-  const res = await fetch(graphUrl, { headers: { Authorization: "Bearer " + accessToken } })
 
   if (!res.ok) {
     const errText = await res.text()

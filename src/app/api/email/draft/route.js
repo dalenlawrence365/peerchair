@@ -1,4 +1,4 @@
-import { getAccessToken } from "@/lib/microsoft-auth"
+import { graphFetch } from "@/lib/microsoft-auth"
 import { createClient }   from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
 
@@ -16,9 +16,6 @@ export async function POST(request) {
   const { to, subject, html, text, contact_id, attachments } = await request.json()
   if (!subject || (!html && !text)) return Response.json({ error:"Missing subject or body" }, {status:400})
 
-  let token
-  try { token = await getAccessToken() }
-  catch(e) { return Response.json({ error:e.message, needs_auth:true }, {status:401}) }
 
   // Resolve attachments — fetch base64 for each named file
   const resolvedAttachments = []
@@ -54,11 +51,15 @@ export async function POST(request) {
     ...(resolvedAttachments.length > 0 ? { attachments: resolvedAttachments } : {})
   }
 
-  const res = await fetch("https://graph.microsoft.com/v1.0/me/messages", {
-    method:"POST",
-    headers:{ "Authorization":"Bearer "+token, "Content-Type":"application/json" },
-    body: JSON.stringify(message)
-  })
+  let res
+  try {
+    res = await graphFetch("https://graph.microsoft.com/v1.0/me/messages", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(message)
+    })
+  }
+  catch(e) { return Response.json({ error:e.message, needs_auth:true }, {status:401}) }
   if (!res.ok) return Response.json({ error:"Draft failed: "+await res.text() }, {status:500})
 
   const draft = await res.json()
