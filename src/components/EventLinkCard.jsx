@@ -7,13 +7,14 @@ export default function EventLinkCard({ personId }) {
   const [slug, setSlug] = useState("")
   const [msg, setMsg] = useState("")
   const [busy, setBusy] = useState(false)
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(function () {
     fetch("/api/events/upcoming").then(function (r) { return r.json() }).then(function (d) {
       const evs = (d && d.events) || []
       setEvents(evs)
       if (evs[0]) setSlug(evs[0].slug)
-    }).catch(function () {})
+    }).catch(function () {}).finally(function () { setLoaded(true) })
   }, [])
 
   function copyLink() {
@@ -35,7 +36,23 @@ export default function EventLinkCard({ personId }) {
       }).catch(function () { setMsg("Error.") }).finally(function () { setBusy(false) })
   }
 
-  if (!events.length) return null
+  // Was `return null`, which was right when this card sat loose on the profile —
+  // nothing to invite to, nothing to show. Now that it owns the Events tab,
+  // vanishing leaves a blank tab that reads as broken. Say why it's empty.
+  if (!loaded) {
+    return <div style={{ fontSize: 13, color: T.textTertiary, padding: "4px 2px" }}>Loading events…</div>
+  }
+  if (!events.length) {
+    return (
+      <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.textSecondary, marginBottom: 6 }}>Event invite</div>
+        <div style={{ fontSize: 12.5, color: T.textTertiary, lineHeight: 1.5 }}>
+          No upcoming events on the calendar. Once a session is scheduled, you can copy a
+          personal invite link or draft the invite email from here.
+        </div>
+      </div>
+    )
+  }
   return (
     <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: 16, marginBottom: 16 }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: T.textSecondary, marginBottom: 10 }}>Event invite</div>

@@ -611,9 +611,18 @@ export default function PersonProfile() {
         ...((p.roles || []).includes("sponsor_contact") ? [{ key: "discovery", label: "Discovery Call" }] : []),
         ...(p.provisors_member ? [{ key: "groups", label: "Groups" }] : []),
         ...(p.provisors_member ? [{ key: "meetings", label: "Meetings" }] : []),
+        { key: "events", label: "Events" },
       ]} />
 
-      <EventLinkCard personId={p.id} />
+      {/* TAB: Events — the invite tools.
+          This card used to render OUTSIDE every tab condition, so it sat on top
+          of whichever tab you opened and pushed Tags & Activity down the page.
+          It's only wanted when you're actually inviting someone, which is a
+          minority of profile visits. Behind its own tab it costs nothing until
+          it's needed, and Tags & Activity sits under its own header again. */}
+      {tab === "events" && (
+        <EventLinkCard personId={p.id} />
+      )}
 
       {/* TAB: To-dos */}
       {tab === "todos" && (
