@@ -38,7 +38,7 @@ export async function GET(req) {
 
   const { data: rows } = await sb
     .from("event_attendees")
-    .select("id, status, invited_at, responded_at, invite_token, person_id, notes, source, registered_at, approved_at, confirmation_drafted_at, confirmation_draft_weblink, confirmation_sent_at, people:person_id ( first_name, last_name, full_name, email, title, company, cfo_state, avatar_url, linkedin_url, linkedin_connected )")
+    .select("id, status, invited_at, responded_at, invite_token, person_id, notes, source, registered_at, approved_at, confirmation_drafted_at, confirmation_draft_weblink, confirmation_sent_at, confirmation_draft_error, confirmation_draft_error_at, people:person_id ( first_name, last_name, full_name, email, title, company, cfo_state, avatar_url, linkedin_url, linkedin_connected )")
     .eq("event_id", event.id)
     .order("invited_at", { ascending: true })
 
@@ -60,6 +60,8 @@ export async function GET(req) {
     approved_at: r.approved_at || null,
     confirmation_drafted_at: r.confirmation_drafted_at || null,
     confirmation_draft_weblink: r.confirmation_draft_weblink || null,
+    confirmation_draft_error: r.confirmation_draft_error || null,
+    confirmation_draft_error_at: r.confirmation_draft_error_at || null,
     confirmation_sent_at: r.confirmation_sent_at || null,
     invited_at: r.invited_at,
     responded_at: r.responded_at,
@@ -196,11 +198,81 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
   } catch (e) { console.error("invite draft failed:", e); return { ok: false, webLink: null, error: (e && e.message) || "exception" } }
 }
 
+// Draft the confirmation for one attendee AND record what happened, always.
+// The old flow only drafted on the status transition into approved and only when
+// an email was present, with no else — so "no email" and "Graph was down" both
+// looked identical to success: a Confirmed row with a blank confirmation column.
+// This persists every outcome so the roster can tell the truth, and is safe to
+// call again (regenerate) without any status change.
+async function draftConfirmationFor(sb, id) {
+  const { data: a } = await sb
+    .from("event_attendees")
+    .select("id, invite_token, approved_at, status, event_id, people:person_id ( first_name, email ), events:event_id ( slug, name, event_date, ends_at, venue_name, address_line, parking_instructions, check_in_instructions, breakfast_note )")
+    .eq("id", id)
+    .maybeSingle()
+  if (!a) return { ok: false, error: "not_found" }
+
+  const email = a.people?.email || null
+  const invite_url = a.events?.slug ? inviteUrl(a.events.slug, a.invite_token) : null
+
+  // No email is a real, nameable state — not a silent no-op. Record it so the
+  // roster shows "no email on file" and Dalen knows to handle it by hand.
+  if (!email) {
+    await sb.from("event_attendees").update({
+      confirmation_draft_error: "No email on file — can't draft a confirmation.",
+      confirmation_draft_error_at: new Date().toISOString(),
+    }).eq("id", id)
+    return { ok: false, drafted: false, error: "no_email" }
+  }
+  if (!invite_url) {
+    await sb.from("event_attendees").update({
+      confirmation_draft_error: "No event link (missing invite token or event slug).",
+      confirmation_draft_error_at: new Date().toISOString(),
+    }).eq("id", id)
+    return { ok: false, drafted: false, error: "no_invite_url" }
+  }
+
+  const d = await createInviteDraft({ to: email, first_name: a.people?.first_name, invite_url, event: a.events })
+  if (d.ok) {
+    await sb.from("event_attendees").update({
+      confirmation_drafted_at: new Date().toISOString(),
+      confirmation_draft_weblink: d.webLink || null,
+      confirmation_draft_error: null,
+      confirmation_draft_error_at: null,
+    }).eq("id", id)
+    return { ok: true, drafted: true, draft_url: d.webLink || null }
+  }
+
+  // Graph failed — persist the reason instead of dropping it on the floor.
+  await sb.from("event_attendees").update({
+    confirmation_draft_error: d.error || "Draft failed.",
+    confirmation_draft_error_at: new Date().toISOString(),
+  }).eq("id", id)
+  return { ok: false, drafted: false, error: d.error || "draft_failed" }
+}
+
 export async function PATCH(req) {
   let body = {}
   try { body = await req.json() } catch { return Response.json({ error: "bad_request" }, { status: 400 }) }
 
   const id = (body.id || "").toString().trim()
+
+  // Regenerate a confirmation draft on demand for an already-approved attendee.
+  // The auto-draft only runs on the transition INTO approved, so a Confirmed row
+  // whose draft never happened (no email at the time, Graph down, confirmed via
+  // a path that skipped it) had no way back. This is that way back, idempotent.
+  if (body.action === "regenerate_confirmation") {
+    if (!id) return Response.json({ error: "bad_request" }, { status: 400 })
+    const sbR = serverClient()
+    const { data: chk } = await sbR.from("event_attendees").select("id, approved_at, status").eq("id", id).maybeSingle()
+    if (!chk) return Response.json({ error: "not_found" }, { status: 404 })
+    if (!chk.approved_at && chk.status !== "Confirmed") {
+      return Response.json({ error: "not_approved", message: "Only an approved/confirmed attendee can have a confirmation draft." }, { status: 409 })
+    }
+    const r = await draftConfirmationFor(sbR, id)
+    return Response.json({ ok: r.ok, regenerated: true, drafted: !!r.drafted, draft_url: r.draft_url || null, error: r.error || null })
+  }
+
   // Mark the confirmation as sent (Dalen sent it from Outlook). Truthful roster state.
   if (body.mark_confirmation === "sent" || body.mark_confirmation === "unsent") {
     const sb2 = serverClient()
@@ -283,21 +355,17 @@ export async function PATCH(req) {
   const slug = cur.events?.slug
   const invite_url = slug ? inviteUrl(slug, cur.invite_token) : null
 
-  // On approval (Requested -> Invited), draft the invite email for review.
+  // On approval, ALWAYS attempt the confirmation draft and record the outcome —
+  // success, no-email, or Graph failure. No branch exits silently, so a Confirmed
+  // row can never again sit with a blank, unexplained confirmation column.
   let drafted = false
   let draft_url = null
   let draft_error = null
-  if (isApproval && cur.people?.email && invite_url) {
-    const d = await createInviteDraft({ to: cur.people.email, first_name: cur.people?.first_name, invite_url, event: cur.events })
-    drafted = d.ok
-    draft_url = d.webLink
-    draft_error = d.error || null
-    if (d.ok) {
-      await sb.from("event_attendees").update({
-        confirmation_drafted_at: new Date().toISOString(),
-        confirmation_draft_weblink: d.webLink || null,
-      }).eq("id", id)
-    }
+  if (isApproval) {
+    const r = await draftConfirmationFor(sb, id)
+    drafted = !!r.drafted
+    draft_url = r.draft_url || null
+    draft_error = r.ok ? null : (r.error || "draft_failed")
   }
 
   return Response.json({ ok: true, status: patch.status, invite_url, drafted, draft_url, draft_error, carried })

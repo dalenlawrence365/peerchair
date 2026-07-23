@@ -148,6 +148,25 @@ export default function EventsPage() {
       .finally(function () { setBusy(null) })
   }
 
+  function regenerateConfirmation(id, name) {
+    setBusy(id); setDraftUrl(null)
+    fetch("/api/events/attendees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id, action: "regenerate_confirmation" }) })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d && d.drafted) {
+          setMsg("Confirmation draft created for " + (name || "") + " — it's in your Outlook drafts.")
+          if (d.draft_url) setDraftUrl(d.draft_url)
+        } else if (d && d.error === "no_email") {
+          setMsg("Can't draft for " + (name || "") + " — no email on file. Add one on their profile, then regenerate.")
+        } else {
+          setMsg("Couldn't draft for " + (name || "") + (d && d.error ? " (" + d.error + ")" : "") + ".")
+        }
+        load()
+      })
+      .catch(function () { setMsg("Error regenerating draft."); })
+      .finally(function () { setBusy(null) })
+  }
+
   function markConfirmation(id, sent) {
     setBusy(id)
     fetch("/api/events/attendees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id, mark_confirmation: sent ? "sent" : "unsent" }) })
@@ -304,8 +323,17 @@ export default function EventsPage() {
                       <span style={{ fontSize: 11.5, fontWeight: 700, color: "#9a3412", background: "#ffe4d6", border: "1px solid #f4a273", borderRadius: 6, padding: "3px 8px", whiteSpace: "nowrap" }}>⚠ Confirmation NOT sent</span>
                       <div style={{ display: "flex", gap: 10 }}>
                         <a href={a.confirmation_draft_weblink} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#0a66c2", textDecoration: "none" }}>Open draft</a>
+                        <button disabled={busy === a.id} onClick={function () { regenerateConfirmation(a.id, a.name) }} style={{ background: "transparent", color: "#0a66c2", border: "none", fontSize: 12, cursor: "pointer" }}>Regenerate</button>
                         <button disabled={busy === a.id} onClick={function () { markConfirmation(a.id, true) }} style={{ background: "transparent", color: "#15803d", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Mark sent</button>
                       </div>
+                    </div>
+                  ) : (a.approved_at || a.status === "Confirmed") ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                      <span style={{ fontSize: 11.5, fontWeight: 700, color: "#991b1b", background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: 6, padding: "3px 8px", whiteSpace: "nowrap" }}>⚠ No confirmation draft</span>
+                      <div style={{ fontSize: 10.5, color: "#b91c1c", maxWidth: 200, textAlign: "right", lineHeight: 1.4 }}>
+                        {a.confirmation_draft_error || "Draft was never created — they have no venue details."}
+                      </div>
+                      <button disabled={busy === a.id} onClick={function () { regenerateConfirmation(a.id, a.name) }} style={{ background: "transparent", color: "#0a66c2", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}>Regenerate draft</button>
                     </div>
                   ) : null}
                   <button onClick={function () { copy(a.invite_url) }} style={btnLink}>Copy approved link</button>
