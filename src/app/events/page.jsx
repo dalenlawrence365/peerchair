@@ -62,6 +62,8 @@ export default function EventsPage() {
   const [msg, setMsg] = useState("")
   const [busy, setBusy] = useState(null)
   const [draftUrl, setDraftUrl] = useState(null)
+  // Which stat box is selected as a filter. null = show everything.
+  const [filter, setFilter] = useState(null)
 
   const load = useCallback(function () {
     fetch("/api/events/attendees?slug=" + SLUG)
@@ -193,9 +195,20 @@ export default function EventsPage() {
     return TERMINAL.indexOf(a.status) === -1 && !a.approved_at &&
       (!!a.registered_at || a.status === "Registered" || a.status === "Requested")
   }
-  const pending = all.filter(awaitingReview)
-  const roster = all.filter(function (a) { return !awaitingReview(a) })
+  // Each stat box is a filter. The predicate is chosen so the rows shown always
+  // equal the number on the box you clicked — "select seven confirmed, see seven".
+  const FILTERS = {
+    confirmed:   function (a) { return a.status === "Confirmed" },
+    registered:  awaitingReview,
+    invited:     function () { return true },   // "total on the list"
+    declined:    function (a) { return a.status === "Declined" },
+    unavailable: function (a) { return a.status === "Unavailable" },
+  }
+  const pred = filter && FILTERS[filter] ? FILTERS[filter] : null
+  const pending = all.filter(awaitingReview).filter(function (a) { return !pred || pred(a) })
+  const roster = all.filter(function (a) { return !awaitingReview(a) }).filter(function (a) { return !pred || pred(a) })
   const shortOf = Math.max(0, (ev.min_to_run || 8) - (c.confirmed || 0))
+  function toggleFilter(key) { setFilter(function (cur) { return cur === key ? null : key }) }
 
   return (
     <div style={{ padding: "28px 32px", maxWidth: 900 }}>
@@ -205,13 +218,23 @@ export default function EventsPage() {
         <a href={"/api/events/campaign-export?slug=" + SLUG + "&src=li-dm"} style={{ display: "inline-block", fontSize: 12.5, fontWeight: 600, color: T.accent, textDecoration: "none", border: "1px solid " + T.border, borderRadius: 8, padding: "7px 12px", background: "white" }}>↓ Export CFO campaign CSV (LinkedHelper)</a>
       </div>
 
-      {/* Counts */}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 22 }}>
-        <Stat label="Confirmed" value={c.confirmed || 0} sub={shortOf > 0 ? (shortOf + " short of " + (ev.min_to_run || 8)) : "at go threshold"} good={shortOf === 0} />
-        <Stat label="Registered" value={c.registered || 0} sub="awaiting your review" highlight={(c.registered || 0) > 0} />
-        <Stat label="Invited" value={c.invited || 0} sub="total on the list" />
-        <Stat label="Declined" value={c.declined || 0} sub="" />
-        <Stat label="Unavailable" value={c.unavailable || 0} sub="wants the next one" />
+      {/* Counts — click a box to filter the list below to just those names */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
+        <Stat label="Confirmed" value={c.confirmed || 0} sub={shortOf > 0 ? (shortOf + " short of " + (ev.min_to_run || 8)) : "at go threshold"} good={shortOf === 0} active={filter === "confirmed"} onClick={function () { toggleFilter("confirmed") }} />
+        <Stat label="Registered" value={c.registered || 0} sub="awaiting your review" highlight={(c.registered || 0) > 0} active={filter === "registered"} onClick={function () { toggleFilter("registered") }} />
+        <Stat label="Invited" value={c.invited || 0} sub="total on the list" active={filter === "invited"} onClick={function () { toggleFilter("invited") }} />
+        <Stat label="Declined" value={c.declined || 0} sub="" active={filter === "declined"} onClick={function () { toggleFilter("declined") }} />
+        <Stat label="Unavailable" value={c.unavailable || 0} sub="wants the next one" active={filter === "unavailable"} onClick={function () { toggleFilter("unavailable") }} />
+      </div>
+      <div style={{ minHeight: 20, marginBottom: 14 }}>
+        {filter ? (
+          <div style={{ fontSize: 12.5, color: T.textSecondary }}>
+            Showing <strong style={{ color: T.textPrimary }}>{filter}</strong> only — {pending.length + roster.length} {(pending.length + roster.length) === 1 ? "person" : "people"}.
+            <button onClick={function () { setFilter(null) }} style={{ marginLeft: 8, background: "transparent", border: "none", color: T.accent, fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: 0 }}>Clear filter ✕</button>
+          </div>
+        ) : (
+          <div style={{ fontSize: 11.5, color: T.textTertiary }}>Tip: click a box above to see just those names.</div>
+        )}
       </div>
 
       {waiting.length > 0 && (
@@ -295,7 +318,7 @@ export default function EventsPage() {
       {/* Roster */}
       <div style={{ fontSize: 13, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 10 }}>Invited &amp; confirmed</div>
       {roster.length === 0 ? (
-        <div style={{ color: T.textTertiary, fontSize: 14 }}>No one invited yet.</div>
+        <div style={{ color: T.textTertiary, fontSize: 14 }}>{filter ? "No one on the roster matches this filter." : "No one invited yet."}</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {roster.map(function (a) {
@@ -362,13 +385,20 @@ function Avatar({ name, src, size }) {
     fontSize: s * 0.36, fontWeight: 600, color: T.textSecondary })}>{initials}</div>
 }
 
-function Stat({ label, value, sub, highlight, good }) {
+function Stat({ label, value, sub, highlight, good, active, onClick }) {
+  const clickable = typeof onClick === "function"
   return (
-    <div style={{
-      background: highlight ? "#fffdf5" : T.cardBg,
-      border: "1px solid " + (highlight ? "#f1e2b8" : T.border),
-      borderRadius: 10, padding: "14px 18px", minWidth: 150,
-    }}>
+    <div onClick={onClick} role={clickable ? "button" : undefined} tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick() } } : undefined}
+      title={clickable ? (active ? "Showing only these — click to clear" : "Click to show only " + label) : undefined}
+      style={{
+        background: active ? "#eef4ff" : (highlight ? "#fffdf5" : T.cardBg),
+        border: "1px solid " + (active ? "#3b82f6" : (highlight ? "#f1e2b8" : T.border)),
+        boxShadow: active ? "0 0 0 2px rgba(59,130,246,0.25)" : "none",
+        borderRadius: 10, padding: "14px 18px", minWidth: 150,
+        cursor: clickable ? "pointer" : "default", userSelect: "none",
+        transition: "border-color .12s, box-shadow .12s, background .12s",
+      }}>
       <div style={{ fontSize: 26, fontWeight: 700, color: good ? T.success : T.textPrimary }}>{value}</div>
       <div style={{ fontSize: 12.5, fontWeight: 600, color: T.textSecondary, marginTop: 2 }}>{label}</div>
       {sub ? <div style={{ fontSize: 11.5, color: T.textTertiary, marginTop: 2 }}>{sub}</div> : null}
