@@ -31,6 +31,7 @@ export async function POST(req) {
   const ctype      = clean(body.company_type, 60)
   const linkedin   = clean(body.linkedin_url, 200)
   const src        = clean(body.src, 64) || null
+  const token      = clean(body.t, 128) || null
 
   if (!slug || !first_name || !email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return json({ error: "missing_fields" }, 400)
@@ -44,23 +45,38 @@ export async function POST(req) {
 
   const full_name = (first_name + " " + last_name).trim()
 
-  // Match an existing person on strong signals only: email, LinkedIn, or name+company.
-  // Most LinkedIn-sourced records have no email and registrants rarely paste a
-  // LinkedIn URL, so name+company is the realistic catch — and every match also
-  // backfills the email/LinkedIn we just captured onto the existing record.
+  // Match, strongest signal first.
+  //
+  // 1) The tracking token. If they arrived on the personal link we sent them,
+  //    that token IS their identity — no guessing. This is the signal the flow
+  //    used to throw away: Laura Gallant registered on her own tracked link and
+  //    was duplicated anyway because the token was ignored and a trailing slash
+  //    ("lmgallant" vs "lmgallant/") defeated the LinkedIn string compare.
+  //
+  // 2) find_existing_person — the same normalizing matcher the ProVisors intake
+  //    uses. It canonicalizes the LinkedIn slug (drops www / trailing slash /
+  //    case) and strips company suffixes ("YONDR" == "Yondr, Inc."), then falls
+  //    back to email and name+company. This is where "compare companies" already
+  //    lives; the registration path just wasn't calling it.
   let matched = null
-  {
-    const { data } = await sb.from("people").select("id, email, linkedin_url").ilike("email", email).maybeSingle()
-    if (data) matched = data
+  if (token) {
+    const { data: tok } = await sb.from("track_tokens").select("person_id").eq("token", token).maybeSingle()
+    if (tok && tok.person_id) {
+      const { data } = await sb.from("people").select("id, email, linkedin_url").eq("id", tok.person_id).maybeSingle()
+      if (data) matched = data
+    }
   }
-  if (!matched && linkedin) {
-    const { data } = await sb.from("people").select("id, email, linkedin_url").ilike("linkedin_url", linkedin).maybeSingle()
-    if (data) matched = data
-  }
-  if (!matched && company) {
-    const { data } = await sb.from("people").select("id, email, linkedin_url")
-      .ilike("first_name", first_name).ilike("last_name", last_name).ilike("company", company).limit(2)
-    if (data && data.length === 1) matched = data[0]
+  if (!matched) {
+    const { data: pid } = await sb.rpc("find_existing_person", {
+      p_linkedin_url: linkedin || null,
+      p_email: email || null,
+      p_full_name: full_name || null,
+      p_company: company || null,
+    })
+    if (pid) {
+      const { data } = await sb.from("people").select("id, email, linkedin_url").eq("id", pid).maybeSingle()
+      if (data) matched = data
+    }
   }
 
   let person_id = null

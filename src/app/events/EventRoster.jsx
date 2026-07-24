@@ -77,6 +77,10 @@ export default function EventRoster({ slug }) {
   const [q, setQ] = useState("")
   // All events, newest first, for the date switcher at the top of the page.
   const [allEvents, setAllEvents] = useState([])
+  // In-page duplicate merge: which pending row is picking a record to merge into.
+  const [mergeFor, setMergeFor] = useState(null)     // attendee id
+  const [mergeQ, setMergeQ] = useState("")
+  const [mergeResults, setMergeResults] = useState([])
 
   const load = useCallback(function () {
     setLoading(true)
@@ -239,6 +243,34 @@ export default function EventRoster({ slug }) {
   const shortOf = Math.max(0, (ev.min_to_run || 8) - (c.confirmed || 0))
   function toggleFilter(key) { setFilter(function (cur) { return cur === key ? null : key }) }
 
+  useEffect(function () {
+    if (!mergeFor || mergeQ.trim().length < 2) { setMergeResults([]); return }
+    var alive = true
+    var id = setTimeout(function () {
+      fetch("/api/people/search?q=" + encodeURIComponent(mergeQ.trim()), { cache: "no-store" })
+        .then(function (r) { return r.json() })
+        .then(function (d) { if (alive) setMergeResults((d && d.results) || []) })
+        .catch(function () {})
+    }, 200)
+    return function () { alive = false; clearTimeout(id) }
+  }, [mergeFor, mergeQ])
+
+  // Merge the registrant (loser) INTO the existing record you picked (winner):
+  // the registration and history move to the real person, the duplicate is gone.
+  function doMerge(loserPersonId, winner) {
+    if (!loserPersonId || !winner) return
+    if (!confirm('Merge this registration into "' + (winner.name || "that record") + '"?\n\nThe registration and any history move onto the existing person, and the duplicate is deleted.')) return
+    setBusy(mergeFor)
+    fetch("/api/people/merge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ winner_id: winner.id, loser_id: loserPersonId }) })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d && d.ok) { setMsg("Merged into " + (winner.name || "the existing record") + "."); setMergeFor(null); setMergeQ(""); setMergeResults([]); load() }
+        else { setMsg("Merge failed" + (d && d.error ? " (" + d.error + ")" : "") + ".") }
+      })
+      .catch(function () { setMsg("Merge failed.") })
+      .finally(function () { setBusy(null) })
+  }
+
   return (
     <div style={{ padding: "28px 32px", maxWidth: 900 }}>
       {/* Date switcher — jump between events, newest first. Only shown once
@@ -363,12 +395,49 @@ export default function EventRoster({ slug }) {
                     <div style={{ marginTop: 8 }}><PillTrack a={a} /></div>
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap", justifyContent: "flex-end" }}>
                     <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Invited", a.name) }} style={btnPrimary}>Approve</button>
                     <button disabled={busy === a.id} onClick={function () { markUnavailable(a) }} style={btnGhost}>Can't make it</button>
                     <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Declined", a.name) }} style={btnGhost}>Decline</button>
+                    {a.person_id ? (
+                      <button disabled={busy === a.id}
+                        onClick={function () { setMergeFor(mergeFor === a.id ? null : a.id); setMergeQ(""); setMergeResults([]) }}
+                        style={/Possible duplicate/i.test(a.notes || "") ? btnDupe : btnGhost}
+                        title="This registrant is already in PeerChair under another record — merge them">
+                        {/Possible duplicate/i.test(a.notes || "") ? "⚠ Merge duplicate" : "Merge…"}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
+
+                {mergeFor === a.id ? (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid " + T.borderSoft }}>
+                    <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 6 }}>
+                      Find the record <strong>{a.name}</strong> already exists under — the registration will move onto it.
+                    </div>
+                    <input autoFocus value={mergeQ} onChange={function (e) { setMergeQ(e.target.value) }}
+                      placeholder="Search by name, company, or email…"
+                      style={{ width: "100%", maxWidth: 360, boxSizing: "border-box", padding: "8px 12px", fontSize: 13, fontFamily: "inherit", border: "1px solid " + T.border, borderRadius: 8, background: "white" }} />
+                    {mergeResults.length ? (
+                      <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4, maxWidth: 480 }}>
+                        {mergeResults.filter(function (r) { return r.id !== a.person_id }).map(function (r) {
+                          return (
+                            <div key={r.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, background: "white", border: "1px solid " + T.border, borderRadius: 8, padding: "8px 11px" }}>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: T.textPrimary }}>{r.name}</div>
+                                <div style={{ fontSize: 11.5, color: T.textTertiary }}>{[r.email, r.company, (r.roles || []).join(", ")].filter(Boolean).join(" · ") || "no details"}</div>
+                              </div>
+                              <button disabled={busy === a.id} onClick={function () { doMerge(a.person_id, r) }}
+                                style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, padding: "6px 12px", borderRadius: 7, border: "none", background: "#16a34a", color: "white", cursor: "pointer", fontFamily: "inherit" }}>
+                                Merge into this
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (mergeQ.trim().length >= 2 ? <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 8 }}>No matches.</div> : null)}
+                  </div>
+                ) : null}
               </div>
             )
           })}
@@ -468,4 +537,5 @@ function Stat({ label, value, sub, highlight, good, active, onClick }) {
 
 const btnPrimary = { background: "#16a34a", color: "white", border: "none", fontSize: 13, fontWeight: 600, padding: "8px 16px", borderRadius: 7, cursor: "pointer" }
 const btnGhost = { background: "white", color: "#475569", border: "1px solid #e7e8ec", fontSize: 13, fontWeight: 500, padding: "8px 14px", borderRadius: 7, cursor: "pointer" }
+const btnDupe = { background: "#fffbeb", color: "#92400e", border: "1px solid #fcd34d", fontSize: 13, fontWeight: 600, padding: "8px 14px", borderRadius: 7, cursor: "pointer" }
 const btnLink = { background: "transparent", color: "#2563eb", border: "none", fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }
