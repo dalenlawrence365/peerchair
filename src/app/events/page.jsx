@@ -64,6 +64,9 @@ export default function EventsPage() {
   const [draftUrl, setDraftUrl] = useState(null)
   // Which stat box is selected as a filter. null = show everything.
   const [filter, setFilter] = useState(null)
+  // Free-text search over the roster — 57+ names is too many to scroll to find
+  // the one person a DM just told you can't make it.
+  const [q, setQ] = useState("")
 
   const load = useCallback(function () {
     fetch("/api/events/attendees?slug=" + SLUG)
@@ -205,8 +208,15 @@ export default function EventsPage() {
     unavailable: function (a) { return a.status === "Unavailable" },
   }
   const pred = filter && FILTERS[filter] ? FILTERS[filter] : null
-  const pending = all.filter(awaitingReview).filter(function (a) { return !pred || pred(a) })
-  const roster = all.filter(function (a) { return !awaitingReview(a) }).filter(function (a) { return !pred || pred(a) })
+  const needle = q.trim().toLowerCase()
+  const matches = function (a) {
+    if (!needle) return true
+    return [a.name, a.company, a.email, a.title].some(function (v) {
+      return v && String(v).toLowerCase().indexOf(needle) !== -1
+    })
+  }
+  const pending = all.filter(awaitingReview).filter(function (a) { return (!pred || pred(a)) && matches(a) })
+  const roster = all.filter(function (a) { return !awaitingReview(a) }).filter(function (a) { return (!pred || pred(a)) && matches(a) })
   const shortOf = Math.max(0, (ev.min_to_run || 8) - (c.confirmed || 0))
   function toggleFilter(key) { setFilter(function (cur) { return cur === key ? null : key }) }
 
@@ -284,10 +294,29 @@ export default function EventsPage() {
 
       {msg ? <div style={{ background: "#fffdf5", border: "1px solid #f1e2b8", color: T.textPrimary, borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 18 }}>{msg}{draftUrl ? <a href={draftUrl} target="_blank" rel="noopener" style={{ color: T.accent, marginLeft: 10, fontWeight: 600, textDecoration: "none" }}>Open draft →</a> : null}</div> : null}
 
+      {/* Search — find one person in a long roster without scrolling */}
+      <div style={{ marginBottom: 18, position: "relative", maxWidth: 340 }}>
+        <input
+          value={q}
+          onChange={function (e) { setQ(e.target.value) }}
+          placeholder="Search this event by name, company, or email…"
+          style={{ width: "100%", boxSizing: "border-box", padding: "8px 30px 8px 12px", fontSize: 13, fontFamily: "inherit", border: "1px solid " + T.border, borderRadius: 8, background: "white", color: T.textPrimary }}
+        />
+        {q ? (
+          <button onClick={function () { setQ("") }} title="Clear search"
+            style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: T.textTertiary, fontSize: 14, cursor: "pointer", lineHeight: 1, padding: 0 }}>✕</button>
+        ) : null}
+        {needle ? (
+          <div style={{ fontSize: 11.5, color: T.textTertiary, marginTop: 5 }}>
+            {pending.length + roster.length} {(pending.length + roster.length) === 1 ? "match" : "matches"} for &ldquo;{q.trim()}&rdquo;
+          </div>
+        ) : null}
+      </div>
+
       {/* Pending */}
       <div style={{ fontSize: 13, fontWeight: 600, color: T.brass || "#b7791f", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 10 }}>Pending requests</div>
       {pending.length === 0 ? (
-        <div style={{ color: T.textTertiary, fontSize: 14, marginBottom: 26 }}>No requests waiting. New self-registrations land here.</div>
+        <div style={{ color: T.textTertiary, fontSize: 14, marginBottom: 26 }}>{needle ? "No pending requests match your search." : "No requests waiting. New self-registrations land here."}</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 30 }}>
           {pending.map(function (a) {
