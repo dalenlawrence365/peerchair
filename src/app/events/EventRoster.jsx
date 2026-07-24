@@ -92,6 +92,19 @@ export default function EventRoster({ slug }) {
 
   useEffect(function () { load() }, [load])
 
+  useEffect(function () {
+    if (!mergeFor || mergeQ.trim().length < 2) { setMergeResults([]); return }
+    var alive = true
+    var id = setTimeout(function () {
+      fetch("/api/people/search?q=" + encodeURIComponent(mergeQ.trim()), { cache: "no-store" })
+        .then(function (r) { return r.json() })
+        .then(function (d) { if (alive) setMergeResults((d && d.results) || []) })
+        .catch(function () {})
+    }, 200)
+    return function () { alive = false; clearTimeout(id) }
+  }, [mergeFor, mergeQ])
+
+
   // The date switcher's options — every event, newest first.
   useEffect(function () {
     fetch("/api/events/all", { cache: "no-store" })
@@ -242,18 +255,6 @@ export default function EventRoster({ slug }) {
   const roster = all.filter(function (a) { return !awaitingReview(a) }).filter(function (a) { return (!pred || pred(a)) && matches(a) })
   const shortOf = Math.max(0, (ev.min_to_run || 8) - (c.confirmed || 0))
   function toggleFilter(key) { setFilter(function (cur) { return cur === key ? null : key }) }
-
-  useEffect(function () {
-    if (!mergeFor || mergeQ.trim().length < 2) { setMergeResults([]); return }
-    var alive = true
-    var id = setTimeout(function () {
-      fetch("/api/people/search?q=" + encodeURIComponent(mergeQ.trim()), { cache: "no-store" })
-        .then(function (r) { return r.json() })
-        .then(function (d) { if (alive) setMergeResults((d && d.results) || []) })
-        .catch(function () {})
-    }, 200)
-    return function () { alive = false; clearTimeout(id) }
-  }, [mergeFor, mergeQ])
 
   // Merge the registrant (loser) INTO the existing record you picked (winner):
   // the registration and history move to the real person, the duplicate is gone.
