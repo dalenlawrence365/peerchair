@@ -54,7 +54,21 @@ export default function HealthPage() {
         <button onClick={load} style={{ fontSize: 12, padding: "7px 14px", borderRadius: 6, border: "1px solid " + T.border, background: "white", cursor: "pointer", fontFamily: "inherit" }}>↻ Re-run audit</button>
       </div>
       <div style={{ fontSize: 13, color: T.textTertiary, marginBottom: 22 }}>
-        {data.totals.people.toLocaleString()} people · {data.totals.contacts.toLocaleString()} contacts · {data.totals.pool.toLocaleString()} pool · {totalIssues} issue type{totalIssues === 1 ? "" : "s"} found, {cleanCount} clean
+        {(() => {
+          // The audit RPC only guarantees `people`; `contacts`/`pool` were dropped
+          // when Contact stopped being a role. Reading .toLocaleString() off a
+          // missing key threw and took the whole page down. Render only the
+          // totals that are actually present.
+          const t = data.totals || {}
+          const num = function (v) { return typeof v === "number" ? v.toLocaleString() : null }
+          const parts = []
+          if (num(t.people) != null) parts.push(num(t.people) + " people")
+          if (num(t.contacts) != null) parts.push(num(t.contacts) + " contacts")
+          if (num(t.pool) != null) parts.push(num(t.pool) + " pool")
+          parts.push(totalIssues + " issue type" + (totalIssues === 1 ? "" : "s") + " found")
+          parts.push(cleanCount + " clean")
+          return parts.join(" · ")
+        })()}
       </div>
 
       {fixMsg && (
