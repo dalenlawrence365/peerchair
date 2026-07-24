@@ -200,6 +200,57 @@ export async function POST(req, { params }) {
     return Response.json({ success: true, action: "ignored" })
   }
 
+  // PERMANENTLY IGNORE (blacklist the sender). Unlike "ignore" — which only
+  // hides this one message and leaves the next one to land in the queue — this
+  // writes an address-level rule so every future message from this sender is
+  // routed out on arrival, and sweeps anything already queued from them. The
+  // rule is saved on the Blocked list, where it can be un-blocked. Nothing is
+  // deleted; blocked mail lives under Filed, exactly like other ignored mail.
+  if (action === "block_sender") {
+    if (!row.from_address) return Response.json({ error: "This row has no sender address to block." }, { status: 400 })
+
+    // Guard: never let a blanket block hide a real person's mail. (A blacklist
+    // is address-level anyway, but be explicit — this is the mhenderson@ lesson.)
+    const { data: known } = await sb.from("person_emails")
+      .select("email").eq("email", row.from_address).maybeSingle()
+    if (known) {
+      return Response.json({
+        error: row.from_address + " belongs to someone already in PeerChair. "
+             + "Blocking them would hide a real contact's mail — merge or remove that record instead."
+      }, { status: 409 })
+    }
+
+    const label = (row.from_name && row.from_name !== row.from_address)
+      ? row.from_name + " (" + row.from_address + ")"
+      : row.from_address
+
+    const { error: ruleErr } = await sb.from("sender_rules").upsert({
+      pattern: row.from_address,
+      match_type: "address",
+      label,
+      disposition: "ignore",
+      is_blacklist: true,
+      active: true,
+      notes: "Permanently ignored from the inbox on " + new Date().toISOString().slice(0, 10) + ".",
+    }, { onConflict: "match_type,pattern" })
+    if (ruleErr) return Response.json({ error: "Block failed: " + ruleErr.message }, { status: 500 })
+
+    // Sweep everything still in the queue from this sender.
+    const { data: swept, error: sErr } = await sb.from("unmatched_communications")
+      .update({
+        status: "filed",
+        filed_label: label,
+        filed_disposition: "ignore",
+        filed_at: new Date().toISOString(),
+      })
+      .eq("from_address", row.from_address)
+      .in("status", ["new"])
+      .select("id")
+    if (sErr) return Response.json({ error: sErr.message }, { status: 500 })
+
+    return Response.json({ success: true, action: "blocked", sender: row.from_address, swept: (swept || []).length })
+  }
+
   if (action === "merge_into_existing") {
     const personId = body.person_id
     if (!personId) return Response.json({ error: "person_id required" }, { status: 400 })

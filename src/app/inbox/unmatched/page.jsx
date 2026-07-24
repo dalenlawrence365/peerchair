@@ -45,6 +45,19 @@ export default function UnmatchedInboxPage() {
   const [err, setErr] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
   const [showRules, setShowRules] = useState(false)
+  const [blocked, setBlocked] = useState(null)   // the saved blacklist
+
+  function loadBlocked() {
+    fetch("/api/inbox/blocklist", { cache: "no-store" })
+      .then(function(r){ return r.json() })
+      .then(function(j){ setBlocked((j && j.blocked) || []) })
+      .catch(function(){ setBlocked([]) })
+  }
+  function unblock(pattern) {
+    if (!confirm("Un-block " + pattern + "? Their mail will land in your queue again.")) return
+    fetch("/api/inbox/blocklist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pattern: pattern, action: "unblock" }) })
+      .then(function(r){ return r.json() }).then(function(){ loadBlocked() })
+  }
 
   async function load() {
     try {
@@ -55,8 +68,10 @@ export default function UnmatchedInboxPage() {
       setData(j)
     } catch (e) { setErr(e.message) }
   }
-  useEffect(function(){ load() }, [status, disposition])
+  useEffect(function(){ if (status !== "blocked") load() }, [status, disposition])
   useEffect(function(){ if (status !== "filed") setDisposition(null) }, [status])
+  useEffect(function(){ if (status === "blocked") loadBlocked() }, [status])
+  useEffect(function(){ loadBlocked() }, [])   // prime the Blocked tab's count on mount
 
   return (
     <main style={{ padding: "32px 36px", maxWidth: 980 }}>
@@ -73,10 +88,11 @@ export default function UnmatchedInboxPage() {
           { key: "merged_into_existing", label: "Merged" },
           { key: "archived", label: "Archived" },
           { key: "ignored", label: "Ignored" },
+          { key: "blocked", label: "Blocked" },
           { key: "all", label: "All" },
         ].map(function(t){
           const isActive = status === t.key
-          const count = data && data.counts ? (data.counts[t.key] || 0) : 0
+          const count = t.key === "blocked" ? (blocked ? blocked.length : "") : (data && data.counts ? (data.counts[t.key] || 0) : 0)
           return (
             <button key={t.key} onClick={function(){ setStatus(t.key) }}
               style={{
@@ -89,7 +105,7 @@ export default function UnmatchedInboxPage() {
                 marginBottom: -1,
               }}>
               {t.label}
-              {data && <span style={{ marginLeft: 6, fontSize: 11, color: T.textTertiary }}>{count}</span>}
+              {(t.key === "blocked" ? blocked !== null : !!data) && <span style={{ marginLeft: 6, fontSize: 11, color: T.textTertiary }}>{count}</span>}
             </button>
           )
         })}
@@ -149,8 +165,38 @@ export default function UnmatchedInboxPage() {
         </div>
       )}
 
+      {status === "blocked" ? (
+        <div>
+          <div style={{ fontSize: 12.5, color: T.textSecondary, marginBottom: 14, lineHeight: 1.5 }}>
+            Senders you\u2019ve <strong>permanently ignored</strong>. Their mail is routed straight out of your queue \u2014 not deleted, just never shown. Un-block anyone to start seeing them again.
+          </div>
+          {blocked === null ? (
+            <div style={{ color: T.textTertiary, fontSize: 13 }}>Loading\u2026</div>
+          ) : blocked.length === 0 ? (
+            <div style={{ color: T.textTertiary, fontSize: 13, padding: "28px 0", textAlign: "center" }}>No blocked senders. Use \u201cPermanently ignore\u201d on a message to add one.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {blocked.map(function(b){
+                return (
+                  <div key={b.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: "11px 14px" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: T.textPrimary }}>{b.label || b.pattern}</div>
+                      <div style={{ fontSize: 11.5, color: T.textTertiary, marginTop: 2 }}>
+                        <code>{b.pattern}</code>{b.created_at ? "  \u00b7  blocked " + new Date(b.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : ""}
+                      </div>
+                    </div>
+                    <button onClick={function(){ unblock(b.pattern) }}
+                      style={btnStyle("white", "#0a66c2", "#bfdbfe")}>Un-block</button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      ) : (<>
+
       {err && <div style={{ color: "#dc2626", fontSize: 13 }}>Error: {err}</div>}
-      {!data && !err && <div style={{ color: T.textTertiary, fontSize: 13 }}>Loading…</div>}
+      {!data && !err && <div style={{ color: T.textTertiary, fontSize: 13 }}>Loading\u2026</div>}
       {data && data.items.length === 0 && (
         <div style={{ color: T.textTertiary, fontSize: 13, padding: "32px 0", textAlign: "center" }}>
           {status === "new" ? "Nothing needs you. Inbox is clean."
@@ -168,6 +214,7 @@ export default function UnmatchedInboxPage() {
           />
         )
       })}
+      </>)}
     </main>
   )
 }
@@ -248,6 +295,18 @@ function UnmatchedRow({ item, isExpanded, onToggle, onActioned }) {
               await onActioned()
             }}
               style={btnStyle("transparent", T.textSecondary)}>Ignore</button>
+            <button onClick={async function(){
+              if (!confirm("Permanently ignore " + (item.from_address || "this sender") + "?\n\nEvery future message from them is routed straight out of your queue, and anything queued from them now is filed. They go on your Blocked list, where you can un-block them anytime.")) return
+              const r = await fetch(`/api/inbox/unmatched/${item.id}/action`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "block_sender" })
+              })
+              const j = await r.json().catch(()=>({}))
+              if (!r.ok) { alert("Failed: " + (j.error || r.status)); return }
+              alert("Blocked " + j.sender + "." + (j.swept ? " " + j.swept + " queued message" + (j.swept===1?"":"s") + " filed." : ""))
+              await onActioned()
+            }}
+              style={btnStyle("white", "#7c2d12", "#fed7aa")}>Permanently ignore</button>
             <button onClick={async function(){
               const r = await fetch(`/api/inbox/unmatched/${item.id}/action`, {
                 method: "POST", headers: { "Content-Type": "application/json" },
