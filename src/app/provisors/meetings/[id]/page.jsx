@@ -34,7 +34,7 @@ const STATS = [
   { key: "connected", label: "Connected", color: "#15803d", tint: "rgba(21,128,61,0.09)" },
   { key: "notconnected", label: "Not connected", color: "#b45309", tint: "rgba(180,83,9,0.09)" },
   { key: "nourl", label: "No LinkedIn URL", color: "#6b7280", tint: "rgba(107,114,128,0.10)" },
-  { key: "connsent", label: "Connection sent", color: "#0a66c2", tint: "rgba(10,102,194,0.10)" },
+  { key: "connsent", label: "Request pending", color: "#0a66c2", tint: "rgba(10,102,194,0.10)" },
 ]
 
 function Face({ p }) {
@@ -67,11 +67,11 @@ export default function MeetingDetail() {
 
   const { meeting, attendees } = data
   const counts = { all: attendees.length, connected: 0, notconnected: 0, nourl: 0, connsent: 0 }
-  for (const p of attendees) { counts[bucketOf(p)]++; if (p.connection_sent_at) counts.connsent++ }
+  for (const p of attendees) { counts[bucketOf(p)]++; if (p.connection_sent_at && p.linkedin_connected !== true) counts.connsent++ }
   const needle = q.trim().toLowerCase()
   const byFilter =
     filter === "all" ? attendees
-    : filter === "connsent" ? attendees.filter(p => p.connection_sent_at)
+    : filter === "connsent" ? attendees.filter(p => p.connection_sent_at && p.linkedin_connected !== true)
     : attendees.filter(p => bucketOf(p) === filter)
   const filtered = needle
     ? byFilter.filter(p => (p.full_name || "").toLowerCase().includes(needle) || (p.company || "").toLowerCase().includes(needle))
