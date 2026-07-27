@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic"
 //
 // Returns: CSV file with columns:
 //   Profile URL, First Name, Last Name, Company, Position, Location, Tags,
-//   brochure_url, assessment_url, meeting_url
+//   brochure_url, assessment_url, meeting_url, event_url
 //
 // The three link columns use snake_case headers deliberately: LinkedHelper turns
 // CSV column headers into custom template variable names, and a name with spaces
@@ -154,6 +154,15 @@ export async function POST(request) {
   }
 
   const SITE = "https://la-cfo.com"
+  // Newest published event, so event_url always points at the current one
+  // instead of a hardcoded slug that goes stale the day after the event.
+  let eventSlug = null
+  {
+    const { data: ev } = await sb.from("events")
+      .select("slug").eq("published", true)
+      .order("event_date", { ascending: false }).limit(1).maybeSingle()
+    eventSlug = ev ? ev.slug : null
+  }
   function trackedUrl(path, personId) {
     const tok = tokenByPerson.get(personId)
     if (!tok) return ""
@@ -162,7 +171,7 @@ export async function POST(request) {
   }
 
   // Build CSV
-  const headers = ["Profile URL","First Name","Last Name","Company","Position","Location","Tags","brochure_url","assessment_url","meeting_url"]
+  const headers = ["Profile URL","First Name","Last Name","Company","Position","Location","Tags","brochure_url","assessment_url","meeting_url","event_url"]
   const lines = [headers.join(",")]
   selected.forEach(p => {
     const fn = p.first_name || ((p.full_name || "").split(" ")[0] || "")
@@ -177,7 +186,8 @@ export async function POST(request) {
       csvEscape(batchLabel),
       csvEscape(trackedUrl("/overview", p.id)),
       csvEscape(trackedUrl("/assessment", p.id)),
-      csvEscape(trackedUrl("/meeting", p.id))
+      csvEscape(trackedUrl("/meeting", p.id)),
+      csvEscape(eventSlug ? trackedUrl("/events/" + eventSlug, p.id) : "")
     ].join(","))
   })
   const csv = lines.join("\n") + "\n"
