@@ -462,6 +462,7 @@ export default function EventRoster({ slug }) {
                     {a.linkedin_url ? <a href={a.linkedin_url} target="_blank" rel="noopener noreferrer" title="Open in LinkedIn" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: 3, background: "#0a66c2", color: "#fff", fontSize: 10, fontWeight: 700, textDecoration: "none", lineHeight: 1, flexShrink: 0 }}>in</a> : null}
                     {a.linkedin_connected ? <span title="First-degree connection — you can DM them" style={{ fontSize: 10, fontWeight: 700, color: "#0a66c2", border: "1px solid #0a66c2", borderRadius: 999, padding: "1px 6px", lineHeight: 1.5 }}>1st</span> : null}
                     {a.company ? <span style={{ fontSize: 13, color: T.textSecondary, fontWeight: 500 }}>{a.company}</span> : null}
+                    {["Unavailable", "Declined", "No-show", "Attended"].indexOf(a.status) !== -1 ? statusChip(a.status) : null}
                   </div>
                   <div style={{ marginTop: 6 }}><PillTrack a={a} /></div>
                   {a.email ? <div style={{ marginTop: 5 }}><a href={"mailto:" + a.email} style={{ fontSize: 12, color: T.accent, textDecoration: "none" }}>{a.email}</a></div> : null}
@@ -489,9 +490,19 @@ export default function EventRoster({ slug }) {
                       <button disabled={busy === a.id} onClick={function () { regenerateConfirmation(a.id, a.name) }} style={{ background: "transparent", color: "#0a66c2", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}>Regenerate draft</button>
                     </div>
                   ) : null}
-                  <button onClick={function () { copy(a.invite_url) }} style={btnLink}>Copy approved link</button>
-                  {!a.approved_at && a.status !== "No-show" && a.status !== "Declined" ? <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Confirmed", a.name) }} title="They told you they're coming — confirm them and draft their details email" style={{ background: "transparent", color: "#15803d", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Mark confirmed</button> : null}
-                  {a.status !== "No-show" ? <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "No-show", a.name) }} style={{ background: "transparent", color: "#b3452f", border: "none", fontSize: 12, cursor: "pointer" }}>Mark no-show</button> : null}
+                  {a.status === "Unavailable" || a.status === "Declined" ? (
+                    <span style={{ fontSize: 11.5, color: "#92400e", textAlign: "right", maxWidth: 210 }}>
+                      {a.status === "Unavailable" ? "Can't make this one — on your carry-forward list." : "Declined."}
+                      {a.unavailable_note ? <span style={{ display: "block", color: T.textTertiary, marginTop: 2 }}>&ldquo;{a.unavailable_note.slice(0, 90)}{a.unavailable_note.length > 90 ? "\u2026" : ""}&rdquo;</span> : null}
+                    </span>
+                  ) : (
+                    <>
+                      <button onClick={function () { copy(a.invite_url) }} style={btnLink}>Copy approved link</button>
+                      {!a.approved_at && a.status !== "No-show" ? <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Confirmed", a.name) }} title="They told you they're coming — confirm them and draft their details email" style={{ background: "transparent", color: "#15803d", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Mark confirmed</button> : null}
+                      {a.status !== "No-show" ? <button disabled={busy === a.id} onClick={function () { markUnavailable(a) }} title="They told you they can't make this date" style={{ background: "transparent", color: "#92400e", border: "none", fontSize: 12, cursor: "pointer" }}>Can&rsquo;t make it</button> : null}
+                      {a.status !== "No-show" ? <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "No-show", a.name) }} style={{ background: "transparent", color: "#b3452f", border: "none", fontSize: 12, cursor: "pointer" }}>Mark no-show</button> : null}
+                    </>
+                  )}
                 </div>
               </div>
             )
