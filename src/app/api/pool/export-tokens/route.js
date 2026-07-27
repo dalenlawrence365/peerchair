@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic"
 // Read-only: no action tags written, no state changed. Safe to run repeatedly.
 //
 // Body: { dry_run?: boolean, default_src?: string }
-// CSV columns: Profile URL, brochure_url, assessment_url, meeting_url
+// CSV columns: Profile URL, brochure_url, assessment_url, meeting_url, event_url
 
 import { serverClient } from "@/lib/supabaseServer"
 
@@ -55,6 +55,15 @@ async function fetchAllTagRows(sb, actionTypes) {
 
 export async function POST(request) {
   const sb = serverClient()
+  // Newest published event, so the Aug 11 (and future) registration link rides
+  // along in the backfill. Not hardcoded, so it never goes stale after the date.
+  let eventSlug = null
+  {
+    const { data: ev } = await sb.from("events")
+      .select("slug").eq("published", true)
+      .order("event_date", { ascending: false }).limit(1).maybeSingle()
+    eventSlug = ev ? ev.slug : null
+  }
   let body = {}
   try { body = await request.json() } catch { /* empty body ok */ }
   const dryRun = !!body.dry_run
@@ -111,7 +120,8 @@ export async function POST(request) {
     if (!url || !tok) { skippedNoUrl++; continue }
     const src = srcByPerson.get(id) || fallbackSrc
     const q = p => `${SITE}${p}?t=${encodeURIComponent(tok)}&src=${encodeURIComponent(src)}`
-    rows.push([csvEscape(url), csvEscape(q("/overview")), csvEscape(q("/assessment")), csvEscape(q("/meeting"))].join(","))
+    const eventUrl = eventSlug ? q("/events/" + eventSlug) : ""
+    rows.push([csvEscape(url), csvEscape(q("/overview")), csvEscape(q("/assessment")), csvEscape(q("/meeting")), csvEscape(eventUrl)].join(","))
   }
 
   const bySrc = {}
@@ -128,7 +138,7 @@ export async function POST(request) {
     })
   }
 
-  const csv = ["Profile URL,brochure_url,assessment_url,meeting_url"].concat(rows).join("\n") + "\n"
+  const csv = ["Profile URL,brochure_url,assessment_url,meeting_url,event_url"].concat(rows).join("\n") + "\n"
   return new Response(csv, {
     status: 200,
     headers: {
