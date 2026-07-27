@@ -85,6 +85,16 @@ export default function CfoMetricsPage() {
         {data.connected_total.toLocaleString()} connected CFOs (first-degree)
       </div>
 
+      {/* Cold-CFO LinkedHelper seed exports — these are the batches loaded for
+          cold outreach, so they belong on the CFO outreach page, not ProVisors. */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 22 }}>
+        <span style={{ fontSize: 11.5, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginRight: 2 }}>LinkedHelper seed CSV:</span>
+        <a href={"/api/cfo/linkedhelper-seed-export?k=pk_7f3a91c4d2e6&batch=claude:seed-b4"}
+          style={{ fontSize: 12.5, fontWeight: 600, color: T.accent, textDecoration: "none", border: "1px solid " + T.border, borderRadius: 8, padding: "6px 11px", background: "white" }}>↓ Batch B4 (700)</a>
+        <a href={"/api/cfo/linkedhelper-seed-export?k=pk_7f3a91c4d2e6&batch=claude:seed-b5"}
+          style={{ fontSize: 12.5, fontWeight: 600, color: T.accent, textDecoration: "none", border: "1px solid " + T.border, borderRadius: 8, padding: "6px 11px", background: "white" }}>↓ Batch B5 (407)</a>
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 24 }}>
         <Tile label="Brochure sent"     value={data.brochure.sent}      pct={data.brochure.pct_sent}     active={view === "with_brochure"}   onClick={() => setView("with_brochure")}   color="#15803d" />
         <Tile label="Brochure NOT sent" value={data.brochure.not_sent}  pct={100 - data.brochure.pct_sent} active={view === "no_brochure"}     onClick={() => setView("no_brochure")}     color="#b45309" />
