@@ -181,8 +181,17 @@ export default function ProvisorsPage() {
           </button>
         </div>
       </div>
-      <div style={{ fontSize: 13, color: T.textTertiary, marginTop: 4, marginBottom: 22 }}>
+      <div style={{ fontSize: 13, color: T.textTertiary, marginTop: 4, marginBottom: 12 }}>
         Primary warm network for sponsor prospecting and referral partner development.
+      </div>
+      {/* Cold-CFO LinkedHelper seed exports — plain anchor downloads (a real
+          click, so the browser never suppresses them like an automated one). */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 22 }}>
+        <span style={{ fontSize: 11.5, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginRight: 2 }}>LinkedHelper seed CSV:</span>
+        <a href={"/api/cfo/linkedhelper-seed-export?k=pk_7f3a91c4d2e6&batch=claude:seed-b4"}
+          style={{ fontSize: 12.5, fontWeight: 600, color: T.accent, textDecoration: "none", border: "1px solid " + T.border, borderRadius: 8, padding: "6px 11px", background: "white" }}>↓ Batch B4 (700)</a>
+        <a href={"/api/cfo/linkedhelper-seed-export?k=pk_7f3a91c4d2e6&batch=claude:seed-b5"}
+          style={{ fontSize: 12.5, fontWeight: 600, color: T.accent, textDecoration: "none", border: "1px solid " + T.border, borderRadius: 8, padding: "6px 11px", background: "white" }}>↓ Batch B5 (407)</a>
       </div>
 
       {/* Search to add */}
