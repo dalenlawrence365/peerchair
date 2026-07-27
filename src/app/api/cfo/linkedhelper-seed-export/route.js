@@ -3,7 +3,7 @@ import { serverClient } from "@/lib/supabaseServer"
 
 // GET /api/cfo/linkedhelper-seed-export?k=<key>&batch=<set_by>
 // Streams the LinkedHelper CSV for a cold-CFO seed batch already tagged with
-// action_type 'export_to_linkedhelper'. One row per CFO, with THREE per-person
+// action_type 'export_to_linkedhelper'. One row per CFO, with FOUR per-person
 // tracked links (assessment / Aug 11 registration / homepage), all ?t=<token>.
 // Selection + tagging already happened; this just serves the file, so it's
 // safe to re-download and always matches what's marked "loaded".
@@ -44,7 +44,7 @@ export async function GET(request) {
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
 
   const link = (tok, path) => tok ? (SITE + path + (path.indexOf("?") === -1 ? "?" : "&") + "t=" + encodeURIComponent(tok) + "&src=" + SRC) : ""
-  const header = ["Profile URL", "First Name", "Last Name", "Company", "Position", "assessment_url", "event_url", "home_url"]
+  const header = ["Profile URL", "First Name", "Last Name", "Company", "Position", "assessment_url", "meeting_url", "event_url", "home_url"]
   const lines = [header.join(",")]
   for (const p of rows) {
     const tok = tokenBy[p.id]
@@ -53,6 +53,7 @@ export async function GET(request) {
     lines.push([
       q(p.linkedin_url), q(fn), q(ln), q(p.company), q(p.title),
       q(link(tok, "/assessment")),
+      q(link(tok, "/meeting")),
       q(link(tok, "/events/august-11-workshop")),
       q(link(tok, "/")),
     ].join(","))
