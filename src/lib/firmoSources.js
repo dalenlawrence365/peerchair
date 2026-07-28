@@ -19,6 +19,7 @@ export const SOURCE_KEY = "_sources"
 
 export const SOURCES = [
   { key: "self_reported",    label: "Self-reported",     hint: "They told you — fit call or conversation", weight: 3 },
+  { key: "networking_event", label: "Networking event",  hint: "They told you in person at an event", weight: 3 },
   { key: "sales_navigator",  label: "Sales Navigator",   hint: "LinkedIn Sales Navigator", weight: 2 },
   { key: "linkedin",         label: "LinkedIn (public)", hint: "Their public profile or company page", weight: 2 },
   { key: "company_website",  label: "Company website",   hint: "Published on their own site", weight: 2 },
