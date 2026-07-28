@@ -65,14 +65,15 @@ export function stampSources(prevFirmo, nextFirmo, sourceKey, opts) {
     return next
   }
 
+  // An EXPLICIT source selection means "these figures came from X" — so it applies
+  // to every figure present, whether or not its value changed in this edit.
+  // (Leaving the picker on "leave sources as they are" is the no-op path above,
+  // which is what protects an unrelated edit from relabelling untouched figures.)
   const at = o.at || new Date().toISOString()
   for (const f of SOURCED_FIELDS) {
-    const before = prev[f] == null ? "" : String(prev[f]).trim()
     const after = next[f] == null ? "" : String(next[f]).trim()
     if (!after) { delete carried[f]; continue }   // cleared value loses its source
-    if (after !== before || !carried[f]) {
-      carried[f] = { source: sourceKey, at: at }
-    }
+    carried[f] = { source: sourceKey, at: at }
   }
   if (Object.keys(carried).length) next[SOURCE_KEY] = carried
   else delete next[SOURCE_KEY]
