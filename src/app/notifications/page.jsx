@@ -74,7 +74,7 @@ export default function NotificationsPage() {
                 <div style={{ width: 8, height: 8, borderRadius: 999, marginTop: 6, background: n.is_read ? "transparent" : "#d97706", flexShrink: 0 }} />
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontSize: 14, color: T.textPrimary, fontWeight: n.is_read ? 400 : 600 }}>{n.title}</div>
-                  {n.body ? <div style={{ fontSize: 12.5, color: T.textSecondary, marginTop: 2 }}>{n.body}</div> : null}
+                  {n.body ? <div style={{ fontSize: 12.5, color: T.textSecondary, marginTop: 4, whiteSpace: "pre-wrap", lineHeight: 1.55, wordBreak: "break-word" }}>{n.body}</div> : null}
                   <div style={{ fontSize: 11.5, color: T.textTertiary, marginTop: 4 }}>{timeAgo(n.created_at)}</div>
                 </div>
               </div>
