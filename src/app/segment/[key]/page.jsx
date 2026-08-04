@@ -90,6 +90,13 @@ export default function SegmentPage() {
                   <div style={{ fontSize: 14, fontWeight: 500, color: T.textPrimary }}>{p.full_name || "(no name)"}</div>
                   <div style={{ fontSize: 12, color: T.textTertiary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{[p.title, p.company].filter(Boolean).join(" · ") || "—"}</div>
                   {p.location && <div style={{ fontSize: 12, color: T.textTertiary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>📍 {p.location}</div>}
+                  {p.status_tags && p.status_tags.length > 0 && (
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 3 }}>
+                      {p.status_tags.map(function (tg) {
+                        return <span key={tg} style={{ fontSize: 10.5, fontWeight: 500, padding: "1px 7px", borderRadius: 4, background: "#eaf0f8", border: "1px solid #c7d5ea", color: "#1e3a5f" }}>{tg}</span>
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div style={{ fontSize: 11, color: days !== null && days >= 20 ? "#b91c1c" : days !== null && days >= 14 ? "#b45309" : T.textTertiary, whiteSpace: "nowrap" }}>
                   {days === null ? "no touch" : days === 0 ? "today" : days + "d ago"}

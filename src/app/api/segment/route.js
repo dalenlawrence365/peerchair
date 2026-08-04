@@ -23,7 +23,7 @@ export async function GET(request) {
       .eq("cfo_circle_member", true)
       .order("full_name", { ascending: true })
     if (error) return Response.json({ error: error.message }, { status: 500 })
-    return Response.json({ key, people: data || [] })
+    return await withStatusTags(sb, key, data || [])
   }
 
   // Out-of-market — CFO first-degree connections carrying the out_of_market status
@@ -38,10 +38,26 @@ export async function GET(request) {
       .order("full_name", { ascending: true })
     if (error) return Response.json({ error: error.message }, { status: 500 })
     const people = (data || []).map(function(d){ const { person_status_tags, ...rest } = d; return rest })
-    return Response.json({ key, people })
+    return await withStatusTags(sb, key, people)
   }
 
   const { data, error } = await sb.rpc("connection_segment_people", { p_key: key })
   if (error) return Response.json({ error: error.message }, { status: 500 })
-  return Response.json({ key, people: data || [] })
+  return await withStatusTags(sb, key, data || [])
+}
+
+// Attach the active STATUS tags (person_status_tags, not action/activity tags) to
+// each person so the list can show them inline. One extra query, keyed by id.
+async function withStatusTags(sb, key, people) {
+  const ids = (people || []).map(function(p){ return p.id }).filter(Boolean)
+  if (!ids.length) return Response.json({ key, people: people || [] })
+  const { data: tags } = await sb.from("person_status_tags")
+    .select("person_id, tag, set_at").in("person_id", ids).is("removed_at", null)
+  const byPerson = {}
+  for (const t of (tags || [])) {
+    if (!byPerson[t.person_id]) byPerson[t.person_id] = []
+    byPerson[t.person_id].push(t.tag)
+  }
+  const withTags = (people || []).map(function(p){ return Object.assign({}, p, { status_tags: byPerson[p.id] || [] }) })
+  return Response.json({ key, people: withTags })
 }
