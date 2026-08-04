@@ -202,8 +202,19 @@ export async function GET() {
       wkProvisor = pw.count || 0; wkCfo = cw.count || 0; wkSponsor = sw.count || 0
     }
     const wkReachable = recentIds.length
+    // CFO audience out-of-market: connected CFOs carrying the out_of_market status tag.
+    const { data: oomRows } = await sb.from("person_status_tags")
+      .select("person_id").eq("tag", "out_of_market").is("removed_at", null)
+    const oomIds = [...new Set((oomRows || []).map(function(r){ return r.person_id }))]
+    let cfoOutOfMarket = 0
+    if (oomIds.length) {
+      const { count: oomCfo } = await sb.from("people").select("id", { count: "exact", head: true })
+        .in("id", oomIds).eq("linkedin_connected", true).contains("roles", ["cfo"])
+      cfoOutOfMarket = oomCfo || 0
+    }
     return {
       reachable, relevant: reachable - (legacy || 0), provisor: prov.count || 0, cfo: cfo.count || 0, sponsor: spon.count || 0,
+      cfo_out_of_market: cfoOutOfMarket,
       wk: { reachable: wkReachable, relevant: wkReachable, provisor: wkProvisor, cfo: wkCfo, sponsor: wkSponsor },
     }
   })()

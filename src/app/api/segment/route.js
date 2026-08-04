@@ -4,7 +4,7 @@ import { serverClient } from "@/lib/supabaseServer"
 
 // GET /api/segment?key=silent_connections — people in a connection-funnel segment.
 // Valid keys: uninvited, invite_pending, invite_lapsed, silent_connections, replied, cfo_circle.
-const VALID = ["uninvited", "invite_pending", "invite_lapsed", "silent_connections", "replied", "cfo_circle"]
+const VALID = ["uninvited", "invite_pending", "invite_lapsed", "silent_connections", "replied", "cfo_circle", "out_of_market"]
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
@@ -24,6 +24,21 @@ export async function GET(request) {
       .order("full_name", { ascending: true })
     if (error) return Response.json({ error: error.message }, { status: 500 })
     return Response.json({ key, people: data || [] })
+  }
+
+  // Out-of-market — CFO first-degree connections carrying the out_of_market status
+  // tag. Direct people-table query (not a connection-funnel segment).
+  if (key === "out_of_market") {
+    const { data, error } = await sb.from("people")
+      .select("id, full_name, avatar_url, title, company, cfo_state, linkedin_url, last_meaningful_touch, next_action_date, person_status_tags!inner(tag, removed_at)")
+      .contains("roles", ["cfo"])
+      .eq("linkedin_connected", true)
+      .eq("person_status_tags.tag", "out_of_market")
+      .is("person_status_tags.removed_at", null)
+      .order("full_name", { ascending: true })
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    const people = (data || []).map(function(d){ const { person_status_tags, ...rest } = d; return rest })
+    return Response.json({ key, people })
   }
 
   const { data, error } = await sb.rpc("connection_segment_people", { p_key: key })

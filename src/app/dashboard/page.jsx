@@ -79,8 +79,14 @@ export default function DashboardPage() {
             pct={pctOf(t.value, a.reachable)} delta={t.wk} />
         })}
       </div>
-      <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 24, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 12, lineHeight: 1.5 }}>
         Reachable = every first-degree LinkedIn connection. Relevant = reachable minus legacy (pre-2024). ProVisor / CFO / Sponsor overlap and never sum to the total.
+      </div>
+
+      {/* Sub-metric watched under the audience row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 24 }}>
+        <StatTile label="CFO audience · out of market" value={(a.cfo_out_of_market || 0).toLocaleString()} color="#b91c1c" href="/segment/out_of_market"
+          pct={pctOf(a.cfo_out_of_market, a.cfo)} />
       </div>
 
       {/* Top stat tiles */}
