@@ -19,7 +19,7 @@ export async function GET(request) {
   // queries people.cfo_circle_member directly (includes non-connections).
   if (key === "cfo_circle") {
     const { data, error } = await sb.from("people")
-      .select("id, full_name, avatar_url, title, company, last_meaningful_touch, next_action_date")
+      .select("id, full_name, avatar_url, title, company, location, last_meaningful_touch, next_action_date")
       .eq("cfo_circle_member", true)
       .order("full_name", { ascending: true })
     if (error) return Response.json({ error: error.message }, { status: 500 })
@@ -30,7 +30,7 @@ export async function GET(request) {
   // tag. Direct people-table query (not a connection-funnel segment).
   if (key === "out_of_market") {
     const { data, error } = await sb.from("people")
-      .select("id, full_name, avatar_url, title, company, cfo_state, linkedin_url, last_meaningful_touch, next_action_date, person_status_tags!inner(tag, removed_at)")
+      .select("id, full_name, avatar_url, title, company, location, cfo_state, linkedin_url, last_meaningful_touch, next_action_date, person_status_tags!inner(tag, removed_at)")
       .contains("roles", ["cfo"])
       .eq("linkedin_connected", true)
       .eq("person_status_tags.tag", "out_of_market")
