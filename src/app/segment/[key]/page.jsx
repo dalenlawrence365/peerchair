@@ -19,7 +19,7 @@ function fmtShort(iso) { if (!iso) return null; try { return new Date(iso).toLoc
 function daysSince(iso) { if (!iso) return null; const d = new Date(iso); if (isNaN(d)) return null; return Math.floor((Date.now() - d.getTime()) / 86400000) }
 function csvEscape(v) { if (v == null) return ""; const s = String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s }
 function buildCsv(rows) {
-  const cols = ["full_name", "title", "company", "cfo_state", "linkedin_url", "last_meaningful_touch", "next_action_date"]
+  const cols = ["full_name", "title", "company", "location", "cfo_state", "linkedin_url", "last_meaningful_touch", "next_action_date"]
   const lines = [cols.join(",")]
   rows.forEach(function (r) { lines.push(cols.map(function (c) { return csvEscape(r[c]) }).join(",")) })
   return lines.join("\n")
@@ -89,6 +89,7 @@ export default function SegmentPage() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 500, color: T.textPrimary }}>{p.full_name || "(no name)"}</div>
                   <div style={{ fontSize: 12, color: T.textTertiary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{[p.title, p.company].filter(Boolean).join(" · ") || "—"}</div>
+                  {p.location && <div style={{ fontSize: 12, color: T.textTertiary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>📍 {p.location}</div>}
                 </div>
                 <div style={{ fontSize: 11, color: days !== null && days >= 20 ? "#b91c1c" : days !== null && days >= 14 ? "#b45309" : T.textTertiary, whiteSpace: "nowrap" }}>
                   {days === null ? "no touch" : days === 0 ? "today" : days + "d ago"}
