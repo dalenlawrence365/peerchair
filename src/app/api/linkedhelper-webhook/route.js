@@ -124,7 +124,7 @@ export async function POST(request) {
   if (!expectedSecret || secret !== expectedSecret) {
     return json({ error: "Unauthorized" }, 401)
   }
-  if (!["sent", "connected", "replied", "company"].includes(event)) {
+  if (!["sent", "connected", "replied", "company", "profile"].includes(event)) {
     return json({ error: "Invalid event. Use ?event=sent|connected|replied" }, 400)
   }
 
@@ -143,6 +143,13 @@ export async function POST(request) {
   // resolution, no pipeline logic. We model the schema once we see the shape.
   if (event === "company") {
     return await handleCompanyCapture(sb, root, request)
+  }
+
+  // Profile-scrape capture (2nd-degree / AI-filtered CFO cohort). CAPTURE-ONLY:
+  // these are treated differently from sent/connected/replied — they do NOT
+  // touch the people table or the CFO pipeline. Land raw for schema discovery.
+  if (event === "profile") {
+    return await handleProfileCapture(sb, root, request)
   }
   const lead = extractLead(root)
   const tags = tagsToArray(lead.tagsRaw)
@@ -567,4 +574,51 @@ async function handleCompanyCapture(sb, root, request) {
   return json({ ok: true, event: "company", id: data.id, captured_keys: Object.keys(root || {}), extracted: {
     company_name: row.company_name, company_linkedin_url: row.company_linkedin_url,
     website: row.website, industry: row.industry, company_size: row.company_size, location: row.location } })
+}
+
+// LinkedHelper may send the profile flat or nested under a wrapper key.
+function profileNode(raw) {
+  if (!raw || typeof raw !== "object") return {}
+  for (const k of ["profile", "lead", "person", "result", "data", "payload"]) {
+    if (raw[k] && typeof raw[k] === "object") return raw[k]
+  }
+  return raw
+}
+
+// event=profile handler: opportunistic best-effort extraction (NOT authoritative
+// — trust raw) into linkedhelper_profile_captures. No people writes.
+async function handleProfileCapture(sb, root, request) {
+  const p = profileNode(root)
+  const hdrs = {}
+  for (const h of ["content-type", "user-agent"]) {
+    const v = request.headers.get(h); if (v) hdrs[h] = v
+  }
+  const first = pick(p, ["first_name", "firstName", "First Name"])
+  const last = pick(p, ["last_name", "lastName", "Last Name"])
+  const full = pick(p, ["full_name", "fullName", "name", "Name", "Full Name"]) || [first, last].filter(Boolean).join(" ") || null
+  const row = {
+    source: "linkedhelper",
+    event_type: "profile",
+    content_type: request.headers.get("content-type") || null,
+    headers: hdrs,
+    raw: root,
+    full_name: full || null,
+    first_name: first || null,
+    last_name: last || null,
+    headline: pick(p, ["headline", "current_headline", "occupation", "Headline"]) || null,
+    title: pick(p, ["title", "position", "current_company_position", "current_position", "job_title", "Position"]) || null,
+    company: pick(p, ["company", "current_company", "companyName", "company_name", "Company name", "Company"]) || null,
+    location: pick(p, ["location", "location_name", "geo_region", "Location"]) || null,
+    profile_url: pick(p, ["profile_url", "profileUrl", "public_profile_url", "Profile URL", "url", "public_id"]) || null,
+    connection_degree: pick(p, ["connection_degree", "network_distance", "degree", "distance"]) || null,
+    email: pick(p, ["email", "Email", "email_address"]) || null,
+    industry: pick(p, ["industry", "industries", "industryName"]) || null,
+    campaign: pick(p, ["campaign_name", "campaignName", "Campaign name", "campaign"]) || null,
+    tags: (function () { const t = p.tags || p.Tags || p.tag; return t == null ? null : (Array.isArray(t) ? t.join(", ") : String(t)) })(),
+  }
+  const { data, error } = await sb.from("linkedhelper_profile_captures").insert(row).select("id").single()
+  if (error) return json({ error: error.message }, 500)
+  return json({ ok: true, event: "profile", id: data.id, captured_keys: Object.keys(root || {}), extracted: {
+    full_name: row.full_name, title: row.title, company: row.company, location: row.location,
+    profile_url: row.profile_url, connection_degree: row.connection_degree } })
 }
