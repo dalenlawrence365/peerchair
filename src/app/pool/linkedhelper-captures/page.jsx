@@ -5,7 +5,7 @@ import { T } from "@/lib/pipelineTheme"
 
 // Webhook config is URL-only in LinkedHelper; this is the default secret. If you
 // set LINKEDHELPER_WEBHOOK_SECRET in Vercel, swap ?k= for that value.
-const WEBHOOK_URL = "https://www.peerchair.com/api/webhooks/linkedhelper/company?k=cfocircle-lh-2026"
+const WEBHOOK_URL = "https://www.peerchair.com/api/linkedhelper-webhook?event=company&secret=<YOUR_LINKEDHELPER_WEBHOOK_SECRET>"
 
 function fmt(iso) { try { return new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) } catch (e) { return iso } }
 
@@ -17,7 +17,7 @@ export default function LinkedHelperCapturesPage() {
 
   function load() {
     setErr(null)
-    fetch("/api/webhooks/linkedhelper/company", { cache: "no-store" })
+    fetch("/api/pool/company-captures", { cache: "no-store" })
       .then(function (r) { return r.json() })
       .then(function (d) { if (d.error) setErr(d.error); else setData(d) })
       .catch(function (e) { setErr(String(e)) })
@@ -47,7 +47,7 @@ export default function LinkedHelperCapturesPage() {
       <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: -0.4, margin: "0 0 6px" }}>LinkedHelper company captures</h1>
       <p style={{ color: T.textSecondary, fontSize: 14, margin: "0 0 20px", maxWidth: 760 }}>
         Raw company data LinkedHelper posts here lands in this list untouched, so you can see exactly what fields it sends
-        before we design the schema. Point a LinkedHelper webhook action at the URL below.
+        before we design the schema. Point a LinkedHelper company/webhook action at the URL below (event=company).
       </p>
 
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 16, marginBottom: 18 }}>
@@ -56,7 +56,7 @@ export default function LinkedHelperCapturesPage() {
           <code style={{ flex: 1, fontSize: 12.5, background: T.bg, border: "1px solid " + T.border, borderRadius: 6, padding: "8px 10px", overflowX: "auto", whiteSpace: "nowrap" }}>{WEBHOOK_URL}</code>
           <button onClick={copyUrl} style={{ padding: "8px 14px", background: T.accent, color: "white", border: "none", borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{copied ? "Copied" : "Copy"}</button>
         </div>
-        <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 8 }}>Method POST · body JSON. The <code>?k=</code> value is the shared secret; override it by setting LINKEDHELPER_WEBHOOK_SECRET in Vercel.</div>
+        <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 8 }}>Method POST \u00b7 body JSON. Same endpoint and secret as your existing sent/connected/replied webhooks \u2014 just <code>event=company</code>. The secret is your <code>LINKEDHELPER_WEBHOOK_SECRET</code> (already set in Vercel).</div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>

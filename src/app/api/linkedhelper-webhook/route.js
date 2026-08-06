@@ -124,7 +124,7 @@ export async function POST(request) {
   if (!expectedSecret || secret !== expectedSecret) {
     return json({ error: "Unauthorized" }, 401)
   }
-  if (!["sent", "connected", "replied"].includes(event)) {
+  if (!["sent", "connected", "replied", "company"].includes(event)) {
     return json({ error: "Invalid event. Use ?event=sent|connected|replied" }, 400)
   }
 
@@ -137,6 +137,13 @@ export async function POST(request) {
 
   // LinkedHelper can wrap data in {data:{...}} or send fields at the root; try both
   const root = (payload && typeof payload === "object" && payload.data && typeof payload.data === "object") ? payload.data : payload
+
+  // Company-scrape capture — a different payload shape than the person events.
+  // Land it RAW for schema discovery (capture-first), then stop: no person
+  // resolution, no pipeline logic. We model the schema once we see the shape.
+  if (event === "company") {
+    return await handleCompanyCapture(sb, root, request)
+  }
   const lead = extractLead(root)
   const tags = tagsToArray(lead.tagsRaw)
   const seedBatchTag = findSeedBatchTag(tags)
@@ -521,4 +528,43 @@ async function handleLinkedInConnectionsEvent({ sb, event, campaign, lead, tags,
     if (error) throw new Error(`linkedin_connections insert failed: ${error.message}`)
     console.log(`LH→linkedin_connections [${event}] INSERT id=${inserted.id} cross_ref=${peopleId ? "yes" : "no"}`)
   }
+}
+
+// LinkedHelper often nests the scraped company object under a wrapper key.
+function companyNode(raw) {
+  if (!raw || typeof raw !== "object") return {}
+  for (const k of ["company", "organization", "result", "data", "payload"]) {
+    if (raw[k] && typeof raw[k] === "object") return raw[k]
+  }
+  return raw
+}
+
+// event=company handler: opportunistically extract common company fields (NOT
+// authoritative — trust `raw`) and land the full payload in
+// linkedhelper_company_captures. The existing audit_log raw dump above also
+// keeps a copy keyed audit_type='linkedhelper_company'.
+async function handleCompanyCapture(sb, root, request) {
+  const c = companyNode(root)
+  const hdrs = {}
+  for (const h of ["content-type", "user-agent"]) {
+    const v = request.headers.get(h); if (v) hdrs[h] = v
+  }
+  const row = {
+    source: "linkedhelper",
+    event_type: "company",
+    content_type: request.headers.get("content-type") || null,
+    headers: hdrs,
+    raw: root,
+    company_name: pick(c, ["name", "companyName", "company_name", "company", "organizationName", "title"]) || null,
+    company_linkedin_url: pick(c, ["companyUrl", "company_url", "linkedinUrl", "linkedin_url", "profileUrl", "url", "publicUrl"]) || null,
+    website: pick(c, ["website", "websiteUrl", "site", "domain", "companyWebsite"]) || null,
+    industry: pick(c, ["industry", "industryName", "sector"]) || null,
+    company_size: pick(c, ["companySize", "company_size", "size", "employeeCount", "staffCount", "employees", "employeeCountRange"]) || null,
+    location: pick(c, ["location", "headquarters", "hq", "city", "addressLine", "geoRegion"]) || null,
+  }
+  const { data, error } = await sb.from("linkedhelper_company_captures").insert(row).select("id").single()
+  if (error) return json({ error: error.message }, 500)
+  return json({ ok: true, event: "company", id: data.id, captured_keys: Object.keys(root || {}), extracted: {
+    company_name: row.company_name, company_linkedin_url: row.company_linkedin_url,
+    website: row.website, industry: row.industry, company_size: row.company_size, location: row.location } })
 }
