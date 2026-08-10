@@ -355,15 +355,18 @@ async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
   // Dedupe: don't insert if a matching reply already exists in last 7 days
   if (replyText) {
     const cutoff = new Date(Date.now() - 7*24*60*60*1000).toISOString()
+    // NOTE: communications.direction/channel are NORMALIZED on write
+    // ("IN"->"inbound", "LinkedIn"->"linkedin"), so filtering on the pre-write
+    // values matched nothing and every duplicate webhook fire double-logged.
+    // Key the dedupe on the reply's stable identity: person + step_label + body.
     const { data: existing } = await sb.from("communications")
       .select("id")
       .eq("person_id", contact.id)
-      .eq("direction", "IN")
-      .eq("channel", "LinkedIn")
+      .eq("step_label", "Reply Received")
       .ilike("body", `%${replyText.slice(0, 60).replace(/[%_]/g, "")}%`)
       .gte("occurred_at", cutoff)
-      .maybeSingle()
-    if (existing) {
+      .limit(1)
+    if (existing && existing.length) {
       console.log(`Duplicate reply skipped for ${lead.fullName}`)
       return
     }
