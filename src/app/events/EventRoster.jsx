@@ -296,8 +296,24 @@ export default function EventRoster({ slug }) {
           </select>
         </div>
       ) : null}
-      <div style={{ marginBottom: 6, fontSize: 22, fontWeight: 600, color: T.textPrimary }}>{ev.name || "Event"}</div>
-      <div style={{ color: T.textTertiary, fontSize: 13, marginBottom: 14 }}>{longDate(ev.event_date) || "Date TBD"}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 14 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ marginBottom: 6, fontSize: 22, fontWeight: 600, color: T.textPrimary }}>{ev.name || "Event"}</div>
+          <div style={{ color: T.textTertiary, fontSize: 13 }}>{longDate(ev.event_date) || "Date TBD"}</div>
+        </div>
+        <div style={{ flexShrink: 0, minWidth: 214, maxWidth: 250, border: "1px solid " + T.border, borderRadius: 10, padding: "8px 11px", background: T.cardBg }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Registration link · copy &amp; paste</div>
+          {[{ label: "DM", src: "linkedin_dm" }, { label: "Email", src: "email" }].map(function (r) {
+            var url = "https://la-cfo.com/events/" + slug + "?src=" + r.src
+            return (
+              <div key={r.src} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "3px 0" }}>
+                <span style={{ fontSize: 12, color: T.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><strong style={{ color: T.textPrimary }}>{r.label}</strong> <span style={{ color: T.textTertiary }}> · src={r.src}</span></span>
+                <button onClick={function () { try { navigator.clipboard.writeText(url); setMsg(r.label + " registration link copied (src=" + r.src + ").") } catch (e) {} }} title={url} style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: T.accent, background: "transparent", border: "1px solid " + T.border, borderRadius: 6, padding: "2px 9px", cursor: "pointer", fontFamily: "inherit" }}>Copy</button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
       <div style={{ marginBottom: 18 }}>
         <a href={"/api/events/campaign-export?slug=" + slug + "&src=li-dm"} style={{ display: "inline-block", fontSize: 12.5, fontWeight: 600, color: T.accent, textDecoration: "none", border: "1px solid " + T.border, borderRadius: 8, padding: "7px 12px", background: "white" }}>↓ Export CFO campaign CSV (LinkedHelper)</a>
       </div>
