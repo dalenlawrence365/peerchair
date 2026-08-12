@@ -71,8 +71,14 @@ export async function GET(req) {
   }))
 
   const count = s => attendees.filter(a => a.status === s).length
-  const confirmed = count("Confirmed")
-  const roleConfirmed = role => attendees.filter(a => a.status === "Confirmed" && Array.isArray(a.roles) && a.roles.includes(role)).length
+  // "Confirmed" as a headcount means "committed to come" and must NOT shrink when
+  // you later record who showed: Attended and No-show are OUTCOMES of a confirmed
+  // seat, so they stay inside the confirmed total. (Declined/Unavailable do not.)
+  const COMMITTED = new Set(["Confirmed", "Attended", "No-show"])
+  const confirmed = attendees.filter(a => COMMITTED.has(a.status)).length
+  const roleConfirmed = role => attendees.filter(a => COMMITTED.has(a.status) && Array.isArray(a.roles) && a.roles.includes(role)).length
+  const attended = count("Attended")
+  const cfoAttended = attendees.filter(a => a.status === "Attended" && Array.isArray(a.roles) && a.roles.includes("cfo")).length
   // "Awaiting your review" is a fact about timestamps, not a status label:
   // registered, not yet approved. Someone you invited directly who then also
   // self-registered carries status 'Invited' — they still need reviewing.
@@ -93,7 +99,9 @@ export async function GET(req) {
       registered,
       confirmed,
       cfo_confirmed: roleConfirmed("cfo"),
-      sponsor_confirmed: attendees.filter(a => a.status === "Confirmed" && ((Array.isArray(a.roles) && a.roles.includes("sponsor_contact")) || a.cfo_circle_member)).length,
+      sponsor_confirmed: attendees.filter(a => COMMITTED.has(a.status) && ((Array.isArray(a.roles) && a.roles.includes("sponsor_contact")) || a.cfo_circle_member)).length,
+      attended,
+      cfo_attended: cfoAttended,
       declined: count("Declined"),
       // Counted apart from declined on purpose. Collapsing them would read as
       // "5 people said no" when four of them said "not that Tuesday".
@@ -290,7 +298,7 @@ export async function PATCH(req) {
 
 
   const status = (body.status || "").toString().trim()
-  const ALLOWED = new Set(["Registered", "Invited", "Confirmed", "Declined", "Requested", "No-show", "Unavailable"])
+  const ALLOWED = new Set(["Registered", "Invited", "Confirmed", "Declined", "Requested", "No-show", "Unavailable", "Attended"])
   if (!id || !ALLOWED.has(status)) return Response.json({ error: "bad_request" }, { status: 400 })
 
   const sb = serverClient()
@@ -325,6 +333,19 @@ export async function PATCH(req) {
 
   const { error } = await sb.from("event_attendees").update(patch).eq("id", id)
   if (error) return Response.json({ error: error.message }, { status: 500 })
+
+  // Attending a workshop stamps a durable profile pill ("CFO Workshop") so the
+  // person's record shows they've been in the room. Idempotent — one live tag.
+  if (status === "Attended" && cur.person_id) {
+    const { data: hasTag } = await sb.from("person_status_tags")
+      .select("id").eq("person_id", cur.person_id).eq("tag", "CFO Workshop").is("removed_at", null).maybeSingle()
+    if (!hasTag) {
+      await sb.from("person_status_tags").insert({
+        person_id: cur.person_id, tag: "CFO Workshop", set_by: "events",
+        notes: "Attended " + (cur.events?.name || "a CFO Circle workshop") + (cur.events?.event_date ? " (" + String(cur.events.event_date).slice(0, 10) + ")" : ""),
+      })
+    }
+  }
 
   if (status === "Unavailable" && cur.person_id) {
     const carry = body.carry_to_next !== false   // default: yes, keep them in mind

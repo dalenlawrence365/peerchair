@@ -25,11 +25,13 @@ function statusChip(status) {
   if (status === "Declined")  return <Chip label="Declined" bg={T.dangerBg} color={T.danger} />
   // Amber, not red. They didn't say no to you — they said no to a Tuesday.
   if (status === "Unavailable") return <Chip label="Unavailable" bg="#fef3c7" color="#92400e" />
+  if (status === "Attended") return <Chip label="Attended" bg="#dcfce7" color="#166534" />
   if (status === "Registered" || status === "Requested") return <Chip label="Registered" bg={T.qualifiedBg} color={T.qualifiedText} />
   return <Chip label="Invited" bg={T.audienceBg} color={T.audienceText} />
 }
 
 const PILL = { registered: "#d97706", approved: "#16a34a", confirmed: "#0f766e", noshow: "#dc2626" }
+const COMMITTED_STATUSES = ["Confirmed", "Attended", "No-show"]
 function Pill({ label, date, bg, on }) {
   return (
     <span style={{
@@ -52,6 +54,7 @@ function PillTrack({ a }) {
       <Pill label="Approved" date={shortDate(a.approved_at)} bg={PILL.approved} on={!!a.approved_at} />
       <Pill label="Confirmed" date={shortDate(a.responded_at)} bg={PILL.confirmed} on={a.status === "Confirmed"} />
       {a.status === "No-show" ? <Pill label="No-show" date="" bg={PILL.noshow} on={true} /> : null}
+      {a.status === "Attended" ? <Pill label="Attended" date="" bg="#16a34a" on={true} /> : null}
     </div>
   )
 }
@@ -182,6 +185,8 @@ export default function EventRoster({ slug }) {
           setMsg("Declined " + (name || "") + ".")
         } else if (d && d.ok && status === "No-show") {
           setMsg("Marked " + (name || "") + " as a no-show.")
+        } else if (d && d.ok && status === "Attended") {
+          setMsg((name || "They") + " marked attended — CFO Workshop pill added to their profile.")
         }
         load()
       })
@@ -237,14 +242,16 @@ export default function EventRoster({ slug }) {
   // Each stat box is a filter. The predicate is chosen so the rows shown always
   // equal the number on the box you clicked — "select seven confirmed, see seven".
   const FILTERS = {
-    confirmed:   function (a) { return a.status === "Confirmed" },
+    confirmed:   function (a) { return COMMITTED_STATUSES.indexOf(a.status) !== -1 },
     registered:  awaitingReview,
     invited:     function () { return true },   // "total on the list"
     declined:    function (a) { return a.status === "Declined" },
     unavailable: function (a) { return a.status === "Unavailable" },
     noshow:      function (a) { return a.status === "No-show" },
-    cfoconfirmed:     function (a) { return a.status === "Confirmed" && (a.roles || []).includes("cfo") },
-    sponsorconfirmed: function (a) { return a.status === "Confirmed" && ((a.roles || []).includes("sponsor_contact") || a.cfo_circle_member) },
+    cfoconfirmed:     function (a) { return COMMITTED_STATUSES.indexOf(a.status) !== -1 && (a.roles || []).includes("cfo") },
+    sponsorconfirmed: function (a) { return COMMITTED_STATUSES.indexOf(a.status) !== -1 && ((a.roles || []).includes("sponsor_contact") || a.cfo_circle_member) },
+    attended:    function (a) { return a.status === "Attended" },
+    cfoattended: function (a) { return a.status === "Attended" && (a.roles || []).includes("cfo") },
   }
   const pred = filter && FILTERS[filter] ? FILTERS[filter] : null
   const needle = q.trim().toLowerCase()
@@ -300,6 +307,8 @@ export default function EventRoster({ slug }) {
         <Stat label="Total confirmed" value={c.confirmed || 0} sub={shortOf > 0 ? (shortOf + " short of " + (ev.min_to_run || 8)) : "at go threshold"} good={shortOf === 0} active={filter === "confirmed"} onClick={function () { toggleFilter("confirmed") }} />
         <Stat label="CFOs confirmed" value={c.cfo_confirmed || 0} sub="" active={filter === "cfoconfirmed"} onClick={function () { toggleFilter("cfoconfirmed") }} />
         <Stat label="Sponsors confirmed" value={c.sponsor_confirmed || 0} sub="" active={filter === "sponsorconfirmed"} onClick={function () { toggleFilter("sponsorconfirmed") }} />
+        <Stat label="Attended" value={c.attended || 0} sub="actually showed" active={filter === "attended"} onClick={function () { toggleFilter("attended") }} />
+        <Stat label="CFOs attended" value={c.cfo_attended || 0} sub="" active={filter === "cfoattended"} onClick={function () { toggleFilter("cfoattended") }} />
         <Stat label="Registered" value={c.registered || 0} sub="awaiting your review" highlight={(c.registered || 0) > 0} active={filter === "registered"} onClick={function () { toggleFilter("registered") }} />
         <Stat label="Invited" value={c.invited || 0} sub="total on the list" active={filter === "invited"} onClick={function () { toggleFilter("invited") }} />
         <Stat label="Declined" value={c.declined || 0} sub="" active={filter === "declined"} onClick={function () { toggleFilter("declined") }} />
@@ -507,6 +516,7 @@ export default function EventRoster({ slug }) {
                   ) : (
                     <>
                       <button onClick={function () { copy(a.invite_url) }} style={btnLink}>Copy approved link</button>
+                      {a.status !== "No-show" && a.status !== "Attended" ? <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Attended", a.name) }} title="They showed up — mark attended (adds a CFO Workshop pill to their profile)" style={{ background: "transparent", color: "#166534", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Mark attended</button> : null}
                       {!a.approved_at && a.status !== "No-show" ? <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Confirmed", a.name) }} title="They told you they're coming — confirm them and draft their details email" style={{ background: "transparent", color: "#15803d", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Mark confirmed</button> : null}
                       {a.status !== "No-show" ? <button disabled={busy === a.id} onClick={function () { markUnavailable(a) }} title="They told you they can't make this date" style={{ background: "transparent", color: "#92400e", border: "none", fontSize: 12, cursor: "pointer" }}>Can&rsquo;t make it</button> : null}
                       {a.status !== "No-show" ? <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "No-show", a.name) }} style={{ background: "transparent", color: "#b3452f", border: "none", fontSize: 12, cursor: "pointer" }}>Mark no-show</button> : null}
