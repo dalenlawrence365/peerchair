@@ -93,6 +93,7 @@ export async function GET(req) {
       // Counted apart from declined on purpose. Collapsing them would read as
       // "5 people said no" when four of them said "not that Tuesday".
       unavailable: count("Unavailable"),
+      no_show: count("No-show"),
       no_response: count("Invited"),
       // The go/no-go number. Manual: do not run under 8 confirmed CFOs.
       short_of_minimum: Math.max(0, (event.min_to_run || 8) - confirmed),

@@ -242,6 +242,7 @@ export default function EventRoster({ slug }) {
     invited:     function () { return true },   // "total on the list"
     declined:    function (a) { return a.status === "Declined" },
     unavailable: function (a) { return a.status === "Unavailable" },
+    noshow:      function (a) { return a.status === "No-show" },
   }
   const pred = filter && FILTERS[filter] ? FILTERS[filter] : null
   const needle = q.trim().toLowerCase()
@@ -299,6 +300,7 @@ export default function EventRoster({ slug }) {
         <Stat label="Invited" value={c.invited || 0} sub="total on the list" active={filter === "invited"} onClick={function () { toggleFilter("invited") }} />
         <Stat label="Declined" value={c.declined || 0} sub="" active={filter === "declined"} onClick={function () { toggleFilter("declined") }} />
         <Stat label="Unavailable" value={c.unavailable || 0} sub="wants the next one" active={filter === "unavailable"} onClick={function () { toggleFilter("unavailable") }} />
+        <Stat label="No-show" value={c.no_show || 0} sub="didn't come" active={filter === "noshow"} onClick={function () { toggleFilter("noshow") }} />
       </div>
       <div style={{ minHeight: 20, marginBottom: 14 }}>
         {filter ? (
