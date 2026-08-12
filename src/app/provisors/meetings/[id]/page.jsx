@@ -35,6 +35,7 @@ const STATS = [
   { key: "notconnected", label: "Not connected", color: "#b45309", tint: "rgba(180,83,9,0.09)" },
   { key: "nourl", label: "No LinkedIn URL", color: "#6b7280", tint: "rgba(107,114,128,0.10)" },
   { key: "connsent", label: "Request pending", color: "#0a66c2", tint: "rgba(10,102,194,0.10)" },
+  { key: "norequest", label: "No request sent", color: "#9a3412", tint: "rgba(154,52,18,0.10)" },
 ]
 
 function Face({ p }) {
@@ -66,12 +67,13 @@ export default function MeetingDetail() {
   if (!data) return <main style={{ padding: 32 }}><div style={{ color: T.textTertiary }}>Loading…</div></main>
 
   const { meeting, attendees } = data
-  const counts = { all: attendees.length, connected: 0, notconnected: 0, nourl: 0, connsent: 0 }
-  for (const p of attendees) { counts[bucketOf(p)]++; if (p.connection_sent_at && p.linkedin_connected !== true) counts.connsent++ }
+  const counts = { all: attendees.length, connected: 0, notconnected: 0, nourl: 0, connsent: 0, norequest: 0 }
+  for (const p of attendees) { counts[bucketOf(p)]++; if (p.connection_sent_at && p.linkedin_connected !== true) counts.connsent++; if (p.linkedin_url && p.linkedin_connected !== true && !p.connection_sent_at) counts.norequest++ }
   const needle = q.trim().toLowerCase()
   const byFilter =
     filter === "all" ? attendees
     : filter === "connsent" ? attendees.filter(p => p.connection_sent_at && p.linkedin_connected !== true)
+    : filter === "norequest" ? attendees.filter(p => p.linkedin_url && p.linkedin_connected !== true && !p.connection_sent_at)
     : attendees.filter(p => bucketOf(p) === filter)
   const filtered = needle
     ? byFilter.filter(p => (p.full_name || "").toLowerCase().includes(needle) || (p.company || "").toLowerCase().includes(needle))

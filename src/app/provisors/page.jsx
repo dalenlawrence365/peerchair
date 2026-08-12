@@ -128,6 +128,7 @@ export default function ProvisorsPage() {
     // Sent a request and still waiting — the actionable follow-up subset of
     // "not connected". connection_sent minus anyone who has since connected.
     sent_pending: people.filter(p => p.connection_sent && p.linkedin_connected !== true).length,
+    no_request: people.filter(p => p.linkedin_url && p.linkedin_connected !== true && !p.connection_sent).length,
     no_url: people.filter(p => !p.linkedin_url).length,
     sponsors: people.filter(p => (p.roles || []).includes("sponsor_contact")).length,
     referral: people.filter(p => (p.roles || []).includes("referral_partner")).length,
@@ -137,6 +138,7 @@ export default function ProvisorsPage() {
     connected: p => p.linkedin_connected === true,
     not_connected: p => p.linkedin_connected !== true,
     sent_pending: p => p.connection_sent && p.linkedin_connected !== true,
+    no_request: p => p.linkedin_url && p.linkedin_connected !== true && !p.connection_sent,
     no_url: p => !p.linkedin_url,
     sponsors: p => (p.roles || []).includes("sponsor_contact"),
     referral: p => (p.roles || []).includes("referral_partner"),
@@ -225,6 +227,7 @@ export default function ProvisorsPage() {
         <Tile label="Provisor Audience" value={counts.connected} color="#0a66c2" sub={counts.all ? Math.round(counts.connected / counts.all * 100) + "% of total" : null} active={filter === "connected"} onClick={() => pickFilter("connected")} />
         <Tile label="Not connected" value={counts.not_connected} color="#b45309" sub={counts.all ? Math.round(counts.not_connected / counts.all * 100) + "% of total" : null} active={filter === "not_connected"} onClick={() => pickFilter("not_connected")} />
         <Tile label="Request pending" value={counts.sent_pending} color="#0a66c2" sub="sent · not yet connected" active={filter === "sent_pending"} onClick={() => pickFilter("sent_pending")} />
+        <Tile label="No request sent" value={counts.no_request} color="#9a3412" sub="not connected · ready to send" active={filter === "no_request"} onClick={() => pickFilter("no_request")} />
         <Tile label="No LinkedIn URL" value={counts.no_url} color="#6b7280" active={filter === "no_url"} onClick={() => pickFilter("no_url")} />
         <Tile label="Sponsors" value={counts.sponsors} color="#15803d" active={filter === "sponsors"} onClick={() => pickFilter("sponsors")} />
         <Tile label="Referral partners" value={counts.referral} color="#1d4ed8" active={filter === "referral"} onClick={() => pickFilter("referral")} />
@@ -245,6 +248,7 @@ export default function ProvisorsPage() {
             {people.length === 0
               ? <>No ProVisors flagged yet. Click <strong>+ Add ProVisor</strong> above to start.</>
               : filter === "sent_pending" ? "No pending requests — everyone you've reached out to has connected."
+              : filter === "no_request" ? "Nobody to reach out to — everyone with a LinkedIn URL is already connected or has a request out."
               : "No ProVisors match this filter."}
           </div>
         ) : (
