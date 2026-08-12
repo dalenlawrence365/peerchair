@@ -243,6 +243,8 @@ export default function EventRoster({ slug }) {
     declined:    function (a) { return a.status === "Declined" },
     unavailable: function (a) { return a.status === "Unavailable" },
     noshow:      function (a) { return a.status === "No-show" },
+    cfoconfirmed:     function (a) { return a.status === "Confirmed" && (a.roles || []).includes("cfo") },
+    sponsorconfirmed: function (a) { return a.status === "Confirmed" && (a.roles || []).includes("sponsor_contact") },
   }
   const pred = filter && FILTERS[filter] ? FILTERS[filter] : null
   const needle = q.trim().toLowerCase()
@@ -295,7 +297,9 @@ export default function EventRoster({ slug }) {
 
       {/* Counts — click a box to filter the list below to just those names */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
-        <Stat label="Confirmed" value={c.confirmed || 0} sub={shortOf > 0 ? (shortOf + " short of " + (ev.min_to_run || 8)) : "at go threshold"} good={shortOf === 0} active={filter === "confirmed"} onClick={function () { toggleFilter("confirmed") }} />
+        <Stat label="Total confirmed" value={c.confirmed || 0} sub={shortOf > 0 ? (shortOf + " short of " + (ev.min_to_run || 8)) : "at go threshold"} good={shortOf === 0} active={filter === "confirmed"} onClick={function () { toggleFilter("confirmed") }} />
+        <Stat label="CFOs confirmed" value={c.cfo_confirmed || 0} sub="" active={filter === "cfoconfirmed"} onClick={function () { toggleFilter("cfoconfirmed") }} />
+        <Stat label="Sponsors confirmed" value={c.sponsor_confirmed || 0} sub="" active={filter === "sponsorconfirmed"} onClick={function () { toggleFilter("sponsorconfirmed") }} />
         <Stat label="Registered" value={c.registered || 0} sub="awaiting your review" highlight={(c.registered || 0) > 0} active={filter === "registered"} onClick={function () { toggleFilter("registered") }} />
         <Stat label="Invited" value={c.invited || 0} sub="total on the list" active={filter === "invited"} onClick={function () { toggleFilter("invited") }} />
         <Stat label="Declined" value={c.declined || 0} sub="" active={filter === "declined"} onClick={function () { toggleFilter("declined") }} />
@@ -461,6 +465,8 @@ export default function EventRoster({ slug }) {
                   <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                     {a.person_id ? <Link href={"/people/" + a.person_id} style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600, textDecoration: "none" }}>{a.name || "(no name)"}</Link> : <span style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600 }}>{a.name || "(no name)"}</span>}
+                    {(a.roles || []).includes("cfo") ? <span title="CFO" style={{ fontSize: 10, fontWeight: 700, color: "#c2410c", background: "#ffedd5", border: "1px solid #f4b183", borderRadius: 999, padding: "1px 7px", lineHeight: 1.5 }}>CFO</span> : null}
+                    {(a.roles || []).includes("sponsor_contact") ? <span title="Sponsor" style={{ fontSize: 10, fontWeight: 700, color: "#0f766e", background: "#ccfbf1", border: "1px solid #5eead4", borderRadius: 999, padding: "1px 7px", lineHeight: 1.5 }}>Sponsor</span> : null}
                     {a.linkedin_url ? <a href={a.linkedin_url} target="_blank" rel="noopener noreferrer" title="Open in LinkedIn" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: 3, background: "#0a66c2", color: "#fff", fontSize: 10, fontWeight: 700, textDecoration: "none", lineHeight: 1, flexShrink: 0 }}>in</a> : null}
                     {a.linkedin_connected ? <span title="First-degree connection — you can DM them" style={{ fontSize: 10, fontWeight: 700, color: "#0a66c2", border: "1px solid #0a66c2", borderRadius: 999, padding: "1px 6px", lineHeight: 1.5 }}>1st</span> : null}
                     {a.company ? <span style={{ fontSize: 13, color: T.textSecondary, fontWeight: 500 }}>{a.company}</span> : null}

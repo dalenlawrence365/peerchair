@@ -38,7 +38,7 @@ export async function GET(req) {
 
   const { data: rows } = await sb
     .from("event_attendees")
-    .select("id, status, invited_at, responded_at, invite_token, person_id, notes, source, registered_at, approved_at, confirmation_drafted_at, confirmation_draft_weblink, confirmation_sent_at, confirmation_draft_error, confirmation_draft_error_at, people:person_id ( first_name, last_name, full_name, email, title, company, cfo_state, avatar_url, linkedin_url, linkedin_connected )")
+    .select("id, status, invited_at, responded_at, invite_token, person_id, notes, source, registered_at, approved_at, confirmation_drafted_at, confirmation_draft_weblink, confirmation_sent_at, confirmation_draft_error, confirmation_draft_error_at, people:person_id ( first_name, last_name, full_name, email, title, company, cfo_state, avatar_url, linkedin_url, linkedin_connected, roles )")
     .eq("event_id", event.id)
     .order("invited_at", { ascending: true })
 
@@ -52,6 +52,7 @@ export async function GET(req) {
     linkedin_url: r.people?.linkedin_url || null,
     linkedin_connected: !!r.people?.linkedin_connected,
     cfo_state: r.people?.cfo_state || null,
+    roles: r.people?.roles || [],
     avatar_url: r.people?.avatar_url || null,
     status: r.status,
     notes: r.notes || null,
@@ -70,6 +71,7 @@ export async function GET(req) {
 
   const count = s => attendees.filter(a => a.status === s).length
   const confirmed = count("Confirmed")
+  const roleConfirmed = role => attendees.filter(a => a.status === "Confirmed" && Array.isArray(a.roles) && a.roles.includes(role)).length
   // "Awaiting your review" is a fact about timestamps, not a status label:
   // registered, not yet approved. Someone you invited directly who then also
   // self-registered carries status 'Invited' — they still need reviewing.
@@ -89,6 +91,8 @@ export async function GET(req) {
       invited: attendees.length,
       registered,
       confirmed,
+      cfo_confirmed: roleConfirmed("cfo"),
+      sponsor_confirmed: roleConfirmed("sponsor_contact"),
       declined: count("Declined"),
       // Counted apart from declined on purpose. Collapsing them would read as
       // "5 people said no" when four of them said "not that Tuesday".
