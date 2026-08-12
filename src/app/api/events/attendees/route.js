@@ -38,7 +38,7 @@ export async function GET(req) {
 
   const { data: rows } = await sb
     .from("event_attendees")
-    .select("id, status, invited_at, responded_at, invite_token, person_id, notes, source, registered_at, approved_at, confirmation_drafted_at, confirmation_draft_weblink, confirmation_sent_at, confirmation_draft_error, confirmation_draft_error_at, people:person_id ( first_name, last_name, full_name, email, title, company, cfo_state, avatar_url, linkedin_url, linkedin_connected, roles )")
+    .select("id, status, invited_at, responded_at, invite_token, person_id, notes, source, registered_at, approved_at, confirmation_drafted_at, confirmation_draft_weblink, confirmation_sent_at, confirmation_draft_error, confirmation_draft_error_at, people:person_id ( first_name, last_name, full_name, email, title, company, cfo_state, avatar_url, linkedin_url, linkedin_connected, roles, cfo_circle_member )")
     .eq("event_id", event.id)
     .order("invited_at", { ascending: true })
 
@@ -53,6 +53,7 @@ export async function GET(req) {
     linkedin_connected: !!r.people?.linkedin_connected,
     cfo_state: r.people?.cfo_state || null,
     roles: r.people?.roles || [],
+    cfo_circle_member: !!r.people?.cfo_circle_member,
     avatar_url: r.people?.avatar_url || null,
     status: r.status,
     notes: r.notes || null,
@@ -92,7 +93,7 @@ export async function GET(req) {
       registered,
       confirmed,
       cfo_confirmed: roleConfirmed("cfo"),
-      sponsor_confirmed: roleConfirmed("sponsor_contact"),
+      sponsor_confirmed: attendees.filter(a => a.status === "Confirmed" && ((Array.isArray(a.roles) && a.roles.includes("sponsor_contact")) || a.cfo_circle_member)).length,
       declined: count("Declined"),
       // Counted apart from declined on purpose. Collapsing them would read as
       // "5 people said no" when four of them said "not that Tuesday".
