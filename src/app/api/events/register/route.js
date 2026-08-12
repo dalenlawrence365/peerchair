@@ -39,9 +39,17 @@ export async function POST(req) {
 
   const sb = serverClient()
   const { data: event } = await sb
-    .from("events").select("id, slug, published")
+    .from("events").select("id, slug, published, event_date, ends_at")
     .eq("slug", slug).eq("published", true).maybeSingle()
   if (!event) return json({ error: "not_found" }, 404)
+
+  // Registration closes once the event is over. The page keeps working as a
+  // recap and points to the next date, but self-registration for a past session
+  // is rejected server-side so a stale tracked link can't create a dead signup.
+  const overAt = event.ends_at || event.event_date
+  if (overAt && new Date(overAt).getTime() < Date.now()) {
+    return json({ error: "event_passed", message: "Registration for this session has closed. Please check for our next date." }, 409)
+  }
 
   const full_name = (first_name + " " + last_name).trim()
 
