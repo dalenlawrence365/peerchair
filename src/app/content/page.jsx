@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { T, FONT_SERIF } from "@/lib/pipelineTheme"
 
 const FORMATS = ["video", "text", "carousel", "image", "poll", "article"]
@@ -140,7 +141,10 @@ export default function ContentPage() {
 
   return (
     <main style={{ padding: "26px 32px 80px", maxWidth: 1100 }}>
-      <h1 style={{ fontFamily: FONT_SERIF, fontSize: 30, fontWeight: 400, margin: 0, lineHeight: 1.1 }}>Content</h1>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
+        <h1 style={{ fontFamily: FONT_SERIF, fontSize: 30, fontWeight: 400, margin: 0, lineHeight: 1.1 }}>Content</h1>
+        <Link href="/content/scripts" style={{ fontSize: 13, color: T.accent, textDecoration: "none" }}>Scripts →</Link>
+      </div>
       <p style={{ fontSize: 13, color: T.textSecondary, margin: "6px 0 0", maxWidth: 660 }}>
         Every LinkedIn post, what it linked to, and what it drove. Posts with a destination get a tracking
         link generated automatically — use that link in the post and the traffic ties back here.
