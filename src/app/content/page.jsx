@@ -206,7 +206,15 @@ export default function ContentPage() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <strong style={{ fontSize: 14, color: T.textPrimary }}>{p.title}</strong>
-                <Pill text={p.status} bg={sc.bg} fg={sc.fg} />
+                <select value={p.status === "published" ? "published" : "unpublished"} disabled={busy} title="Published or unpublished"
+                  onChange={e => patch(p.id, e.target.value === "published" ? { status: "published" } : { status: p.scheduled_for ? "scheduled" : "draft" })}
+                  style={{ fontSize: 11, fontWeight: 600, borderRadius: 999, padding: "2px 8px", fontFamily: "inherit", cursor: "pointer",
+                    color: p.status === "published" ? "#15803d" : "#6b7280",
+                    background: p.status === "published" ? "rgba(21,128,61,0.12)" : "rgba(107,114,128,0.12)",
+                    border: "1px solid " + (p.status === "published" ? "rgba(21,128,61,0.35)" : "rgba(107,114,128,0.3)") }}>
+                  <option value="published" style={{ color: "#111827" }}>Published</option>
+                  <option value="unpublished" style={{ color: "#111827" }}>Unpublished</option>
+                </select>
                 <select value={p.format} onChange={e => patch(p.id, { format: e.target.value })} disabled={busy} title="Post type — change anytime"
                   style={{ fontSize: 11, fontWeight: 600, color: "#3b82f6", background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.35)", borderRadius: 999, padding: "2px 8px", fontFamily: "inherit", cursor: "pointer" }}>
                   {FORMATS.map(f => <option key={f} value={f} style={{ color: "#111827" }}>{f}</option>)}
@@ -257,13 +265,6 @@ export default function ContentPage() {
               </div>
 
               <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap", alignItems: "center" }}>
-                {p.status !== "published" && (
-                  <button onClick={() => patch(p.id, { status: "published" })} disabled={busy}
-                    style={{ padding: "6px 12px", borderRadius: 6, border: "none", background: T.success,
-                      color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                    Mark published
-                  </button>
-                )}
                 <input style={Object.assign({}, input, { flex: 1, minWidth: 220 })} placeholder="LinkedIn permalink"
                   defaultValue={p.post_url || ""} onBlur={e => { if (e.target.value !== (p.post_url || "")) patch(p.id, { post_url: e.target.value }) }} />
                 <input style={Object.assign({}, input, { width: 110 })} placeholder="Impressions" type="number"
