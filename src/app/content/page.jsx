@@ -69,6 +69,7 @@ export default function ContentPage() {
   const [destination, setDestination] = useState("assessment")
   const [scheduledFor, setScheduledFor] = useState("")
   const [view, setView] = useState("calendar")
+  const [pickedDate, setPickedDate] = useState(null)
 
   async function load() {
     setError(null)
@@ -153,6 +154,7 @@ export default function ContentPage() {
 
       {error && <div style={{ color: T.danger, marginTop: 16 }}>⚠ {error}</div>}
 
+      {view === "list" && (
       <section style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: 18, marginTop: 20 }}>
         <h2 style={{ fontSize: 14, fontWeight: 600, margin: "0 0 14px" }}>New post</h2>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1.3fr 1.2fr auto", gap: 10, alignItems: "center" }}>
@@ -174,13 +176,16 @@ export default function ContentPage() {
           reach posts (no link) are still worth recording, they just have nothing to attribute.
         </div>
       </section>
+      )}
 
       <div style={{ display: "flex", gap: 6, margin: "24px 0 8px" }}>
         <button onClick={function(){ setView("calendar") }} style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid " + T.border, background: view === "calendar" ? T.accent : "white", color: view === "calendar" ? "white" : T.textSecondary, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Calendar</button>
         <button onClick={function(){ setView("list") }} style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid " + T.border, background: view === "list" ? T.accent : "white", color: view === "list" ? "white" : T.textSecondary, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>List</button>
       </div>
 
-      {view === "calendar" && <ContentCalendar posts={posts || []} onOpen={function(id){ setView("list"); setTimeout(function(){ var el = document.getElementById("post-" + id); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }) }, 80) }} />}
+      {view === "calendar" && <ContentCalendar posts={posts || []} onPickDate={function(k){ setPickedDate(k) }} onOpen={function(id){ setView("list"); setTimeout(function(){ var el = document.getElementById("post-" + id); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }) }, 80) }} />}
+
+      {pickedDate && <NewPostModal date={pickedDate} onClose={function(){ setPickedDate(null) }} onCreated={function(){ setPickedDate(null); load() }} />}
 
       {view === "list" && (<>
       {!posts && !error && <div style={{ color: T.textTertiary, marginTop: 20 }}>Loading…</div>}
@@ -355,10 +360,55 @@ export default function ContentPage() {
   )
 }
 
+const modalInp = { padding: "8px 10px", borderRadius: 7, border: "1px solid " + T.border, fontSize: 13, fontFamily: "inherit", color: T.textPrimary, background: "white", width: "100%", boxSizing: "border-box" }
+function todayInput() { var d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10) }
+function NewPostModal({ date, onClose, onCreated }) {
+  const [title, setTitle] = useState("")
+  const [format, setFormat] = useState("video")
+  const [destination, setDestination] = useState("assessment")
+  const [schedFor, setSchedFor] = useState(date || "")
+  const [schedOn, setSchedOn] = useState(todayInput())
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+  async function create() {
+    if (!title.trim()) { setErr("A title or hook is required"); return }
+    setBusy(true); setErr(null)
+    try {
+      const r = await fetch("/api/content", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: title, format: format, destination: destination,
+          status: schedFor ? "scheduled" : "draft",
+          scheduled_for: schedFor ? new Date(schedFor + "T09:00").toISOString() : null,
+          scheduled_on: schedOn ? new Date(schedOn + "T00:00").toISOString() : null }) })
+      const d = await r.json()
+      if (d.error) { setErr(d.error); setBusy(false); return }
+      onCreated()
+    } catch (e) { setErr(String(e)); setBusy(false) }
+  }
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, zIndex: 1000 }}>
+      <div onClick={function(e){ e.stopPropagation() }} style={{ background: "white", borderRadius: 12, padding: 22, width: 420, maxWidth: "92vw", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>New post{date ? " \u00b7 " + new Date(date + "T12:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""}</div>
+        {err && <div style={{ color: T.danger, fontSize: 12, marginBottom: 10 }}>\u26a0 {err}</div>}
+        <div style={{ display: "grid", gap: 10 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 3 }}><span style={dateLbl}>Scheduled for</span><input type="date" style={modalInp} value={schedFor} onChange={function(e){ setSchedFor(e.target.value) }} /></label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 3 }}><span style={dateLbl}>Scheduled on</span><input type="date" style={modalInp} value={schedOn} onChange={function(e){ setSchedOn(e.target.value) }} /></label>
+          <input style={modalInp} placeholder="Title or hook" value={title} onChange={function(e){ setTitle(e.target.value) }} autoFocus />
+          <select style={modalInp} value={format} onChange={function(e){ setFormat(e.target.value) }}>{FORMATS.map(function(fo){ return <option key={fo} value={fo}>{fo}</option> })}</select>
+          <select style={modalInp} value={destination} onChange={function(e){ setDestination(e.target.value) }}>{DESTINATIONS.map(function(dd){ return <option key={dd.v} value={dd.v}>{dd.label}</option> })}</select>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+          <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: T.textSecondary, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+          <button disabled={busy} onClick={create} style={{ padding: "8px 18px", borderRadius: 7, border: "none", background: T.accent, color: "white", fontSize: 13, fontWeight: 600, cursor: busy ? "default" : "pointer", fontFamily: "inherit" }}>{busy ? "Creating\u2026" : "Create post"}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const calNavBtn = { padding: "5px 11px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: T.textSecondary, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }
 const calActiveBtn = { background: T.accent, color: "white", borderColor: T.accent }
 
-function ContentCalendar({ posts, onOpen }) {
+function ContentCalendar({ posts, onOpen, onPickDate }) {
   const [mode, setMode] = useState("month")
   const [cursor, setCursor] = useState(function(){ var d = new Date(); d.setHours(0,0,0,0); return d })
   function dateFor(p) { return p.published_at || p.scheduled_for || null }
@@ -395,16 +445,16 @@ function ContentCalendar({ posts, onOpen }) {
           <button onClick={function(){ setMode("week") }} style={Object.assign({}, calNavBtn, mode === "week" ? calActiveBtn : {})}>Week</button>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6, marginBottom: 6 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6, marginBottom: 6 }}>
         {WD.map(function(w){ return <div key={w} style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textAlign: "center" }}>{w}</div> })}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
         {days.map(function(d, i){
           var k = keyOf(d)
           var inMonth = mode === "week" || d.getMonth() === cursor.getMonth()
           var list = byDay[k] || []
           return (
-            <div key={i} style={{ minHeight: mode === "week" ? 200 : 100, background: inMonth ? T.cardBg : T.bg, border: "1px solid " + T.border, borderRadius: 8, padding: 6, opacity: inMonth ? 1 : 0.5 }}>
+            <div key={i} onClick={function(){ onPickDate(k) }} style={{ minHeight: mode === "week" ? 200 : 100, minWidth: 0, background: inMonth ? T.cardBg : T.bg, border: "1px solid " + T.border, borderRadius: 8, padding: 6, opacity: inMonth ? 1 : 0.5, cursor: "pointer" }}>
               <div style={{ fontSize: 11, fontWeight: k === todayKey ? 700 : 500, color: k === todayKey ? T.accent : T.textTertiary, marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
                 <span>{d.getDate()}</span>
                 {k === todayKey ? <span style={{ fontSize: 9, color: T.accent }}>today</span> : null}
@@ -414,8 +464,8 @@ function ContentCalendar({ posts, onOpen }) {
                   var pub = p.status === "published"
                   var ring = pub ? "#15803d" : "#b45309"
                   return (
-                    <button key={p.id} onClick={function(){ onOpen(p.id) }} title={p.title + (pub ? " \u00b7 published" : " \u00b7 not published")}
-                      style={{ textAlign: "left", width: "100%", boxSizing: "border-box", border: "2px solid " + ring, borderRadius: 6, background: pub ? "rgba(21,128,61,0.08)" : "rgba(180,83,9,0.06)", padding: "3px 6px", fontSize: 11, color: T.textPrimary, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <button key={p.id} onClick={function(e){ e.stopPropagation(); onOpen(p.id) }} title={p.title + (pub ? " \u00b7 published" : " \u00b7 not published")}
+                      style={{ textAlign: "left", width: "100%", minWidth: 0, boxSizing: "border-box", border: "2px solid " + ring, borderRadius: 6, background: pub ? "rgba(21,128,61,0.08)" : "rgba(180,83,9,0.06)", padding: "3px 6px", fontSize: 11, color: T.textPrimary, cursor: "pointer", fontFamily: "inherit", whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                       {p.title}
                     </button>
                   )
