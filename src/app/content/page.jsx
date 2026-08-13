@@ -68,6 +68,7 @@ export default function ContentPage() {
   const [format, setFormat] = useState("video")
   const [destination, setDestination] = useState("assessment")
   const [scheduledFor, setScheduledFor] = useState("")
+  const [view, setView] = useState("calendar")
 
   async function load() {
     setError(null)
@@ -174,6 +175,14 @@ export default function ContentPage() {
         </div>
       </section>
 
+      <div style={{ display: "flex", gap: 6, margin: "24px 0 8px" }}>
+        <button onClick={function(){ setView("calendar") }} style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid " + T.border, background: view === "calendar" ? T.accent : "white", color: view === "calendar" ? "white" : T.textSecondary, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Calendar</button>
+        <button onClick={function(){ setView("list") }} style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid " + T.border, background: view === "list" ? T.accent : "white", color: view === "list" ? "white" : T.textSecondary, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>List</button>
+      </div>
+
+      {view === "calendar" && <ContentCalendar posts={posts || []} onOpen={function(id){ setView("list"); setTimeout(function(){ var el = document.getElementById("post-" + id); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }) }, 80) }} />}
+
+      {view === "list" && (<>
       {!posts && !error && <div style={{ color: T.textTertiary, marginTop: 20 }}>Loading…</div>}
 
       {posts && posts.length === 0 && (
@@ -183,7 +192,7 @@ export default function ContentPage() {
       {posts && posts.map(function (p) {
         const sc = STATUS_COLOR[p.status] || STATUS_COLOR.draft
         return (
-          <section key={p.id} style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: 16, marginTop: 14, display: "flex", gap: 14, alignItems: "flex-start" }}>
+          <section key={p.id} id={"post-" + p.id} style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: 16, marginTop: 14, display: "flex", gap: 14, alignItems: "flex-start" }}>
 
             {/* Graphic thumbnail — click to view full size; the anchor for finding a post visually */}
             <div style={{ flexShrink: 0 }}>
@@ -318,6 +327,7 @@ export default function ContentPage() {
           </section>
         )
       })}
+      </>)}
 
       {lightbox && (
         <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.82)",
@@ -342,6 +352,85 @@ export default function ContentPage() {
         </div>
       )}
     </main>
+  )
+}
+
+const calNavBtn = { padding: "5px 11px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: T.textSecondary, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }
+const calActiveBtn = { background: T.accent, color: "white", borderColor: T.accent }
+
+function ContentCalendar({ posts, onOpen }) {
+  const [mode, setMode] = useState("month")
+  const [cursor, setCursor] = useState(function(){ var d = new Date(); d.setHours(0,0,0,0); return d })
+  function dateFor(p) { return p.published_at || p.scheduled_for || null }
+  function keyOf(d) { return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0") }
+  function keyOfIso(iso) { if (!iso) return null; return keyOf(new Date(iso)) }
+  var byDay = {}
+  posts.forEach(function(p){ var k = keyOfIso(dateFor(p)); if (k) { (byDay[k] = byDay[k] || []).push(p) } })
+  var days = []
+  if (mode === "week") {
+    var start = new Date(cursor); start.setDate(start.getDate() - start.getDay())
+    for (var i = 0; i < 7; i++) { var d = new Date(start); d.setDate(start.getDate() + i); days.push(d) }
+  } else {
+    var first = new Date(cursor.getFullYear(), cursor.getMonth(), 1)
+    var gridStart = new Date(first); gridStart.setDate(1 - first.getDay())
+    var last = new Date(cursor.getFullYear(), cursor.getMonth()+1, 0)
+    var cells = Math.ceil((first.getDay() + last.getDate()) / 7) * 7
+    for (var j = 0; j < cells; j++) { var dd = new Date(gridStart); dd.setDate(gridStart.getDate() + j); days.push(dd) }
+  }
+  var todayKey = keyOf(new Date())
+  function shift(dir) { var d = new Date(cursor); if (mode === "week") { d.setDate(d.getDate() + 7*dir) } else { d.setMonth(d.getMonth() + dir) } setCursor(d) }
+  var label = mode === "week"
+    ? (days[0].toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " \u2013 " + days[6].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))
+    : cursor.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+  var WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <button onClick={function(){ shift(-1) }} style={calNavBtn}>{"\u2039"}</button>
+        <button onClick={function(){ var d = new Date(); d.setHours(0,0,0,0); setCursor(d) }} style={calNavBtn}>Today</button>
+        <button onClick={function(){ shift(1) }} style={calNavBtn}>{"\u203a"}</button>
+        <strong style={{ fontSize: 15, marginLeft: 6 }}>{label}</strong>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+          <button onClick={function(){ setMode("month") }} style={Object.assign({}, calNavBtn, mode === "month" ? calActiveBtn : {})}>Month</button>
+          <button onClick={function(){ setMode("week") }} style={Object.assign({}, calNavBtn, mode === "week" ? calActiveBtn : {})}>Week</button>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6, marginBottom: 6 }}>
+        {WD.map(function(w){ return <div key={w} style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textAlign: "center" }}>{w}</div> })}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6 }}>
+        {days.map(function(d, i){
+          var k = keyOf(d)
+          var inMonth = mode === "week" || d.getMonth() === cursor.getMonth()
+          var list = byDay[k] || []
+          return (
+            <div key={i} style={{ minHeight: mode === "week" ? 200 : 100, background: inMonth ? T.cardBg : T.bg, border: "1px solid " + T.border, borderRadius: 8, padding: 6, opacity: inMonth ? 1 : 0.5 }}>
+              <div style={{ fontSize: 11, fontWeight: k === todayKey ? 700 : 500, color: k === todayKey ? T.accent : T.textTertiary, marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
+                <span>{d.getDate()}</span>
+                {k === todayKey ? <span style={{ fontSize: 9, color: T.accent }}>today</span> : null}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {list.map(function(p){
+                  var pub = p.status === "published"
+                  var ring = pub ? "#15803d" : "#b45309"
+                  return (
+                    <button key={p.id} onClick={function(){ onOpen(p.id) }} title={p.title + (pub ? " \u00b7 published" : " \u00b7 not published")}
+                      style={{ textAlign: "left", width: "100%", boxSizing: "border-box", border: "2px solid " + ring, borderRadius: 6, background: pub ? "rgba(21,128,61,0.08)" : "rgba(180,83,9,0.06)", padding: "3px 6px", fontSize: 11, color: T.textPrimary, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {p.title}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 10, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <span><span style={{ display: "inline-block", width: 10, height: 10, border: "2px solid #15803d", borderRadius: 3, marginRight: 5, verticalAlign: "middle" }} />published</span>
+        <span><span style={{ display: "inline-block", width: 10, height: 10, border: "2px solid #b45309", borderRadius: 3, marginRight: 5, verticalAlign: "middle" }} />not published</span>
+        <span style={{ marginLeft: "auto" }}>Each post sits on its published date, or its scheduled date if not yet out. Click a title to edit it.</span>
+      </div>
+    </div>
   )
 }
 
