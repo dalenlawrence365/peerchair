@@ -81,6 +81,7 @@ export default function ContentPage() {
     } catch (e) { setError(String(e)) }
   }
   useEffect(function () { load() }, [])
+  useEffect(function () { if (editPost) { var fresh = (posts || []).find(function (pp) { return pp.id === editPost.id }); if (fresh && fresh !== editPost) setEditPost(fresh) } }, [posts])
 
   async function create() {
     if (!title.trim()) { setError("Title is required"); return }
@@ -191,7 +192,7 @@ export default function ContentPage() {
 
       {pickedDate && <NewPostModal date={pickedDate} onClose={function(){ setPickedDate(null) }} onCreated={function(){ setPickedDate(null); load() }} />}
 
-      {editPost && <FullEditModal post={editPost} onClose={function(){ setEditPost(null) }} onPatch={patch} />}
+      {editPost && <FullEditModal post={editPost} onClose={function(){ setEditPost(null) }} onPatch={patch} onUpload={uploadGraphic} onRemoveGraphic={removeGraphic} uploading={uploading} />}
 
       {view === "list" && (<>
       {!posts && !error && <div style={{ color: T.textTertiary, marginTop: 20 }}>Loading…</div>}
@@ -432,7 +433,8 @@ function CalCard({ p, onPatch, onEdit }) {
         <select value={p.format} onChange={function(e){ onPatch(p.id, { format: e.target.value }) }} style={{ fontSize: 9.5, border: "none", background: "transparent", color: T.textTertiary, fontFamily: "inherit", cursor: "pointer", padding: 0, maxWidth: 70 }}>
           {FORMATS.map(function(fo){ return <option key={fo} value={fo}>{fo}</option> })}
         </select>
-        <button onClick={function(){ onEdit(p) }} title="Full edit" style={{ marginLeft: "auto", background: "none", border: "none", color: T.textTertiary, cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1 }}>{"\u270e"}</button>
+        {p.graphic_url ? <img src={p.graphic_url} alt="" title="Has image" style={{ width: 14, height: 14, borderRadius: 3, objectFit: "cover", marginLeft: "auto" }} /> : null}
+        <button onClick={function(){ onEdit(p) }} title="Full edit" style={{ marginLeft: p.graphic_url ? 4 : "auto", background: "none", border: "none", color: T.textTertiary, cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1 }}>{"\u270e"}</button>
       </div>
       <input defaultValue={p.short_label || ""} placeholder="short label" title={p.title || ""}
         onBlur={function(e){ if (e.target.value !== (p.short_label || "")) onPatch(p.id, { short_label: e.target.value }) }}
@@ -462,7 +464,7 @@ function UnscheduledTray({ posts, onPatch, onEdit }) {
   )
 }
 
-function FullEditModal({ post, onClose, onPatch }) {
+function FullEditModal({ post, onClose, onPatch, onUpload, onRemoveGraphic, uploading }) {
   var p = post
   function set(k, v) { onPatch(p.id, { [k]: v }) }
   var lbl = { fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 600, marginBottom: 3, display: "block" }
@@ -483,6 +485,26 @@ function FullEditModal({ post, onClose, onPatch }) {
             <div><label style={lbl}>Status</label><select style={fld} defaultValue={p.status} onChange={function(e){ set("status", e.target.value) }}>{["unscheduled","scheduled","posted"].map(function(st){ return <option key={st} value={st}>{st}</option> })}</select></div>
           </div>
           <div><label style={lbl}>Destination</label><select style={fld} defaultValue={p.destination} onChange={function(e){ set("destination", e.target.value) }}>{DESTINATIONS.map(function(dd){ return <option key={dd.v} value={dd.v}>{dd.label}</option> })}</select></div>
+          <div>
+            <label style={lbl}>Image</label>
+            {p.graphic_url ? (
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <img src={p.graphic_url} alt="" style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 8, border: "1px solid " + T.border }} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <label style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "6px 12px", border: "1px solid " + T.border, borderRadius: 7, cursor: "pointer", fontSize: 12, color: T.textSecondary }}>
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={function(e){ var fl = e.target.files && e.target.files[0]; if (fl) onUpload(p.id, fl); e.target.value = "" }} />
+                    {uploading === p.id ? "Uploading\u2026" : "Replace"}
+                  </label>
+                  <button onClick={function(){ onRemoveGraphic(p.id) }} style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: "#b91c1c", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Remove image</button>
+                </div>
+              </div>
+            ) : (
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", border: "1px dashed " + T.border, borderRadius: 8, cursor: "pointer", fontSize: 13, color: T.textSecondary }}>
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={function(e){ var fl = e.target.files && e.target.files[0]; if (fl) onUpload(p.id, fl); e.target.value = "" }} />
+                {uploading === p.id ? "Uploading\u2026" : "\u002b Attach image"}
+              </label>
+            )}
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
             <div><label style={lbl}>Scheduled on</label><input type="date" style={fld} defaultValue={toDateInput(p.scheduled_on)} onBlur={function(e){ if (e.target.value !== toDateInput(p.scheduled_on)) set("scheduled_on", fromDate(e.target.value)) }} /></div>
             <div><label style={lbl}>Scheduled for</label><input type="datetime-local" style={fld} defaultValue={toDTInput(p.scheduled_for)} onBlur={function(e){ if (e.target.value !== toDTInput(p.scheduled_for)) set("scheduled_for", fromDT(e.target.value)) }} /></div>
@@ -493,7 +515,7 @@ function FullEditModal({ post, onClose, onPatch }) {
           <div><label style={lbl}>Post copy</label><textarea rows={4} style={Object.assign({}, fld, { lineHeight: 1.5, resize: "vertical" })} defaultValue={p.body || ""} onBlur={function(e){ if (e.target.value !== (p.body || "")) set("body", e.target.value) }} /></div>
           <div><label style={lbl}>Transcript</label><textarea rows={5} style={Object.assign({}, fld, { lineHeight: 1.5, resize: "vertical" })} defaultValue={p.transcript || ""} onBlur={function(e){ if (e.target.value !== (p.transcript || "")) set("transcript", e.target.value) }} /></div>
         </div>
-        <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 14 }}>Changes save as you leave each field. Metrics and the graphic image are managed in List view.</div>
+        <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 14 }}>Changes save as you leave each field. Metrics are managed in List view.</div>
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
           <button onClick={onClose} style={{ padding: "8px 18px", borderRadius: 7, border: "none", background: T.accent, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Done</button>
         </div>
