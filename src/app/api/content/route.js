@@ -59,6 +59,7 @@ export async function POST(req) {
   const row = {
     title, format, destination, status, src_tag,
     scheduled_for: b.scheduled_for || null,
+    scheduled_on: b.scheduled_on || (b.scheduled_for ? new Date().toISOString() : null),
     published_at: status === "published" ? (b.published_at || new Date().toISOString()) : (b.published_at || null),
     post_url: (b.post_url || "").trim() || null,
     notes: (b.notes || "").trim() || null,
@@ -87,6 +88,7 @@ export async function PATCH(req) {
   if (b.status === "published" && !b.published_at) patch.published_at = new Date().toISOString()
   if (b.published_at !== undefined) patch.published_at = b.published_at || null
   if (b.scheduled_for !== undefined) patch.scheduled_for = b.scheduled_for || null
+  if (b.scheduled_on !== undefined) patch.scheduled_on = b.scheduled_on || null
   if (b.post_url !== undefined) patch.post_url = (b.post_url || "").trim() || null
   if (b.notes !== undefined) patch.notes = (b.notes || "").trim() || null
   if (b.body !== undefined) patch.body = (b.body || "").trim() || null

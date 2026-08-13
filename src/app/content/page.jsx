@@ -46,6 +46,15 @@ function readDims(file) {
   })
 }
 
+// Date helpers for the schedule fields — convert stored ISO <-> local input value.
+function toDateInput(iso) { if (!iso) return ""; const d = new Date(iso); if (isNaN(d)) return ""; return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10) }
+function toDTInput(iso) { if (!iso) return ""; const d = new Date(iso); if (isNaN(d)) return ""; return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16) }
+function fromDate(v) { return v ? new Date(v + "T00:00").toISOString() : null }
+function fromDT(v) { return v ? new Date(v).toISOString() : null }
+const dateWrap = { display: "flex", flexDirection: "column", gap: 3 }
+const dateLbl = { fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 600 }
+const dateInp = { padding: "6px 8px", border: "1px solid " + T.border, borderRadius: 6, fontSize: 12.5, fontFamily: "inherit", color: T.textPrimary, background: "white" }
+
 export default function ContentPage() {
   const [posts, setPosts] = useState(null)
   const [error, setError] = useState(null)
@@ -204,6 +213,18 @@ export default function ContentPage() {
                 <span style={{ marginLeft: "auto", fontSize: 11, color: T.textTertiary }}>
                   {p.published_at ? "Published " + fmtDate(p.published_at) : p.scheduled_for ? "Scheduled " + fmtDate(p.scheduled_for) : "Draft"}
                 </span>
+              </div>
+
+              <div style={{ display: "flex", gap: 14, marginTop: 12, flexWrap: "wrap" }}>
+                <label style={dateWrap}><span style={dateLbl}>Scheduled on</span>
+                  <input type="date" defaultValue={toDateInput(p.scheduled_on)} style={dateInp}
+                    onBlur={e => { if (e.target.value !== toDateInput(p.scheduled_on)) patch(p.id, { scheduled_on: fromDate(e.target.value) }) }} /></label>
+                <label style={dateWrap}><span style={dateLbl}>Scheduled for</span>
+                  <input type="datetime-local" defaultValue={toDTInput(p.scheduled_for)} style={dateInp}
+                    onBlur={e => { if (e.target.value !== toDTInput(p.scheduled_for)) patch(p.id, { scheduled_for: fromDT(e.target.value) }) }} /></label>
+                <label style={dateWrap}><span style={dateLbl}>Published</span>
+                  <input type="datetime-local" defaultValue={toDTInput(p.published_at)} style={dateInp}
+                    onBlur={e => { if (e.target.value !== toDTInput(p.published_at)) patch(p.id, { published_at: fromDT(e.target.value) }) }} /></label>
               </div>
 
               {p.destination_url && (
