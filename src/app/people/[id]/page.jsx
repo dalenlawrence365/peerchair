@@ -970,6 +970,7 @@ export default function PersonProfile() {
 function MeetingEntry({ m, onAdd, onDelete }) {
   const [draft, setDraft] = useState("")
   const [saving, setSaving] = useState(false)
+  const [openNotes, setOpenNotes] = useState({})
   const accent = "#16a34a"
   async function add() { if (!draft.trim()) return; setSaving(true); await onAdd(m.id, draft.trim()); setDraft(""); setSaving(false) }
   return (
@@ -993,7 +994,23 @@ function MeetingEntry({ m, onAdd, onDelete }) {
                   <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, color: n.source === "manual" ? "#3b82f6" : "#7c3aed" }}>{n.source === "manual" ? "Note" : n.source}</span>
                   <span style={{ fontSize: 10, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtDate(n.created_at)}<button onClick={function(){ onDelete(n.id) }} title="Delete note" style={{ marginLeft: 8, background: "none", border: "none", color: T.textTertiary, cursor: "pointer", fontSize: 12, padding: 0 }}>×</button></span>
                 </div>
-                <div style={{ fontSize: 13, color: T.textPrimary, marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{n.body}</div>
+                {(function(){
+                  var isOpen = !!openNotes[n.id]
+                  var body = n.body || ""
+                  var longNote = body.length > 280 || body.split("\n").length > 5
+                  var clampStyle = (longNote && !isOpen) ? { display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical", overflow: "hidden" } : {}
+                  return (
+                    <div>
+                      <div style={Object.assign({ fontSize: 13, color: T.textPrimary, marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }, clampStyle)}>{body}</div>
+                      {longNote && (
+                        <button onClick={function(){ setOpenNotes(function(o){ return Object.assign({}, o, { [n.id]: !isOpen }) }) }}
+                          style={{ marginTop: 4, padding: 0, background: "none", border: "none", color: "#3b82f6", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit" }}>
+                          {isOpen ? "Show less" : "Show more"}
+                        </button>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             )
           })}
