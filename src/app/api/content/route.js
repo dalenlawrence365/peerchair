@@ -85,6 +85,7 @@ export async function PATCH(req) {
   const patch = {}
   if (typeof b.title === "string" && b.title.trim()) patch.title = b.title.trim()
   if (STATUSES.includes(b.status)) patch.status = b.status
+  if (FORMATS.includes(b.format)) patch.format = b.format
   if (b.status === "published" && !b.published_at) patch.published_at = new Date().toISOString()
   if (b.published_at !== undefined) patch.published_at = b.published_at || null
   if (b.scheduled_for !== undefined) patch.scheduled_for = b.scheduled_for || null

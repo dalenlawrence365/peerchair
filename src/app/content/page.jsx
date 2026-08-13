@@ -207,7 +207,10 @@ export default function ContentPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <strong style={{ fontSize: 14, color: T.textPrimary }}>{p.title}</strong>
                 <Pill text={p.status} bg={sc.bg} fg={sc.fg} />
-                <Pill text={p.format} bg="rgba(59,130,246,0.12)" fg="#3b82f6" />
+                <select value={p.format} onChange={e => patch(p.id, { format: e.target.value })} disabled={busy} title="Post type — change anytime"
+                  style={{ fontSize: 11, fontWeight: 600, color: "#3b82f6", background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.35)", borderRadius: 999, padding: "2px 8px", fontFamily: "inherit", cursor: "pointer" }}>
+                  {FORMATS.map(f => <option key={f} value={f} style={{ color: "#111827" }}>{f}</option>)}
+                </select>
                 {p.destination !== "none" && <Pill text={"→ " + (DEST_PILL[p.destination] || p.destination)} bg="rgba(168,85,247,0.14)" fg="#a855f7" />}
                 {p.boosted && <Pill text="boosted" bg="rgba(217,119,6,0.16)" fg="#b45309" />}
                 <span style={{ marginLeft: "auto", fontSize: 11, color: T.textTertiary }}>
