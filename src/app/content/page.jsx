@@ -376,6 +376,7 @@ function NewPostModal({ date, onClose, onCreated }) {
   const [destination, setDestination] = useState("assessment")
   const [shortLabel, setShortLabel] = useState("")
   const [theme, setTheme] = useState("")
+  const [status, setStatus] = useState(date ? "scheduled" : "unscheduled")
   const [schedFor, setSchedFor] = useState(date || "")
   const [schedOn, setSchedOn] = useState(todayInput())
   const [busy, setBusy] = useState(false)
@@ -386,7 +387,7 @@ function NewPostModal({ date, onClose, onCreated }) {
     try {
       const r = await fetch("/api/content", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: title, format: format, destination: destination,
-          status: schedFor ? "scheduled" : "unscheduled",
+          status: status,
           short_label: shortLabel, theme: theme,
           scheduled_for: schedFor ? new Date(schedFor + "T09:00").toISOString() : null,
           scheduled_on: schedOn ? new Date(schedOn + "T00:00").toISOString() : null }) })
@@ -403,6 +404,7 @@ function NewPostModal({ date, onClose, onCreated }) {
         <div style={{ display: "grid", gap: 10 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 3 }}><span style={dateLbl}>Scheduled for</span><input type="date" style={modalInp} value={schedFor} onChange={function(e){ setSchedFor(e.target.value) }} /></label>
           <label style={{ display: "flex", flexDirection: "column", gap: 3 }}><span style={dateLbl}>Scheduled on</span><input type="date" style={modalInp} value={schedOn} onChange={function(e){ setSchedOn(e.target.value) }} /></label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 3 }}><span style={dateLbl}>Status</span><select style={modalInp} value={status} onChange={function(e){ setStatus(e.target.value) }}>{["unscheduled","scheduled","posted"].map(function(st){ return <option key={st} value={st}>{st}</option> })}</select></label>
           <input style={modalInp} placeholder="Title or hook" value={title} onChange={function(e){ setTitle(e.target.value) }} autoFocus />
           <input style={modalInp} placeholder="Short label (shown on calendar)" value={shortLabel} onChange={function(e){ setShortLabel(e.target.value) }} />
           <input style={modalInp} placeholder="Theme / purpose (optional)" value={theme} onChange={function(e){ setTheme(e.target.value) }} />
