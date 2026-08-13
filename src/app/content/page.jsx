@@ -18,9 +18,9 @@ const DEST_PILL = {
 }
 
 const STATUS_COLOR = {
-  draft:     { bg: "rgba(100,116,139,0.13)", fg: "#475569" },
-  scheduled: { bg: "rgba(217,119,6,0.14)",   fg: "#b45309" },
-  published: { bg: "rgba(22,163,74,0.14)",   fg: "#15803d" },
+  unscheduled: { bg: "rgba(100,116,139,0.13)", fg: "#475569" },
+  scheduled:   { bg: "rgba(217,119,6,0.14)",   fg: "#b45309" },
+  posted:      { bg: "rgba(22,163,74,0.14)",   fg: "#15803d" },
 }
 
 function Pill({ text, bg, fg }) {
@@ -70,6 +70,7 @@ export default function ContentPage() {
   const [scheduledFor, setScheduledFor] = useState("")
   const [view, setView] = useState("calendar")
   const [pickedDate, setPickedDate] = useState(null)
+  const [editPost, setEditPost] = useState(null)
 
   async function load() {
     setError(null)
@@ -183,9 +184,14 @@ export default function ContentPage() {
         <button onClick={function(){ setView("list") }} style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid " + T.border, background: view === "list" ? T.accent : "white", color: view === "list" ? "white" : T.textSecondary, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>List</button>
       </div>
 
-      {view === "calendar" && <ContentCalendar posts={posts || []} onPickDate={function(k){ setPickedDate(k) }} onOpen={function(id){ setView("list"); setTimeout(function(){ var el = document.getElementById("post-" + id); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }) }, 80) }} />}
+      {view === "calendar" && (<>
+        <UnscheduledTray posts={posts || []} onPatch={patch} onEdit={function(p){ setEditPost(p) }} />
+        <ContentCalendar posts={posts || []} onPickDate={function(k){ setPickedDate(k) }} onPatch={patch} onEdit={function(p){ setEditPost(p) }} />
+      </>)}
 
       {pickedDate && <NewPostModal date={pickedDate} onClose={function(){ setPickedDate(null) }} onCreated={function(){ setPickedDate(null); load() }} />}
+
+      {editPost && <FullEditModal post={editPost} onClose={function(){ setEditPost(null) }} onPatch={patch} />}
 
       {view === "list" && (<>
       {!posts && !error && <div style={{ color: T.textTertiary, marginTop: 20 }}>Loading…</div>}
@@ -224,14 +230,15 @@ export default function ContentPage() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <strong style={{ fontSize: 14, color: T.textPrimary }}>{p.title}</strong>
-                <select value={p.status === "published" ? "published" : "unpublished"} disabled={busy} title="Published or unpublished"
-                  onChange={e => patch(p.id, e.target.value === "published" ? { status: "published" } : { status: p.scheduled_for ? "scheduled" : "draft" })}
+                <select value={p.status} disabled={busy} title="Status"
+                  onChange={e => patch(p.id, { status: e.target.value })}
                   style={{ fontSize: 11, fontWeight: 600, borderRadius: 999, padding: "2px 8px", fontFamily: "inherit", cursor: "pointer",
-                    color: p.status === "published" ? "#15803d" : "#6b7280",
-                    background: p.status === "published" ? "rgba(21,128,61,0.12)" : "rgba(107,114,128,0.12)",
-                    border: "1px solid " + (p.status === "published" ? "rgba(21,128,61,0.35)" : "rgba(107,114,128,0.3)") }}>
-                  <option value="published" style={{ color: "#111827" }}>Published</option>
-                  <option value="unpublished" style={{ color: "#111827" }}>Unpublished</option>
+                    color: (STATUS_COLOR[p.status] || STATUS_COLOR.unscheduled).fg,
+                    background: (STATUS_COLOR[p.status] || STATUS_COLOR.unscheduled).bg,
+                    border: "1px solid " + (STATUS_COLOR[p.status] || STATUS_COLOR.unscheduled).fg + "55" }}>
+                  <option value="unscheduled" style={{ color: "#111827" }}>Unscheduled</option>
+                  <option value="scheduled" style={{ color: "#111827" }}>Scheduled</option>
+                  <option value="posted" style={{ color: "#111827" }}>Posted</option>
                 </select>
                 <select value={p.format} onChange={e => patch(p.id, { format: e.target.value })} disabled={busy} title="Post type — change anytime"
                   style={{ fontSize: 11, fontWeight: 600, color: "#3b82f6", background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.35)", borderRadius: 999, padding: "2px 8px", fontFamily: "inherit", cursor: "pointer" }}>
@@ -366,6 +373,8 @@ function NewPostModal({ date, onClose, onCreated }) {
   const [title, setTitle] = useState("")
   const [format, setFormat] = useState("video")
   const [destination, setDestination] = useState("assessment")
+  const [shortLabel, setShortLabel] = useState("")
+  const [theme, setTheme] = useState("")
   const [schedFor, setSchedFor] = useState(date || "")
   const [schedOn, setSchedOn] = useState(todayInput())
   const [busy, setBusy] = useState(false)
@@ -376,7 +385,8 @@ function NewPostModal({ date, onClose, onCreated }) {
     try {
       const r = await fetch("/api/content", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: title, format: format, destination: destination,
-          status: schedFor ? "scheduled" : "draft",
+          status: schedFor ? "scheduled" : "unscheduled",
+          short_label: shortLabel, theme: theme,
           scheduled_for: schedFor ? new Date(schedFor + "T09:00").toISOString() : null,
           scheduled_on: schedOn ? new Date(schedOn + "T00:00").toISOString() : null }) })
       const d = await r.json()
@@ -393,6 +403,8 @@ function NewPostModal({ date, onClose, onCreated }) {
           <label style={{ display: "flex", flexDirection: "column", gap: 3 }}><span style={dateLbl}>Scheduled for</span><input type="date" style={modalInp} value={schedFor} onChange={function(e){ setSchedFor(e.target.value) }} /></label>
           <label style={{ display: "flex", flexDirection: "column", gap: 3 }}><span style={dateLbl}>Scheduled on</span><input type="date" style={modalInp} value={schedOn} onChange={function(e){ setSchedOn(e.target.value) }} /></label>
           <input style={modalInp} placeholder="Title or hook" value={title} onChange={function(e){ setTitle(e.target.value) }} autoFocus />
+          <input style={modalInp} placeholder="Short label (shown on calendar)" value={shortLabel} onChange={function(e){ setShortLabel(e.target.value) }} />
+          <input style={modalInp} placeholder="Theme / purpose (optional)" value={theme} onChange={function(e){ setTheme(e.target.value) }} />
           <select style={modalInp} value={format} onChange={function(e){ setFormat(e.target.value) }}>{FORMATS.map(function(fo){ return <option key={fo} value={fo}>{fo}</option> })}</select>
           <select style={modalInp} value={destination} onChange={function(e){ setDestination(e.target.value) }}>{DESTINATIONS.map(function(dd){ return <option key={dd.v} value={dd.v}>{dd.label}</option> })}</select>
         </div>
@@ -408,31 +420,116 @@ function NewPostModal({ date, onClose, onCreated }) {
 const calNavBtn = { padding: "5px 11px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: T.textSecondary, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }
 const calActiveBtn = { background: T.accent, color: "white", borderColor: T.accent }
 
-function ContentCalendar({ posts, onOpen, onPickDate }) {
+const calInp = { width: "100%", boxSizing: "border-box", border: "1px solid " + T.border, borderRadius: 4, padding: "2px 4px", fontSize: 10.5, fontFamily: "inherit", color: T.textPrimary, background: "white", minWidth: 0 }
+
+function CalCard({ p, onPatch, onEdit }) {
+  var ring = p.status === "posted" ? "#15803d" : p.status === "scheduled" ? "#b45309" : "#94a3b8"
+  var bg = p.status === "posted" ? "rgba(21,128,61,0.06)" : p.status === "scheduled" ? "rgba(180,83,9,0.05)" : "rgba(148,163,184,0.08)"
+  return (
+    <div onClick={function(e){ e.stopPropagation() }} style={{ border: "2px solid " + ring, borderRadius: 6, background: bg, padding: 5, display: "flex", flexDirection: "column", gap: 3 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: ring }}>#{p.control_number != null ? p.control_number : "?"}</span>
+        <select value={p.format} onChange={function(e){ onPatch(p.id, { format: e.target.value }) }} style={{ fontSize: 9.5, border: "none", background: "transparent", color: T.textTertiary, fontFamily: "inherit", cursor: "pointer", padding: 0, maxWidth: 70 }}>
+          {FORMATS.map(function(fo){ return <option key={fo} value={fo}>{fo}</option> })}
+        </select>
+        <button onClick={function(){ onEdit(p) }} title="Full edit" style={{ marginLeft: "auto", background: "none", border: "none", color: T.textTertiary, cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1 }}>{"\u270e"}</button>
+      </div>
+      <input defaultValue={p.short_label || ""} placeholder="short label" title={p.title || ""}
+        onBlur={function(e){ if (e.target.value !== (p.short_label || "")) onPatch(p.id, { short_label: e.target.value }) }}
+        style={Object.assign({}, calInp, { fontWeight: 600 })} />
+      <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+        <input defaultValue={p.post_url || ""} placeholder="url" onBlur={function(e){ if (e.target.value !== (p.post_url || "")) onPatch(p.id, { post_url: e.target.value }) }} style={calInp} />
+        {p.post_url ? <a href={p.post_url} target="_blank" rel="noreferrer" title="Open post" style={{ fontSize: 12, textDecoration: "none", color: "#0a66c2", flexShrink: 0 }}>{"\u2197"}</a> : null}
+      </div>
+      <input defaultValue={p.theme || ""} placeholder="theme / purpose" onBlur={function(e){ if (e.target.value !== (p.theme || "")) onPatch(p.id, { theme: e.target.value }) }} style={calInp} />
+    </div>
+  )
+}
+
+function UnscheduledTray({ posts, onPatch, onEdit }) {
+  var list = posts.filter(function(p){ return p.status === "unscheduled" || (!p.scheduled_for && !p.published_at) })
+  return (
+    <div style={{ background: T.bg, border: "1px dashed " + T.border, borderRadius: 10, padding: 12, marginBottom: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Unscheduled {list.length ? "\u00b7 " + list.length : ""}</div>
+      {list.length === 0 ? (
+        <div style={{ fontSize: 12, color: T.textTertiary }}>Nothing unscheduled. Posts with no date land here \u2014 open one and give it a date to schedule it.</div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 8 }}>
+          {list.map(function(p){ return <CalCard key={p.id} p={p} onPatch={onPatch} onEdit={onEdit} /> })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FullEditModal({ post, onClose, onPatch }) {
+  var p = post
+  function set(k, v) { onPatch(p.id, { [k]: v }) }
+  var lbl = { fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 600, marginBottom: 3, display: "block" }
+  var fld = { width: "100%", boxSizing: "border-box", padding: "7px 9px", borderRadius: 7, border: "1px solid " + T.border, fontSize: 13, fontFamily: "inherit", color: T.textPrimary, background: "white" }
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, zIndex: 1100 }}>
+      <div onClick={function(e){ e.stopPropagation() }} style={{ background: "white", borderRadius: 12, padding: 22, width: 560, maxWidth: "94vw", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 10px 40px rgba(0,0,0,0.25)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>#{p.control_number}</span>
+          <div style={{ fontSize: 16, fontWeight: 600 }}>Edit post</div>
+          <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: T.textTertiary, cursor: "pointer", lineHeight: 1 }}>{"\u00d7"}</button>
+        </div>
+        <div style={{ display: "grid", gap: 12 }}>
+          <div><label style={lbl}>Full title</label><input style={fld} defaultValue={p.title || ""} onBlur={function(e){ if (e.target.value.trim() && e.target.value !== p.title) set("title", e.target.value) }} /></div>
+          <div><label style={lbl}>Short label (shown on calendar)</label><input style={fld} defaultValue={p.short_label || ""} onBlur={function(e){ if (e.target.value !== (p.short_label || "")) set("short_label", e.target.value) }} /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div><label style={lbl}>Format</label><select style={fld} defaultValue={p.format} onChange={function(e){ set("format", e.target.value) }}>{FORMATS.map(function(fo){ return <option key={fo} value={fo}>{fo}</option> })}</select></div>
+            <div><label style={lbl}>Status</label><select style={fld} defaultValue={p.status} onChange={function(e){ set("status", e.target.value) }}>{["unscheduled","scheduled","posted"].map(function(st){ return <option key={st} value={st}>{st}</option> })}</select></div>
+          </div>
+          <div><label style={lbl}>Destination</label><select style={fld} defaultValue={p.destination} onChange={function(e){ set("destination", e.target.value) }}>{DESTINATIONS.map(function(dd){ return <option key={dd.v} value={dd.v}>{dd.label}</option> })}</select></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div><label style={lbl}>Scheduled on</label><input type="date" style={fld} defaultValue={toDateInput(p.scheduled_on)} onBlur={function(e){ if (e.target.value !== toDateInput(p.scheduled_on)) set("scheduled_on", fromDate(e.target.value)) }} /></div>
+            <div><label style={lbl}>Scheduled for</label><input type="datetime-local" style={fld} defaultValue={toDTInput(p.scheduled_for)} onBlur={function(e){ if (e.target.value !== toDTInput(p.scheduled_for)) set("scheduled_for", fromDT(e.target.value)) }} /></div>
+            <div><label style={lbl}>Published</label><input type="datetime-local" style={fld} defaultValue={toDTInput(p.published_at)} onBlur={function(e){ if (e.target.value !== toDTInput(p.published_at)) set("published_at", fromDT(e.target.value)) }} /></div>
+          </div>
+          <div><label style={lbl}>Theme / purpose</label><input style={fld} defaultValue={p.theme || ""} onBlur={function(e){ if (e.target.value !== (p.theme || "")) set("theme", e.target.value) }} /></div>
+          <div><label style={lbl}>Post URL</label><input style={fld} defaultValue={p.post_url || ""} onBlur={function(e){ if (e.target.value !== (p.post_url || "")) set("post_url", e.target.value) }} /></div>
+          <div><label style={lbl}>Post copy</label><textarea rows={4} style={Object.assign({}, fld, { lineHeight: 1.5, resize: "vertical" })} defaultValue={p.body || ""} onBlur={function(e){ if (e.target.value !== (p.body || "")) set("body", e.target.value) }} /></div>
+          <div><label style={lbl}>Transcript</label><textarea rows={5} style={Object.assign({}, fld, { lineHeight: 1.5, resize: "vertical" })} defaultValue={p.transcript || ""} onBlur={function(e){ if (e.target.value !== (p.transcript || "")) set("transcript", e.target.value) }} /></div>
+        </div>
+        <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 14 }}>Changes save as you leave each field. Metrics and the graphic image are managed in List view.</div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+          <button onClick={onClose} style={{ padding: "8px 18px", borderRadius: 7, border: "none", background: T.accent, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Done</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ContentCalendar({ posts, onPickDate, onPatch, onEdit }) {
   const [mode, setMode] = useState("month")
   const [cursor, setCursor] = useState(function(){ var d = new Date(); d.setHours(0,0,0,0); return d })
   function dateFor(p) { return p.published_at || p.scheduled_for || null }
   function keyOf(d) { return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0") }
   function keyOfIso(iso) { if (!iso) return null; return keyOf(new Date(iso)) }
+  function mondayOf(d) { var x = new Date(d); var wd = x.getDay(); x.setDate(x.getDate() + (wd === 0 ? -6 : 1 - wd)); x.setHours(0,0,0,0); return x }
   var byDay = {}
   posts.forEach(function(p){ var k = keyOfIso(dateFor(p)); if (k) { (byDay[k] = byDay[k] || []).push(p) } })
   var days = []
   if (mode === "week") {
-    var start = new Date(cursor); start.setDate(start.getDate() - start.getDay())
-    for (var i = 0; i < 7; i++) { var d = new Date(start); d.setDate(start.getDate() + i); days.push(d) }
+    var m0 = mondayOf(cursor)
+    for (var i = 0; i < 5; i++) { var d = new Date(m0); d.setDate(m0.getDate() + i); days.push(d) }
   } else {
     var first = new Date(cursor.getFullYear(), cursor.getMonth(), 1)
-    var gridStart = new Date(first); gridStart.setDate(1 - first.getDay())
     var last = new Date(cursor.getFullYear(), cursor.getMonth()+1, 0)
-    var cells = Math.ceil((first.getDay() + last.getDate()) / 7) * 7
-    for (var j = 0; j < cells; j++) { var dd = new Date(gridStart); dd.setDate(gridStart.getDate() + j); days.push(dd) }
+    var wk = mondayOf(first)
+    while (wk <= last) {
+      for (var j = 0; j < 5; j++) { var dd = new Date(wk); dd.setDate(wk.getDate() + j); days.push(dd) }
+      wk = new Date(wk); wk.setDate(wk.getDate() + 7)
+    }
   }
   var todayKey = keyOf(new Date())
   function shift(dir) { var d = new Date(cursor); if (mode === "week") { d.setDate(d.getDate() + 7*dir) } else { d.setMonth(d.getMonth() + dir) } setCursor(d) }
   var label = mode === "week"
-    ? (days[0].toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " \u2013 " + days[6].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))
+    ? (days[0].toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " \u2013 " + days[4].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))
     : cursor.toLocaleDateString("en-US", { month: "long", year: "numeric" })
-  var WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+  var WD = ["Mon","Tue","Wed","Thu","Fri"]
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
@@ -445,40 +542,31 @@ function ContentCalendar({ posts, onOpen, onPickDate }) {
           <button onClick={function(){ setMode("week") }} style={Object.assign({}, calNavBtn, mode === "week" ? calActiveBtn : {})}>Week</button>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6, marginBottom: 6 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 6, marginBottom: 6 }}>
         {WD.map(function(w){ return <div key={w} style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textAlign: "center" }}>{w}</div> })}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 6 }}>
         {days.map(function(d, i){
           var k = keyOf(d)
           var inMonth = mode === "week" || d.getMonth() === cursor.getMonth()
           var list = byDay[k] || []
           return (
-            <div key={i} onClick={function(){ onPickDate(k) }} style={{ minHeight: mode === "week" ? 200 : 100, minWidth: 0, background: inMonth ? T.cardBg : T.bg, border: "1px solid " + T.border, borderRadius: 8, padding: 6, opacity: inMonth ? 1 : 0.5, cursor: "pointer" }}>
+            <div key={i} onClick={function(){ onPickDate(k) }} style={{ minHeight: mode === "week" ? 260 : 128, minWidth: 0, background: inMonth ? T.cardBg : T.bg, border: "1px solid " + T.border, borderRadius: 8, padding: 6, opacity: inMonth ? 1 : 0.5, cursor: "pointer" }}>
               <div style={{ fontSize: 11, fontWeight: k === todayKey ? 700 : 500, color: k === todayKey ? T.accent : T.textTertiary, marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
                 <span>{d.getDate()}</span>
                 {k === todayKey ? <span style={{ fontSize: 9, color: T.accent }}>today</span> : null}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {list.map(function(p){
-                  var pub = p.status === "published"
-                  var ring = pub ? "#15803d" : "#b45309"
-                  return (
-                    <button key={p.id} onClick={function(e){ e.stopPropagation(); onOpen(p.id) }} title={p.title + (pub ? " \u00b7 published" : " \u00b7 not published")}
-                      style={{ textAlign: "left", width: "100%", minWidth: 0, boxSizing: "border-box", border: "2px solid " + ring, borderRadius: 6, background: pub ? "rgba(21,128,61,0.08)" : "rgba(180,83,9,0.06)", padding: "3px 6px", fontSize: 11, color: T.textPrimary, cursor: "pointer", fontFamily: "inherit", whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                      {p.title}
-                    </button>
-                  )
-                })}
+                {list.map(function(p){ return <CalCard key={p.id} p={p} onPatch={onPatch} onEdit={onEdit} /> })}
               </div>
             </div>
           )
         })}
       </div>
       <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 10, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
-        <span><span style={{ display: "inline-block", width: 10, height: 10, border: "2px solid #15803d", borderRadius: 3, marginRight: 5, verticalAlign: "middle" }} />published</span>
-        <span><span style={{ display: "inline-block", width: 10, height: 10, border: "2px solid #b45309", borderRadius: 3, marginRight: 5, verticalAlign: "middle" }} />not published</span>
-        <span style={{ marginLeft: "auto" }}>Each post sits on its published date, or its scheduled date if not yet out. Click a title to edit it.</span>
+        <span><span style={{ display: "inline-block", width: 10, height: 10, border: "2px solid #15803d", borderRadius: 3, marginRight: 5, verticalAlign: "middle" }} />posted</span>
+        <span><span style={{ display: "inline-block", width: 10, height: 10, border: "2px solid #b45309", borderRadius: 3, marginRight: 5, verticalAlign: "middle" }} />scheduled</span>
+        <span style={{ marginLeft: "auto" }}>Click an empty day to add a post. Edit fields inline; the pencil opens full edit.</span>
       </div>
     </div>
   )

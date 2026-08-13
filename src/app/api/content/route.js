@@ -9,7 +9,7 @@ import { serverClient } from "@/lib/supabaseServer"
 // URL builder concatenates directly. Add a new event here (one line) as they launch.
 const DESTINATIONS = ["none", "overview", "assessment", "meeting", "investment", "events/august-11-workshop"]
 const FORMATS = ["video", "text", "carousel", "image", "poll", "article"]
-const STATUSES = ["draft", "scheduled", "published"]
+const STATUSES = ["unscheduled", "scheduled", "posted"]
 
 export async function GET() {
   const sb = serverClient()
@@ -43,7 +43,7 @@ export async function POST(req) {
 
   const format = FORMATS.includes(b.format) ? b.format : "text"
   const destination = DESTINATIONS.includes(b.destination) ? b.destination : "none"
-  const status = STATUSES.includes(b.status) ? b.status : "draft"
+  const status = STATUSES.includes(b.status) ? b.status : (b.scheduled_for ? "scheduled" : "unscheduled")
 
   // src_tag generated server-side, from the scheduled date when present
   let src_tag = null
@@ -60,7 +60,9 @@ export async function POST(req) {
     title, format, destination, status, src_tag,
     scheduled_for: b.scheduled_for || null,
     scheduled_on: b.scheduled_on || (b.scheduled_for ? new Date().toISOString() : null),
-    published_at: status === "published" ? (b.published_at || new Date().toISOString()) : (b.published_at || null),
+    published_at: status === "posted" ? (b.published_at || new Date().toISOString()) : (b.published_at || null),
+    short_label: (b.short_label || "").trim() || null,
+    theme: (b.theme || "").trim() || null,
     post_url: (b.post_url || "").trim() || null,
     notes: (b.notes || "").trim() || null,
     body: (b.body || "").trim() || null,
@@ -86,7 +88,9 @@ export async function PATCH(req) {
   if (typeof b.title === "string" && b.title.trim()) patch.title = b.title.trim()
   if (STATUSES.includes(b.status)) patch.status = b.status
   if (FORMATS.includes(b.format)) patch.format = b.format
-  if (b.status === "published" && !b.published_at) patch.published_at = new Date().toISOString()
+  if (b.status === "posted" && !b.published_at) patch.published_at = new Date().toISOString()
+  if (b.short_label !== undefined) patch.short_label = (b.short_label || "").trim() || null
+  if (b.theme !== undefined) patch.theme = (b.theme || "").trim() || null
   if (b.published_at !== undefined) patch.published_at = b.published_at || null
   if (b.scheduled_for !== undefined) patch.scheduled_for = b.scheduled_for || null
   if (b.scheduled_on !== undefined) patch.scheduled_on = b.scheduled_on || null
