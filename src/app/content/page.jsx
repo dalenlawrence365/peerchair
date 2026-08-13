@@ -141,9 +141,9 @@ export default function ContentPage() {
 
   return (
     <main style={{ padding: "26px 32px 80px", maxWidth: 1100 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, justifyContent: "space-between" }}>
         <h1 style={{ fontFamily: FONT_SERIF, fontSize: 30, fontWeight: 400, margin: 0, lineHeight: 1.1 }}>Content</h1>
-        <Link href="/content/scripts" style={{ fontSize: 13, color: T.accent, textDecoration: "none" }}>Scripts →</Link>
+        <Link href="/content/scripts" style={{ fontSize: 13, fontWeight: 600, color: "white", background: T.accent, textDecoration: "none", padding: "9px 16px", borderRadius: 8, whiteSpace: "nowrap" }}>Script library →</Link>
       </div>
       <p style={{ fontSize: 13, color: T.textSecondary, margin: "6px 0 0", maxWidth: 660 }}>
         Every LinkedIn post, what it linked to, and what it drove. Posts with a destination get a tracking
