@@ -238,6 +238,17 @@ export default function PersonProfile() {
     reload()
   }
 
+  async function addMeetingNote(meetingId, body) {
+    try { await fetch("/api/meeting-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ meeting_id: meetingId, body: body }) }) }
+    catch(e) { setError(e.message || String(e)) }
+    reload()
+  }
+  async function deleteMeetingNote(noteId) {
+    try { await fetch("/api/meeting-notes?id=" + noteId, { method: "DELETE" }) }
+    catch(e) { setError(e.message || String(e)) }
+    reload()
+  }
+
   function addStatusTag(tag) {
     const t = (tag || "").trim()
     if (!t) return
@@ -785,8 +796,96 @@ export default function PersonProfile() {
 
       {/* TAB: Timeline — LinkedIn thread snapshot + activity log */}
       {tab === "timeline" && (<>
-      {/* LinkedIn thread snapshot if present */}
-      {p.linkedin_thread_snapshot && (() => {
+      {/* Communications timeline */}
+      <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 }}>Activity Timeline</div>
+
+        {/* Note composer */}
+        <div style={{ marginBottom: 16 }}>
+          <textarea value={noteText} onChange={function(e){ setNoteText(e.target.value) }}
+            placeholder="Log a note about this person…"
+            rows={noteText ? 3 : 1}
+            style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 8, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box", lineHeight: 1.5 }} />
+          {noteText.trim() && (
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+              <button onClick={function(){ setNoteText("") }} style={{ padding: "6px 14px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+              <button disabled={savingNote} onClick={saveNote} style={{ padding: "6px 16px", fontSize: 12, borderRadius: 6, border: "none", background: "#3b82f6", color: "white", cursor: savingNote ? "not-allowed" : "pointer", fontWeight: 500, fontFamily: "inherit" }}>{savingNote ? "Saving…" : "Save note"}</button>
+            </div>
+          )}
+        </div>
+
+        {(data.communications.length === 0 && (data.scheduled_meetings || []).length === 0) ? (
+          <div style={{ color: T.textTertiary, fontSize: 13, padding: "8px 0" }}>No activity yet.</div>
+        ) : (() => {
+          // Tag each row with its normalized type, then filter
+          const commItems = data.communications.map(function(c){ return Object.assign({ _kind: "comm", _type: timelineType(c), _date: c.occurred_at }, c) })
+          const meetingItems = (data.scheduled_meetings || []).map(function(m){ return { _kind: "meeting", _type: "meeting", _date: m.starts_at, id: "mtg_" + m.id, meeting: m } })
+          const tagged = commItems.concat(meetingItems).sort(function(a, b){ return new Date(b._date || 0) - new Date(a._date || 0) })
+          const counts = tagged.reduce(function(m, c){ m[c._type] = (m[c._type] || 0) + 1; return m }, {})
+          const shown = timelineFilter === "all" ? tagged : tagged.filter(function(c){ return c._type === timelineFilter })
+          return (
+          <>
+            {/* Filter chips */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+              <Chip active={timelineFilter === "all"} color="#475569" label={"All"} count={tagged.length} onClick={function(){ setTimelineFilter("all") }} />
+              {TIMELINE_TYPES.filter(function(t){ return counts[t.key] }).map(function(t){
+                return <Chip key={t.key} active={timelineFilter === t.key} color={t.color} label={t.label} count={counts[t.key]} onClick={function(){ setTimelineFilter(t.key) }} />
+              })}
+            </div>
+
+            {shown.length === 0 ? (
+              <div style={{ color: T.textTertiary, fontSize: 13, padding: "8px 0" }}>No {timelineFilter} activity.</div>
+            ) : shown.map(function(c){
+            if (c._kind === "meeting") { return <MeetingEntry key={c.id} m={c.meeting} onAdd={addMeetingNote} onDelete={deleteMeetingNote} /> }
+            const isOut = c.direction === "OUT" || c.direction === "outbound"
+            const isIn = c.direction === "IN" || c.direction === "inbound"
+            const isNote = c._type === "note"
+            const accent = TIMELINE_COLOR[c._type] || "#888"
+            return (
+              <div key={c.id} style={{ paddingTop: 12, paddingBottom: 12, borderBottom: "1px solid " + T.borderSoft, borderLeft: "3px solid " + accent, paddingLeft: 12, marginBottom: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary }}>
+                    <span style={{ color: accent }}>{c.channel || "—"}</span>
+                    <span style={{ color: T.textTertiary, fontWeight: 400 }}>
+                      {" "}· {isNote ? "NOTE" : isOut ? "→ outgoing" : isIn ? "← incoming" : c.direction}
+                      {c.step_label ? " · " + c.step_label : ""}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtDate(c.occurred_at)}</div>
+                </div>
+                {c.subject && (
+                  <div style={{ fontSize: 13, fontWeight: 500, marginTop: 4 }}>{c.subject}</div>
+                )}
+                {c.body && (() => {
+                  const long = c.body.length > 600
+                  const expanded = !!expandedComms[c.id]
+                  const shownBody = (long && !expanded) ? c.body.slice(0, 600) + "…" : c.body
+                  return (
+                    <div style={{ fontSize: 13, color: T.textPrimary, marginTop: 4, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                      {shownBody}
+                      {long && (
+                        <button onClick={function(){ setExpandedComms(function(s){ return Object.assign({}, s, { [c.id]: !expanded }) }) }}
+                          style={{ display: "block", marginTop: 6, padding: 0, background: "none", border: "none", color: "#3b82f6", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit" }}>
+                          {expanded ? "Show less" : `Show more (${c.body.length.toLocaleString()} chars)`}
+                        </button>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            )
+          })}
+          </>
+          )
+        })()}
+      </div>
+
+      {/* LinkedIn thread — collapsed, below the activity so it isn't a wall of text up top */}
+      {p.linkedin_thread_snapshot && (
+        <details style={{ marginTop: 18 }}>
+          <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, userSelect: "none", padding: "6px 0" }}>LinkedIn thread — conversation view</summary>
+          <div style={{ marginTop: 12 }}>
+      {(() => {
         const messages = parseLinkedInThread(p.linkedin_thread_snapshot)
         // Fall back to raw text if parser found nothing (defensive)
         if (messages.length === 0) {
@@ -859,90 +958,58 @@ export default function PersonProfile() {
           </div>
         )
       })()}
-
-      {/* Communications timeline */}
-      <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 }}>Activity Timeline</div>
-
-        {/* Note composer */}
-        <div style={{ marginBottom: 16 }}>
-          <textarea value={noteText} onChange={function(e){ setNoteText(e.target.value) }}
-            placeholder="Log a note about this person…"
-            rows={noteText ? 3 : 1}
-            style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 8, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box", lineHeight: 1.5 }} />
-          {noteText.trim() && (
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-              <button onClick={function(){ setNoteText("") }} style={{ padding: "6px 14px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-              <button disabled={savingNote} onClick={saveNote} style={{ padding: "6px 16px", fontSize: 12, borderRadius: 6, border: "none", background: "#3b82f6", color: "white", cursor: savingNote ? "not-allowed" : "pointer", fontWeight: 500, fontFamily: "inherit" }}>{savingNote ? "Saving…" : "Save note"}</button>
-            </div>
-          )}
-        </div>
-
-        {data.communications.length === 0 ? (
-          <div style={{ color: T.textTertiary, fontSize: 13, padding: "8px 0" }}>No activity yet.</div>
-        ) : (() => {
-          // Tag each row with its normalized type, then filter
-          const tagged = data.communications.map(function(c){ return { ...c, _type: timelineType(c) } })
-          const counts = tagged.reduce(function(m, c){ m[c._type] = (m[c._type] || 0) + 1; return m }, {})
-          const shown = timelineFilter === "all" ? tagged : tagged.filter(function(c){ return c._type === timelineFilter })
-          return (
-          <>
-            {/* Filter chips */}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-              <Chip active={timelineFilter === "all"} color="#475569" label={"All"} count={tagged.length} onClick={function(){ setTimelineFilter("all") }} />
-              {TIMELINE_TYPES.filter(function(t){ return counts[t.key] }).map(function(t){
-                return <Chip key={t.key} active={timelineFilter === t.key} color={t.color} label={t.label} count={counts[t.key]} onClick={function(){ setTimelineFilter(t.key) }} />
-              })}
-            </div>
-
-            {shown.length === 0 ? (
-              <div style={{ color: T.textTertiary, fontSize: 13, padding: "8px 0" }}>No {timelineFilter} activity.</div>
-            ) : shown.map(function(c){
-            const isOut = c.direction === "OUT" || c.direction === "outbound"
-            const isIn = c.direction === "IN" || c.direction === "inbound"
-            const isNote = c._type === "note"
-            const accent = TIMELINE_COLOR[c._type] || "#888"
-            return (
-              <div key={c.id} style={{ paddingTop: 12, paddingBottom: 12, borderBottom: "1px solid " + T.borderSoft, borderLeft: "3px solid " + accent, paddingLeft: 12, marginBottom: 4 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary }}>
-                    <span style={{ color: accent }}>{c.channel || "—"}</span>
-                    <span style={{ color: T.textTertiary, fontWeight: 400 }}>
-                      {" "}· {isNote ? "NOTE" : isOut ? "→ outgoing" : isIn ? "← incoming" : c.direction}
-                      {c.step_label ? " · " + c.step_label : ""}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtDate(c.occurred_at)}</div>
-                </div>
-                {c.subject && (
-                  <div style={{ fontSize: 13, fontWeight: 500, marginTop: 4 }}>{c.subject}</div>
-                )}
-                {c.body && (() => {
-                  const long = c.body.length > 600
-                  const expanded = !!expandedComms[c.id]
-                  const shownBody = (long && !expanded) ? c.body.slice(0, 600) + "…" : c.body
-                  return (
-                    <div style={{ fontSize: 13, color: T.textPrimary, marginTop: 4, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-                      {shownBody}
-                      {long && (
-                        <button onClick={function(){ setExpandedComms(function(s){ return Object.assign({}, s, { [c.id]: !expanded }) }) }}
-                          style={{ display: "block", marginTop: 6, padding: 0, background: "none", border: "none", color: "#3b82f6", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit" }}>
-                          {expanded ? "Show less" : `Show more (${c.body.length.toLocaleString()} chars)`}
-                        </button>
-                      )}
-                    </div>
-                  )
-                })()}
-              </div>
-            )
-          })}
-          </>
-          )
-        })()}
-      </div>
+          </div>
+        </details>
+      )}
       </>)}
 
     </main>
+  )
+}
+
+function MeetingEntry({ m, onAdd, onDelete }) {
+  const [draft, setDraft] = useState("")
+  const [saving, setSaving] = useState(false)
+  const accent = "#16a34a"
+  async function add() { if (!draft.trim()) return; setSaving(true); await onAdd(m.id, draft.trim()); setDraft(""); setSaving(false) }
+  return (
+    <div style={{ paddingTop: 12, paddingBottom: 12, borderBottom: "1px solid " + T.borderSoft, borderLeft: "3px solid " + accent, paddingLeft: 12, marginBottom: 4 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary }}>
+          <span style={{ color: accent }}>Meeting</span>
+          {m.meeting_type ? <span style={{ color: T.textTertiary, fontWeight: 400 }}>{" "}· {m.meeting_type}</span> : null}
+          {m.source ? <span style={{ color: T.textTertiary, fontWeight: 400 }}>{" "}· {m.source}</span> : null}
+        </div>
+        <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtDate(m.starts_at)}</div>
+      </div>
+      {m.title ? <div style={{ fontSize: 13, fontWeight: 500, marginTop: 4 }}>{m.title}</div> : null}
+      {m.location ? <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 2 }}>{m.location}</div> : null}
+      {(m.notes || []).length > 0 && (
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          {m.notes.map(function(n){
+            return (
+              <div key={n.id} style={{ background: T.bg, border: "1px solid " + T.borderSoft, borderRadius: 8, padding: "8px 10px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, color: n.source === "manual" ? "#3b82f6" : "#7c3aed" }}>{n.source === "manual" ? "Note" : n.source}</span>
+                  <span style={{ fontSize: 10, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtDate(n.created_at)}<button onClick={function(){ onDelete(n.id) }} title="Delete note" style={{ marginLeft: 8, background: "none", border: "none", color: T.textTertiary, cursor: "pointer", fontSize: 12, padding: 0 }}>×</button></span>
+                </div>
+                <div style={{ fontSize: 13, color: T.textPrimary, marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{n.body}</div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <div style={{ marginTop: 10 }}>
+        <textarea value={draft} onChange={function(e){ setDraft(e.target.value) }} placeholder="Add a note to this meeting… (or paste a Granola / Zoom summary)" rows={draft ? 3 : 1}
+          style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 8, fontFamily: "inherit", resize: "vertical", outline: "none", lineHeight: 1.5 }} />
+        {draft.trim() && (
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
+            <button onClick={function(){ setDraft("") }} style={{ padding: "5px 12px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+            <button disabled={saving} onClick={add} style={{ padding: "5px 14px", fontSize: 12, borderRadius: 6, border: "none", background: accent, color: "white", cursor: saving ? "not-allowed" : "pointer", fontWeight: 500, fontFamily: "inherit" }}>{saving ? "Saving…" : "Add note"}</button>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

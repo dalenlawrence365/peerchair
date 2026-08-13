@@ -67,8 +67,27 @@ export async function GET(request, { params }) {
     .map(function(m){ return { id: m.id, meeting_date: m.meeting_date, label: m.label, group: m.provisors_groups ? m.provisors_groups.name : null } })
     .sort(function(a, b){ return (b.meeting_date || "").localeCompare(a.meeting_date || "") })
 
+  // Scheduled / calendar meetings with this person (Outlook + Calendly synced),
+  // newest first, each with its logged notes (manual + AI summaries).
+  const { data: schedMeetings } = await sb.from("meetings")
+    .select("id, title, body_preview, starts_at, ends_at, location, meeting_type, status, source, is_organizer")
+    .eq("person_id", id)
+    .order("starts_at", { ascending: false })
+    .limit(100)
+  const smIds = (schedMeetings || []).map(function(m){ return m.id })
+  const notesByMeeting = {}
+  if (smIds.length) {
+    const { data: mnotes } = await sb.from("meeting_notes")
+      .select("id, meeting_id, body, source, author, created_at")
+      .in("meeting_id", smIds)
+      .order("created_at", { ascending: true })
+    for (const n of (mnotes || [])) { (notesByMeeting[n.meeting_id] = notesByMeeting[n.meeting_id] || []).push(n) }
+  }
+  const scheduled_meetings = (schedMeetings || []).map(function(m){ return Object.assign({}, m, { notes: notesByMeeting[m.id] || [] }) })
+
   return Response.json({
     person,
+    scheduled_meetings,
     company,
     groups,
     troika_master_of,
