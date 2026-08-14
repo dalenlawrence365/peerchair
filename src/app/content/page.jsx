@@ -23,6 +23,14 @@ const STATUS_COLOR = {
   posted:      { bg: "rgba(22,163,74,0.14)",   fg: "#15803d" },
 }
 
+// Published-state toggle shown in the full-edit dialog. Labels are Dalen's vocabulary;
+// values stay unscheduled/scheduled/posted so the tray + calendar rings keep working.
+const STATUS_SEG = [
+  { v: "unscheduled", label: "Unpublished", color: "#475569" },
+  { v: "scheduled",   label: "Scheduled",   color: "#b45309" },
+  { v: "posted",      label: "Published",   color: "#15803d" },
+]
+
 function Pill({ text, bg, fg }) {
   return <span style={{ display: "inline-block", padding: "1px 7px", borderRadius: 999, fontSize: 9.5,
     fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3, background: bg, color: fg, whiteSpace: "nowrap" }}>{text}</span>
@@ -480,12 +488,19 @@ function FullEditModal({ post, onClose, onPatch, onUpload, onRemoveGraphic, uplo
           <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: T.textTertiary, cursor: "pointer", lineHeight: 1 }}>{"\u00d7"}</button>
         </div>
         <div style={{ display: "grid", gap: 12 }}>
+          <div>
+            <label style={lbl}>Status</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              {STATUS_SEG.map(function(st){
+                var active = (p.status || "unscheduled") === st.v
+                return <button key={st.v} type="button" onClick={function(){ set("status", st.v) }} style={{ flex: 1, padding: "10px 6px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", border: "1px solid " + (active ? st.color : T.border), background: active ? st.color : "white", color: active ? "white" : T.textSecondary }}>{st.label}</button>
+              })}
+            </div>
+            <div style={{ fontSize: 10.5, color: T.textTertiary, marginTop: 4 }}>Unpublished posts show in the tray. This is manual — setting a date never changes it for you.</div>
+          </div>
           <div><label style={lbl}>Full title</label><input style={fld} defaultValue={p.title || ""} onBlur={function(e){ if (e.target.value.trim() && e.target.value !== p.title) set("title", e.target.value) }} /></div>
           <div><label style={lbl}>Short label (shown on calendar)</label><input style={fld} defaultValue={p.short_label || ""} onBlur={function(e){ if (e.target.value !== (p.short_label || "")) set("short_label", e.target.value) }} /></div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div><label style={lbl}>Format</label><select style={fld} defaultValue={p.format} onChange={function(e){ set("format", e.target.value) }}>{FORMATS.map(function(fo){ return <option key={fo} value={fo}>{fo}</option> })}</select></div>
-            <div><label style={lbl}>Status</label><select style={fld} defaultValue={p.status} onChange={function(e){ set("status", e.target.value) }}>{["unscheduled","scheduled","posted"].map(function(st){ return <option key={st} value={st}>{st}</option> })}</select></div>
-          </div>
+          <div><label style={lbl}>Format</label><select style={fld} defaultValue={p.format} onChange={function(e){ set("format", e.target.value) }}>{FORMATS.map(function(fo){ return <option key={fo} value={fo}>{fo}</option> })}</select></div>
           <div><label style={lbl}>Destination</label><select style={fld} defaultValue={p.destination} onChange={function(e){ set("destination", e.target.value) }}>{DESTINATIONS.map(function(dd){ return <option key={dd.v} value={dd.v}>{dd.label}</option> })}</select></div>
           <div>
             <label style={lbl}>Image</label>
