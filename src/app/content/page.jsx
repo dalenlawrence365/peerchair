@@ -434,6 +434,7 @@ const calActiveBtn = { background: T.accent, color: "white", borderColor: T.acce
 const calInp = { width: "100%", boxSizing: "border-box", border: "1px solid " + T.border, borderRadius: 4, padding: "2px 4px", fontSize: 10.5, fontFamily: "inherit", color: T.textPrimary, background: "white", minWidth: 0 }
 
 function CalCard({ p, onPatch, onEdit }) {
+  const [zoom, setZoom] = useState(false)
   var ring = p.status === "posted" ? "#15803d" : p.status === "scheduled" ? "#b45309" : "#94a3b8"
   var bg = p.status === "posted" ? "rgba(21,128,61,0.06)" : p.status === "scheduled" ? "rgba(180,83,9,0.05)" : "rgba(148,163,184,0.08)"
   return (
@@ -443,7 +444,7 @@ function CalCard({ p, onPatch, onEdit }) {
         <select value={p.format} onChange={function(e){ onPatch(p.id, { format: e.target.value }) }} style={{ fontSize: 9.5, border: "none", background: "transparent", color: T.textTertiary, fontFamily: "inherit", cursor: "pointer", padding: 0, maxWidth: 70 }}>
           {FORMATS.map(function(fo){ return <option key={fo} value={fo}>{fo}</option> })}
         </select>
-        {p.graphic_url ? <img src={p.graphic_url} alt="" title="Has image" style={{ width: 14, height: 14, borderRadius: 3, objectFit: "cover", marginLeft: "auto" }} /> : null}
+        {p.graphic_url ? <img src={p.graphic_url} alt="" title="Click to view full image" onClick={function(e){ e.stopPropagation(); setZoom(true) }} style={{ width: 14, height: 14, borderRadius: 3, objectFit: "cover", marginLeft: "auto", cursor: "zoom-in" }} /> : null}
         <button onClick={function(){ onEdit(p) }} title="Full edit" style={{ marginLeft: p.graphic_url ? 4 : "auto", background: "none", border: "none", color: T.textTertiary, cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1 }}>{"\u270e"}</button>
       </div>
       <input defaultValue={p.short_label || ""} placeholder="short label" title={p.title || ""}
@@ -454,6 +455,17 @@ function CalCard({ p, onPatch, onEdit }) {
         {p.post_url ? <a href={p.post_url} target="_blank" rel="noreferrer" title="Open post" style={{ fontSize: 12, textDecoration: "none", color: "#0a66c2", flexShrink: 0 }}>{"\u2197"}</a> : null}
       </div>
       <input defaultValue={p.theme || ""} placeholder="theme / purpose" onBlur={function(e){ if (e.target.value !== (p.theme || "")) onPatch(p.id, { theme: e.target.value }) }} style={calInp} />
+      {zoom && p.graphic_url ? (
+        <div onClick={function(e){ e.stopPropagation(); setZoom(false) }} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.8)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, zIndex: 1200, cursor: "zoom-out" }}>
+          <div onClick={function(e){ e.stopPropagation() }} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, maxWidth: "92vw", maxHeight: "92vh" }}>
+            <img src={p.graphic_url} alt={p.short_label || p.title || ""} style={{ maxWidth: "92vw", maxHeight: "82vh", objectFit: "contain", borderRadius: 8, boxShadow: "0 10px 40px rgba(0,0,0,0.4)" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ color: "white", fontSize: 12, opacity: 0.85 }}>{("#" + (p.control_number != null ? p.control_number : "?")) + (p.short_label ? "  ·  " + p.short_label : "")}</span>
+              <button onClick={function(e){ e.stopPropagation(); setZoom(false) }} style={{ padding: "5px 14px", borderRadius: 7, border: "1px solid rgba(255,255,255,0.4)", background: "transparent", color: "white", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Close</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
