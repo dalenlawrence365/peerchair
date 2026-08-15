@@ -38,8 +38,9 @@ export async function POST(req) {
   let b
   try { b = await req.json() } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }) }
 
-  const title = (b.title || "").trim()
-  if (!title) return Response.json({ error: "Title is required" }, { status: 400 })
+  // Calendar quick-create posts with no title yet (the full edit form fills it in),
+  // so fall back to a placeholder instead of rejecting.
+  const title = (b.title || "").trim() || "Untitled post"
 
   const format = FORMATS.includes(b.format) ? b.format : "text"
   const destination = DESTINATIONS.includes(b.destination) ? b.destination : "none"
@@ -120,6 +121,18 @@ export async function PATCH(req) {
   if (Object.keys(patch).length === 0) return Response.json({ error: "Nothing to update" }, { status: 400 })
 
   const { error } = await sb.from("content_posts").update(patch).eq("id", b.id)
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json({ ok: true })
+}
+
+export async function DELETE(req) {
+  const sb = serverClient()
+  const url = new URL(req.url)
+  const id = url.searchParams.get("id")
+  if (!id) return Response.json({ error: "id is required" }, { status: 400 })
+  // Detach any script pointing at this post so the delete isn't blocked by the FK.
+  await sb.from("content_scripts").update({ linked_post_id: null }).eq("linked_post_id", id)
+  const { error } = await sb.from("content_posts").delete().eq("id", id)
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json({ ok: true })
 }

@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { T, FONT_SERIF } from "@/lib/pipelineTheme"
 
@@ -77,7 +77,6 @@ export default function ContentPage() {
   const [destination, setDestination] = useState("assessment")
   const [scheduledFor, setScheduledFor] = useState("")
   const [view, setView] = useState("calendar")
-  const [pickedDate, setPickedDate] = useState(null)
   const [editPost, setEditPost] = useState(null)
 
   async function load() {
@@ -85,8 +84,9 @@ export default function ContentPage() {
     try {
       const r = await fetch("/api/content")
       const d = await r.json()
-      if (d.error) setError(d.error); else setPosts(d.posts)
-    } catch (e) { setError(String(e)) }
+      if (d.error) { setError(d.error); return null }
+      setPosts(d.posts); return d.posts
+    } catch (e) { setError(String(e)); return null }
   }
   useEffect(function () { load() }, [])
   useEffect(function () { if (editPost) { var fresh = (posts || []).find(function (pp) { return pp.id === editPost.id }); if (fresh && fresh !== editPost) setEditPost(fresh) } }, [posts])
@@ -114,6 +114,38 @@ export default function ContentPage() {
         body: JSON.stringify(Object.assign({ id }, body)) })
       const d = await r.json()
       if (d.error) setError(d.error); else await load()
+    } catch (e) { setError(String(e)) }
+    setBusy(false)
+  }
+
+  // Clicking a calendar day now creates a post for that date and opens it in the
+  // full edit form (one form for create + edit). Accidental clicks can be removed
+  // with the Delete button in that form.
+  async function createForDate(k) {
+    setBusy(true); setError(null)
+    try {
+      const r = await fetch("/api/content", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "", format: "video", status: "scheduled",
+          scheduled_for: new Date(k + "T09:00").toISOString(),
+          scheduled_on: new Date(todayInput() + "T00:00").toISOString() })
+      })
+      const d = await r.json()
+      if (d.error) { setError(d.error); setBusy(false); return }
+      const list = await load()
+      const np = (list || []).find(function (p) { return p.id === d.id })
+      if (np) setEditPost(np)
+    } catch (e) { setError(String(e)) }
+    setBusy(false)
+  }
+
+  async function deletePost(id) {
+    setBusy(true); setError(null)
+    try {
+      const r = await fetch("/api/content?id=" + encodeURIComponent(id), { method: "DELETE" })
+      const d = await r.json()
+      if (d.error) { setError(d.error); setBusy(false); return }
+      setEditPost(null); await load()
     } catch (e) { setError(String(e)) }
     setBusy(false)
   }
@@ -195,12 +227,11 @@ export default function ContentPage() {
 
       {view === "calendar" && (<>
         <UnscheduledTray posts={posts || []} onPatch={patch} onEdit={function(p){ setEditPost(p) }} />
-        <ContentCalendar posts={posts || []} onPickDate={function(k){ setPickedDate(k) }} onPatch={patch} onEdit={function(p){ setEditPost(p) }} />
+        <ContentCalendar posts={posts || []} onPickDate={function(k){ createForDate(k) }} onPatch={patch} onEdit={function(p){ setEditPost(p) }} />
       </>)}
 
-      {pickedDate && <NewPostModal date={pickedDate} onClose={function(){ setPickedDate(null) }} onCreated={function(){ setPickedDate(null); load() }} />}
 
-      {editPost && <FullEditModal post={editPost} onClose={function(){ setEditPost(null) }} onPatch={patch} onUpload={uploadGraphic} onRemoveGraphic={removeGraphic} uploading={uploading} />}
+      {editPost && <FullEditModal post={editPost} onClose={function(){ setEditPost(null) }} onPatch={patch} onUpload={uploadGraphic} onRemoveGraphic={removeGraphic} uploading={uploading} onDelete={deletePost} />}
 
       {view === "list" && (<>
       {!posts && !error && <div style={{ color: T.textTertiary, marginTop: 20 }}>Loading…</div>}
@@ -376,58 +407,7 @@ export default function ContentPage() {
   )
 }
 
-const modalInp = { padding: "8px 10px", borderRadius: 7, border: "1px solid " + T.border, fontSize: 13, fontFamily: "inherit", color: T.textPrimary, background: "white", width: "100%", boxSizing: "border-box" }
 function todayInput() { var d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10) }
-function NewPostModal({ date, onClose, onCreated }) {
-  const [title, setTitle] = useState("")
-  const [format, setFormat] = useState("video")
-  const [destination, setDestination] = useState("assessment")
-  const [shortLabel, setShortLabel] = useState("")
-  const [theme, setTheme] = useState("")
-  const [status, setStatus] = useState(date ? "scheduled" : "unscheduled")
-  const [schedFor, setSchedFor] = useState(date || "")
-  const [schedOn, setSchedOn] = useState(todayInput())
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState(null)
-  async function create() {
-    if (!title.trim()) { setErr("A title or hook is required"); return }
-    setBusy(true); setErr(null)
-    try {
-      const r = await fetch("/api/content", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title, format: format, destination: destination,
-          status: status,
-          short_label: shortLabel, theme: theme,
-          scheduled_for: schedFor ? new Date(schedFor + "T09:00").toISOString() : null,
-          scheduled_on: schedOn ? new Date(schedOn + "T00:00").toISOString() : null }) })
-      const d = await r.json()
-      if (d.error) { setErr(d.error); setBusy(false); return }
-      onCreated()
-    } catch (e) { setErr(String(e)); setBusy(false) }
-  }
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, zIndex: 1000 }}>
-      <div onClick={function(e){ e.stopPropagation() }} style={{ background: "white", borderRadius: 12, padding: 22, width: 420, maxWidth: "92vw", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>New post{date ? " \u00b7 " + new Date(date + "T12:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""}</div>
-        {err && <div style={{ color: T.danger, fontSize: 12, marginBottom: 10 }}>\u26a0 {err}</div>}
-        <div style={{ display: "grid", gap: 10 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 3 }}><span style={dateLbl}>Scheduled for</span><input type="date" style={modalInp} value={schedFor} onChange={function(e){ setSchedFor(e.target.value) }} /></label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 3 }}><span style={dateLbl}>Scheduled on</span><input type="date" style={modalInp} value={schedOn} onChange={function(e){ setSchedOn(e.target.value) }} /></label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 3 }}><span style={dateLbl}>Status</span><select style={modalInp} value={status} onChange={function(e){ setStatus(e.target.value) }}>{["unscheduled","scheduled","posted"].map(function(st){ return <option key={st} value={st}>{st}</option> })}</select></label>
-          <input style={modalInp} placeholder="Title or hook" value={title} onChange={function(e){ setTitle(e.target.value) }} autoFocus />
-          <input style={modalInp} placeholder="Short label (shown on calendar)" value={shortLabel} onChange={function(e){ setShortLabel(e.target.value) }} />
-          <input style={modalInp} placeholder="Theme / purpose (optional)" value={theme} onChange={function(e){ setTheme(e.target.value) }} />
-          <select style={modalInp} value={format} onChange={function(e){ setFormat(e.target.value) }}>{FORMATS.map(function(fo){ return <option key={fo} value={fo}>{fo}</option> })}</select>
-          <select style={modalInp} value={destination} onChange={function(e){ setDestination(e.target.value) }}>{DESTINATIONS.map(function(dd){ return <option key={dd.v} value={dd.v}>{dd.label}</option> })}</select>
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-          <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: T.textSecondary, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-          <button disabled={busy} onClick={create} style={{ padding: "8px 18px", borderRadius: 7, border: "none", background: T.accent, color: "white", fontSize: 13, fontWeight: 600, cursor: busy ? "default" : "pointer", fontFamily: "inherit" }}>{busy ? "Creating\u2026" : "Create post"}</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 const calNavBtn = { padding: "5px 11px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: T.textSecondary, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }
 const calActiveBtn = { background: T.accent, color: "white", borderColor: T.accent }
 
@@ -486,9 +466,16 @@ function UnscheduledTray({ posts, onPatch, onEdit }) {
   )
 }
 
-function FullEditModal({ post, onClose, onPatch, onUpload, onRemoveGraphic, uploading }) {
+function FullEditModal({ post, onClose, onPatch, onUpload, onRemoveGraphic, uploading, onDelete }) {
   var p = post
+  const [copied, setCopied] = useState(false)
+  const bodyRef = useRef(null)
   function set(k, v) { onPatch(p.id, { [k]: v }) }
+  function copyBody() {
+    var v = bodyRef.current ? bodyRef.current.value : (p.body || "")
+    try { navigator.clipboard.writeText(v || "") } catch (e) {}
+    setCopied(true); setTimeout(function(){ setCopied(false) }, 1500)
+  }
   var lbl = { fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 600, marginBottom: 3, display: "block" }
   var fld = { width: "100%", boxSizing: "border-box", padding: "7px 9px", borderRadius: 7, border: "1px solid " + T.border, fontSize: 13, fontFamily: "inherit", color: T.textPrimary, background: "white" }
   return (
@@ -541,12 +528,21 @@ function FullEditModal({ post, onClose, onPatch, onUpload, onRemoveGraphic, uplo
           </div>
           <div><label style={lbl}>Theme / purpose</label><input style={fld} defaultValue={p.theme || ""} onBlur={function(e){ if (e.target.value !== (p.theme || "")) set("theme", e.target.value) }} /></div>
           <div><label style={lbl}>Post URL</label><input style={fld} defaultValue={p.post_url || ""} onBlur={function(e){ if (e.target.value !== (p.post_url || "")) set("post_url", e.target.value) }} /></div>
-          <div><label style={lbl}>Post copy</label><textarea rows={4} style={Object.assign({}, fld, { lineHeight: 1.5, resize: "vertical" })} defaultValue={p.body || ""} onBlur={function(e){ if (e.target.value !== (p.body || "")) set("body", e.target.value) }} /></div>
-          <div><label style={lbl}>Transcript</label><textarea rows={5} style={Object.assign({}, fld, { lineHeight: 1.5, resize: "vertical" })} defaultValue={p.transcript || ""} onBlur={function(e){ if (e.target.value !== (p.transcript || "")) set("transcript", e.target.value) }} /></div>
+          <div>
+            <div style={{ display: "flex", alignItems: "flex-end", marginBottom: 3 }}>
+              <label style={Object.assign({}, lbl, { marginBottom: 0 })}>Post copy</label>
+              <button type="button" onClick={copyBody} title="Copy the full post copy to paste into LinkedIn" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 6, border: "1px solid " + (copied ? "#15803d" : T.border), background: copied ? "#dcfce7" : "white", color: copied ? "#15803d" : T.textSecondary, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{copied ? "\u2713 Copied" : "\u2398 Copy all"}</button>
+            </div>
+            <textarea ref={bodyRef} rows={4} style={Object.assign({}, fld, { lineHeight: 1.5, resize: "vertical" })} defaultValue={p.body || ""} onBlur={function(e){ if (e.target.value !== (p.body || "")) set("body", e.target.value) }} />
+          </div>
+          {p.format === "video" ? (
+            <div><label style={lbl}>Script</label><textarea rows={5} style={Object.assign({}, fld, { lineHeight: 1.5, resize: "vertical" })} defaultValue={p.transcript || ""} onBlur={function(e){ if (e.target.value !== (p.transcript || "")) set("transcript", e.target.value) }} /></div>
+          ) : null}
         </div>
         <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 14 }}>Changes save as you leave each field. Metrics are managed in List view.</div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-          <button onClick={onClose} style={{ padding: "8px 18px", borderRadius: 7, border: "none", background: T.accent, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Done</button>
+        <div style={{ display: "flex", alignItems: "center", marginTop: 12 }}>
+          {onDelete ? <button onClick={function(){ if (typeof window !== "undefined" && window.confirm("Delete this post? This cannot be undone.")) onDelete(p.id) }} style={{ padding: "8px 14px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: "#b91c1c", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Delete post</button> : null}
+          <button onClick={onClose} style={{ marginLeft: "auto", padding: "8px 18px", borderRadius: 7, border: "none", background: T.accent, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Done</button>
         </div>
       </div>
     </div>
