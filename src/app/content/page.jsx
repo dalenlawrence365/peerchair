@@ -26,7 +26,7 @@ const STATUS_COLOR = {
 // Published-state toggle shown in the full-edit dialog. Labels are Dalen's vocabulary;
 // values stay unscheduled/scheduled/posted so the tray + calendar rings keep working.
 const STATUS_SEG = [
-  { v: "unscheduled", label: "Unpublished", color: "#475569" },
+  { v: "unscheduled", label: "Draft",       color: "#475569" },
   { v: "scheduled",   label: "Scheduled",   color: "#b45309" },
   { v: "posted",      label: "Published",   color: "#15803d" },
 ]
@@ -495,7 +495,7 @@ function FullEditModal({ post, onClose, onPatch, onUpload, onRemoveGraphic, uplo
                 return <button key={st.v} type="button" onClick={function(){ set("status", st.v) }} style={{ flex: 1, padding: "10px 6px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", border: "1px solid " + (active ? st.color : T.border), background: active ? st.color : "white", color: active ? "white" : T.textSecondary }}>{st.label}</button>
               })}
             </div>
-            <div style={{ fontSize: 10.5, color: T.textTertiary, marginTop: 4 }}>Unpublished posts show in the tray. This is manual — setting a date never changes it for you.</div>
+            <div style={{ fontSize: 10.5, color: T.textTertiary, marginTop: 4 }}>Draft posts show in the tray. This is manual — setting a date never changes it for you.</div>
           </div>
           <div><label style={lbl}>Full title</label><input style={fld} defaultValue={p.title || ""} onBlur={function(e){ if (e.target.value.trim() && e.target.value !== p.title) set("title", e.target.value) }} /></div>
           <div><label style={lbl}>Short label (shown on calendar)</label><input style={fld} defaultValue={p.short_label || ""} onBlur={function(e){ if (e.target.value !== (p.short_label || "")) set("short_label", e.target.value) }} /></div>
