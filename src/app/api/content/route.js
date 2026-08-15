@@ -61,7 +61,11 @@ export async function POST(req) {
     title, format, destination, status, src_tag,
     scheduled_for: b.scheduled_for || null,
     scheduled_on: b.scheduled_on || (b.scheduled_for ? new Date().toISOString() : null),
-    published_at: status === "posted" ? (b.published_at || new Date().toISOString()) : (b.published_at || null),
+    // Default the publish date to the scheduled date (that's the publish date ~99% of
+    // the time). This only fills the date field; status stays whatever was set manually.
+    published_at: status === "posted"
+      ? (b.published_at || new Date().toISOString())
+      : (b.published_at || b.scheduled_for || null),
     short_label: (b.short_label || "").trim() || null,
     theme: (b.theme || "").trim() || null,
     post_url: (b.post_url || "").trim() || null,
