@@ -21,8 +21,13 @@ export async function GET() {
     .order("created_at", { ascending: false })
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
+  // Hide soft-deleted posts (delete is recoverable via Undo / restore).
+  const { data: del } = await sb.from("content_posts").select("id").not("deleted_at", "is", null)
+  const deletedIds = new Set((del || []).map(function (r) { return r.id }))
+  const visible = (data || []).filter(function (p) { return !deletedIds.has(p.id) })
+
   // Attach a fresh 1h signed URL for any post that has a graphic (private bucket).
-  const posts = await Promise.all((data || []).map(async function (p) {
+  const posts = await Promise.all(visible.map(async function (p) {
     if (!p.graphic_storage_path) return p
     const { data: signed } = await sb.storage
       .from("content-media")
@@ -104,6 +109,7 @@ export async function PATCH(req) {
   if (b.body !== undefined) patch.body = (b.body || "").trim() || null
   if (b.transcript !== undefined) patch.transcript = (b.transcript || "").trim() || null
   if (b.graphic_asset_id !== undefined) patch.graphic_asset_id = b.graphic_asset_id || null
+  if (b.deleted_at !== undefined) patch.deleted_at = b.deleted_at || null
   if (b.boosted !== undefined) {
     patch.boosted = !!b.boosted
     // Turning the boost on stamps the moment paid traffic begins, so clicks
@@ -134,9 +140,9 @@ export async function DELETE(req) {
   const url = new URL(req.url)
   const id = url.searchParams.get("id")
   if (!id) return Response.json({ error: "id is required" }, { status: 400 })
-  // Detach any script pointing at this post so the delete isn't blocked by the FK.
-  await sb.from("content_scripts").update({ linked_post_id: null }).eq("linked_post_id", id)
-  const { error } = await sb.from("content_posts").delete().eq("id", id)
+  // Soft delete: mark the row deleted instead of destroying it, so an accidental
+  // delete can be undone/restored. The script link is preserved.
+  const { error } = await sb.from("content_posts").update({ deleted_at: new Date().toISOString() }).eq("id", id)
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json({ ok: true })
 }

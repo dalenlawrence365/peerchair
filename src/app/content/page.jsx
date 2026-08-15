@@ -78,6 +78,7 @@ export default function ContentPage() {
   const [scheduledFor, setScheduledFor] = useState("")
   const [view, setView] = useState("calendar")
   const [editPost, setEditPost] = useState(null)
+  const [lastDeleted, setLastDeleted] = useState(null)
 
   async function load() {
     setError(null)
@@ -90,6 +91,7 @@ export default function ContentPage() {
   }
   useEffect(function () { load() }, [])
   useEffect(function () { if (editPost) { var fresh = (posts || []).find(function (pp) { return pp.id === editPost.id }); if (fresh && fresh !== editPost) setEditPost(fresh) } }, [posts])
+  useEffect(function () { if (!lastDeleted) return; var t = setTimeout(function () { setLastDeleted(null) }, 12000); return function () { clearTimeout(t) } }, [lastDeleted])
 
   async function create() {
     if (!title.trim()) { setError("Title is required"); return }
@@ -145,9 +147,15 @@ export default function ContentPage() {
       const r = await fetch("/api/content?id=" + encodeURIComponent(id), { method: "DELETE" })
       const d = await r.json()
       if (d.error) { setError(d.error); setBusy(false); return }
-      setEditPost(null); await load()
+      var gone = (editPost && editPost.id === id) ? editPost : { id: id }
+      setEditPost(null); setLastDeleted(gone); await load()
     } catch (e) { setError(String(e)) }
     setBusy(false)
+  }
+
+  async function restorePost(id) {
+    setLastDeleted(null)
+    await patch(id, { deleted_at: null })
   }
 
   async function uploadGraphic(postId, file) {
@@ -231,6 +239,13 @@ export default function ContentPage() {
       </>)}
 
 
+      {lastDeleted && (
+        <div style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", background: "#0f172a", color: "white", padding: "11px 16px", borderRadius: 10, display: "flex", alignItems: "center", gap: 16, zIndex: 1300, boxShadow: "0 8px 30px rgba(0,0,0,0.35)" }}>
+          <span style={{ fontSize: 13 }}>Deleted {"\u201c" + (lastDeleted.short_label || lastDeleted.title || "post") + "\u201d"}</span>
+          <button onClick={function(){ restorePost(lastDeleted.id) }} style={{ padding: "5px 14px", borderRadius: 7, border: "none", background: "white", color: "#0f172a", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Undo</button>
+          <button onClick={function(){ setLastDeleted(null) }} title="Dismiss" style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 16, cursor: "pointer", lineHeight: 1, padding: 0 }}>{"\u00d7"}</button>
+        </div>
+      )}
       {editPost && <FullEditModal post={editPost} onClose={function(){ setEditPost(null) }} onPatch={patch} onUpload={uploadGraphic} onRemoveGraphic={removeGraphic} uploading={uploading} onDelete={deletePost} />}
 
       {view === "list" && (<>
@@ -480,7 +495,7 @@ function FullEditModal({ post, onClose, onPatch, onUpload, onRemoveGraphic, uplo
   var fld = { width: "100%", boxSizing: "border-box", padding: "7px 9px", borderRadius: 7, border: "1px solid " + T.border, fontSize: 13, fontFamily: "inherit", color: T.textPrimary, background: "white" }
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, zIndex: 1100 }}>
-      <div onClick={function(e){ e.stopPropagation() }} style={{ background: "white", borderRadius: 12, padding: 22, width: 560, maxWidth: "94vw", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 10px 40px rgba(0,0,0,0.25)" }}>
+      <div onClick={function(e){ e.stopPropagation() }} style={{ background: "white", borderRadius: 12, padding: 22, width: 760, maxWidth: "96vw", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 10px 40px rgba(0,0,0,0.25)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>#{p.control_number}</span>
           <div style={{ fontSize: 16, fontWeight: 600 }}>Edit post</div>
@@ -522,9 +537,9 @@ function FullEditModal({ post, onClose, onPatch, onUpload, onRemoveGraphic, uplo
             )}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-            <div><label style={lbl}>Scheduled on</label><input type="date" style={fld} defaultValue={toDateInput(p.scheduled_on)} onBlur={function(e){ if (e.target.value !== toDateInput(p.scheduled_on)) set("scheduled_on", fromDate(e.target.value)) }} /></div>
-            <div><label style={lbl}>Scheduled for</label><input type="datetime-local" style={fld} defaultValue={toDTInput(p.scheduled_for)} onBlur={function(e){ if (e.target.value !== toDTInput(p.scheduled_for)) set("scheduled_for", fromDT(e.target.value)) }} /></div>
-            <div><label style={lbl}>Published</label><input type="datetime-local" style={fld} defaultValue={toDTInput(p.published_at)} onBlur={function(e){ if (e.target.value !== toDTInput(p.published_at)) set("published_at", fromDT(e.target.value)) }} /></div>
+            <div style={{ minWidth: 0 }}><label style={lbl}>Scheduled on</label><input type="date" style={fld} defaultValue={toDateInput(p.scheduled_on)} onBlur={function(e){ if (e.target.value !== toDateInput(p.scheduled_on)) set("scheduled_on", fromDate(e.target.value)) }} /></div>
+            <div style={{ minWidth: 0 }}><label style={lbl}>Scheduled for</label><input type="datetime-local" style={fld} defaultValue={toDTInput(p.scheduled_for)} onBlur={function(e){ if (e.target.value !== toDTInput(p.scheduled_for)) set("scheduled_for", fromDT(e.target.value)) }} /></div>
+            <div style={{ minWidth: 0 }}><label style={lbl}>Published</label><input type="datetime-local" style={fld} defaultValue={toDTInput(p.published_at)} onBlur={function(e){ if (e.target.value !== toDTInput(p.published_at)) set("published_at", fromDT(e.target.value)) }} /></div>
           </div>
           <div><label style={lbl}>Theme / purpose</label><input style={fld} defaultValue={p.theme || ""} onBlur={function(e){ if (e.target.value !== (p.theme || "")) set("theme", e.target.value) }} /></div>
           <div><label style={lbl}>Post URL</label><input style={fld} defaultValue={p.post_url || ""} onBlur={function(e){ if (e.target.value !== (p.post_url || "")) set("post_url", e.target.value) }} /></div>
@@ -540,9 +555,10 @@ function FullEditModal({ post, onClose, onPatch, onUpload, onRemoveGraphic, uplo
           ) : null}
         </div>
         <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 14 }}>Changes save as you leave each field. Metrics are managed in List view.</div>
-        <div style={{ display: "flex", alignItems: "center", marginTop: 12 }}>
-          {onDelete ? <button onClick={function(){ if (typeof window !== "undefined" && window.confirm("Delete this post? This cannot be undone.")) onDelete(p.id) }} style={{ padding: "8px 14px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: "#b91c1c", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Delete post</button> : null}
-          <button onClick={onClose} style={{ marginLeft: "auto", padding: "8px 18px", borderRadius: 7, border: "none", background: T.accent, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Done</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+          {onDelete ? <button onClick={function(){ if (typeof window !== "undefined" && window.confirm("Delete this post? You can Undo it right after.")) onDelete(p.id) }} style={{ padding: "8px 14px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: "#b91c1c", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Delete post</button> : null}
+          <button onClick={onClose} style={{ marginLeft: "auto", padding: "8px 16px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: T.textSecondary, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+          <button onClick={onClose} style={{ padding: "8px 18px", borderRadius: 7, border: "none", background: T.accent, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Done</button>
         </div>
       </div>
     </div>
