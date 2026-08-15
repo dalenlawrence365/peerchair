@@ -98,7 +98,13 @@ export async function PATCH(req) {
   if (typeof b.title === "string" && b.title.trim()) patch.title = b.title.trim()
   if (STATUSES.includes(b.status)) patch.status = b.status
   if (FORMATS.includes(b.format)) patch.format = b.format
-  if (b.status === "posted" && !b.published_at) patch.published_at = new Date().toISOString()
+  // Marking a post Published should NOT clobber a publish date it already has. Only
+  // fill it when empty, preferring the scheduled date over "now" (so a post you flip
+  // to Published keeps landing on its intended day, not today).
+  if (b.status === "posted" && b.published_at === undefined) {
+    const { data: cur } = await sb.from("content_posts").select("published_at, scheduled_for").eq("id", b.id).single()
+    if (cur && !cur.published_at) patch.published_at = cur.scheduled_for || new Date().toISOString()
+  }
   if (b.short_label !== undefined) patch.short_label = (b.short_label || "").trim() || null
   if (b.theme !== undefined) patch.theme = (b.theme || "").trim() || null
   if (b.published_at !== undefined) patch.published_at = b.published_at || null
