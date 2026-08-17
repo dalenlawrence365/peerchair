@@ -42,6 +42,7 @@ export async function POST(req) {
     .from("events").select("id, slug, published, event_date, ends_at")
     .eq("slug", slug).eq("published", true).maybeSingle()
   if (!event) return json({ error: "not_found" }, 404)
+  const evLabel = new Date(event.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Los_Angeles" })
 
   // Registration closes once the event is over. The page keeps working as a
   // recap and points to the next date, but self-registration for a past session
@@ -132,7 +133,7 @@ export async function POST(req) {
     ctype || null,
     linkedin || null,
   ].filter(Boolean)
-  const note = dupFlag + "Self-registered (Aug 11): " + (noteBits.join(" · ") || "no details")
+  const note = dupFlag + "Self-registered (" + evLabel + "): " + (noteBits.join(" · ") || "no details")
 
   // New registrant -> insert as Registered. Someone who already has a row
   // (e.g. Dalen invited them directly) -> RECORD the registration on that row
@@ -166,7 +167,7 @@ export async function POST(req) {
     [{
       kind: "registration",
       person_id,
-      title: fullName + " requested a seat — Aug 11",
+      title: fullName + " requested a seat — " + evLabel,
       body: note,
       href: "/events",
       dedup_key: "reg:" + event.id + ":" + person_id,
