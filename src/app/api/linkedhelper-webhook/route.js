@@ -341,6 +341,19 @@ async function handleConnected(sb, lead, tags, seedBatchTag, raw) {
     source: "LinkedHelper"
   })
 
+  // In-app alert so an accept never goes unnoticed.
+  try {
+    await sb.from("notifications").insert({
+      kind: "connection_accept",
+      person_id: contact.id,
+      title: (lead.fullName || contact.full_name || "Someone") + " accepted your invitation",
+      body: [lead.headline, lead.location].filter(Boolean).join(" \u00b7 ") || "New LinkedIn connection",
+      href: "/people/" + contact.id,
+      dedup_key: "conn-accept:" + contact.id,
+      is_read: false
+    })
+  } catch (e) { console.error("connect notification failed:", e.message) }
+
 }
 
 async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
@@ -621,6 +634,28 @@ async function handleProfileCapture(sb, root, request) {
   }
   const { data, error } = await sb.from("linkedhelper_profile_captures").insert(row).select("id").single()
   if (error) return json({ error: error.message }, 500)
+
+  // In-app alert. Profile captures are usually a manual "connect in the wild"; link
+  // to the PeerChair person if we already have them, else to their LinkedIn profile.
+  try {
+    let matchId = null
+    let href = row.profile_url || "/"
+    if (row.profile_url) {
+      const norm = String(row.profile_url).replace(/\/$/, "").replace("https://linkedin.com", "https://www.linkedin.com")
+      const { data: m } = await sb.from("people").select("id").in("linkedin_url", [norm, norm + "/"]).limit(1)
+      if (m && m.length) { matchId = m[0].id; href = "/people/" + matchId }
+    }
+    await sb.from("notifications").insert({
+      kind: "connection_accept",
+      person_id: matchId,
+      title: "New connection captured: " + (row.full_name || "Unknown"),
+      body: [row.headline || row.title, row.company, row.location].filter(Boolean).join(" \u00b7 ") || "Profile captured via LinkedHelper",
+      href: href,
+      dedup_key: "profile-capture:" + data.id,
+      is_read: false
+    })
+  } catch (e) { console.error("profile notification failed:", e.message) }
+
   return json({ ok: true, event: "profile", id: data.id, captured_keys: Object.keys(root || {}), extracted: {
     full_name: row.full_name, title: row.title, company: row.company, location: row.location,
     profile_url: row.profile_url, connection_degree: row.connection_degree } })
