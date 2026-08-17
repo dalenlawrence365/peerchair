@@ -29,16 +29,21 @@ export async function GET(request) {
   if (url.searchParams.get("k") !== PROBE_KEY) return Response.json({ error: "not found" }, { status: 404 })
   const slug = (url.searchParams.get("slug") || "").trim()
   const status = (url.searchParams.get("status") || "Unavailable").trim()
+  const sourceSlug = (url.searchParams.get("source_slug") || slug).trim()
   const dry = url.searchParams.get("dry") === "1"
   if (!slug) return Response.json({ error: "slug required" }, { status: 400 })
 
   const sb = serverClient()
   const { data: ev } = await sb.from("events").select("id, slug, published").eq("slug", slug).maybeSingle()
-  if (!ev) return Response.json({ error: "event not found" }, { status: 404 })
+  if (!ev) return Response.json({ error: "event not found (link)" }, { status: 404 })
+  const { data: srcEv } = await sb.from("events").select("id, slug").eq("slug", sourceSlug).maybeSingle()
+  if (!srcEv) return Response.json({ error: "source event not found" }, { status: 404 })
 
+  // Audience comes from the SOURCE event's roster (e.g. who was Unavailable for Aug 11);
+  // the link + copy point to the target event (slug, e.g. Sept 16).
   const { data: att } = await sb
     .from("event_attendees").select("person_id, status")
-    .eq("event_id", ev.id).eq("status", status)
+    .eq("event_id", srcEv.id).eq("status", status)
   const pids = (att || []).map(function (a) { return a.person_id })
   let withEmail = []
   if (pids.length) {
@@ -83,7 +88,7 @@ export async function GET(request) {
   }
 
   return Response.json({
-    event: ev.slug, status: status, matched: withEmail.length,
+    event: ev.slug, source_event: srcEv.slug, status: status, matched: withEmail.length,
     created: results.filter(function (x) { return x.ok && !x.dry }).length, dry: dry, results: results,
   })
 }
