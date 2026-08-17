@@ -36,11 +36,15 @@ export async function GET(request) {
   const { data: ev } = await sb.from("events").select("id, slug, published").eq("slug", slug).maybeSingle()
   if (!ev) return Response.json({ error: "event not found" }, { status: 404 })
 
-  const { data: rows } = await sb
-    .from("event_attendees")
-    .select("person_id, status, people!inner(id, first_name, full_name, email)")
+  const { data: att } = await sb
+    .from("event_attendees").select("person_id, status")
     .eq("event_id", ev.id).eq("status", status)
-  const withEmail = (rows || []).filter(function (r) { return r.people && r.people.email })
+  const pids = (att || []).map(function (a) { return a.person_id })
+  let withEmail = []
+  if (pids.length) {
+    const { data: ppl } = await sb.from("people").select("id, first_name, full_name, email").in("id", pids)
+    withEmail = (ppl || []).filter(function (p) { return p.email }).map(function (p) { return { person_id: p.id, people: p } })
+  }
   const ids = withEmail.map(function (r) { return r.person_id })
 
   const tokenByPerson = {}
