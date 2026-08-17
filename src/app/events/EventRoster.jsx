@@ -515,7 +515,7 @@ export default function EventRoster({ slug }) {
                         <button disabled={busy === a.id} onClick={function () { markConfirmation(a.id, true) }} style={{ background: "transparent", color: "#15803d", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Mark sent</button>
                       </div>
                     </div>
-                  ) : (a.approved_at || a.status === "Confirmed") ? (
+                  ) : (a.status === "Confirmed" || (a.registered_at && a.approved_at)) ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
                       <span style={{ fontSize: 11.5, fontWeight: 700, color: "#991b1b", background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: 6, padding: "3px 8px", whiteSpace: "nowrap" }}>⚠ No confirmation draft</span>
                       <div style={{ fontSize: 10.5, color: "#b91c1c", maxWidth: 200, textAlign: "right", lineHeight: 1.4 }}>
