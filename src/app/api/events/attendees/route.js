@@ -26,6 +26,9 @@ function inviteUrl(slug, token) {
 export async function GET(req) {
   const url = new URL(req.url)
   const slug = (url.searchParams.get("slug") || "").trim()
+  // Optional: narrow to one person (used by the profile Events tab to show
+  // "is this person invited to THIS event", not the whole roster).
+  const personIdFilter = (url.searchParams.get("person_id") || "").trim()
   const sb = serverClient()
 
   const { data: event } = await sb
@@ -36,11 +39,13 @@ export async function GET(req) {
 
   if (!event) return Response.json({ error: "not_found" }, { status: 404 })
 
-  const { data: rows } = await sb
+  let attendeesQuery = sb
     .from("event_attendees")
     .select("id, status, invited_at, responded_at, invite_token, person_id, notes, source, registered_at, approved_at, confirmation_drafted_at, confirmation_draft_weblink, confirmation_sent_at, confirmation_draft_error, confirmation_draft_error_at, people:person_id ( first_name, last_name, full_name, email, title, company, cfo_state, avatar_url, linkedin_url, linkedin_connected, roles, cfo_circle_member )")
     .eq("event_id", event.id)
     .order("invited_at", { ascending: true })
+  if (personIdFilter) attendeesQuery = attendeesQuery.eq("person_id", personIdFilter)
+  const { data: rows } = await attendeesQuery
 
   const attendees = (rows || []).map(r => ({
     id: r.id,
