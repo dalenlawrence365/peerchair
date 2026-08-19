@@ -94,6 +94,15 @@ export async function PATCH(req) {
   try { b = await req.json() } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }) }
   if (!b.id) return Response.json({ error: "id is required" }, { status: 400 })
 
+  // Restore (Undo): deleted_at is explicitly cleared. Route through the RPC so the
+  // post gets renumbered back onto the end of the active list instead of a raw
+  // column write that would leave two posts sharing a control_number.
+  if (b.deleted_at === null) {
+    const { error: rErr } = await sb.rpc("content_post_restore", { p_id: b.id })
+    if (rErr) return Response.json({ error: rErr.message }, { status: 500 })
+    return Response.json({ ok: true })
+  }
+
   const patch = {}
   if (typeof b.title === "string" && b.title.trim()) patch.title = b.title.trim()
   if (STATUSES.includes(b.status)) patch.status = b.status
@@ -115,7 +124,6 @@ export async function PATCH(req) {
   if (b.body !== undefined) patch.body = (b.body || "").trim() || null
   if (b.transcript !== undefined) patch.transcript = (b.transcript || "").trim() || null
   if (b.graphic_asset_id !== undefined) patch.graphic_asset_id = b.graphic_asset_id || null
-  if (b.deleted_at !== undefined) patch.deleted_at = b.deleted_at || null
   if (b.boosted !== undefined) {
     patch.boosted = !!b.boosted
     // Turning the boost on stamps the moment paid traffic begins, so clicks
@@ -147,8 +155,10 @@ export async function DELETE(req) {
   const id = url.searchParams.get("id")
   if (!id) return Response.json({ error: "id is required" }, { status: 400 })
   // Soft delete: mark the row deleted instead of destroying it, so an accidental
-  // delete can be undone/restored. The script link is preserved.
-  const { error } = await sb.from("content_posts").update({ deleted_at: new Date().toISOString() }).eq("id", id)
+  // delete can be undone/restored. The script link is preserved. The RPC also closes
+  // the control_number gap this post leaves, so the lifetime video count stays
+  // contiguous and the next new post doesn't skip past the reclaimed number.
+  const { error } = await sb.rpc("content_post_soft_delete", { p_id: id })
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json({ ok: true })
 }

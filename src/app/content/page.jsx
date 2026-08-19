@@ -234,8 +234,8 @@ export default function ContentPage() {
       </div>
 
       {view === "calendar" && (<>
-        <UnscheduledTray posts={posts || []} onPatch={patch} onEdit={function(p){ setEditPost(p) }} />
-        <ContentCalendar posts={posts || []} onPickDate={function(k){ createForDate(k) }} onPatch={patch} onEdit={function(p){ setEditPost(p) }} />
+        <UnscheduledTray posts={posts || []} onPatch={patch} onEdit={function(p){ setEditPost(p) }} onDelete={deletePost} />
+        <ContentCalendar posts={posts || []} onPickDate={function(k){ createForDate(k) }} onPatch={patch} onEdit={function(p){ setEditPost(p) }} onDelete={deletePost} />
       </>)}
 
 
@@ -428,7 +428,7 @@ const calActiveBtn = { background: T.accent, color: "white", borderColor: T.acce
 
 const calInp = { width: "100%", boxSizing: "border-box", border: "1px solid " + T.border, borderRadius: 4, padding: "2px 4px", fontSize: 10.5, fontFamily: "inherit", color: T.textPrimary, background: "white", minWidth: 0 }
 
-function CalCard({ p, onPatch, onEdit }) {
+function CalCard({ p, onPatch, onEdit, onDelete }) {
   const [zoom, setZoom] = useState(false)
   var ring = p.status === "posted" ? "#15803d" : p.status === "scheduled" ? "#b45309" : "#94a3b8"
   var bg = p.status === "posted" ? "rgba(21,128,61,0.06)" : p.status === "scheduled" ? "rgba(180,83,9,0.05)" : "rgba(148,163,184,0.08)"
@@ -441,6 +441,7 @@ function CalCard({ p, onPatch, onEdit }) {
         </select>
         {p.graphic_url ? <img src={p.graphic_url} alt="" title="Click to view full image" onClick={function(e){ e.stopPropagation(); setZoom(true) }} style={{ width: 14, height: 14, borderRadius: 3, objectFit: "cover", marginLeft: "auto", cursor: "zoom-in" }} /> : null}
         <button onClick={function(){ onEdit(p) }} title="Full edit" style={{ marginLeft: p.graphic_url ? 4 : "auto", background: "none", border: "none", color: T.textTertiary, cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1 }}>{"\u270e"}</button>
+        {onDelete ? <button onClick={function(e){ e.stopPropagation(); onDelete(p.id) }} title="Delete post" style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontSize: 13, padding: 0, lineHeight: 1 }}>{"\u00d7"}</button> : null}
       </div>
       <input defaultValue={p.short_label || ""} placeholder="short label" title={p.title || ""}
         onBlur={function(e){ if (e.target.value !== (p.short_label || "")) onPatch(p.id, { short_label: e.target.value }) }}
@@ -465,7 +466,7 @@ function CalCard({ p, onPatch, onEdit }) {
   )
 }
 
-function UnscheduledTray({ posts, onPatch, onEdit }) {
+function UnscheduledTray({ posts, onPatch, onEdit, onDelete }) {
   var list = posts.filter(function(p){ return p.status === "unscheduled" || (!p.scheduled_for && !p.published_at) })
   return (
     <div style={{ background: T.bg, border: "1px dashed " + T.border, borderRadius: 10, padding: 12, marginBottom: 14 }}>
@@ -474,7 +475,7 @@ function UnscheduledTray({ posts, onPatch, onEdit }) {
         <div style={{ fontSize: 12, color: T.textTertiary }}>Nothing unscheduled. Posts with no date land here \u2014 open one and give it a date to schedule it.</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 8 }}>
-          {list.map(function(p){ return <CalCard key={p.id} p={p} onPatch={onPatch} onEdit={onEdit} /> })}
+          {list.map(function(p){ return <CalCard key={p.id} p={p} onPatch={onPatch} onEdit={onEdit} onDelete={onDelete} /> })}
         </div>
       )}
     </div>
@@ -565,7 +566,7 @@ function FullEditModal({ post, onClose, onPatch, onUpload, onRemoveGraphic, uplo
   )
 }
 
-function ContentCalendar({ posts, onPickDate, onPatch, onEdit }) {
+function ContentCalendar({ posts, onPickDate, onPatch, onEdit, onDelete }) {
   const [mode, setMode] = useState("month")
   const [cursor, setCursor] = useState(function(){ var d = new Date(); d.setHours(0,0,0,0); return d })
   function dateFor(p) { return p.published_at || p.scheduled_for || null }
@@ -620,7 +621,7 @@ function ContentCalendar({ posts, onPickDate, onPatch, onEdit }) {
                 {k === todayKey ? <span style={{ fontSize: 9, color: T.accent }}>today</span> : null}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {list.map(function(p){ return <CalCard key={p.id} p={p} onPatch={onPatch} onEdit={onEdit} /> })}
+                {list.map(function(p){ return <CalCard key={p.id} p={p} onPatch={onPatch} onEdit={onEdit} onDelete={onDelete} /> })}
               </div>
             </div>
           )
