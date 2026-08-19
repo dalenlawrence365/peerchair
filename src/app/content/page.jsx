@@ -1,35 +1,9 @@
 "use client"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { T, FONT_SERIF } from "@/lib/pipelineTheme"
-
-const FORMATS = ["video", "text", "carousel", "image", "poll", "article"]
-const DESTINATIONS = [
-  { v: "none", label: "No link (reach post)" },
-  { v: "assessment", label: "Assessment" },
-  { v: "overview", label: "Brochure" },
-  { v: "meeting", label: "Meeting" },
-  { v: "investment", label: "Investment" },
-  { v: "events/august-11-workshop", label: "Event · Aug 11 Workshop" },
-]
-const DEST_PILL = {
-  overview: "Brochure", assessment: "Assessment", meeting: "Meeting",
-  investment: "Investment", "events/august-11-workshop": "Aug 11 Event",
-}
-
-const STATUS_COLOR = {
-  unscheduled: { bg: "rgba(100,116,139,0.13)", fg: "#475569" },
-  scheduled:   { bg: "rgba(217,119,6,0.14)",   fg: "#b45309" },
-  posted:      { bg: "rgba(22,163,74,0.14)",   fg: "#15803d" },
-}
-
-// Published-state toggle shown in the full-edit dialog. Labels are Dalen's vocabulary;
-// values stay unscheduled/scheduled/posted so the tray + calendar rings keep working.
-const STATUS_SEG = [
-  { v: "unscheduled", label: "Draft",       color: "#475569" },
-  { v: "scheduled",   label: "Scheduled",   color: "#b45309" },
-  { v: "posted",      label: "Published",   color: "#15803d" },
-]
+import { FORMATS, DESTINATIONS, DEST_PILL, STAGES, STAGE_BY_VALUE, STATUS_COLOR } from "@/lib/contentMeta"
 
 function Pill({ text, bg, fg }) {
   return <span style={{ display: "inline-block", padding: "1px 7px", borderRadius: 999, fontSize: 9.5,
@@ -65,20 +39,17 @@ const dateLbl = { fontSize: 10, color: T.textTertiary, textTransform: "uppercase
 const dateInp = { padding: "6px 8px", border: "1px solid " + T.border, borderRadius: 6, fontSize: 12.5, fontFamily: "inherit", color: T.textPrimary, background: "white" }
 
 export default function ContentPage() {
+  const router = useRouter()
   const [posts, setPosts] = useState(null)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(null)
   const [uploading, setUploading] = useState(null)
   const [lightbox, setLightbox] = useState(null)
-
-  const [title, setTitle] = useState("")
-  const [format, setFormat] = useState("video")
-  const [destination, setDestination] = useState("assessment")
-  const [scheduledFor, setScheduledFor] = useState("")
   const [view, setView] = useState("calendar")
-  const [editPost, setEditPost] = useState(null)
   const [lastDeleted, setLastDeleted] = useState(null)
+
+  function openPost(p) { router.push("/content/post/" + p.id) }
 
   async function load() {
     setError(null)
@@ -90,24 +61,7 @@ export default function ContentPage() {
     } catch (e) { setError(String(e)); return null }
   }
   useEffect(function () { load() }, [])
-  useEffect(function () { if (editPost) { var fresh = (posts || []).find(function (pp) { return pp.id === editPost.id }); if (fresh && fresh !== editPost) setEditPost(fresh) } }, [posts])
   useEffect(function () { if (!lastDeleted) return; var t = setTimeout(function () { setLastDeleted(null) }, 12000); return function () { clearTimeout(t) } }, [lastDeleted])
-
-  async function create() {
-    if (!title.trim()) { setError("Title is required"); return }
-    setBusy(true); setError(null)
-    try {
-      const r = await fetch("/api/content", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, format, destination, status: scheduledFor ? "scheduled" : "draft",
-          scheduled_for: scheduledFor ? new Date(scheduledFor).toISOString() : null })
-      })
-      const d = await r.json()
-      if (d.error) setError(d.error)
-      else { setTitle(""); setScheduledFor(""); await load() }
-    } catch (e) { setError(String(e)) }
-    setBusy(false)
-  }
 
   async function patch(id, body) {
     setBusy(true); setError(null)
@@ -134,21 +88,19 @@ export default function ContentPage() {
       })
       const d = await r.json()
       if (d.error) { setError(d.error); setBusy(false); return }
-      const list = await load()
-      const np = (list || []).find(function (p) { return p.id === d.id })
-      if (np) setEditPost(np)
-    } catch (e) { setError(String(e)) }
-    setBusy(false)
+      setBusy(false)
+      router.push("/content/post/" + d.id)
+    } catch (e) { setError(String(e)); setBusy(false) }
   }
 
   async function deletePost(id) {
     setBusy(true); setError(null)
+    var gone = (posts || []).find(function (p) { return p.id === id }) || { id: id }
     try {
       const r = await fetch("/api/content?id=" + encodeURIComponent(id), { method: "DELETE" })
       const d = await r.json()
       if (d.error) { setError(d.error); setBusy(false); return }
-      var gone = (editPost && editPost.id === id) ? editPost : { id: id }
-      setEditPost(null); setLastDeleted(gone); await load()
+      setLastDeleted(gone); await load()
     } catch (e) { setError(String(e)) }
     setBusy(false)
   }
@@ -195,7 +147,7 @@ export default function ContentPage() {
     <main style={{ padding: "26px 32px 80px", maxWidth: 1100 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, justifyContent: "space-between" }}>
         <h1 style={{ fontFamily: FONT_SERIF, fontSize: 30, fontWeight: 400, margin: 0, lineHeight: 1.1 }}>Content</h1>
-        <Link href="/content/scripts" style={{ fontSize: 13, fontWeight: 600, color: "white", background: T.accent, textDecoration: "none", padding: "9px 16px", borderRadius: 8, whiteSpace: "nowrap" }}>Script library →</Link>
+        <Link href="/content/post/new" style={{ fontSize: 13, fontWeight: 600, color: "white", background: T.accent, textDecoration: "none", padding: "9px 16px", borderRadius: 8, whiteSpace: "nowrap" }}>+ Start a post</Link>
       </div>
       <p style={{ fontSize: 13, color: T.textSecondary, margin: "6px 0 0", maxWidth: 660 }}>
         Every LinkedIn post, what it linked to, and what it drove. Posts with a destination get a tracking
@@ -204,38 +156,14 @@ export default function ContentPage() {
 
       {error && <div style={{ color: T.danger, marginTop: 16 }}>⚠ {error}</div>}
 
-      {view === "list" && (
-      <section style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: 18, marginTop: 20 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 600, margin: "0 0 14px" }}>New post</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1.3fr 1.2fr auto", gap: 10, alignItems: "center" }}>
-          <input style={input} placeholder="Title or hook" value={title} onChange={e => setTitle(e.target.value)} />
-          <select style={input} value={format} onChange={e => setFormat(e.target.value)}>
-            {FORMATS.map(f => <option key={f} value={f}>{f}</option>)}
-          </select>
-          <select style={input} value={destination} onChange={e => setDestination(e.target.value)}>
-            {DESTINATIONS.map(d => <option key={d.v} value={d.v}>{d.label}</option>)}
-          </select>
-          <input style={input} type="date" value={scheduledFor} onChange={e => setScheduledFor(e.target.value)} />
-          <button onClick={create} disabled={busy} style={{ padding: "9px 16px", borderRadius: 7, border: "none",
-            background: T.accent, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-            {busy ? "…" : "Create"}
-          </button>
-        </div>
-        <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 10 }}>
-          Leave the date blank for a draft. A tracking link is generated only when there's a destination —
-          reach posts (no link) are still worth recording, they just have nothing to attribute.
-        </div>
-      </section>
-      )}
-
       <div style={{ display: "flex", gap: 6, margin: "24px 0 8px" }}>
         <button onClick={function(){ setView("calendar") }} style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid " + T.border, background: view === "calendar" ? T.accent : "white", color: view === "calendar" ? "white" : T.textSecondary, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Calendar</button>
         <button onClick={function(){ setView("list") }} style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid " + T.border, background: view === "list" ? T.accent : "white", color: view === "list" ? "white" : T.textSecondary, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>List</button>
       </div>
 
       {view === "calendar" && (<>
-        <UnscheduledTray posts={posts || []} onPatch={patch} onEdit={function(p){ setEditPost(p) }} onDelete={deletePost} />
-        <ContentCalendar posts={posts || []} onPickDate={function(k){ createForDate(k) }} onPatch={patch} onEdit={function(p){ setEditPost(p) }} onDelete={deletePost} />
+        <UnscheduledTray posts={posts || []} onPatch={patch} onEdit={openPost} onDelete={deletePost} />
+        <ContentCalendar posts={posts || []} onPickDate={function(k){ createForDate(k) }} onPatch={patch} onEdit={openPost} onDelete={deletePost} />
       </>)}
 
 
@@ -246,7 +174,6 @@ export default function ContentPage() {
           <button onClick={function(){ setLastDeleted(null) }} title="Dismiss" style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 16, cursor: "pointer", lineHeight: 1, padding: 0 }}>{"\u00d7"}</button>
         </div>
       )}
-      {editPost && <FullEditModal post={editPost} onClose={function(){ setEditPost(null) }} onPatch={patch} onUpload={uploadGraphic} onRemoveGraphic={removeGraphic} uploading={uploading} onDelete={deletePost} />}
 
       {view === "list" && (<>
       {!posts && !error && <div style={{ color: T.textTertiary, marginTop: 20 }}>Loading…</div>}
@@ -285,16 +212,15 @@ export default function ContentPage() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <strong style={{ fontSize: 14, color: T.textPrimary }}>{p.title}</strong>
-                <select value={p.status} disabled={busy} title="Status"
+                <select value={p.status} disabled={busy} title="Production stage"
                   onChange={e => patch(p.id, { status: e.target.value })}
                   style={{ fontSize: 11, fontWeight: 600, borderRadius: 999, padding: "2px 8px", fontFamily: "inherit", cursor: "pointer",
-                    color: (STATUS_COLOR[p.status] || STATUS_COLOR.unscheduled).fg,
-                    background: (STATUS_COLOR[p.status] || STATUS_COLOR.unscheduled).bg,
-                    border: "1px solid " + (STATUS_COLOR[p.status] || STATUS_COLOR.unscheduled).fg + "55" }}>
-                  <option value="unscheduled" style={{ color: "#111827" }}>Unscheduled</option>
-                  <option value="scheduled" style={{ color: "#111827" }}>Scheduled</option>
-                  <option value="posted" style={{ color: "#111827" }}>Posted</option>
+                    color: (STATUS_COLOR[p.status] || STATUS_COLOR.draft).fg,
+                    background: (STATUS_COLOR[p.status] || STATUS_COLOR.draft).bg,
+                    border: "1px solid " + (STATUS_COLOR[p.status] || STATUS_COLOR.draft).fg + "55" }}>
+                  {STAGES.map(function(st){ return <option key={st.v} value={st.v} style={{ color: "#111827" }}>{st.label}</option> })}
                 </select>
+                <button onClick={function(){ openPost(p) }} style={{ fontSize: 11, fontWeight: 600, color: T.accent, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>Open →</button>
                 <select value={p.format} onChange={e => patch(p.id, { format: e.target.value })} disabled={busy} title="Post type — change anytime"
                   style={{ fontSize: 11, fontWeight: 600, color: "#3b82f6", background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.35)", borderRadius: 999, padding: "2px 8px", fontFamily: "inherit", cursor: "pointer" }}>
                   {FORMATS.map(f => <option key={f} value={f} style={{ color: "#111827" }}>{f}</option>)}
@@ -430,8 +356,9 @@ const calInp = { width: "100%", boxSizing: "border-box", border: "1px solid " + 
 
 function CalCard({ p, onPatch, onEdit, onDelete }) {
   const [zoom, setZoom] = useState(false)
-  var ring = p.status === "posted" ? "#15803d" : p.status === "scheduled" ? "#b45309" : "#94a3b8"
-  var bg = p.status === "posted" ? "rgba(21,128,61,0.06)" : p.status === "scheduled" ? "rgba(180,83,9,0.05)" : "rgba(148,163,184,0.08)"
+  var stageColor = (STATUS_COLOR[p.status] || STATUS_COLOR.draft)
+  var ring = stageColor.fg
+  var bg = stageColor.bg.replace(/0\.1[34]\)/, "0.06)")
   return (
     <div onClick={function(e){ e.stopPropagation() }} style={{ border: "2px solid " + ring, borderRadius: 6, background: bg, padding: 5, display: "flex", flexDirection: "column", gap: 3 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -466,105 +393,37 @@ function CalCard({ p, onPatch, onEdit, onDelete }) {
   )
 }
 
+// Production tray — everything with no firm date yet, grouped by stage so it
+// reads like the old Scripts board (draft -> ready to shoot -> shot -> edited),
+// except it's the same post record all the way through, not a separate object.
+var TRAY_STAGES = ["draft", "ready_to_shoot", "shot", "edited"]
 function UnscheduledTray({ posts, onPatch, onEdit, onDelete }) {
-  var list = posts.filter(function(p){ return p.status === "unscheduled" || (!p.scheduled_for && !p.published_at) })
+  var list = posts.filter(function(p){ return TRAY_STAGES.indexOf(p.status) !== -1 || (!p.scheduled_for && !p.published_at) })
+  var byStage = {}
+  list.forEach(function(p){ var k = TRAY_STAGES.indexOf(p.status) !== -1 ? p.status : "draft"; (byStage[k] = byStage[k] || []).push(p) })
   return (
     <div style={{ background: T.bg, border: "1px dashed " + T.border, borderRadius: 10, padding: 12, marginBottom: 14 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Unscheduled {list.length ? "\u00b7 " + list.length : ""}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>In production {list.length ? "\u00b7 " + list.length : ""}</div>
       {list.length === 0 ? (
-        <div style={{ fontSize: 12, color: T.textTertiary }}>Nothing unscheduled. Posts with no date land here \u2014 open one and give it a date to schedule it.</div>
+        <div style={{ fontSize: 12, color: T.textTertiary }}>Nothing in production. Posts with no date land here \u2014 give one a date to schedule it.</div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 8 }}>
-          {list.map(function(p){ return <CalCard key={p.id} p={p} onPatch={onPatch} onEdit={onEdit} onDelete={onDelete} /> })}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {TRAY_STAGES.filter(function(st){ return byStage[st] && byStage[st].length }).map(function(st){
+            return (
+              <div key={st}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: (STATUS_COLOR[st] || {}).fg, marginBottom: 5 }}>{(STAGE_BY_VALUE[st] || {}).label || st} \u00b7 {byStage[st].length}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 8 }}>
+                  {byStage[st].map(function(p){ return <CalCard key={p.id} p={p} onPatch={onPatch} onEdit={onEdit} onDelete={onDelete} /> })}
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
   )
 }
 
-function FullEditModal({ post, onClose, onPatch, onUpload, onRemoveGraphic, uploading, onDelete }) {
-  var p = post
-  const [copied, setCopied] = useState(false)
-  const bodyRef = useRef(null)
-  function set(k, v) { onPatch(p.id, { [k]: v }) }
-  function copyBody() {
-    var v = bodyRef.current ? bodyRef.current.value : (p.body || "")
-    try { navigator.clipboard.writeText(v || "") } catch (e) {}
-    setCopied(true); setTimeout(function(){ setCopied(false) }, 1500)
-  }
-  var lbl = { fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 600, marginBottom: 3, display: "block" }
-  var fld = { width: "100%", boxSizing: "border-box", padding: "7px 9px", borderRadius: 7, border: "1px solid " + T.border, fontSize: 13, fontFamily: "inherit", color: T.textPrimary, background: "white" }
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, zIndex: 1100 }}>
-      <div onClick={function(e){ e.stopPropagation() }} style={{ background: "white", borderRadius: 12, padding: 22, width: 760, maxWidth: "96vw", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 10px 40px rgba(0,0,0,0.25)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>#{p.control_number}</span>
-          <div style={{ fontSize: 16, fontWeight: 600 }}>Edit post</div>
-          <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 20, color: T.textTertiary, cursor: "pointer", lineHeight: 1 }}>{"\u00d7"}</button>
-        </div>
-        <div style={{ display: "grid", gap: 12 }}>
-          <div>
-            <label style={lbl}>Status</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {STATUS_SEG.map(function(st){
-                var active = (p.status || "unscheduled") === st.v
-                return <button key={st.v} type="button" onClick={function(){ set("status", st.v) }} style={{ flex: 1, padding: "10px 6px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", border: "1px solid " + (active ? st.color : T.border), background: active ? st.color : "white", color: active ? "white" : T.textSecondary }}>{st.label}</button>
-              })}
-            </div>
-            <div style={{ fontSize: 10.5, color: T.textTertiary, marginTop: 4 }}>Draft posts show in the tray. This is manual — setting a date never changes it for you.</div>
-          </div>
-          <div><label style={lbl}>Full title</label><input style={fld} defaultValue={p.title || ""} onBlur={function(e){ if (e.target.value.trim() && e.target.value !== p.title) set("title", e.target.value) }} /></div>
-          <div><label style={lbl}>Short label (shown on calendar)</label><input style={fld} defaultValue={p.short_label || ""} onBlur={function(e){ if (e.target.value !== (p.short_label || "")) set("short_label", e.target.value) }} /></div>
-          <div><label style={lbl}>Format</label><select style={fld} defaultValue={p.format} onChange={function(e){ set("format", e.target.value) }}>{FORMATS.map(function(fo){ return <option key={fo} value={fo}>{fo}</option> })}</select></div>
-          <div><label style={lbl}>Destination</label><select style={fld} defaultValue={p.destination} onChange={function(e){ set("destination", e.target.value) }}>{DESTINATIONS.map(function(dd){ return <option key={dd.v} value={dd.v}>{dd.label}</option> })}</select></div>
-          <div>
-            <label style={lbl}>Image</label>
-            {p.graphic_url ? (
-              <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                <img src={p.graphic_url} alt="" style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 8, border: "1px solid " + T.border }} />
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <label style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "6px 12px", border: "1px solid " + T.border, borderRadius: 7, cursor: "pointer", fontSize: 12, color: T.textSecondary }}>
-                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={function(e){ var fl = e.target.files && e.target.files[0]; if (fl) onUpload(p.id, fl); e.target.value = "" }} />
-                    {uploading === p.id ? "Uploading\u2026" : "Replace"}
-                  </label>
-                  <button onClick={function(){ onRemoveGraphic(p.id) }} style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: "#b91c1c", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Remove image</button>
-                </div>
-              </div>
-            ) : (
-              <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", border: "1px dashed " + T.border, borderRadius: 8, cursor: "pointer", fontSize: 13, color: T.textSecondary }}>
-                <input type="file" accept="image/*" style={{ display: "none" }} onChange={function(e){ var fl = e.target.files && e.target.files[0]; if (fl) onUpload(p.id, fl); e.target.value = "" }} />
-                {uploading === p.id ? "Uploading\u2026" : "\u002b Attach image"}
-              </label>
-            )}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-            <div style={{ minWidth: 0 }}><label style={lbl}>Scheduled on</label><input type="date" style={fld} defaultValue={toDateInput(p.scheduled_on)} onBlur={function(e){ if (e.target.value !== toDateInput(p.scheduled_on)) set("scheduled_on", fromDate(e.target.value)) }} /></div>
-            <div style={{ minWidth: 0 }}><label style={lbl}>Scheduled for</label><input type="datetime-local" style={fld} defaultValue={toDTInput(p.scheduled_for)} onBlur={function(e){ if (e.target.value !== toDTInput(p.scheduled_for)) set("scheduled_for", fromDT(e.target.value)) }} /></div>
-            <div style={{ minWidth: 0 }}><label style={lbl}>Published</label><input type="datetime-local" style={fld} defaultValue={toDTInput(p.published_at)} onBlur={function(e){ if (e.target.value !== toDTInput(p.published_at)) set("published_at", fromDT(e.target.value)) }} /></div>
-          </div>
-          <div><label style={lbl}>Theme / purpose</label><input style={fld} defaultValue={p.theme || ""} onBlur={function(e){ if (e.target.value !== (p.theme || "")) set("theme", e.target.value) }} /></div>
-          <div><label style={lbl}>Post URL</label><input style={fld} defaultValue={p.post_url || ""} onBlur={function(e){ if (e.target.value !== (p.post_url || "")) set("post_url", e.target.value) }} /></div>
-          <div>
-            <div style={{ display: "flex", alignItems: "flex-end", marginBottom: 3 }}>
-              <label style={Object.assign({}, lbl, { marginBottom: 0 })}>Post copy</label>
-              <button type="button" onClick={copyBody} title="Copy the full post copy to paste into LinkedIn" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 6, border: "1px solid " + (copied ? "#15803d" : T.border), background: copied ? "#dcfce7" : "white", color: copied ? "#15803d" : T.textSecondary, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{copied ? "\u2713 Copied" : "\u2398 Copy all"}</button>
-            </div>
-            <textarea ref={bodyRef} rows={4} style={Object.assign({}, fld, { lineHeight: 1.5, resize: "vertical" })} defaultValue={p.body || ""} onBlur={function(e){ if (e.target.value !== (p.body || "")) set("body", e.target.value) }} />
-          </div>
-          {p.format === "video" ? (
-            <div><label style={lbl}>Script</label><textarea rows={5} style={Object.assign({}, fld, { lineHeight: 1.5, resize: "vertical" })} defaultValue={p.transcript || ""} onBlur={function(e){ if (e.target.value !== (p.transcript || "")) set("transcript", e.target.value) }} /></div>
-          ) : null}
-        </div>
-        <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 14 }}>Changes save as you leave each field. Metrics are managed in List view.</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
-          {onDelete ? <button onClick={function(){ if (typeof window !== "undefined" && window.confirm("Delete this post? You can Undo it right after.")) onDelete(p.id) }} style={{ padding: "8px 14px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: "#b91c1c", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Delete post</button> : null}
-          <button onClick={onClose} style={{ marginLeft: "auto", padding: "8px 16px", borderRadius: 7, border: "1px solid " + T.border, background: "white", color: T.textSecondary, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-          <button onClick={onClose} style={{ padding: "8px 18px", borderRadius: 7, border: "none", background: T.accent, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Done</button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function ContentCalendar({ posts, onPickDate, onPatch, onEdit, onDelete }) {
   const [mode, setMode] = useState("month")

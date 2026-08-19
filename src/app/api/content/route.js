@@ -7,9 +7,13 @@ import { serverClient } from "@/lib/supabaseServer"
 
 // Post destinations. Any page path on la-cfo.com works — slashes are fine, the
 // URL builder concatenates directly. Add a new event here (one line) as they launch.
-const DESTINATIONS = ["none", "overview", "assessment", "meeting", "investment", "events/august-11-workshop"]
+const DESTINATIONS = ["none", "overview", "assessment", "meeting", "investment", "events/august-11-workshop", "events/september-16-workshop"]
 const FORMATS = ["video", "text", "carousel", "image", "poll", "article"]
-const STATUSES = ["unscheduled", "scheduled", "posted"]
+// Unified production pipeline — one status for every post, script text included
+// (transcript field). Dates only matter once a post reaches "scheduled", and the
+// publish date/URL only matter once it reaches "posted" — enforced in the UI, not
+// here, but this is the source-of-truth order.
+const STATUSES = ["draft", "ready_to_shoot", "shot", "edited", "scheduled", "posted"]
 
 export async function GET() {
   const sb = serverClient()
@@ -49,7 +53,7 @@ export async function POST(req) {
 
   const format = FORMATS.includes(b.format) ? b.format : "text"
   const destination = DESTINATIONS.includes(b.destination) ? b.destination : "none"
-  const status = STATUSES.includes(b.status) ? b.status : (b.scheduled_for ? "scheduled" : "unscheduled")
+  const status = STATUSES.includes(b.status) ? b.status : (b.scheduled_for ? "scheduled" : "draft")
 
   // src_tag generated server-side, from the scheduled date when present
   let src_tag = null
