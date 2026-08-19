@@ -50,6 +50,8 @@ export default function PostEditorPage() {
   const [copiedBody, setCopiedBody] = useState(false)
   const scriptRef = useRef(null)
   const [copiedScript, setCopiedScript] = useState(false)
+  const [tagVocab, setTagVocab] = useState([])
+  const [tagDraft, setTagDraft] = useState("")
 
   const load = useCallback(function (theId) {
     fetch("/api/content", { cache: "no-store" }).then(function (r) { return r.json() }).then(function (d) {
@@ -75,6 +77,11 @@ export default function PostEditorPage() {
   }, [isNew])
 
   useEffect(function () { if (!isNew && id) load(id) }, [isNew, id])
+
+  useEffect(function () {
+    fetch("/api/content/tags", { cache: "no-store" }).then(function (r) { return r.json() })
+      .then(function (d) { if (!d.error) setTagVocab(d.tags || []) }).catch(function () {})
+  }, [])
 
   function set(k, v) {
     if (!id) return
@@ -123,6 +130,21 @@ export default function PostEditorPage() {
     var v = scriptRef.current ? scriptRef.current.value : ((post && post.transcript) || "")
     try { navigator.clipboard.writeText(v || "") } catch (e) {}
     setCopiedScript(true); setTimeout(function () { setCopiedScript(false) }, 1500)
+  }
+
+  function addTag(raw) {
+    var v = (raw || "").trim()
+    if (!v || !post) return
+    var cur = post.tags || []
+    if (cur.some(function (t) { return t.toLowerCase() === v.toLowerCase() })) { setTagDraft(""); return }
+    var next = cur.concat([v])
+    set("tags", next)
+    if (!tagVocab.some(function (t) { return t.toLowerCase() === v.toLowerCase() })) setTagVocab(tagVocab.concat([v]).sort())
+    setTagDraft("")
+  }
+  function removeTag(name) {
+    if (!post) return
+    set("tags", (post.tags || []).filter(function (t) { return t !== name }))
   }
 
   if (error) {
@@ -243,6 +265,36 @@ export default function PostEditorPage() {
             <option value="">— choose —</option>
             {PURPOSES.map(function (pu) { return <option key={pu} value={pu}>{pu}</option> })}
           </select>
+        </div>
+
+        <div>
+          <label style={lbl}>Tags <span style={{ textTransform: "none", fontWeight: 400 }}>(usually 2-3 — pick from the list or type a new one)</span></label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: (p.tags && p.tags.length) ? 8 : 0 }}>
+            {(p.tags || []).map(function (t) {
+              return (
+                <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 6px 5px 11px", borderRadius: 999, background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.25)", fontSize: 12.5, color: T.textPrimary }}>
+                  {t}
+                  <button type="button" onClick={function () { removeTag(t) }} aria-label={"Remove " + t}
+                    style={{ border: "none", background: "transparent", color: T.textTertiary, cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 2px", fontFamily: "inherit" }}>×</button>
+                </span>
+              )
+            })}
+          </div>
+          <input
+            list="tag-vocab"
+            style={fld}
+            placeholder="Type a tag and press Enter…"
+            value={tagDraft}
+            onChange={function (e) { setTagDraft(e.target.value) }}
+            onKeyDown={function (e) {
+              if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(tagDraft) }
+            }}
+            onBlur={function () { if (tagDraft.trim()) addTag(tagDraft) }}
+          />
+          <datalist id="tag-vocab">
+            {tagVocab.filter(function (t) { return !(p.tags || []).some(function (pt) { return pt.toLowerCase() === t.toLowerCase() }) })
+              .map(function (t) { return <option key={t} value={t} /> })}
+          </datalist>
         </div>
 
         <div>

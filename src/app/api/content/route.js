@@ -17,6 +17,27 @@ const STATUSES = ["draft", "ready_to_shoot", "shot", "edited", "scheduled", "pos
 // Purpose is now a fixed list (was free text) — see src/lib/contentMeta.js for what each means.
 const PURPOSES = ["CFO Insight", "Peer Community", "Event Promotion", "Partner Spotlight", "CFO Circle Proof", "CFO Circle Brand", "Personal / Founder", "Educational"]
 
+// Tags are an OPEN vocabulary (unlike Purpose) -- seeded from content_tags but any
+// new name typed on a post gets upserted there too, so it becomes a reusable
+// suggestion everywhere from then on. Clean + dedupe whatever the client sends.
+function cleanTags(arr) {
+  if (!Array.isArray(arr)) return null
+  const seen = new Set()
+  const out = []
+  for (const t of arr) {
+    const v = String(t || "").trim()
+    if (!v || seen.has(v.toLowerCase())) continue
+    seen.add(v.toLowerCase())
+    out.push(v)
+  }
+  return out
+}
+async function upsertTagVocab(sb, names) {
+  if (!names || !names.length) return
+  const rows = names.map(function (n) { return { name: n } })
+  await sb.from("content_tags").upsert(rows, { onConflict: "name", ignoreDuplicates: true })
+}
+
 export async function GET() {
   const sb = serverClient()
   const { data, error } = await sb
@@ -82,11 +103,13 @@ export async function POST(req) {
     post_url: (b.post_url || "").trim() || null,
     notes: (b.notes || "").trim() || null,
     body: (b.body || "").trim() || null,
-    transcript: (b.transcript || "").trim() || null
+    transcript: (b.transcript || "").trim() || null,
+    tags: cleanTags(b.tags) || []
   }
 
   const { data, error } = await sb.from("content_posts").insert(row).select("id").single()
   if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (row.tags.length) await upsertTagVocab(sb, row.tags)
 
   const destination_url = src_tag && destination !== "none"
     ? `https://la-cfo.com/${destination}?src=${src_tag}` : null
@@ -122,6 +145,10 @@ export async function PATCH(req) {
   }
   if (b.short_label !== undefined) patch.short_label = (b.short_label || "").trim() || null
   if (b.theme !== undefined) patch.theme = PURPOSES.includes(b.theme) ? b.theme : null
+  if (b.tags !== undefined) {
+    const cleaned = cleanTags(b.tags) || []
+    patch.tags = cleaned
+  }
   if (b.published_at !== undefined) patch.published_at = b.published_at || null
   if (b.scheduled_for !== undefined) patch.scheduled_for = b.scheduled_for || null
   if (b.scheduled_on !== undefined) patch.scheduled_on = b.scheduled_on || null
@@ -152,6 +179,7 @@ export async function PATCH(req) {
 
   const { error } = await sb.from("content_posts").update(patch).eq("id", b.id)
   if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (patch.tags && patch.tags.length) await upsertTagVocab(sb, patch.tags)
   return Response.json({ ok: true })
 }
 
