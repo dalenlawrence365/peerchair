@@ -48,6 +48,8 @@ export default function PostEditorPage() {
   const [uploading, setUploading] = useState(false)
   const bodyRef = useRef(null)
   const [copiedBody, setCopiedBody] = useState(false)
+  const scriptRef = useRef(null)
+  const [copiedScript, setCopiedScript] = useState(false)
 
   const load = useCallback(function (theId) {
     fetch("/api/content", { cache: "no-store" }).then(function (r) { return r.json() }).then(function (d) {
@@ -115,6 +117,12 @@ export default function PostEditorPage() {
     var v = bodyRef.current ? bodyRef.current.value : ((post && post.body) || "")
     try { navigator.clipboard.writeText(v || "") } catch (e) {}
     setCopiedBody(true); setTimeout(function () { setCopiedBody(false) }, 1500)
+  }
+
+  function copyScript() {
+    var v = scriptRef.current ? scriptRef.current.value : ((post && post.transcript) || "")
+    try { navigator.clipboard.writeText(v || "") } catch (e) {}
+    setCopiedScript(true); setTimeout(function () { setCopiedScript(false) }, 1500)
   }
 
   if (error) {
@@ -244,8 +252,11 @@ export default function PostEditorPage() {
 
         {showScript ? (
           <div>
-            <label style={lbl}>Script</label>
-            <textarea rows={12} style={Object.assign({}, fld, { lineHeight: 1.55, resize: "vertical" })} defaultValue={p.transcript || ""} placeholder="Write the script here as you go — no date required."
+            <div style={{ display: "flex", alignItems: "flex-end", marginBottom: 5 }}>
+              <label style={Object.assign({}, lbl, { marginBottom: 0 })}>Script</label>
+              <button type="button" onClick={copyScript} title="Copy the script to paste into your teleprompter" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 6, border: "1px solid " + (copiedScript ? "#15803d" : T.border), background: copiedScript ? "#dcfce7" : "white", color: copiedScript ? "#15803d" : T.textSecondary, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{copiedScript ? "✓ Copied" : "⎘ Copy all"}</button>
+            </div>
+            <textarea ref={scriptRef} rows={12} style={Object.assign({}, fld, { lineHeight: 1.55, resize: "vertical" })} defaultValue={p.transcript || ""} placeholder="Write the script here as you go — no date required."
               onBlur={function (e) { if (e.target.value !== (p.transcript || "")) set("transcript", e.target.value) }} />
           </div>
         ) : null}
