@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { T, FONT_SERIF } from "@/lib/pipelineTheme"
-import { FORMATS, DESTINATIONS, STAGES } from "@/lib/contentMeta"
+import { FORMATS, DESTINATIONS, STAGES, PURPOSES } from "@/lib/contentMeta"
 
 // One real page for both "start a post" (id === "new") and editing an existing
 // one — replaces the old edit popup, which could vanish with a stray click
@@ -238,8 +238,11 @@ export default function PostEditorPage() {
         ) : null}
 
         <div>
-          <label style={lbl}>Theme / purpose</label>
-          <input style={fld} defaultValue={p.theme || ""} onBlur={function (e) { if (e.target.value !== (p.theme || "")) set("theme", e.target.value) }} />
+          <label style={lbl}>Purpose</label>
+          <select style={fld} defaultValue={p.theme || ""} onChange={function (e) { set("theme", e.target.value || null) }}>
+            <option value="">— choose —</option>
+            {PURPOSES.map(function (pu) { return <option key={pu} value={pu}>{pu}</option> })}
+          </select>
         </div>
 
         <div>

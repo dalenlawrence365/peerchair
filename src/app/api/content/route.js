@@ -14,6 +14,8 @@ const FORMATS = ["video", "text", "carousel", "image", "poll", "article"]
 // publish date/URL only matter once it reaches "posted" — enforced in the UI, not
 // here, but this is the source-of-truth order.
 const STATUSES = ["draft", "ready_to_shoot", "shot", "edited", "scheduled", "posted"]
+// Purpose is now a fixed list (was free text) — see src/lib/contentMeta.js for what each means.
+const PURPOSES = ["CFO Insight", "Peer Community", "Event Promotion", "Partner Spotlight", "CFO Circle Proof", "CFO Circle Brand", "Personal / Founder", "Educational"]
 
 export async function GET() {
   const sb = serverClient()
@@ -76,7 +78,7 @@ export async function POST(req) {
       ? (b.published_at || new Date().toISOString())
       : (b.published_at || b.scheduled_for || null),
     short_label: (b.short_label || "").trim() || null,
-    theme: (b.theme || "").trim() || null,
+    theme: PURPOSES.includes(b.theme) ? b.theme : null,
     post_url: (b.post_url || "").trim() || null,
     notes: (b.notes || "").trim() || null,
     body: (b.body || "").trim() || null,
@@ -119,7 +121,7 @@ export async function PATCH(req) {
     if (cur && !cur.published_at) patch.published_at = cur.scheduled_for || new Date().toISOString()
   }
   if (b.short_label !== undefined) patch.short_label = (b.short_label || "").trim() || null
-  if (b.theme !== undefined) patch.theme = (b.theme || "").trim() || null
+  if (b.theme !== undefined) patch.theme = PURPOSES.includes(b.theme) ? b.theme : null
   if (b.published_at !== undefined) patch.published_at = b.published_at || null
   if (b.scheduled_for !== undefined) patch.scheduled_for = b.scheduled_for || null
   if (b.scheduled_on !== undefined) patch.scheduled_on = b.scheduled_on || null

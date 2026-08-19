@@ -34,6 +34,27 @@ export const STAGES = [
   { v: "posted",         label: "Posted",         fg: "#15803d", bg: "rgba(22,163,74,0.14)" },
 ]
 
+// Fixed content categories — Dalen's list, name only in the dropdown. What each
+// one means (kept here only as a comment, never shown in the UI):
+//   CFO Insight        - thought leadership on the CFO role/decisions/leadership
+//   Peer Community      - why CFOs benefit from being around other CFOs
+//   Event Promotion     - primary purpose is getting someone to attend something
+//   Partner Spotlight   - builds credibility, recognizes CFO Circle's supporters
+//   CFO Circle Proof    - shows CFO Circle is real; what's actually happening
+//   CFO Circle Brand    - explains what CFO Circle stands for / differentiates it
+//   Personal / Founder  - builds Dalen as the person behind the community
+//   Educational         - teaches something concrete, not primarily an opinion
+export const PURPOSES = [
+  "CFO Insight",
+  "Peer Community",
+  "Event Promotion",
+  "Partner Spotlight",
+  "CFO Circle Proof",
+  "CFO Circle Brand",
+  "Personal / Founder",
+  "Educational",
+]
+
 export const STAGE_BY_VALUE = {}
 STAGES.forEach(function (st) { STAGE_BY_VALUE[st.v] = st })
 

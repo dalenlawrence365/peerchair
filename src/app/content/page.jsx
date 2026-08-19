@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { T, FONT_SERIF } from "@/lib/pipelineTheme"
-import { FORMATS, DESTINATIONS, DEST_PILL, STAGES, STAGE_BY_VALUE, STATUS_COLOR } from "@/lib/contentMeta"
+import { FORMATS, DESTINATIONS, DEST_PILL, STAGES, STAGE_BY_VALUE, STATUS_COLOR, PURPOSES } from "@/lib/contentMeta"
 
 function Pill({ text, bg, fg }) {
   return <span style={{ display: "inline-block", padding: "1px 7px", borderRadius: 999, fontSize: 9.5,
@@ -377,7 +377,10 @@ function CalCard({ p, onPatch, onEdit, onDelete }) {
         <input defaultValue={p.post_url || ""} placeholder="url" onBlur={function(e){ if (e.target.value !== (p.post_url || "")) onPatch(p.id, { post_url: e.target.value }) }} style={calInp} />
         {p.post_url ? <a href={p.post_url} target="_blank" rel="noreferrer" title="Open post" style={{ fontSize: 12, textDecoration: "none", color: "#0a66c2", flexShrink: 0 }}>{"\u2197"}</a> : null}
       </div>
-      <input defaultValue={p.theme || ""} placeholder="theme / purpose" onBlur={function(e){ if (e.target.value !== (p.theme || "")) onPatch(p.id, { theme: e.target.value }) }} style={calInp} />
+      <select value={p.theme || ""} onChange={function(e){ onPatch(p.id, { theme: e.target.value || null }) }} style={Object.assign({}, calInp, { color: p.theme ? T.textPrimary : T.textTertiary })}>
+        <option value="">purpose —</option>
+        {PURPOSES.map(function(pu){ return <option key={pu} value={pu}>{pu}</option> })}
+      </select>
       {zoom && p.graphic_url ? (
         <div onClick={function(e){ e.stopPropagation(); setZoom(false) }} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.8)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, zIndex: 1200, cursor: "zoom-out" }}>
           <div onClick={function(e){ e.stopPropagation() }} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, maxWidth: "92vw", maxHeight: "92vh" }}>
