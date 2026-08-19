@@ -303,7 +303,7 @@ export default function EventRoster({ slug }) {
         </div>
         <div style={{ flexShrink: 0, minWidth: 214, maxWidth: 250, border: "1px solid " + T.border, borderRadius: 10, padding: "8px 11px", background: T.cardBg }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Registration link · copy &amp; paste</div>
-          {[{ label: "DM", src: "linkedin_dm" }, { label: "Email", src: "email" }].map(function (r) {
+          {[{ label: "DM", src: "linkedin_dm" }, { label: "Email", src: "email" }, { label: "Post", src: "linkedin_post" }].map(function (r) {
             var url = "https://la-cfo.com/events/" + slug + "?src=" + r.src
             return (
               <div key={r.src} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "3px 0" }}>
