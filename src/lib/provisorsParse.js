@@ -73,7 +73,13 @@ export async function parseAndStageRoster(sb, { pdf_base64, filename = null, sou
     headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 8000,
+      // 8000 was too tight -- a big joint-meeting roster (e.g. three ProVisors
+      // groups combined, 40-60+ attendees x ~11 fields each) truncates mid-JSON
+      // before the model can close the object, and a truncated response isn't
+      // valid JSON no matter how it's cleaned. 16000 gives real headroom; we also
+      // surface stop_reason so a future truncation says so directly instead of
+      // showing up as an opaque "could not parse" error.
+      max_tokens: 16000,
       messages: [{
         role: "user",
         content: [
@@ -88,7 +94,14 @@ export async function parseAndStageRoster(sb, { pdf_base64, filename = null, sou
   const text = (aData.content || []).filter(b => b.type === "text").map(b => b.text).join("\n")
   const clean = text.replace(/```json/g, "").replace(/```/g, "").trim()
   let parsed
-  try { parsed = JSON.parse(clean) } catch (e) { throw new Error("could not parse model output as JSON: " + text.slice(0, 300)) }
+  try { parsed = JSON.parse(clean) }
+  catch (e) {
+    const truncated = aData.stop_reason === "max_tokens"
+    throw new Error(
+      (truncated ? "model output truncated (hit max_tokens) -- " : "could not parse model output as JSON: ")
+      + text.slice(0, 300)
+    )
+  }
 
   const meetingGroup = parsed.meetingGroup || null
   const meetingDate = (parsed.meetingDate && /^\d{4}-\d{2}-\d{2}$/.test(parsed.meetingDate)) ? parsed.meetingDate : null
