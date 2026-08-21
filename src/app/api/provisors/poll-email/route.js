@@ -61,7 +61,26 @@ export async function GET(request) {
   const errors = []
   let scanned = 0
 
+  // Time budget: maxDuration is 120s. With hours=72 default and $top=100, a big
+  // inbox window can walk enough messages (each needing 1-2 Graph round trips,
+  // plus a Claude parse call on any roster hit) to blow past that hard limit —
+  // and when Vercel kills the function mid-loop, logCronRun() below never runs,
+  // so the cron leaves NO audit_log row at all. cron-health then can't tell
+  // "ran and failed silently" from "never fired", and the cron looks dark for
+  // hours even though it's actually running every hour and just timing out.
+  // Bail out before the hard limit, log whatever we got, and let the next
+  // hourly run pick up the rest — safe because everything here is dedup'd on
+  // internetMessageId / provisor_import_batches.payload.sourceMessageId.
+  const startedAt = Date.now()
+  const DEADLINE_MS = 100_000
+  let truncated = false
+
   for (const msg of messages) {
+    if (Date.now() - startedAt > DEADLINE_MS) {
+      truncated = true
+      errors.push(`time budget hit — processed ${scanned}/${messages.length} candidates; remainder picked up next run`)
+      break
+    }
     try {
       const imid = msg.internetMessageId || msg.id
 
@@ -128,6 +147,10 @@ export async function GET(request) {
     }
   }
 
-  await logCronRun("provisors-poll-email", `Staged ${staged.length}, skipped ${skipped.length}, scanned ${scanned}`, errors.length ? errors : null)
-  return Response.json({ staged: staged.length, skipped: skipped.length, scanned, errors, batches: staged })
+  await logCronRun(
+    "provisors-poll-email",
+    `Staged ${staged.length}, skipped ${skipped.length}, scanned ${scanned}${truncated ? " (truncated by time budget)" : ""}`,
+    errors.length ? errors : null
+  )
+  return Response.json({ staged: staged.length, skipped: skipped.length, scanned, truncated, errors, batches: staged })
 }
