@@ -27,6 +27,7 @@ export default function EventLinkCard({ personId }) {
   const [loaded, setLoaded] = useState(false)
   const [attendee, setAttendee] = useState(null)   // this person's row for the selected event, or null
   const [statusLoaded, setStatusLoaded] = useState(false)
+  const [draftUrl, setDraftUrl] = useState(null)
 
   useEffect(function () {
     fetch("/api/events/upcoming").then(function (r) { return r.json() }).then(function (d) {
@@ -67,10 +68,17 @@ export default function EventLinkCard({ personId }) {
   }
 
   function draftEmail() {
-    setBusy(true); setMsg("")
+    setBusy(true); setMsg(""); setDraftUrl(null)
     fetch("/api/person-event-link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person_id: personId, slug: slug, mode: "draft", src: "email" }) })
       .then(function (r) { return r.json() }).then(function (d) {
-        if (d.drafted) { setMsg("Draft created in your Outlook — for " + eventLabel(slug) + "."); if (d.draft_url) window.open(d.draft_url, "_blank") }
+        // Was window.open(d.draft_url, "_blank") here -- every click forced a new
+        // outlook.com browser tab open, which Dalen doesn't want. The draft itself
+        // was always being created correctly (a real POST to Graph /me/messages,
+        // which lands in the actual Outlook Drafts folder) -- the only fix needed
+        // is to stop yanking focus into a browser tab. Surface an optional link
+        // instead so he can open it himself if he wants to, or just go to Outlook
+        // on his own and find it sitting in Drafts.
+        if (d.drafted) { setMsg("Draft saved to your Outlook Drafts — for " + eventLabel(slug) + "."); setDraftUrl(d.draft_url || null) }
         else if (d.url) { try { navigator.clipboard.writeText(d.url) } catch (e) {} setMsg("Draft not created" + (d.error ? (" (" + d.error + ")") : "") + " — link copied instead.") }
         else setMsg("Error.")
       }).catch(function () { setMsg("Error.") }).finally(function () { setBusy(false) })
@@ -132,7 +140,12 @@ export default function EventLinkCard({ personId }) {
         <button disabled={busy || !slug} onClick={copyLink} style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid " + T.border, background: "white", color: T.textPrimary, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Copy invite link</button>
         <button disabled={busy || !slug} onClick={draftEmail} style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "none", background: T.accent, color: "white", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Draft email</button>
       </div>
-      {msg ? <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 8 }}>{msg}</div> : null}
+      {msg ? (
+        <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 8 }}>
+          {msg}{" "}
+          {draftUrl ? <a href={draftUrl} target="_blank" rel="noreferrer" style={{ color: T.accent, fontWeight: 600 }}>Open in Outlook →</a> : null}
+        </div>
+      ) : null}
     </div>
   )
 }
