@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic"
-export const maxDuration = 120
+export const maxDuration = 300
 import { serverClient } from "@/lib/supabaseServer"
 import { getAccessToken, graphFetch } from "@/lib/microsoft-auth"
 import { parseAndStageRoster } from "@/lib/provisorsParse"
@@ -16,8 +16,33 @@ import { logCronRun } from "@/lib/cron-audit"
 //
 // Auth: Bearer CRON_SECRET (same as every other cron). Lookback defaults to 72h so
 // a missed run can't drop a roster; ?hours=N widens it for manual sweeps.
+//
+// ROOT CAUSE of the Aug 19-21 outage: the prior fix (time-budget bailout inside the
+// per-message loop) assumed the hang was in that loop. It wasn't -- audit_log stayed
+// silent for 3+ hourly runs even AFTER that fix shipped, which only happens if the
+// hang is upstream of the loop, in a single await nothing guards. That's the very
+// first Graph call below: `$filter=receivedDateTime ge ... and hasAttachments eq
+// true`. hasAttachments is a non-indexed Graph property -- Microsoft's own docs warn
+// filtering on it forces a slow, unindexed evaluation that gets worse as the mailbox
+// grows, and a plain fetch() has no timeout, so a slow evaluation just hangs the
+// function in silence until Vercel force-kills it at the maxDuration wall -- too late
+// for any try/catch or logCronRun() to ever run.
+// Fix: (1) filter the Graph query on the INDEXED receivedDateTime only, and check
+// hasAttachments client-side over the (small, already-fetched) result instead of
+// asking Graph to do it server-side; (2) wrap every Graph call in a hard timeout via
+// withTimeout() so a slow/hung call fails loudly and gets logged instead of silently
+// eating the whole function budget; (3) raise maxDuration to this plan's 300s
+// ceiling as a backstop, not a fix.
 
 const ROSTER_NAME = /(photo\s*list|roster)/i
+
+function withTimeout(promise, ms, label) {
+  let timer
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
 
 export async function GET(request) {
   const auth = request.headers.get("authorization") || ""
@@ -26,8 +51,7 @@ export async function GET(request) {
 
   const sb = serverClient()
 
-  let accessToken
-  try { accessToken = await getAccessToken() }
+  try { await withTimeout(getAccessToken(), 20_000, "Token refresh") }
   catch (e) {
     await logCronRun("provisors-poll-email", "Token refresh failed", [e.message])
     return Response.json({ error: e.message }, { status: 401 })
@@ -37,22 +61,28 @@ export async function GET(request) {
   const hours = Number.isFinite(hoursParam) && hoursParam > 0 ? Math.min(hoursParam, 720) : 72
   const since = new Date(Date.now() - hours * 3600 * 1000).toISOString()
 
-  // NOTE: no $orderby — combining a date filter + hasAttachments + $orderby can trip
-  // Graph's "inefficient filter" error and silently return nothing. We dedupe and
-  // process every match anyway, so order is irrelevant; $top=100 covers the window.
+  // Filter on receivedDateTime ONLY (indexed, fast) -- hasAttachments is checked
+  // client-side just below. Combining hasAttachments into the server-side $filter
+  // is what silently hung this route for 3+ days straight (see note above).
   const listUrl =
     `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages` +
-    `?$filter=receivedDateTime ge ${since} and hasAttachments eq true` +
-    `&$select=id,subject,bodyPreview,receivedDateTime,from,internetMessageId&$top=100`
-  const res = await graphFetch(listUrl)
+    `?$filter=receivedDateTime ge ${since}` +
+    `&$select=id,subject,bodyPreview,receivedDateTime,from,internetMessageId,hasAttachments&$top=100`
+  let res
+  try { res = await withTimeout(graphFetch(listUrl), 25_000, "Outlook message list") }
+  catch (e) {
+    await logCronRun("provisors-poll-email", "Outlook fetch hung/timed out", [e.message])
+    return Response.json({ error: e.message }, { status: 504 })
+  }
   if (!res.ok) {
     const t = await res.text()
     await logCronRun("provisors-poll-email", "Outlook fetch failed", [`HTTP ${res.status}`])
     return Response.json({ error: "Outlook fetch failed", detail: t.slice(0, 300) }, { status: 500 })
   }
-  const { value: messages } = await res.json()
-  if (!messages || !messages.length) {
-    await logCronRun("provisors-poll-email", `No attachment mail in last ${hours}h`)
+  const { value: allMessages } = await res.json()
+  const messages = (allMessages || []).filter(m => m.hasAttachments)
+  if (!messages.length) {
+    await logCronRun("provisors-poll-email", `No attachment mail in last ${hours}h (${(allMessages || []).length} scanned)`)
     return Response.json({ staged: 0, scanned: 0, skipped: 0 })
   }
 
@@ -61,7 +91,7 @@ export async function GET(request) {
   const errors = []
   let scanned = 0
 
-  // Time budget: maxDuration is 120s. With hours=72 default and $top=100, a big
+  // Time budget: maxDuration is 300s. With hours=72 default and $top=100, a big
   // inbox window can walk enough messages (each needing 1-2 Graph round trips,
   // plus a Claude parse call on any roster hit) to blow past that hard limit —
   // and when Vercel kills the function mid-loop, logCronRun() below never runs,
@@ -72,7 +102,7 @@ export async function GET(request) {
   // hourly run pick up the rest — safe because everything here is dedup'd on
   // internetMessageId / provisor_import_batches.payload.sourceMessageId.
   const startedAt = Date.now()
-  const DEADLINE_MS = 100_000
+  const DEADLINE_MS = 260_000
   let truncated = false
 
   for (const msg of messages) {
@@ -91,7 +121,7 @@ export async function GET(request) {
 
       // List attachments; find a roster-looking PDF.
       const aUrl = `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(msg.id)}/attachments?$select=id,name,contentType,size`
-      const aRes = await graphFetch(aUrl)
+      const aRes = await withTimeout(graphFetch(aUrl), 20_000, "Attachment list")
       if (!aRes.ok) continue
       const { value: atts } = await aRes.json()
       // Roster signal: filename OR the email envelope (subject/body) mentions a
@@ -111,7 +141,7 @@ export async function GET(request) {
 
       // Download the attachment bytes (single-attachment GET includes contentBytes).
       const dUrl = `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(msg.id)}/attachments/${encodeURIComponent(target.id)}`
-      const dRes = await graphFetch(dUrl)
+      const dRes = await withTimeout(graphFetch(dUrl), 25_000, "Attachment download")
       if (!dRes.ok) { errors.push(`attachment download failed for ${imid}`); continue }
       const att = await dRes.json()
       const b64 = att.contentBytes
