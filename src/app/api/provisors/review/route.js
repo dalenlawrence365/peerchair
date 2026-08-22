@@ -78,12 +78,28 @@ export async function POST(request) {
     const mGroup = payload.meetingGroup || batch.meeting_group
     const mDate = payload.meetingDate || null
     if (mGroup && mDate) {
+      // Exact match against a single tracked group — true for most rosters.
       const { data: grp } = await sb.from("provisors_groups").select("id").ilike("name", mGroup).limit(1)
       const groupId = grp && grp.length ? grp[0].id : null
-      if (groupId) {
-        // find-or-create the meeting for (group, date)
+      // JOINT sessions (multiple groups meeting together, e.g. "T&T, VDAM and
+      // DAM, Joint In-Person") never match a single canonical group name —
+      // the parser deliberately leaves meetingGroup as the free-text header
+      // in that case (see provisorsParse.js PROMPT). This whole block used to
+      // require groupId to be truthy, so a joint meeting silently got NO
+      // provisors_meetings row and NO attendance recorded at all — the import
+      // itself succeeded (people created/updated, individually tagged with
+      // their real tracked groups), but the meeting instance just vanished,
+      // with nothing logged to explain why. group_id on provisors_meetings is
+      // nullable specifically so a meeting can exist without one canonical
+      // group; find-or-create now runs regardless, keyed on (group_id, date)
+      // when there IS a match, or (label, date) when there isn't — so a joint
+      // meeting still gets its own row, still gets a roll call, and shows up
+      // in Meetings with its real free-text name instead of not existing.
+      let meetingQuery = sb.from("provisors_meetings").select("id").eq("meeting_date", mDate)
+      meetingQuery = groupId ? meetingQuery.eq("group_id", groupId) : meetingQuery.is("group_id", null).eq("label", `${mGroup} — ${mDate}`)
+      {
         let meetingId = null
-        const { data: existingM } = await sb.from("provisors_meetings").select("id").eq("group_id", groupId).eq("meeting_date", mDate).limit(1)
+        const { data: existingM } = await meetingQuery.limit(1)
         if (existingM && existingM.length) meetingId = existingM[0].id
         else {
           const { data: newM } = await sb.from("provisors_meetings")

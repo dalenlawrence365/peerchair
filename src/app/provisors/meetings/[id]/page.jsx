@@ -87,7 +87,7 @@ export default function MeetingDetail() {
     <main style={{ padding: "26px 32px 80px", maxWidth: 1000 }}>
       <Link href="/provisors/meetings" style={{ fontSize: 12, color: T.textTertiary, textDecoration: "none" }}>← Meetings</Link>
       <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: -0.4, margin: "8px 0 2px" }}>
-        {GROUP_SHORT[meeting.group] || meeting.group || "Meeting"}
+        {GROUP_SHORT[meeting.group] || meeting.group || meeting.label || "Meeting"}
       </h1>
       <div style={{ fontSize: 13, color: T.textTertiary, marginBottom: 14 }}>
         {fmtDate(meeting.meeting_date)} · {attendees.length} attended

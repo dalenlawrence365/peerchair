@@ -48,7 +48,7 @@ export default function MeetingsList() {
           <Link key={m.id} href={`/provisors/meetings/${m.id}`} style={{ textDecoration: "none", color: "inherit" }}>
             <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 600 }}>{GROUP_SHORT[m.group] || m.group || "Meeting"}</div>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>{GROUP_SHORT[m.group] || m.group || m.label || "Meeting"}</div>
                 <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 2 }}>{fmtDate(m.meeting_date)}</div>
               </div>
               <div style={{ fontSize: 13, color: T.textSecondary, fontWeight: 500, whiteSpace: "nowrap" }}>{m.attendees} attended</div>
