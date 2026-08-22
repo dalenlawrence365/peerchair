@@ -342,7 +342,21 @@ export async function PATCH(req) {
   // door they came through. A registrant approved from the queue, OR a direct
   // invite who just replied "I'll be there" and never touched the form.
   // Both stamp approved_at, flip to Confirmed, and draft the confirmation.
-  const isApproval = !cur.approved_at && (status === "Invited" || status === "Confirmed")
+  //
+  // !cur.approved_at used to be the whole check -- wrong for the same reason
+  // isAwaitingReview was wrong (see the GET handler above): "Add to this
+  // session" stamps approved_at at INVITE time, so anyone invited directly and
+  // then later self-registered already has a non-null approved_at that
+  // predates their actual registration. Clicking Approve on them fell through
+  // to the "already approved" branch, flipped status without a fresh
+  // approved_at, and — critically — never drafted the confirmation email at
+  // all. Caught live on Suzette Major: Dalen approved her and got no draft.
+  // Fix: an existing approved_at only counts as "already handled" if it's at
+  // or after the most recent registration. Anything older is stale and this
+  // action is a real, first-time approval of THIS registration.
+  const priorApprovalCoversRegistration = !!cur.approved_at &&
+    (!cur.registered_at || new Date(cur.approved_at) >= new Date(cur.registered_at))
+  const isApproval = !priorApprovalCoversRegistration && (status === "Invited" || status === "Confirmed")
   const patch = { status: isApproval ? "Confirmed" : status }
   if (isApproval) patch.approved_at = new Date().toISOString()
 
