@@ -92,8 +92,29 @@ export async function GET(req) {
   // emphatically NOT a decline: they still want in, just not on this date, and
   // they live on in event_carry_forward.
   const TERMINAL = new Set(["Declined", "No-show", "Attended", "Unavailable"])
-  const isAwaitingReview = a => !TERMINAL.has(a.status) && !a.approved_at &&
-    (!!a.registered_at || a.status === "Registered" || a.status === "Requested")
+  // BUG this replaces: "Add to this session" (the POST handler below) stamps
+  // approved_at at INVITE time, not at actual review time -- it's really saying
+  // "Dalen added this person himself, nothing to review yet," not "this specific
+  // registration was reviewed." So a plain !a.approved_at check permanently hid
+  // anyone who was invited directly and THEN later self-registered: the row
+  // already had an approved_at timestamp from the invite, so the fact that they
+  // came back and actually registered (new information!) never surfaced. Caught
+  // live on Suzette Major -- notification said she requested a seat, roster
+  // showed nothing pending, because her approved_at (20:14:26, invite time)
+  // predates her registered_at (20:31:42, registration time) but was still
+  // treated as "already handled." Fix: compare the timestamps. Only treat a
+  // registration as reviewed if the approval happened AT OR AFTER it.
+  const isAwaitingReview = a => {
+    if (TERMINAL.has(a.status)) return false
+    const looksRegistered = !!a.registered_at || a.status === "Registered" || a.status === "Requested"
+    if (!looksRegistered) return false
+    if (!a.approved_at) return true
+    // Has both -- only "handled" if the approval came at or after this
+    // registration. An older approved_at (e.g. from being invited directly,
+    // before they ever registered) does not cover a registration that
+    // happened later.
+    return a.registered_at ? new Date(a.approved_at) < new Date(a.registered_at) : false
+  }
   const registered = attendees.filter(isAwaitingReview).length
 
   return Response.json({

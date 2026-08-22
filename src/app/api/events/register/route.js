@@ -137,8 +137,20 @@ export async function POST(req) {
 
   // New registrant -> insert as Registered. Someone who already has a row
   // (e.g. Dalen invited them directly) -> RECORD the registration on that row
-  // without downgrading their status. Ignoring the conflict would silently throw
-  // away registered_at and their qualifying answers.
+  // without downgrading a status that's already further along. Ignoring the
+  // conflict would silently throw away registered_at and their qualifying
+  // answers.
+  //
+  // "Without downgrading" used to mean "never touch status at all" -- which
+  // was too blunt: it also left a directly-invited person stuck at "Invited"
+  // forever even after they came back and actually registered, which is a
+  // real, forward step, not a downgrade. Only these statuses represent
+  // something that would be WRONG to overwrite with "Registered" (an explicit
+  // resolution already happened, or they're already past this stage);
+  // everything else -- Invited, or no row at all -- should become Registered
+  // the moment a real registration comes in, so it surfaces on the roster and
+  // on their profile instead of silently sitting stale.
+  const PRESERVE_STATUS = new Set(["Registered", "Requested", "Confirmed", "Attended", "Declined", "Unavailable", "No-show"])
   const nowIso = new Date().toISOString()
   const { data: existingRow } = await sb.from("event_attendees")
     .select("id, status, notes, registered_at, source")
@@ -153,12 +165,14 @@ export async function POST(req) {
   } else {
     const already = (existingRow.notes || "")
     const merged = already && already.indexOf("Self-registered") === -1 ? (already + "  |  " + note) : (already || note)
+    const nextStatus = PRESERVE_STATUS.has(existingRow.status) ? existingRow.status : "Registered"
     await sb.from("event_attendees").update({
+      status: nextStatus,
       registered_at: existingRow.registered_at || nowIso,
       notes: merged,
       source: existingRow.source || src || "direct",
     }).eq("id", existingRow.id)
-    status = existingRow.status || "Registered"
+    status = nextStatus
   }
 
   // Badge — deduped per person+event so re-submits don't spam.

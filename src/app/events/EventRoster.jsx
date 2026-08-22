@@ -235,9 +235,17 @@ export default function EventRoster({ slug }) {
   // Awaiting review = registered but not yet approved. Keying off status alone
   // hid anyone who was invited directly AND then self-registered.
   const TERMINAL = ["Declined", "No-show", "Attended", "Unavailable"]
+  // Mirrors the same fix in /api/events/attendees GET (isAwaitingReview) --
+  // "Add to this session" stamps approved_at at INVITE time, not review time,
+  // so a plain !a.approved_at check permanently hid anyone invited directly who
+  // later self-registered (their approved_at predates the registration it's
+  // supposedly covering). Compare timestamps instead of just checking presence.
   const awaitingReview = function (a) {
-    return TERMINAL.indexOf(a.status) === -1 && !a.approved_at &&
-      (!!a.registered_at || a.status === "Registered" || a.status === "Requested")
+    if (TERMINAL.indexOf(a.status) !== -1) return false
+    var looksRegistered = !!a.registered_at || a.status === "Registered" || a.status === "Requested"
+    if (!looksRegistered) return false
+    if (!a.approved_at) return true
+    return a.registered_at ? new Date(a.approved_at) < new Date(a.registered_at) : false
   }
   // Each stat box is a filter. The predicate is chosen so the rows shown always
   // equal the number on the box you clicked — "select seven confirmed, see seven".
