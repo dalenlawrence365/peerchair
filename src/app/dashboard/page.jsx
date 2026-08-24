@@ -89,9 +89,9 @@ export default function DashboardPage() {
         <StatTile label="Total CFO audience" value={(a.cfo || 0).toLocaleString()} color="#d97706" href="/linkedin-connections?role=cfo"
           pct={pctOf(a.cfo, a.reachable)} delta={(a.wk || {}).cfo} />
         <StatTile label="LA CFO audience" value={(a.cfo_la || 0).toLocaleString()} color="#15803d" href="/linkedin-connections?role=cfo"
-          pct={pctOf(a.cfo_la, a.cfo)} />
+          pct={pctOf(a.cfo_la, a.cfo)} delta={(a.wk || {}).cfo_la} />
         <StatTile label="CFO audience · out of market" value={(a.cfo_out_of_market || 0).toLocaleString()} color="#b91c1c" href="/segment/out_of_market"
-          pct={pctOf(a.cfo_out_of_market, a.cfo)} />
+          pct={pctOf(a.cfo_out_of_market, a.cfo)} delta={(a.wk || {}).cfo_out_of_market} />
       </div>
 
       {/* Top stat tiles */}

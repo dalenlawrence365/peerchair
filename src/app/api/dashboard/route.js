@@ -192,26 +192,36 @@ export async function GET() {
     const { data: recent } = await sb.from("person_action_tags")
       .select("person_id").eq("action_type", "connection_accepted").gte("effective_date", since)
     const recentIds = [...new Set((recent || []).map(function(r){ return r.person_id }))]
-    let wkProvisor = 0, wkCfo = 0, wkSponsor = 0
-    if (recentIds.length) {
-      const [pw, cw, sw] = await Promise.all([
-        sb.from("people").select("id", { count: "exact", head: true }).in("id", recentIds).eq("provisors_member", true),
-        sb.from("people").select("id", { count: "exact", head: true }).in("id", recentIds).contains("roles", ["cfo"]),
-        sb.from("people").select("id", { count: "exact", head: true }).in("id", recentIds).contains("roles", ["sponsor_contact"]),
-      ])
-      wkProvisor = pw.count || 0; wkCfo = cw.count || 0; wkSponsor = sw.count || 0
-    }
-    const wkReachable = recentIds.length
     // CFO audience out-of-market: connected CFOs carrying the out_of_market status tag.
+    // Pulled up ahead of the weekly split below, which needs the same id set to
+    // divide this week's new CFOs into LA vs out-of-market.
     const { data: oomRows } = await sb.from("person_status_tags")
       .select("person_id").eq("tag", "out_of_market").is("removed_at", null)
     const oomIds = [...new Set((oomRows || []).map(function(r){ return r.person_id }))]
+    const oomSet = new Set(oomIds)
     let cfoOutOfMarket = 0
     if (oomIds.length) {
       const { count: oomCfo } = await sb.from("people").select("id", { count: "exact", head: true })
         .in("id", oomIds).eq("linkedin_connected", true).contains("roles", ["cfo"])
       cfoOutOfMarket = oomCfo || 0
     }
+    let wkProvisor = 0, wkCfo = 0, wkSponsor = 0, wkCfoLa = 0, wkCfoOutOfMarket = 0
+    if (recentIds.length) {
+      // Need the actual ids (not just a count) for CFOs, so this week's growth
+      // can be split LA vs out-of-market the same way the totals above are.
+      const [pw, cfoRows, sw] = await Promise.all([
+        sb.from("people").select("id", { count: "exact", head: true }).in("id", recentIds).eq("provisors_member", true),
+        sb.from("people").select("id").in("id", recentIds).contains("roles", ["cfo"]),
+        sb.from("people").select("id", { count: "exact", head: true }).in("id", recentIds).contains("roles", ["sponsor_contact"]),
+      ])
+      wkProvisor = pw.count || 0
+      const recentCfoIds = (cfoRows.data || []).map(function(r){ return r.id })
+      wkCfo = recentCfoIds.length
+      wkCfoOutOfMarket = recentCfoIds.filter(function(id){ return oomSet.has(id) }).length
+      wkCfoLa = wkCfo - wkCfoOutOfMarket
+      wkSponsor = sw.count || 0
+    }
+    const wkReachable = recentIds.length
     // LA / in-market CFO audience = total CFO audience minus the out-of-market
     // slice above. Both counts share the exact same base filter (linkedin_connected
     // + role cfo), and out-of-market is computed as a further-filtered subset of
@@ -221,7 +231,10 @@ export async function GET() {
     return {
       reachable, relevant: reachable - (legacy || 0), provisor: prov.count || 0, cfo: cfo.count || 0, sponsor: spon.count || 0,
       cfo_out_of_market: cfoOutOfMarket, cfo_la: cfoLa,
-      wk: { reachable: wkReachable, relevant: wkReachable, provisor: wkProvisor, cfo: wkCfo, sponsor: wkSponsor },
+      wk: {
+        reachable: wkReachable, relevant: wkReachable, provisor: wkProvisor, cfo: wkCfo, sponsor: wkSponsor,
+        cfo_la: wkCfoLa, cfo_out_of_market: wkCfoOutOfMarket,
+      },
     }
   })()
 
