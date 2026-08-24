@@ -212,9 +212,15 @@ export async function GET() {
         .in("id", oomIds).eq("linkedin_connected", true).contains("roles", ["cfo"])
       cfoOutOfMarket = oomCfo || 0
     }
+    // LA / in-market CFO audience = total CFO audience minus the out-of-market
+    // slice above. Both counts share the exact same base filter (linkedin_connected
+    // + role cfo), and out-of-market is computed as a further-filtered subset of
+    // that same set, so it's a guaranteed subset -- plain subtraction is exact
+    // here, no separate query needed.
+    const cfoLa = (cfo.count || 0) - cfoOutOfMarket
     return {
       reachable, relevant: reachable - (legacy || 0), provisor: prov.count || 0, cfo: cfo.count || 0, sponsor: spon.count || 0,
-      cfo_out_of_market: cfoOutOfMarket,
+      cfo_out_of_market: cfoOutOfMarket, cfo_la: cfoLa,
       wk: { reachable: wkReachable, relevant: wkReachable, provisor: wkProvisor, cfo: wkCfo, sponsor: wkSponsor },
     }
   })()

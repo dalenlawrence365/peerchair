@@ -72,7 +72,6 @@ export default function DashboardPage() {
           // lands on a LinkedIn-filtered list answers a different question than
           // the one that was clicked.
           { label: "ProVisor audience", value: a.provisor, color: "#7c3aed", href: "/provisors", wk: (a.wk || {}).provisor },
-          { label: "CFO audience", value: a.cfo, color: "#d97706", href: "/linkedin-connections?role=cfo", wk: (a.wk || {}).cfo },
           { label: "Sponsor audience", value: a.sponsor, color: "#a855f7", href: "/linkedin-connections?role=sponsor", wk: (a.wk || {}).sponsor },
         ].sort(function(x, y){ return (y.value || 0) - (x.value || 0) }).map(function(t){
           return <StatTile key={t.label} label={t.label} value={(t.value || 0).toLocaleString()} color={t.color} href={t.href}
@@ -80,11 +79,17 @@ export default function DashboardPage() {
         })}
       </div>
       <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 12, lineHeight: 1.5 }}>
-        Reachable = every first-degree LinkedIn connection. Relevant = reachable minus legacy (pre-2024). ProVisor / CFO / Sponsor overlap and never sum to the total.
+        Reachable = every first-degree LinkedIn connection. Relevant = reachable minus legacy (pre-2024). ProVisor / Sponsor overlap and never sum to the total.
       </div>
 
-      {/* Sub-metric watched under the audience row */}
+      {/* CFO audience breakdown — total, then split LA (in-market) vs out-of-market.
+          Fixed left-to-right order (not sorted by size like the row above): total
+          always leads, then the two mutually-exclusive slices that add up to it. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 24 }}>
+        <StatTile label="Total CFO audience" value={(a.cfo || 0).toLocaleString()} color="#d97706" href="/linkedin-connections?role=cfo"
+          pct={pctOf(a.cfo, a.reachable)} delta={(a.wk || {}).cfo} />
+        <StatTile label="LA CFO audience" value={(a.cfo_la || 0).toLocaleString()} color="#15803d" href="/linkedin-connections?role=cfo"
+          pct={pctOf(a.cfo_la, a.cfo)} />
         <StatTile label="CFO audience · out of market" value={(a.cfo_out_of_market || 0).toLocaleString()} color="#b91c1c" href="/segment/out_of_market"
           pct={pctOf(a.cfo_out_of_market, a.cfo)} />
       </div>
