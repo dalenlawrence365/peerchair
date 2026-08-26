@@ -136,12 +136,29 @@ export async function PATCH(req) {
   if (typeof b.title === "string" && b.title.trim()) patch.title = b.title.trim()
   if (STATUSES.includes(b.status)) patch.status = b.status
   if (FORMATS.includes(b.format)) patch.format = b.format
+
+  // published_at plays two different roles depending on status: once a post is
+  // actually Posted it's a real fact (when it went out) and must never be
+  // silently overwritten. Before that, it's just a planning placeholder that
+  // POST pre-fills from scheduled_for so a "predicted publish date" exists —
+  // and the calendar's dateFor() prefers published_at when set, which means
+  // that placeholder has to stay mirrored to scheduled_for or the calendar
+  // shows the post on its OLD date after a reschedule. This is exactly what
+  // happened: create a post for Sept 1, published_at defaults to Sept 1,
+  // change your mind and move scheduled_for to Friday Aug 28 -- published_at
+  // never got touched, still says Sept 1, and the calendar (published_at ||
+  // scheduled_for) quietly kept showing it on Sept 1 instead of Friday.
+  let curForDates = null
+  const needsCur = (b.status === "posted" && b.published_at === undefined) || b.scheduled_for !== undefined
+  if (needsCur) {
+    const { data: cur } = await sb.from("content_posts").select("status, published_at, scheduled_for").eq("id", b.id).single()
+    curForDates = cur || null
+  }
   // Marking a post Published should NOT clobber a publish date it already has. Only
   // fill it when empty, preferring the scheduled date over "now" (so a post you flip
   // to Published keeps landing on its intended day, not today).
-  if (b.status === "posted" && b.published_at === undefined) {
-    const { data: cur } = await sb.from("content_posts").select("published_at, scheduled_for").eq("id", b.id).single()
-    if (cur && !cur.published_at) patch.published_at = cur.scheduled_for || new Date().toISOString()
+  if (b.status === "posted" && b.published_at === undefined && curForDates && !curForDates.published_at) {
+    patch.published_at = curForDates.scheduled_for || new Date().toISOString()
   }
   if (b.short_label !== undefined) patch.short_label = (b.short_label || "").trim() || null
   if (b.theme !== undefined) patch.theme = PURPOSES.includes(b.theme) ? b.theme : null
@@ -150,7 +167,17 @@ export async function PATCH(req) {
     patch.tags = cleaned
   }
   if (b.published_at !== undefined) patch.published_at = b.published_at || null
-  if (b.scheduled_for !== undefined) patch.scheduled_for = b.scheduled_for || null
+  if (b.scheduled_for !== undefined) {
+    patch.scheduled_for = b.scheduled_for || null
+    // Not posted yet -> published_at is still just the placeholder, keep it in
+    // lockstep with the real date field instead of letting it go stale. Once a
+    // post IS posted, published_at is a fact about the past and this must not
+    // touch it (the branch above already guards that separately).
+    const effectiveStatus = STATUSES.includes(b.status) ? b.status : (curForDates && curForDates.status)
+    if (effectiveStatus !== "posted" && patch.published_at === undefined) {
+      patch.published_at = b.scheduled_for || null
+    }
+  }
   if (b.scheduled_on !== undefined) patch.scheduled_on = b.scheduled_on || null
   if (b.post_url !== undefined) patch.post_url = (b.post_url || "").trim() || null
   if (b.notes !== undefined) patch.notes = (b.notes || "").trim() || null

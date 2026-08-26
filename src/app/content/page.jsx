@@ -431,7 +431,14 @@ function UnscheduledTray({ posts, onPatch, onEdit, onDelete }) {
 function ContentCalendar({ posts, onPickDate, onPatch, onEdit, onDelete }) {
   const [mode, setMode] = useState("month")
   const [cursor, setCursor] = useState(function(){ var d = new Date(); d.setHours(0,0,0,0); return d })
-  function dateFor(p) { return p.published_at || p.scheduled_for || null }
+  // Was p.published_at || p.scheduled_for -- wrong once a post gets rescheduled.
+  // published_at is pre-filled at creation as a placeholder (see POST handler),
+  // and until a post is actually Posted that placeholder can go stale: change
+  // scheduled_for later and, if anything ever writes it without also moving
+  // published_at, the calendar keeps showing the post on the OLD date. Only
+  // trust published_at once the post is truly posted (a real fact); before
+  // that, scheduled_for is the one field the user is actually editing here.
+  function dateFor(p) { return p.status === "posted" ? (p.published_at || p.scheduled_for || null) : (p.scheduled_for || p.published_at || null) }
   function keyOf(d) { return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0") }
   function keyOfIso(iso) { if (!iso) return null; return keyOf(new Date(iso)) }
   function mondayOf(d) { var x = new Date(d); var wd = x.getDay(); x.setDate(x.getDate() + (wd === 0 ? -6 : 1 - wd)); x.setHours(0,0,0,0); return x }
