@@ -8,6 +8,31 @@ export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
 
+// Same relevance scoring as /api/search — name matches outrank loose
+// company/email hits, and linkedin_url is included so people whose LinkedIn
+// "last name" field is a vanity credential (full_name "Phil CPA" for
+// /in/philoseas, real surname only in the URL slug) are still findable.
+function scorePerson(p, qLower) {
+  const full = (p.full_name || `${p.first_name || ""} ${p.last_name || ""}`).trim().toLowerCase()
+  const first = (p.first_name || "").toLowerCase()
+  const last = (p.last_name || "").toLowerCase()
+  const company = (p.company || "").toLowerCase()
+  const email = (p.email || "").toLowerCase()
+  const linkedin = (p.linkedin_url || "").toLowerCase()
+
+  if (full === qLower) return 100
+  if (first === qLower || last === qLower) return 95
+  if (full.startsWith(qLower)) return 85
+  if (first.startsWith(qLower) || last.startsWith(qLower)) return 80
+  if (new RegExp(`\\b${qLower.replace(/[.*+?^\${}()|[\]\\]/g, "\\$&")}`).test(full)) return 65
+  if (full.includes(qLower)) return 45
+  if (email.startsWith(qLower)) return 35
+  if (linkedin.includes(qLower)) return 30
+  if (company.startsWith(qLower)) return 20
+  if (company.includes(qLower) || email.includes(qLower)) return 10
+  return 0
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
   const q = (searchParams.get("q") || "").trim()
@@ -16,13 +41,20 @@ export async function GET(request) {
   const sb = serverClient()
 
   const escaped = q.replace(/[%_]/g, "")
-  const { data, error } = await sb
+  const qLower = escaped.toLowerCase()
+  const { data: dataRaw, error } = await sb
     .from("people")
-    .select("id, full_name, first_name, last_name, title, company, email, roles, cfo_state")
-    .or(`full_name.ilike.%${escaped}%,first_name.ilike.%${escaped}%,last_name.ilike.%${escaped}%,company.ilike.%${escaped}%,email.ilike.%${escaped}%`)
-    .limit(10)
+    .select("id, full_name, first_name, last_name, title, company, email, roles, cfo_state, linkedin_url")
+    .or(`full_name.ilike.%${escaped}%,first_name.ilike.%${escaped}%,last_name.ilike.%${escaped}%,company.ilike.%${escaped}%,email.ilike.%${escaped}%,linkedin_url.ilike.%${escaped}%`)
+    .limit(40)
 
   if (error) return Response.json({ results: [], error: error.message }, { status: 500 })
+
+  const data = (dataRaw || [])
+    .map(function(p) { return { p, score: scorePerson(p, qLower) } })
+    .sort(function(a, b) { return b.score - a.score || (a.p.full_name || "").localeCompare(b.p.full_name || "") })
+    .slice(0, 10)
+    .map(function(x) { return x.p })
 
   return Response.json({
     results: (data || []).map(function(p) {

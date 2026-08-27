@@ -34,6 +34,32 @@ function rolesToStage(roles, cfo_state, sponsor_state, referral_state) {
   return null
 }
 
+// Score a candidate person against the query so name matches always outrank
+// loose company/email substring hits, and so people whose LinkedIn "last name"
+// field is actually a vanity credential (e.g. full_name "Phil CPA" with the
+// real surname only living in the profile URL slug, like /in/philoseas) can
+// still be found and still rank sensibly once found.
+function scorePerson(p, qLower) {
+  const full = (p.full_name || `${p.first_name || ""} ${p.last_name || ""}`).trim().toLowerCase()
+  const first = (p.first_name || "").toLowerCase()
+  const last = (p.last_name || "").toLowerCase()
+  const company = (p.company || "").toLowerCase()
+  const email = (p.email || "").toLowerCase()
+  const linkedin = (p.linkedin_url || "").toLowerCase()
+
+  if (full === qLower) return 100
+  if (first === qLower || last === qLower) return 95
+  if (full.startsWith(qLower)) return 85
+  if (first.startsWith(qLower) || last.startsWith(qLower)) return 80
+  if (new RegExp(`\\b${qLower.replace(/[.*+?^\${}()|[\]\\]/g, "\\$&")}`).test(full)) return 65
+  if (full.includes(qLower)) return 45
+  if (email.startsWith(qLower)) return 35
+  if (linkedin.includes(qLower)) return 30
+  if (company.startsWith(qLower)) return 20
+  if (company.includes(qLower) || email.includes(qLower)) return 10
+  return 0
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
   const q = (searchParams.get("q") || "").trim()
@@ -43,18 +69,33 @@ export async function GET(request) {
 
   // Strip % and _ to neutralize ILIKE wildcards in user input
   const safe = q.replace(/[%_]/g, "")
+  const qLower = safe.toLowerCase()
 
-  const [{ data: people }, { data: companies }] = await Promise.all([
+  // Pull a wider candidate pool than we'll return (40, not 8) so the relevance
+  // ranking below has real signal to work with instead of just whatever order
+  // Postgres happened to return. linkedin_url is included in the match so
+  // people whose real surname isn't in first/last/full name (their LinkedIn
+  // "last name" field is a credential like "CPA"/"MBA", e.g. full_name "Phil
+  // CPA" for /in/philoseas) are still findable by their actual name.
+  const [{ data: peopleRaw }, { data: companies }] = await Promise.all([
     sb.from("people")
-      .select("id, first_name, last_name, full_name, title, company, email, roles, cfo_state, sponsor_state, referral_state, avatar_url")
-      .or(`full_name.ilike.%${safe}%,first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,company.ilike.%${safe}%,email.ilike.%${safe}%`)
-      .limit(8),
+      .select("id, first_name, last_name, full_name, title, company, email, roles, cfo_state, sponsor_state, referral_state, avatar_url, linkedin_url")
+      .or(`full_name.ilike.%${safe}%,first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,company.ilike.%${safe}%,email.ilike.%${safe}%,linkedin_url.ilike.%${safe}%`)
+      .limit(40),
     sb.from("companies")
       .select("id, name, sponsor_type, is_sponsor")
       .ilike("name", `%${safe}%`)
       .eq("is_sponsor", true)
       .limit(4)
   ])
+
+  // Rank name matches above loose company/email/URL substring matches, then
+  // trim to the 8 we actually show.
+  const people = (peopleRaw || [])
+    .map(function(p) { return { p, score: scorePerson(p, qLower) } })
+    .sort(function(a, b) { return b.score - a.score || (a.p.full_name || "").localeCompare(b.p.full_name || "") })
+    .slice(0, 8)
+    .map(function(x) { return x.p })
 
   return Response.json({
     // Key kept as "contacts" for backward compatibility with GlobalSearch.jsx
