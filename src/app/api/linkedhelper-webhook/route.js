@@ -250,6 +250,8 @@ async function findOrCreatePerson(sb, lead, eventLabel) {
     linkedin_url: lead.profileUrl || null,
     title: lead.position || null,
     company: lead.company || null,
+    email: lead.email || null,
+    location: lead.location || null,
     roles: ["cfo"],
     source: "LinkedIn / LinkedHelper",
     cfo_state: "pool",
@@ -296,7 +298,17 @@ async function enrichPersonFromLead(sb, personId, lead) {
       // that re-collects headlines will refresh existing values (incl. curated CSV ones).
       await sb.from("people").update({ headline: lead.headline }).eq("id", personId)
     }
-  } catch(e) { console.error("people enrich (about/headline) failed:", e.message) }
+    // Email and location: fill-if-blank only (.is(..., null) guard), not
+    // overwrite. Unlike headline/about, email is used to actually contact
+    // someone and may have been manually corrected — a fresh scrape should
+    // never clobber a verified value, only fill a gap that was never set.
+    if (lead.email) {
+      await sb.from("people").update({ email: lead.email }).eq("id", personId).is("email", null)
+    }
+    if (lead.location) {
+      await sb.from("people").update({ location: lead.location }).eq("id", personId).is("location", null)
+    }
+  } catch(e) { console.error("people enrich (about/headline/email/location) failed:", e.message) }
 }
 
 async function handleSent(sb, lead, tags, seedBatchTag, raw) {
