@@ -11,17 +11,14 @@ const LINKEDIN_CONNECTIONS_CAMPAIGNS = new Set([
   "provisors-network",
 ])
 
-// Campaign-name whitelist: a "connected" event whose ?campaign= matches one of
-// these gets auto-tagged out_of_market the moment the person record is
-// created/updated. This is what makes an out-of-market campaign's webhook URL
-// behave like a dedicated out-of-market webhook (distinguishable by its
-// ?campaign= param) without forking the endpoint or the person-creation logic.
-// Add more slugs here as new out-of-market campaigns (San Diego, Inland
-// Empire, etc.) come online — just append ?campaign=<slug> to that campaign's
-// webhook URL in LinkedHelper and list the same slug here.
-const OUT_OF_MARKET_CAMPAIGNS = new Set([
-  "oc-audience",
-])
+// A "connected" event whose ?campaign= equals this marker gets auto-tagged
+// out_of_market the moment the person record is created. This is the "out of
+// market webhook": one single URL, reusable for every out-of-market market
+// Dalen runs (OC, San Diego, Inland Empire, whatever's next). He points a
+// campaign's webhook at it from LinkedHelper's side whenever that campaign's
+// whole audience is out-of-market — no code change needed per market, and no
+// per-campaign whitelist to maintain here.
+const OUT_OF_MARKET_WEBHOOK_MARKER = "out-of-market"
 
 export async function OPTIONS() {
   return new Response(null, {
@@ -347,8 +344,8 @@ async function handleConnected(sb, lead, tags, seedBatchTag, raw, campaignParam)
   // no manual "mark out of market" step needed for people who only ever come
   // in through one of these campaigns. Idempotent: set_status_tag no-ops a
   // duplicate active tag rather than stacking rows.
-  if (campaignParam && OUT_OF_MARKET_CAMPAIGNS.has(campaignParam)) {
-    await sb.rpc("set_status_tag", { p_person_id: contact.id, p_tag: "out_of_market", p_set_by: "linkedhelper_webhook", p_notes: `Auto-tagged from campaign=${campaignParam}` })
+  if (campaignParam === OUT_OF_MARKET_WEBHOOK_MARKER) {
+    await sb.rpc("set_status_tag", { p_person_id: contact.id, p_tag: "out_of_market", p_set_by: "linkedhelper_webhook", p_notes: "Auto-tagged via the out-of-market webhook URL" })
   }
 
   await sb.from("communications").insert({
