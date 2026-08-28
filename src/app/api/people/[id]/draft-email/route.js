@@ -4,6 +4,7 @@ export const maxDuration = 60
 import { serverClient } from "@/lib/supabaseServer"
 import { graphFetch } from "@/lib/microsoft-auth"
 import { upsertOutlookContact } from "@/lib/outlookContacts"
+import { SENDER_CONTEXT } from "@/lib/dalenContext"
 
 // POST /api/people/[id]/draft-email
 //
@@ -83,6 +84,13 @@ ${person.about ? "Notes on this person: " + person.about : ""}
 RECENT INTERACTION HISTORY (most recent last, may be empty):
 ${historyLines || "(no prior communications on file)"}
 
+KNOWN FACTS — use these exact values whenever the instructions refer to them, never invent or guess a URL/link yourself:
+- Website: ${SENDER_CONTEXT.website}
+- Fit call booking link (first CFO-prospect conversation only): ${SENDER_CONTEXT.calendly_links.fit_chat.url}
+- Sponsor discovery call link (first sponsor conversation only): ${SENDER_CONTEXT.calendly_links.sponsor_discovery.url}
+- General 15-minute booking link (any repeat/second conversation): ${SENDER_CONTEXT.calendly_links.the_15_min.url}
+- General 30-minute booking link (any repeat/second conversation needing more time): ${SENDER_CONTEXT.calendly_links.the_30_min.url}
+
 DALEN'S INSTRUCTIONS FOR THIS EMAIL (spoken/transcribed, may be rough or informal):
 "${instructions}"
 
@@ -93,6 +101,7 @@ Write the email now. Rules:
 - Ground it in the recipient's actual profile/history above where relevant; do not invent facts about them that weren't given.
 - Follow Dalen's spoken instructions as the primary guide for content and tone, even if informal or incomplete — fill reasonable gaps yourself.
 - Separate paragraphs with a blank line.
+- When the instructions reference something covered in KNOWN FACTS above (the website, a booking link, etc.), use that exact URL as a real link — never write a placeholder, never guess a URL, never paraphrase it into something vague like "our website."
 
 Respond with ONLY valid JSON, no other text, in exactly this shape:
 {"subject": "...", "body": "..."}`
