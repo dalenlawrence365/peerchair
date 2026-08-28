@@ -19,7 +19,7 @@ function bodyHtml(first, link) {
     "It’s a small, CFO-only workshop and facilitated peer experience—not a networking event or sales presentation. Because seating is intentionally limited, I’m reaching out first to the CFOs who had wanted to attend in August.",
     "Here’s your personal link with the details:<br><a href=\"" + link + "\">" + link + "</a>",
     "I hope the timing works for you this time.",
-    "—<br>Dalen Lawrence<br>Chapter Director, CFO Circle Los Angeles",
+    "—<br>Dalen",
   ]
   return paras.map(function (p) { return "<p>" + p + "</p>" }).join("")
 }

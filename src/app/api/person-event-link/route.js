@@ -45,7 +45,6 @@ export async function POST(request) {
     '<p style="font-size:15px;line-height:1.6;margin:0 0 14px">I’d like to invite you to <strong>' + ev.name + '</strong>' + (whenStr ? (" on " + whenStr) : "") + ' — a confidential CFO working session here in Los Angeles. It’s complimentary, and seats are limited, so there’s a quick registration step.</p>' +
     '<p style="margin:0 0 20px"><a href="' + url + '" style="background:#c39a4e;color:#121a3c;padding:12px 22px;border-radius:3px;text-decoration:none;font-weight:bold;font-family:Arial,sans-serif;font-size:14px">' + linkText + '</a></p>' +
     '<p style="font-size:15px;line-height:1.6;margin:0 0 16px">Takes a minute, and I’ll follow up personally. Hope you can make it. — Dalen</p>' +
-    '<p style="font-size:14px;line-height:1.6;color:#54596b;margin:0">Dalen Lawrence<br>Chapter Director, CFO Circle Los Angeles</p>' +
     '</div>'
   const payload = JSON.stringify({
     subject: "You’re invited — " + ev.name,

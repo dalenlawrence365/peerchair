@@ -206,7 +206,7 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
       row("Breakfast:", ev.breakfast_note) +
       calBlock +
       '<p style="font-size:14px;line-height:1.6;margin:0 0 22px"><a href="' + invite_url + '" style="color:#1a2550">View all the details online &rarr;</a></p>' +
-      '<p style="font-size:14px;line-height:1.6;color:#54596b;margin:0">Looking forward to it,<br>Dalen Lawrence<br>Chapter Director, CFO Circle Los Angeles</p>' +
+      '<p style="font-size:14px;line-height:1.6;color:#54596b;margin:0">Looking forward to it,<br>Dalen</p>' +
       '</div>'
     // POST /me/messages creates a DRAFT (not sent) so Dalen reviews before sending.
     const payload = JSON.stringify({

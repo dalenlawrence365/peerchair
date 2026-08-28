@@ -86,7 +86,7 @@ DALEN'S INSTRUCTIONS FOR THIS EMAIL (spoken/transcribed, may be rough or informa
 "${instructions}"
 
 Write the email now. Rules:
-- Sign it as Dalen Lawrence, Chapter Director, CFO Circle Los Angeles.
+- End with a natural closing salutation that fits the tone (e.g. "Best," "Talk soon," "Warmly,") followed by just "Dalen" on its own line. Never write his last name, title, or organization in the closing — his Outlook signature already carries that, so writing it again would duplicate it.
 - Address the recipient by their first name.
 - Keep it warm but direct and concise — no corporate fluff, no em dashes, no bullet-point lists inside the email body.
 - Ground it in the recipient's actual profile/history above where relevant; do not invent facts about them that weren't given.
