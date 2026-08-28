@@ -87,7 +87,7 @@ DALEN'S INSTRUCTIONS FOR THIS EMAIL (spoken/transcribed, may be rough or informa
 "${instructions}"
 
 Write the email now. Rules:
-- End with a natural closing salutation that fits the tone (e.g. "Best," "Talk soon," "Warmly,") followed by just "Dalen" on its own line. Never write his last name, title, or organization in the closing — his Outlook signature already carries that, so writing it again would duplicate it.
+- End with a natural closing salutation that fits the tone (e.g. "Best," "Talk soon," "Warmly,") and NOTHING after it — no name at all, not even his first name. His Outlook signature already carries his full name, title, and contact info, so the email body should stop right after the salutation line.
 - Address the recipient by their first name.
 - Keep it warm but direct and concise — no corporate fluff, no em dashes, no bullet-point lists inside the email body.
 - Ground it in the recipient's actual profile/history above where relevant; do not invent facts about them that weren't given.
@@ -149,8 +149,12 @@ Respond with ONLY valid JSON, no other text, in exactly this shape:
         return Response.json({ error: "Graph " + res.status, detail: t.slice(0, 300) }, { status: 502 })
       }
       const d = await res.json().catch(() => ({}))
-      upsertOutlookContact(sb, id).catch(() => {})
-      return Response.json({ ok: true, draft_url: d.webLink || null })
+      // Awaited (not fire-and-forget) so the outcome can actually be reported
+      // back — a prior version fired this without awaiting or surfacing the
+      // result, so when contact sync failed there was no way to see it short
+      // of reading Vercel's server logs.
+      const contactResult = await upsertOutlookContact(sb, id)
+      return Response.json({ ok: true, draft_url: d.webLink || null, contact_sync: contactResult })
     } catch (e) {
       return Response.json({ error: String(e.message || e) }, { status: 500 })
     }

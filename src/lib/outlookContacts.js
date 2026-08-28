@@ -7,9 +7,41 @@ import { graphFetch } from "@/lib/microsoft-auth"
 // every time he drafts to someone. Fill-blank-only, like the people.email /
 // people.location backfill: this only ever ADDS to an existing Outlook
 // contact's empty fields, never overwrites something already there (in case
-// Dalen hand-edited it in Outlook). Never throws — a contact-sync hiccup
-// should never break the actual email draft it rode in on; callers wrap this
-// in try/catch (or it's already caught internally) and just log on failure.
+// Dalen hand-edited it in Outlook).
+//
+// Finding the existing contact: an earlier version used a server-side
+// $filter=emailAddresses/any(...) OData lambda query. Graph's contacts
+// endpoint has known compatibility quirks with lambda filters across
+// mailbox/tenant configurations, and it was silently failing (findable only
+// by reading Graph's error body, which nothing was logging). Switched to
+// listing contacts (paginated) and matching the email client-side instead —
+// slower per call, but has no filter-syntax surface to break on, and this
+// contact list isn't going to be large enough for pagination to be a
+// real cost.
+//
+// Every failure is both logged (console.error, so it shows up in Vercel
+// runtime logs) and returned in the result object, so a caller — or Dalen
+// asking "did it work?" — has something concrete to go on instead of a
+// silent no-op.
+async function findExistingContactByEmail(email) {
+  const target = email.trim().toLowerCase()
+  let url = "https://graph.microsoft.com/v1.0/me/contacts?$top=250&$select=id,emailAddresses,givenName,surname,companyName,jobTitle,businessHomePage,personalNotes,mobilePhone"
+  for (let page = 0; page < 8 && url; page++) {
+    const res = await graphFetch(url)
+    if (!res.ok) {
+      const t = await res.text().catch(() => "")
+      throw new Error("Graph list contacts " + res.status + ": " + t.slice(0, 200))
+    }
+    const data = await res.json().catch(() => ({}))
+    const match = (data.value || []).find(function (c) {
+      return (c.emailAddresses || []).some(function (a) { return (a.address || "").trim().toLowerCase() === target })
+    })
+    if (match) return match
+    url = data["@odata.nextLink"] || null
+  }
+  return null
+}
+
 export async function upsertOutlookContact(sb, personId) {
   try {
     const { data: person } = await sb.from("people")
@@ -34,19 +66,13 @@ export async function upsertOutlookContact(sb, personId) {
       mobilePhone: person.phone || null,
     }
 
-    // Contacts API supports filtering by email address directly — the
-    // documented way to find an existing contact rather than risking dupes.
-    const filterEmail = person.email.replace(/'/g, "''")
-    const searchRes = await graphFetch(
-      "https://graph.microsoft.com/v1.0/me/contacts?$filter=" +
-      encodeURIComponent(`emailAddresses/any(a:a/address eq '${filterEmail}')`)
-    )
-    if (!searchRes.ok) {
-      const t = await searchRes.text().catch(() => "")
-      return { error: "Graph search " + searchRes.status, detail: t.slice(0, 200) }
+    let existing
+    try {
+      existing = await findExistingContactByEmail(person.email)
+    } catch (e) {
+      console.error("upsertOutlookContact: lookup failed for " + personId + ": " + e.message)
+      return { error: "lookup_failed", detail: e.message }
     }
-    const searchData = await searchRes.json().catch(() => ({}))
-    const existing = (searchData.value || [])[0] || null
 
     if (existing) {
       const patch = {}
@@ -59,6 +85,7 @@ export async function upsertOutlookContact(sb, personId) {
       })
       if (!patchRes.ok) {
         const t = await patchRes.text().catch(() => "")
+        console.error("upsertOutlookContact: patch failed for " + personId + ": Graph " + patchRes.status + " " + t.slice(0, 300))
         return { error: "Graph patch " + patchRes.status, detail: t.slice(0, 200) }
       }
       return { ok: true, updated: Object.keys(patch), id: existing.id }
@@ -73,11 +100,13 @@ export async function upsertOutlookContact(sb, personId) {
     })
     if (!createRes.ok) {
       const t = await createRes.text().catch(() => "")
+      console.error("upsertOutlookContact: create failed for " + personId + ": Graph " + createRes.status + " " + t.slice(0, 300))
       return { error: "Graph create " + createRes.status, detail: t.slice(0, 200) }
     }
     const created = await createRes.json().catch(() => ({}))
     return { ok: true, created: true, id: created.id || null }
   } catch (e) {
+    console.error("upsertOutlookContact: unexpected error for " + personId + ": " + (e && e.message))
     return { error: String((e && e.message) || e) }
   }
 }

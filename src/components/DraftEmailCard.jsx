@@ -89,7 +89,14 @@ export default function DraftEmailCard({ personId }) {
     })
       .then(function (r) { return r.json() })
       .then(function (d) {
-        if (d.ok) { setMsg("Draft saved to your Outlook Drafts."); setDraftUrl(d.draft_url || null) }
+        if (d.ok) {
+          const cs = d.contact_sync || {}
+          const contactNote = cs.ok
+            ? (cs.created ? " Contact created in Outlook." : (cs.unchanged ? "" : " Contact updated in Outlook."))
+            : (cs.error ? " (Outlook contact sync failed: " + cs.error + ")" : "")
+          setMsg("Draft saved to your Outlook Drafts." + contactNote)
+          setDraftUrl(d.draft_url || null)
+        }
         else if (d.error === "no_email") setMsg("This person has no email on file — add one on their profile, then come back and create the draft.")
         else setMsg("Couldn't create the draft" + (d.error ? (": " + d.error) : "") + ".")
       })
