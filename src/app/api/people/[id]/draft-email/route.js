@@ -3,6 +3,7 @@ export const maxDuration = 60
 
 import { serverClient } from "@/lib/supabaseServer"
 import { graphFetch } from "@/lib/microsoft-auth"
+import { upsertOutlookContact } from "@/lib/outlookContacts"
 
 // POST /api/people/[id]/draft-email
 //
@@ -148,6 +149,7 @@ Respond with ONLY valid JSON, no other text, in exactly this shape:
         return Response.json({ error: "Graph " + res.status, detail: t.slice(0, 300) }, { status: 502 })
       }
       const d = await res.json().catch(() => ({}))
+      upsertOutlookContact(sb, id).catch(() => {})
       return Response.json({ ok: true, draft_url: d.webLink || null })
     } catch (e) {
       return Response.json({ error: String(e.message || e) }, { status: 500 })

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 import { serverClient } from "@/lib/supabaseServer"
 import { getAccessToken } from "@/lib/microsoft-auth"
+import { upsertOutlookContact } from "@/lib/outlookContacts"
 
 /* Admin-side attendee management. Same-origin (PeerChair UI) only — no CORS.
 
@@ -247,7 +248,7 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
 async function draftConfirmationFor(sb, id) {
   const { data: a } = await sb
     .from("event_attendees")
-    .select("id, invite_token, approved_at, status, event_id, people:person_id ( first_name, email ), events:event_id ( slug, name, event_date, ends_at, venue_name, address_line, parking_instructions, check_in_instructions, breakfast_note )")
+    .select("id, invite_token, approved_at, status, event_id, person_id, people:person_id ( first_name, email ), events:event_id ( slug, name, event_date, ends_at, venue_name, address_line, parking_instructions, check_in_instructions, breakfast_note )")
     .eq("id", id)
     .maybeSingle()
   if (!a) return { ok: false, error: "not_found" }
@@ -280,6 +281,7 @@ async function draftConfirmationFor(sb, id) {
       confirmation_draft_error: null,
       confirmation_draft_error_at: null,
     }).eq("id", id)
+    upsertOutlookContact(sb, a.person_id).catch(() => {})
     return { ok: true, drafted: true, draft_url: d.webLink || null }
   }
 

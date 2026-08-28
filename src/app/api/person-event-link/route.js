@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 import { serverClient } from "@/lib/supabaseServer"
 import { getAccessToken } from "@/lib/microsoft-auth"
+import { upsertOutlookContact } from "@/lib/outlookContacts"
 
 const SITE = process.env.NEXT_PUBLIC_EVENT_SITE_URL || "https://la-cfo.com"
 
@@ -62,6 +63,7 @@ export async function POST(request) {
     if (res.status === 401) { tk = await getAccessToken({ force: true }); res = await post(tk) }
     if (!res.ok) { const t = await res.text().catch(() => ""); console.error("person-event-link draft: Graph " + res.status + " " + t.slice(0, 300)); return Response.json({ url, drafted: false, error: "Graph " + res.status }) }
     const d = await res.json().catch(() => ({}))
+    upsertOutlookContact(sb, personId).catch(() => {})
     return Response.json({ url, drafted: true, draft_url: d.webLink || null })
   } catch (e) { console.error("person-event-link draft failed:", e); return Response.json({ url, drafted: false, error: (e && e.message) || "exception" }) }
 }

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 120
 import { serverClient } from "@/lib/supabaseServer"
 import { graphFetch } from "@/lib/microsoft-auth"
+import { upsertOutlookContact } from "@/lib/outlookContacts"
 
 // GET /api/outlook/event-invite-drafts?k=<key>&slug=<event>&status=Unavailable[&dry=1]
 // Creates ONE Outlook DRAFT per matching attendee (never sends), via the app's
@@ -80,6 +81,7 @@ export async function GET(request) {
         results.push({ name: p.full_name, email: p.email, ok: false, reason: "graph " + res.status, detail: t.slice(0, 160) })
       } else {
         const d = await res.json().catch(function () { return {} })
+        upsertOutlookContact(sb, r.person_id).catch(function () {})
         results.push({ name: p.full_name, email: p.email, ok: true, id: d.id || null })
       }
     } catch (e) {
