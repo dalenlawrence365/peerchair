@@ -6,6 +6,7 @@ import { T } from "@/lib/pipelineTheme"
 import Avatar from "@/components/Avatar"
 import ProfileTodoCard from "@/components/ProfileTodoCard"
 import EventLinkCard from "@/components/EventLinkCard"
+import DraftEmailCard from "@/components/DraftEmailCard"
 import { SOURCES, SOURCE_KEY, sourceLabel, sourceWeight } from "@/lib/firmoSources"
 
 const ROLE_LABEL = { cfo: "CFO", sponsor_contact: "Sponsor", referral_partner: "Referral Partner" }
@@ -623,6 +624,7 @@ export default function PersonProfile() {
         ...(p.provisors_member ? [{ key: "groups", label: "Groups" }] : []),
         ...(p.provisors_member ? [{ key: "meetings", label: "Meetings" }] : []),
         { key: "events", label: "Events" },
+        { key: "draft_email", label: "Draft Email" },
       ]} />
 
       {/* TAB: Events — the invite tools.
@@ -633,6 +635,14 @@ export default function PersonProfile() {
           it's needed, and Tags & Activity sits under its own header again. */}
       {tab === "events" && (
         <EventLinkCard personId={p.id} />
+      )}
+
+      {/* TAB: Draft Email — voice/typed instructions, Claude drafts using this
+          person's profile + history, Dalen reviews and edits, then it lands in
+          his real Outlook Drafts folder. Same never-auto-send convention as
+          the Events tab's Draft email button. */}
+      {tab === "draft_email" && (
+        <DraftEmailCard personId={p.id} />
       )}
 
       {/* TAB: To-dos */}
