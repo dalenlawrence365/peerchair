@@ -36,6 +36,20 @@ export async function GET(request, { params }) {
     .order("set_at", { ascending: false })
     .limit(20)
 
+  // Next upcoming published event, as a ready-made "ws_invite_YYYYMMDD" tag —
+  // lets the profile's Activity picker always offer "invite them to the next
+  // workshop" without a hardcoded date going stale after each event passes.
+  let nextWorkshopTag = null
+  {
+    const { data: ev } = await sb.from("events")
+      .select("event_date").eq("published", true)
+      .gte("event_date", new Date().toISOString())
+      .order("event_date", { ascending: true }).limit(1).maybeSingle()
+    if (ev && ev.event_date) {
+      nextWorkshopTag = "ws_invite_" + ev.event_date.slice(0, 10).replace(/-/g, "")
+    }
+  }
+
   // Linked company (sponsor contact)
   let company = null
   if (person.company_id) {
@@ -95,5 +109,6 @@ export async function GET(request, { params }) {
     communications: comms || [],
     status_tags: statusTags || [],
     action_tags: actionTags || [],
+    next_workshop_tag: nextWorkshopTag,
   })
 }

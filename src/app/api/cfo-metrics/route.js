@@ -56,7 +56,7 @@ export async function GET() {
       .from("person_action_tags")
       .select("person_id, action_type, as_of_date, as_of_time, set_at")
       .in("person_id", chunk)
-      .in("action_type", ACTIVITY_TAGS)
+      .or(`action_type.in.(${ACTIVITY_TAGS.join(",")}),action_type.like.ws_invite_%`)
     for (const t of tags || []) {
       if (!actionTagsByPerson.has(t.person_id)) actionTagsByPerson.set(t.person_id, new Set())
       actionTagsByPerson.get(t.person_id).add(t.action_type)
@@ -108,7 +108,9 @@ export async function GET() {
         assessment_sent:   acts.has("assessment_sent"),
         fit_call_scheduled: acts.has("fit_call_scheduled"),
         fit_call_completed: acts.has("fit_call_completed"),
-        event_invite_sent: acts.has("event_invite_sent"),
+        // "Workshop invite sent" — true for the old generic tag OR any
+        // dated ws_invite_YYYYMMDD tag (current per-workshop naming convention).
+        event_invite_sent: acts.has("event_invite_sent") || Array.from(acts).some(function(a){ return a.indexOf("ws_invite_") === 0 }),
       },
       status_tags: statusTagsByPerson.get(p.id) || [],
     }

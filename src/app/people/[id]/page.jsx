@@ -785,15 +785,23 @@ export default function PersonProfile() {
               })}
               {data.action_tags.length === 0 && <span style={{ fontSize: 12, color: T.textTertiary }}>None</span>}
             </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-              {actionChoicesFor(p.roles).filter(function(c){ return !data.action_tags.some(function(t){ return t.action_type === c }) }).map(function(c){
-                return <button key={c} disabled={busy} onClick={function(){ addActionTag(c) }} style={QUICK_ADD_STYLE}>+ {c}</button>
-              })}
-            </div>
-            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-              <input value={newActionTag} onChange={function(e){ setNewActionTag(e.target.value) }}
+            {(function(){
+              var vocab = actionChoicesFor(p.roles).slice()
+              if (data.next_workshop_tag && vocab.indexOf(data.next_workshop_tag) < 0) vocab.unshift(data.next_workshop_tag)
+              var available = vocab.filter(function(c){ return !data.action_tags.some(function(t){ return t.action_type === c }) })
+              return (
+                <datalist id="action-tag-vocab">
+                  {available.map(function(c){ return <option key={c} value={c} /> })}
+                </datalist>
+              )
+            })()}
+            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+              <input
+                list="action-tag-vocab"
+                value={newActionTag}
+                onChange={function(e){ setNewActionTag(e.target.value) }}
                 onKeyDown={function(e){ if (e.key === "Enter") addActionTag(newActionTag) }}
-                placeholder="custom activity…"
+                placeholder="Click to see available tags, or type a new one…"
                 style={{ flex: 1, padding: "5px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
               <button disabled={!newActionTag.trim() || busy} onClick={function(){ addActionTag(newActionTag) }} style={addBtnStyle(newActionTag)}>Add</button>
             </div>
