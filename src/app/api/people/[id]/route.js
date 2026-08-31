@@ -46,7 +46,8 @@ export async function GET(request, { params }) {
       .gte("event_date", new Date().toISOString())
       .order("event_date", { ascending: true }).limit(1).maybeSingle()
     if (ev && ev.event_date) {
-      nextWorkshopTag = "ws_invite_" + ev.event_date.slice(0, 10).replace(/-/g, "")
+      const [y, m, d] = ev.event_date.slice(0, 10).split("-")
+      nextWorkshopTag = "ws_invite_" + m + "-" + d + "-" + y.slice(2)
     }
   }
 
