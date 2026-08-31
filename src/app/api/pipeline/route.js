@@ -4,25 +4,29 @@ import { serverClient } from "@/lib/supabaseServer"
 
 // GET /api/pipeline?type=cfo|sponsor&stage=<stage>&limit=&offset=&q=
 //
-// NESTED / CUMULATIVE model — stages are NOT mutually exclusive:
+// INDEPENDENT FLAGS model — stages are NOT a ladder and NOT mutually exclusive:
 //   pool      = the entire role universe (everyone with the role). Never shrinks; the denominator.
-//   audience  = DERIVED from linkedin_connected (first-degree). NOT a stored stage, so a connected
-//               CFO stays in the audience no matter how far they advance.
-//   engagement (prospect ⊇ qualified ⊇ member, or discovery ⊇ proposal ⊇ active) = cumulative
-//               progress markers. A member is still qualified, prospect, audience, and pool.
+//               Not a flag — it's just "no extra filter".
+//   audience  = DERIVED from linkedin_connected (first-degree). NOT a stored flag, so a
+//               connected CFO is in the audience regardless of any other flag.
+//   prospect / qualified / member (or discovery / proposal / active) = each its own
+//               independently-settable timestamp column (cfo_prospect_at, etc.). Someone can
+//               be "qualified" (pre-qualified from public research, say) without ever having
+//               been "prospect" — counts here reflect exactly who currently has that flag set,
+//               not a cumulative "at least this far" bucket.
 
 const CONFIG = {
   cfo: {
     role: "cfo",
     stateField: "cfo_state",
     stages: ["pool", "audience", "prospect", "qualified", "member"],
-    engagement: ["prospect", "qualified", "member"],
+    flagCol: { prospect: "cfo_prospect_at", qualified: "cfo_qualified_at", member: "cfo_member_at" },
   },
   sponsor: {
     role: "sponsor_contact",
     stateField: "sponsor_state",
     stages: ["pool", "audience", "discovery", "proposal", "active"],
-    engagement: ["discovery", "proposal", "active"],
+    flagCol: { discovery: "sponsor_discovery_at", proposal: "sponsor_proposal_at", active: "sponsor_active_at" },
   },
 }
 
@@ -31,8 +35,8 @@ const SEL = "id, full_name, first_name, last_name, title, company, email, linked
 // Apply a stage predicate to a query already scoped to the role.
 function applyStage(query, cfg, stage) {
   if (stage === "audience") return query.eq("linkedin_connected", true)
-  const ei = cfg.engagement.indexOf(stage)
-  if (ei >= 0) return query.in(cfg.stateField, cfg.engagement.slice(ei))  // cumulative
+  const col = cfg.flagCol[stage]
+  if (col) return query.not(col, "is", null)  // independent flag, not cumulative
   return query  // pool = role universe, no extra filter
 }
 

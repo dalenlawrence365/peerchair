@@ -17,6 +17,17 @@ const STATE_OPTIONS = {
   referral_partner: ["pool", "audience"],
 }
 const STATE_FIELD = { cfo: "cfo_state", sponsor_contact: "sponsor_state", referral_partner: "referral_state" }
+// Independent, non-cumulative stage flags. Maps primaryRole -> stage name -> the person
+// field carrying the "when set" timestamp (non-null = flag is on). "pool" and "audience"
+// aren't in here: pool is just the role universe (nothing to toggle), audience is derived
+// live from linkedin_connected (see /api/pipeline). set_stage_flag's own "role" body param
+// uses the short "cfo"/"sponsor" keys, not "sponsor_contact" — FLAG_API_ROLE bridges that.
+const FLAG_STAGES = {
+  cfo: { prospect: "cfo_prospect_at", qualified: "cfo_qualified_at", member: "cfo_member_at" },
+  sponsor_contact: { discovery: "sponsor_discovery_at", proposal: "sponsor_proposal_at", active: "sponsor_active_at" },
+  referral_partner: {},
+}
+const FLAG_API_ROLE = { cfo: "cfo", sponsor_contact: "sponsor" }
 
 const CHANNEL_COLOR = { LinkedIn: "#0a66c2", Calendly: "#006bff", Email: "#16a34a", Note: "#6b7280", Phone: "#f97316" }
 
@@ -414,47 +425,47 @@ export default function PersonProfile() {
               </div>
             )}
             <div style={{ marginTop: 12, display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
-              {/* Stage stepper — click any stage to move the primary role up or down a level */}
+              {/* Stage pills — INDEPENDENT flags, not a ladder. "Pool" is a static label (the
+                  role universe, nothing to toggle). "Audience" is read-only, derived live from
+                  the ✓1st/not-connected badge above. Prospect/qualified/member (or
+                  discovery/proposal/active) are each their own on/off switch — a person can be
+                  "qualified" without ever having been "prospect" (e.g. pre-qualified from public
+                  research before any outreach), and turning one off doesn't touch the others. */}
               {primaryRole && STATE_OPTIONS[primaryRole] && (
                 <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 10, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginRight: 4 }}>Stage</span>
                   {STATE_OPTIONS[primaryRole].map(function(s, i){
-                    const stages = STATE_OPTIONS[primaryRole]
-                    const cur = p[STATE_FIELD[primaryRole]]
-                    const curIdx = stages.indexOf(cur)
-                    const isCur = s === cur
-                    const isPast = curIdx >= 0 && i < curIdx
-                    const isAdjacent = curIdx >= 0 && Math.abs(i - curIdx) === 1
                     const rc = ROLE_COLOR[primaryRole] || "#475569"
-                    // "audience" is never a stored stage for ANY role — /api/pipeline derives it
-                    // live from linkedin_connected (a connected person is, by definition, in the
-                    // audience, however far they've advanced). Writing the literal string
-                    // "audience" into cfo_state/sponsor_state/referral_state does nothing in the
-                    // pipeline's own queries, so this pill is read-only; the "✓ 1st / not connected"
-                    // badge above is the one real control for it.
+                    const flagField = (FLAG_STAGES[primaryRole] || {})[s]
+                    const isPoolNode = s === "pool"
                     const isAudienceNode = s === "audience"
+                    const isFlagNode = !!flagField
+                    const flagOn = isFlagNode && !!p[flagField]
                     const audienceLit = isAudienceNode && p.linkedin_connected === true
-                    const lit = isPast || audienceLit
+                    const lit = audienceLit || flagOn
+                    const readOnly = isPoolNode || isAudienceNode
                     function handleClick(){
-                      if (isAudienceNode) return
-                      // Clicking the CURRENT stage resets it back to pool (the "un-X" action —
-                      // e.g. click "prospect" while it's current to un-prospect them). Clicking
-                      // any OTHER stage sets it directly, forward or backward.
-                      postAction({ action: "set_state", role: primaryRole, state: isCur ? "pool" : s })
+                      if (readOnly) return
+                      postAction({ action: "set_stage_flag", role: FLAG_API_ROLE[primaryRole], stage: s, on: !flagOn })
                     }
+                    const title = isPoolNode
+                      ? "Pool — the full role universe. Not a toggle."
+                      : isAudienceNode
+                      ? ("Audience is automatic — reflects LinkedIn connection status. " + (p.linkedin_connected ? "Click the ✓ 1st badge above to unmark it." : "Click the 1st badge above to mark them connected."))
+                      : (flagOn ? "Click to turn off " + s : "Click to mark as " + s)
                     return (
                       <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                         {i > 0 && <span style={{ color: T.border, fontSize: 12 }}>›</span>}
-                        <button disabled={busy || isAudienceNode}
+                        <button disabled={busy || readOnly}
                           onClick={handleClick}
-                          title={isAudienceNode ? ("Audience is automatic — reflects LinkedIn connection status. " + (p.linkedin_connected ? "Click the ✓ 1st badge above to unmark it." : "Click the 1st badge above to mark them connected.")) : (isCur ? "Click to reset — remove from " + s : (curIdx >= 0 && i < curIdx ? "Move back to " + s : "Advance to " + s))}
+                          title={title}
                           style={{
                             fontSize: 11, padding: "4px 10px", borderRadius: 999, fontFamily: "inherit",
-                            fontWeight: isCur ? 700 : 500,
-                            cursor: isAudienceNode ? "default" : (busy ? "not-allowed" : "pointer"),
-                            background: isCur ? rc : (lit ? rc + "22" : "white"),
-                            color: isCur ? "white" : (lit ? rc : T.textSecondary),
-                            border: "1px solid " + (isCur ? rc : (isAdjacent ? rc + "88" : T.border)),
+                            fontWeight: lit ? 700 : 500,
+                            cursor: readOnly ? "default" : (busy ? "not-allowed" : "pointer"),
+                            background: lit ? rc : (isPoolNode ? rc + "22" : "white"),
+                            color: lit ? "white" : (isPoolNode ? rc : T.textSecondary),
+                            border: "1px solid " + (lit ? rc : T.border),
                             textTransform: "capitalize"
                           }}>{s}</button>
                       </span>

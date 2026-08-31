@@ -35,7 +35,7 @@ export async function POST(request, { params }) {
   const sb = serverClient()
 
   // Confirm the person exists
-  const { data: person } = await sb.from("people").select("id, roles").eq("id", id).maybeSingle()
+  const { data: person } = await sb.from("people").select("id, roles, referral_state").eq("id", id).maybeSingle()
   if (!person) return Response.json({ error: "Person not found" }, { status: 404 })
 
   if (action === "note") {
@@ -92,20 +92,16 @@ export async function POST(request, { params }) {
     const actionType = (body.action_type || body.tag || "").trim()
     if (!actionType) return Response.json({ error: "action_type required" }, { status: 400 })
 
-    // Marking a connection accepted flips the LinkedIn pill to connected and lifts any
-    // pool/none role to 'audience' (a first-degree connection is, by definition, in the
-    // audience). Runs before the same-day de-dupe return so re-clicking accept always
-    // leaves the pill connected, even if the tag itself is a same-day dupe. Never demotes.
+    // Marking a connection accepted flips the LinkedIn pill to connected. For cfo/sponsor
+    // roles, cfo_state/sponsor_state are auto-recomputed by a DB trigger (people_recompute_role_states)
+    // from linkedin_connected + the independent cfo_*_at / sponsor_*_at flag columns the
+    // moment linkedin_connected changes — no manual advance needed, and it's demotion-safe
+    // (a person who's already prospect/qualified/member never gets knocked down to audience).
+    // referral_partner has no flag columns, so it still needs the old manual advance-only bump.
     if (actionType === "connection_accepted") {
       await sb.from("people").update({ linkedin_connected: true }).eq("id", id)
-      const { data: full } = await sb.from("people")
-        .select("roles, cfo_state, sponsor_state, referral_state").eq("id", id).maybeSingle()
-      const stateField = { cfo: "cfo_state", sponsor_contact: "sponsor_state", referral_partner: "referral_state" }
-      for (const role of (full?.roles || [])) {
-        const cur = full[stateField[role]]
-        if (cur === null || cur === undefined || cur === "" || cur === "pool") {
-          await sb.rpc("set_role_state", { p_person_id: id, p_role: RPC_ROLE[role] || role, p_new_state: "audience", p_set_by: "connection_accepted" })
-        }
+      if ((person.roles || []).includes("referral_partner") && (person.referral_state == null || person.referral_state === "" || person.referral_state === "pool")) {
+        await sb.rpc("set_role_state", { p_person_id: id, p_role: "referral", p_new_state: "audience", p_set_by: "connection_accepted" })
       }
     }
 
@@ -210,19 +206,36 @@ export async function POST(request, { params }) {
     const val = body.connected === true
     const { error } = await sb.from("people").update({ linkedin_connected: val }).eq("id", id)
     if (error) return Response.json({ error: error.message }, { status: 500 })
-    // A first-degree connection is, by definition, in the audience. Advance any role
-    // still at pool/none up to 'audience' — never demote someone already past it.
-    if (val) {
-      const { data: full } = await sb.from("people")
-        .select("roles, cfo_state, sponsor_state, referral_state").eq("id", id).maybeSingle()
-      const stateField = { cfo: "cfo_state", sponsor_contact: "sponsor_state", referral_partner: "referral_state" }
-      for (const role of (full?.roles || [])) {
-        const cur = full[stateField[role]]
-        if (cur === null || cur === undefined || cur === "" || cur === "pool") {
-          await sb.rpc("set_role_state", { p_person_id: id, p_role: RPC_ROLE[role] || role, p_new_state: "audience", p_set_by: "first_degree_toggle" })
-        }
-      }
+    // cfo_state/sponsor_state recompute automatically (DB trigger) whenever linkedin_connected
+    // changes, in either direction — connecting lifts the audience floor, disconnecting drops
+    // it, and an independently-set prospect/qualified/member flag is never touched either way.
+    // referral_partner has no flag columns, so it still needs a manual advance-only bump, and
+    // only forward (connecting), never on disconnect — matches the old "never demote" rule.
+    if (val && (person.roles || []).includes("referral_partner") && (person.referral_state == null || person.referral_state === "" || person.referral_state === "pool")) {
+      await sb.rpc("set_role_state", { p_person_id: id, p_role: "referral", p_new_state: "audience", p_set_by: "first_degree_toggle" })
     }
+    return Response.json({ ok: true })
+  }
+
+  // action="set_stage_flag" — independently toggle one engagement flag on/off.
+  // Body: { role: "cfo"|"sponsor", stage: <flag name>, on: boolean }
+  // Unlike the old cumulative ladder, these are NOT mutually exclusive or ordered:
+  // someone can be "qualified" (e.g. pre-qualified from public research) without ever
+  // having been "prospect". Writing the *_at column is all this does — cfo_state /
+  // sponsor_state (the legacy single-value summary other code still reads) recompute
+  // automatically via the people_recompute_role_states DB trigger.
+  const STAGE_FLAG_COL = {
+    cfo:     { prospect: "cfo_prospect_at",      qualified: "cfo_qualified_at",  member: "cfo_member_at" },
+    sponsor: { discovery: "sponsor_discovery_at", proposal: "sponsor_proposal_at", active: "sponsor_active_at" },
+  }
+  if (action === "set_stage_flag") {
+    const role = body.role
+    const stage = body.stage
+    const on = body.on === true
+    const col = STAGE_FLAG_COL[role] && STAGE_FLAG_COL[role][stage]
+    if (!col) return Response.json({ error: `invalid role/stage '${role}'/'${stage}'` }, { status: 400 })
+    const { error } = await sb.from("people").update({ [col]: on ? new Date().toISOString() : null }).eq("id", id)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
     return Response.json({ ok: true })
   }
 
