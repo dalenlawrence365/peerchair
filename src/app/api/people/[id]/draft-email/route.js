@@ -47,6 +47,12 @@ export async function POST(request, { params }) {
   if (mode === "generate") {
     const instructions = (b.instructions || "").toString().trim()
     if (!instructions) return Response.json({ error: "instructions required" }, { status: 400 })
+    // Refinement round — Dalen already has a draft (possibly hand-edited) and wants to
+    // add more context/instructions on top of it, not start over. Both must be present
+    // together; a lone previous_body with no subject (or vice versa) is treated as no draft.
+    const previousSubject = (b.previous_subject || "").toString().trim()
+    const previousBody = (b.previous_body || "").toString().trim()
+    const isRefinement = !!(previousSubject && previousBody)
 
     const { data: person } = await sb.from("people")
       .select("id, full_name, first_name, title, company, headline, email, roles, cfo_state, about")
@@ -91,15 +97,22 @@ KNOWN FACTS — use these exact values whenever the instructions refer to them, 
 - General 15-minute booking link (any repeat/second conversation): ${SENDER_CONTEXT.calendly_links.the_15_min.url}
 - General 30-minute booking link (any repeat/second conversation needing more time): ${SENDER_CONTEXT.calendly_links.the_30_min.url}
 
-DALEN'S INSTRUCTIONS FOR THIS EMAIL (spoken/transcribed, may be rough or informal):
-"${instructions}"
+${isRefinement ? `CURRENT DRAFT (Dalen has already reviewed and possibly hand-edited this — refine it,
+don't start over from a blank page; keep whatever still works):
+Subject: ${previousSubject}
+Body:
+${previousBody}
+
+DALEN'S ADDITIONAL INSTRUCTIONS — apply these on top of the current draft above (spoken/transcribed, may be rough or informal):
+"${instructions}"` : `DALEN'S INSTRUCTIONS FOR THIS EMAIL (spoken/transcribed, may be rough or informal):
+"${instructions}"`}
 
 Write the email now. Rules:
 - End with a natural closing salutation that fits the tone (e.g. "Best," "Talk soon," "Warmly,") and NOTHING after it — no name at all, not even his first name. His Outlook signature already carries his full name, title, and contact info, so the email body should stop right after the salutation line.
 - Address the recipient by their first name.
 - Keep it warm but direct and concise — no corporate fluff, no em dashes, no bullet-point lists inside the email body.
 - Ground it in the recipient's actual profile/history above where relevant; do not invent facts about them that weren't given.
-- Follow Dalen's spoken instructions as the primary guide for content and tone, even if informal or incomplete — fill reasonable gaps yourself.
+${isRefinement ? "- This is a revision pass: preserve the parts of the CURRENT DRAFT that still fit, and weave in the additional instructions — don't discard good material just to sound different." : "- Follow Dalen's spoken instructions as the primary guide for content and tone, even if informal or incomplete — fill reasonable gaps yourself."}
 - Separate paragraphs with a blank line.
 - When the instructions reference something covered in KNOWN FACTS above (the website, a booking link, etc.), use that exact URL as a real link — never write a placeholder, never guess a URL, never paraphrase it into something vague like "our website."
 
