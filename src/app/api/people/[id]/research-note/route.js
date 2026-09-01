@@ -66,30 +66,43 @@ export async function POST(request, { params }) {
 
   const prompt = PARSE_PROMPT_HEADER + rawText + '\n"""'
 
+  // 8000 output tokens, not 4000 — the prompt requires reproducing the whole
+  // narrative verbatim (tables, citations, every section), and a real research
+  // writeup plus JSON-escaping overhead routinely runs past 4000 tokens. At
+  // 4000 the response was getting cut off mid-JSON and failing to parse —
+  // not a fluke of any one note, any sufficiently long writeup hit this.
   let aiRes
   try {
     aiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": anthropicKey },
-      body: JSON.stringify({ model: MODEL, max_tokens: 4000, messages: [{ role: "user", content: prompt }] }),
+      body: JSON.stringify({ model: MODEL, max_tokens: 8000, messages: [{ role: "user", content: prompt }] }),
     })
   } catch (e) {
-    return Response.json({ error: "AI request failed: " + (e.message || e) }, { status: 500 })
+    return saveRaw(sb, id, rawText, "AI request failed: " + (e.message || e))
   }
   if (!aiRes.ok) {
     const t = await aiRes.text().catch(() => "")
-    return Response.json({ error: "AI error " + aiRes.status, detail: t.slice(0, 300) }, { status: 502 })
+    return saveRaw(sb, id, rawText, "AI error " + aiRes.status + ": " + t.slice(0, 300))
   }
   const data = await aiRes.json()
   const raw = (data.content && data.content[0] && data.content[0].text) || ""
+
+  // If Claude hit the token ceiling, the JSON (and narrative inside it) may be
+  // silently truncated even if it happens to still parse — never trust a
+  // max_tokens cutoff, always fall back to saving the note as-is instead.
+  if (data.stop_reason === "max_tokens") {
+    return saveRaw(sb, id, rawText, "AI response was cut off before finishing (too long to normalize in one pass)")
+  }
+
   let parsed
   try {
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
     parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw)
   } catch (e) {
-    return Response.json({ error: "Could not parse AI response", raw: raw.slice(0, 500) }, { status: 502 })
+    return saveRaw(sb, id, rawText, "Could not parse AI response")
   }
-  if (!parsed.narrative) return Response.json({ error: "AI response missing narrative", raw: raw.slice(0, 500) }, { status: 502 })
+  if (!parsed.narrative) return saveRaw(sb, id, rawText, "AI response missing narrative")
 
   const insertRow = {
     person_id: id,
@@ -103,7 +116,26 @@ export async function POST(request, { params }) {
     raw_input: rawText,
   }
   const { data: inserted, error: insErr } = await sb.from("person_research_notes").insert(insertRow).select().single()
-  if (insErr) return Response.json({ error: insErr.message }, { status: 500 })
+  if (insErr) return saveRaw(sb, id, rawText, "Saved but normalizing failed: " + insErr.message)
 
   return Response.json({ note: inserted })
+}
+
+// Never lose a pasted research note just because the auto-formatting step
+// failed — save it verbatim (unscored) instead of discarding it and showing
+// a bare error. Dalen can always tell it's unstructured (no verdict/score),
+// and can re-paste later to try normalizing it again once the ceiling issue
+// above is out of the way.
+async function saveRaw(sb, personId, rawText, reason) {
+  const insertRow = {
+    person_id: personId,
+    created_by: "dalen",
+    verdict: null, score: null, confidence: null, dimensions: [],
+    summary: "(auto-formatting failed — saved as raw text: " + reason + ")",
+    narrative: rawText,
+    raw_input: rawText,
+  }
+  const { data: inserted, error: insErr } = await sb.from("person_research_notes").insert(insertRow).select().single()
+  if (insErr) return Response.json({ error: reason + " — and saving the raw note also failed: " + insErr.message }, { status: 500 })
+  return Response.json({ note: inserted, parse_failed: true, parse_failed_reason: reason })
 }

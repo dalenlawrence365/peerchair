@@ -83,8 +83,13 @@ export default function ResearchNoteCard({ personId, notes, onSaved }) {
     })
       .then(function (r) { return r.json() })
       .then(function (d) {
-        if (d.note) { setRawText(""); setMsg("Research note added."); if (onSaved) onSaved() }
-        else setMsg("Couldn't parse that" + (d.error ? (": " + d.error) : "") + ".")
+        if (d.note && d.parse_failed) {
+          setRawText(""); setMsg("Saved — but auto-formatting failed, so it's stored as raw text (no score/verdict) rather than lost. " + (d.parse_failed_reason || "")); if (onSaved) onSaved()
+        } else if (d.note) {
+          setRawText(""); setMsg("Research note added."); if (onSaved) onSaved()
+        } else {
+          setMsg("Couldn't save that" + (d.error ? (": " + d.error) : "") + ".")
+        }
       })
       .catch(function () { setMsg("Error saving note.") })
       .finally(function () { setSaving(false) })
