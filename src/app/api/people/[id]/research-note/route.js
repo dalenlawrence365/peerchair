@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 import { serverClient } from "@/lib/supabaseServer"
-import { extractJSON, insertParsedNote, insertRawNote } from "@/lib/researchNoteStore"
+import { splitNarrativeAndMeta, insertParsedNote, insertRawNote } from "@/lib/researchNoteStore"
 
 // POST /api/people/[id]/research-note   { raw_text }  -> { note }
 // GET  /api/people/[id]/research-note                 -> { notes }
@@ -21,18 +21,14 @@ import { extractJSON, insertParsedNote, insertRawNote } from "@/lib/researchNote
 
 const MODEL = process.env.DRAFT_EMAIL_MODEL || "claude-sonnet-4-6"
 
-const PARSE_PROMPT_HEADER = `You are normalizing a CFO-prospect research writeup into a fixed JSON shape. The writeup below was produced by an AI deep-research process that scores how strong a candidate someone is to invite into CFO Circle, a peer advisory group. The exact rubric/dimensions used may vary between notes — extract whatever dimensions THIS note actually used, don't invent a fixed set.
+const PARSE_PROMPT_HEADER = `You are normalizing a CFO-prospect research writeup. The writeup below was produced by an AI deep-research process that scores how strong a candidate someone is to invite into CFO Circle, a peer advisory group. The exact rubric/dimensions used may vary between notes — extract whatever dimensions THIS note actually used, don't invent a fixed set.
 
-Extract:
-- verdict: the short call, e.g. "Strong Invite", "Invite", "Maybe", "Pass" — read from the note's own language if it states one, otherwise infer the closest short label from the overall tone/score.
-- score: the overall numeric score out of 100, as an integer. Null if genuinely not present.
-- confidence: the stated research-confidence percentage, as an integer 0-100. Null if not present.
-- summary: one or two plain sentences capturing the bottom-line takeaway (not a title, an actual summary a busy person can read in 5 seconds).
-- dimensions: an array of {"name": string, "score": number, "max": number, "why": string} for each scoring row found in any breakdown table in the note. Empty array if no dimension table is present.
-- narrative: the full body of the note, cleaned up as clean markdown (keep all facts, figures, tables, and citation links — do not summarize or shorten it, just strip obvious formatting noise).
+First, reproduce the writeup's full body as clean markdown (keep all facts, figures, tables, and citation links — do not summarize or shorten it, just strip obvious formatting noise like stray asterisks or broken line breaks). Write this as PLAIN TEXT, not inside any JSON — this is the most important part to get right and to not truncate.
 
-Respond with ONLY valid JSON, no other text, in exactly this shape:
-{"verdict": "...", "score": 88, "confidence": 94, "summary": "...", "dimensions": [{"name":"...", "score":20, "max":20, "why":"..."}], "narrative": "..."}
+Then, after the markdown narrative, on its own on a new line, output a fenced code block starting with \`\`\`json containing ONLY this metadata (do NOT repeat the narrative inside it):
+{"verdict": "Strong Invite | Invite | Maybe | Pass (or closest match to the note's own language)", "score": 88, "confidence": 94, "summary": "one or two plain sentences, the bottom-line takeaway", "dimensions": [{"name":"...", "score":20, "max":20, "why":"..."}]}
+
+Use null for score/confidence if genuinely not stated in the writeup. dimensions is an array of every scoring row found in any breakdown table in the note — empty array if none.
 
 RESEARCH WRITEUP TO NORMALIZE:
 """`
@@ -67,17 +63,15 @@ export async function POST(request, { params }) {
 
   const prompt = PARSE_PROMPT_HEADER + rawText + '\n"""'
 
-  // 8000 output tokens, not 4000 — the prompt requires reproducing the whole
-  // narrative verbatim (tables, citations, every section), and a real research
-  // writeup plus JSON-escaping overhead routinely runs past 4000 tokens. At
-  // 4000 the response was getting cut off mid-JSON and failing to parse —
-  // not a fluke of any one note, any sufficiently long writeup hit this.
+  // 12000 output tokens. Narrative is now plain prose (not JSON-escaped), so
+  // this goes much further than it used to — but a real research writeup is
+  // still long, so leave real headroom rather than risk another cutoff.
   let aiRes
   try {
     aiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": anthropicKey },
-      body: JSON.stringify({ model: MODEL, max_tokens: 8000, messages: [{ role: "user", content: prompt }] }),
+      body: JSON.stringify({ model: MODEL, max_tokens: 12000, messages: [{ role: "user", content: prompt }] }),
     })
   } catch (e) {
     return saveRaw(sb, id, rawText, "AI request failed: " + (e.message || e))
@@ -89,19 +83,19 @@ export async function POST(request, { params }) {
   const data = await aiRes.json()
   const raw = (data.content && data.content[0] && data.content[0].text) || ""
 
-  // If Claude hit the token ceiling, the JSON (and narrative inside it) may be
-  // silently truncated even if it happens to still parse — never trust a
-  // max_tokens cutoff, always fall back to saving the note as-is instead.
-  if (data.stop_reason === "max_tokens") {
-    return saveRaw(sb, id, rawText, "AI response was cut off before finishing (too long to normalize in one pass)")
+  const { narrative, meta } = splitNarrativeAndMeta(raw)
+
+  // If Claude hit the token ceiling mid-metadata-block, at least the
+  // narrative prose before it is usually intact (that's the whole point of
+  // writing it plain, before any JSON) — save that rather than nothing.
+  if (data.stop_reason === "max_tokens" && !meta) {
+    return saveRaw(sb, id, narrative || rawText, "AI response was cut off before finishing (too long to normalize in one pass)")
   }
+  if (!meta) return saveRaw(sb, id, narrative || rawText, "Could not parse AI response")
+  if (!narrative) return saveRaw(sb, id, rawText, "AI response missing narrative")
 
-  const parsed = extractJSON(raw)
-  if (!parsed) return saveRaw(sb, id, rawText, "Could not parse AI response")
-  if (!parsed.narrative) return saveRaw(sb, id, rawText, "AI response missing narrative")
-
-  const { data: inserted, error: insErr } = await insertParsedNote(sb, id, "dalen", parsed, rawText)
-  if (insErr) return saveRaw(sb, id, rawText, "Saved but normalizing failed: " + insErr.message)
+  const { data: inserted, error: insErr } = await insertParsedNote(sb, id, "dalen", meta, narrative, rawText)
+  if (insErr) return saveRaw(sb, id, narrative, "Saved but normalizing failed: " + insErr.message)
 
   return Response.json({ note: inserted })
 }

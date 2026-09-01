@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 280
 
 import { serverClient } from "@/lib/supabaseServer"
-import { extractJSON, insertParsedNote, insertRawNote } from "@/lib/researchNoteStore"
+import { splitNarrativeAndMeta, insertParsedNote, insertRawNote } from "@/lib/researchNoteStore"
 
 // POST /api/people/[id]/deep-research  -> { note }
 //
@@ -73,10 +73,14 @@ Research this person and their company. At minimum, try to:
 
 ${RUBRIC}
 
-Write the narrative in the same style Dalen's existing research uses: clear markdown with headers and bold for key findings, a table for financials if you find real figures, a table for the dimension scoring breakdown, inline citation links to sources as you use them (markdown links, not bare URLs), and a numbered source list at the end. Open with a one-line verdict ("This one is worth pursuing" / "This one is a pass" / etc) before the detail. End with Dalen's actual open question for the fit call, if there is one.
+Once your research is complete, write up your findings as the LAST thing you output, in two parts:
 
-Once your research is complete, respond with ONLY valid JSON as your final message, no other text, in exactly this shape:
-{"verdict": "Strong Invite | Invite | Maybe | Pass", "score": 88, "confidence": 94, "summary": "one or two plain sentences, the bottom-line takeaway", "dimensions": [{"name":"CFO authenticity", "score":20, "max":20, "why":"..."}, ...all seven...], "narrative": "the full markdown writeup as described above, including citation links and source list"}`
+PART 1 — the narrative, as PLAIN MARKDOWN TEXT (not inside JSON, not escaped): clear markdown with headers and bold for key findings, a table for financials if you find real figures, a table for the dimension scoring breakdown, inline citation links to sources as you use them (markdown links, not bare URLs), and a numbered source list at the end. Open with a one-line verdict ("This one is worth pursuing" / "This one is a pass" / etc) before the detail. End with Dalen's actual open question for the fit call, if there is one. Getting this part complete and well-formatted matters more than anything else in your output — do not truncate or summarize it to save space.
+
+PART 2 — immediately after the narrative, on its own, a fenced code block starting with \`\`\`json containing ONLY this metadata (do NOT repeat the narrative inside it):
+{"verdict": "Strong Invite | Invite | Maybe | Pass", "score": 88, "confidence": 94, "summary": "one or two plain sentences, the bottom-line takeaway", "dimensions": [{"name":"CFO authenticity", "score":20, "max":20, "why":"..."}, ...all seven...]}
+
+Do not write any text after the closing \`\`\` of that code block.`
 
   let aiRes
   try {
@@ -85,7 +89,11 @@ Once your research is complete, respond with ONLY valid JSON as your final messa
       headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": anthropicKey },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 10000,
+        // Narrative is plain prose now, not JSON-escaped, so this budget
+        // stretches further than it did before — but a well-researched
+        // writeup (search commentary + a long narrative) is still real
+        // content, so keep real headroom rather than risk another cutoff.
+        max_tokens: 16000,
         messages: [{ role: "user", content: prompt }],
         tools: [{
           type: "web_search_20250305",
@@ -109,27 +117,29 @@ Once your research is complete, respond with ONLY valid JSON as your final messa
   }
 
   // Concatenate every text block (Claude narrates between/around searches;
-  // the final JSON is typically the last block, but joining everything and
-  // regex-matching the outermost {...} is robust either way).
+  // the narrative + trailing json fence are typically the last block, but
+  // joining everything is robust either way).
   const textBlocks = (data.content || []).filter(function (b) { return b.type === "text" }).map(function (b) { return b.text })
   const raw = textBlocks.join("\n\n")
 
   const searchesUsed = (data.usage && data.usage.server_tool_use && data.usage.server_tool_use.web_search_requests) || 0
+  const { narrative, meta } = splitNarrativeAndMeta(raw)
 
-  if (data.stop_reason === "max_tokens") {
-    const { data: inserted, error: insErr } = await insertRawNote(sb, id, "dalen (deep research)", raw, "Response was cut off before finishing (hit the token ceiling after " + searchesUsed + " searches)", null)
+  // If it got cut off mid-metadata-block, the narrative prose before it is
+  // usually still intact and worth keeping — save that, not raw JSON soup.
+  if (data.stop_reason === "max_tokens" && !meta) {
+    const { data: inserted, error: insErr } = await insertRawNote(sb, id, "dalen (deep research)", narrative || raw, "Response was cut off before finishing (hit the token ceiling after " + searchesUsed + " searches)", null)
     if (insErr) return Response.json({ error: "Research cut off, and saving it also failed: " + insErr.message }, { status: 500 })
     return Response.json({ note: inserted, parse_failed: true, parse_failed_reason: "cut off before finishing" })
   }
 
-  const parsed = extractJSON(raw)
-  if (!parsed || !parsed.narrative) {
-    const { data: inserted, error: insErr } = await insertRawNote(sb, id, "dalen (deep research)", raw, "Could not parse the research output into the standard format (used " + searchesUsed + " searches)", null)
+  if (!meta || !narrative) {
+    const { data: inserted, error: insErr } = await insertRawNote(sb, id, "dalen (deep research)", narrative || raw, "Could not parse the research output into the standard format (used " + searchesUsed + " searches)", null)
     if (insErr) return Response.json({ error: "Could not parse research output, and saving it also failed: " + insErr.message }, { status: 500 })
     return Response.json({ note: inserted, parse_failed: true, parse_failed_reason: "could not parse" })
   }
 
-  const { data: inserted, error: insErr } = await insertParsedNote(sb, id, "dalen (deep research)", parsed, null)
+  const { data: inserted, error: insErr } = await insertParsedNote(sb, id, "dalen (deep research)", meta, narrative, null)
   if (insErr) return Response.json({ error: insErr.message }, { status: 500 })
 
   return Response.json({ note: inserted, searches_used: searchesUsed })
