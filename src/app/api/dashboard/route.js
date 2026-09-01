@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
+import { getCfoScoreRows, avgScore } from "@/lib/cfoScores"
 
 // GET /api/dashboard — one-shot data fetch for the new dashboard.
 // Returns:
@@ -49,6 +50,13 @@ export async function GET() {
   const cfoCounts      = await cfoDistribution()
   const sponsorCounts  = await distribution("sponsor_state", SPONSOR_STAGES)
   const referralCounts = await distribution("referral_state", REFERRAL_STAGES)
+
+  // "Average CFO score" tile — a navigation shortcut into /reports/cfo-scores
+  // more than a metric in its own right (Dalen's framing), so this reuses the
+  // exact same latest-score-per-person logic as that report rather than a
+  // separate quick approximation.
+  const cfoScoreRows = await getCfoScoreRows(sb)
+  const cfoAvgScore = avgScore(cfoScoreRows)
 
   // Totals + sponsor companies
   const { count: sponsorCompanies } = await sb.from("companies").select("id", { count: "exact", head: true }).eq("is_sponsor", true)
@@ -283,6 +291,8 @@ export async function GET() {
           .eq("cfo_circle_member", true)
         return count || 0
       })(),
+      cfo_avg_score: cfoAvgScore,
+      cfo_scored_count: cfoScoreRows.length,
     },
     segments: segmentCounts || {},
     queues: {

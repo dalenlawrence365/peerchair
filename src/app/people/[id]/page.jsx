@@ -8,6 +8,7 @@ import ProfileTodoCard from "@/components/ProfileTodoCard"
 import EventLinkCard from "@/components/EventLinkCard"
 import DraftEmailCard from "@/components/DraftEmailCard"
 import ResearchNoteCard from "@/components/ResearchNoteCard"
+import { scoreColor } from "@/lib/cfoScores"
 import { SOURCES, SOURCE_KEY, sourceLabel, sourceWeight } from "@/lib/firmoSources"
 
 const ROLE_LABEL = { cfo: "CFO", sponsor_contact: "Sponsor", referral_partner: "Referral Partner" }
@@ -437,6 +438,20 @@ export default function PersonProfile() {
                   {p.connections_count.toLocaleString()} connections
                 </span>
               )}
+              {/* CFO research score — latest research note only, red/yellow/green
+                  by verdict so it's a glance-able signal right next to the other
+                  header pills, not something you have to open a tab to see. */}
+              {(p.roles || []).includes("cfo") && (function(){
+                const latest = (data.research_notes || [])[0]
+                if (!latest || latest.score == null) return null
+                const c = scoreColor(latest.score, latest.verdict)
+                return (
+                  <span title={`Research score: ${latest.score}/100${latest.verdict ? " — " + latest.verdict : ""}`}
+                    style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, fontWeight: 700, background: c.bg, color: c.fg, border: "1px solid " + c.border }}>
+                    {latest.score}
+                  </span>
+                )
+              })()}
             </div>
             <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
               {[p.title, p.company].filter(Boolean).join(" · ") || "—"}

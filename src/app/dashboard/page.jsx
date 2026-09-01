@@ -104,6 +104,11 @@ export default function DashboardPage() {
         <StatTile label="Upcoming meetings (7d)" value={c.upcoming_meetings} color="#0d9488" href="/meetings" />
         <StatTile label={c.linkedin_connections_unrated > 0 ? `First-degree connections (${c.linkedin_connections_unrated} no role)` : "First-degree connections"}
           value={c.linkedin_connections} color="#0a66c2" href="/linkedin-connections" />
+        {/* More a navigation shortcut into the full report than a metric worth
+            dwelling on by itself — same framing as every other tile here. */}
+        {c.cfo_avg_score != null && (
+          <StatTile label={`Average CFO score (${c.cfo_scored_count} scored)`} value={c.cfo_avg_score} color="#7c3aed" href="/reports/cfo-scores" />
+        )}
       </div>
 
       {/* Action queues */}
