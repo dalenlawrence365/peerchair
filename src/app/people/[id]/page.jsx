@@ -862,7 +862,7 @@ export default function PersonProfile() {
                         <span key={"i_" + i} title={`${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
                           fontSize: 11, padding: "3px 9px", borderRadius: 4, fontWeight: 500,
                           background: "#f3ebfd", border: "1px solid #ddc7f7", color: "#5b21b6"
-                        }}>{t.action_type}{t.as_of_date ? " · " + fmtShort(t.as_of_date) : ""}</span>
+                        }}>{t.action_type}</span>
                       )
                     })}
                     {inviteTags.length === 0 && <span style={{ fontSize: 12, color: T.textTertiary }}>None</span>}
