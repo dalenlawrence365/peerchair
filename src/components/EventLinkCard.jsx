@@ -58,6 +58,40 @@ export default function EventLinkCard({ personId }) {
       }).catch(function () { setMsg("Error.") }).finally(function () { setBusy(false) })
   }
 
+  // Set any real outcome (Confirmed, Unavailable, Declined) straight from the
+  // profile — e.g. they replied to you on LinkedIn and you want to log it right
+  // there without hunting them down on the full event roster page. If they're
+  // not on the roster yet at all, this adds them (as Invited, via the same
+  // idempotent POST as markInvited) before applying the real status, so a
+  // reply from someone you invited outside the app still lands correctly.
+  function setStatus(status) {
+    setBusy(true); setMsg("")
+    const applyPatch = function (attendeeId) {
+      return fetch("/api/events/attendees", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: attendeeId, status: status }),
+      }).then(function (r) { return r.json() })
+    }
+    const ensureOnRoster = attendee
+      ? Promise.resolve(attendee)
+      : fetch("/api/events/attendees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: slug, person_ids: [personId] }) })
+          .then(function (r) { return r.json() })
+          .then(function () { return fetch("/api/events/attendees?slug=" + encodeURIComponent(slug) + "&person_id=" + encodeURIComponent(personId), { cache: "no-store" }) })
+          .then(function (r) { return r.json() })
+          .then(function (d) { return (d && d.attendees && d.attendees[0]) || null })
+    ensureOnRoster
+      .then(function (a) {
+        if (!a || !a.id) { setMsg("Couldn't find or create their roster entry."); return null }
+        return applyPatch(a.id)
+      })
+      .then(function (d) {
+        if (d && d.ok) { setMsg("Marked " + status + "."); loadStatus() }
+        else if (d) { setMsg("Couldn't update status" + (d.error ? (": " + d.error) : "") + ".") }
+      })
+      .catch(function () { setMsg("Error.") })
+      .finally(function () { setBusy(false) })
+  }
+
   function copyLink() {
     setBusy(true); setMsg("")
     fetch("/api/person-event-link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person_id: personId, slug: slug, mode: "link", src: "profile" }) })
@@ -135,6 +169,34 @@ export default function EventLinkCard({ personId }) {
           </div>
         )}
       </div>
+
+      {/* Quick status log — for when they reply on LinkedIn (or by phone, in
+          person, whatever) and you want to record what they said right here,
+          without leaving their profile to hunt them down on the full event
+          roster. Works even if they're not on the roster yet at all — it adds
+          them first. Hides whichever button matches their current status. */}
+      {statusLoaded && slug && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+          {(!attendee || attendee.status !== "Confirmed") && (
+            <button disabled={busy} onClick={function () { setStatus("Confirmed") }}
+              style={{ fontSize: 11.5, fontWeight: 600, padding: "4px 10px", borderRadius: 999, border: "1px solid #c3e0cc", background: "#e9f3ec", color: "#1b5e36", cursor: "pointer", fontFamily: "inherit" }}>
+              They're in — Confirmed
+            </button>
+          )}
+          {(!attendee || attendee.status !== "Unavailable") && (
+            <button disabled={busy} onClick={function () { setStatus("Unavailable") }}
+              style={{ fontSize: 11.5, fontWeight: 600, padding: "4px 10px", borderRadius: 999, border: "1px solid #fcd34d", background: "#fef3c7", color: "#92400e", cursor: "pointer", fontFamily: "inherit" }}>
+              Can't make it — Unavailable
+            </button>
+          )}
+          {(!attendee || attendee.status !== "Declined") && (
+            <button disabled={busy} onClick={function () { setStatus("Declined") }}
+              style={{ fontSize: 11.5, fontWeight: 600, padding: "4px 10px", borderRadius: 999, border: "1px solid #fca5a5", background: "#fee2e2", color: "#991b1b", cursor: "pointer", fontFamily: "inherit" }}>
+              Not interested — Declined
+            </button>
+          )}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8 }}>
         <button disabled={busy || !slug} onClick={copyLink} style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid " + T.border, background: "white", color: T.textPrimary, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Copy invite link</button>
