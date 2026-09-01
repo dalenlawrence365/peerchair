@@ -74,6 +74,11 @@ function extractLead(payload) {
     position: pick(payload, ["Position", "Current position", "current_company_position", "position", "Title", "Job Title"]),
     location: pick(payload, ["Location", "location", "location_name"]),
     email: pick(payload, ["Email", "email", "Email Address", "emailAddress"]),
+    // LinkedIn network size. "followers_count" is part of LinkedHelper's documented
+    // payload but comes through null on every capture we've seen in practice —
+    // connections_count is the field that's actually populated, and serves the
+    // same purpose Dalen wants it for (how active/networked this person is).
+    connectionsCount: pick(payload, ["connections_count", "connectionsCount", "Connections", "connections"]),
     avatar: pick(payload, ["avatar", "avatar_url", "Avatar", "photo", "profile_picture"]),
     headline: pick(payload, ["headline", "Headline", "current_headline", "linkedin_headline"]),
     summary: pick(payload, ["summary", "Summary", "about", "About", "profile_summary"]),
@@ -308,7 +313,10 @@ async function enrichPersonFromLead(sb, personId, lead) {
     if (lead.location) {
       await sb.from("people").update({ location: lead.location }).eq("id", personId).is("location", null)
     }
-  } catch(e) { console.error("people enrich (about/headline/email/location) failed:", e.message) }
+    if (lead.connectionsCount && /^\d+$/.test(lead.connectionsCount)) {
+      await sb.from("people").update({ connections_count: parseInt(lead.connectionsCount, 10) }).eq("id", personId)
+    }
+  } catch(e) { console.error("people enrich (about/headline/email/location/connections) failed:", e.message) }
 }
 
 async function handleSent(sb, lead, tags, seedBatchTag, raw) {
@@ -656,6 +664,7 @@ async function handleProfileCapture(sb, root, request) {
     location: pick(p, ["location", "location_name", "geo_region", "Location"]) || null,
     profile_url: pick(p, ["profile_url", "profileUrl", "public_profile_url", "Profile URL", "url", "public_id"]) || null,
     connection_degree: pick(p, ["connection_degree", "network_distance", "degree", "distance"]) || null,
+    connections_count: (function(){ const v = pick(p, ["connections_count", "connectionsCount", "Connections", "connections"]); return /^\d+$/.test(v) ? parseInt(v, 10) : null })(),
     email: pick(p, ["email", "Email", "email_address"]) || null,
     industry: pick(p, ["industry", "industries", "industryName"]) || null,
     campaign: pick(p, ["campaign_name", "campaignName", "Campaign name", "campaign"]) || null,

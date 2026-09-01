@@ -431,6 +431,12 @@ export default function PersonProfile() {
                     border: "1px solid " + (p.linkedin_connected ? "#0a66c2" : T.border),
                   }}>{p.linkedin_connected ? "✓ 1st" : "not connected"}</button>
               )}
+              {p.connections_count != null && (
+                <span title="LinkedIn connections (captured by LinkedHelper) — a rough signal of how active they are on LinkedIn"
+                  style={{ fontSize: 11, padding: "3px 9px", borderRadius: 999, fontWeight: 600, background: T.bg, color: T.textTertiary, border: "1px solid " + T.border }}>
+                  {p.connections_count.toLocaleString()} connections
+                </span>
+              )}
             </div>
             <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
               {[p.title, p.company].filter(Boolean).join(" · ") || "—"}
