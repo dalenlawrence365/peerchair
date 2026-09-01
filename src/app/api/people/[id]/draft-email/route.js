@@ -21,6 +21,11 @@ import { SENDER_CONTEXT } from "@/lib/dalenContext"
 
 const MODEL = process.env.DRAFT_EMAIL_MODEL || "claude-sonnet-4-6"
 
+// Status tags that mean "you probably shouldn't be emailing this person" —
+// surfaced as a visible warning in the Draft Email tab, not just baked
+// silently into the AI's tone.
+const WARNING_TAGS = ["do_not_contact", "opted_out", "not_a_fit", "out_of_market"]
+
 function escapeHtml(s) {
   return String(s || "")
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -59,6 +64,22 @@ export async function POST(request, { params }) {
       .eq("id", id).maybeSingle()
     if (!person) return Response.json({ error: "person not found" }, { status: 404 })
 
+    const { data: statusTagRows } = await sb.from("person_status_tags")
+      .select("tag").eq("person_id", id).is("removed_at", null)
+    const statusTags = (statusTagRows || []).map(function(t){ return t.tag })
+    const warningTags = statusTags.filter(function(t){ return WARNING_TAGS.indexOf(t) >= 0 })
+
+    const { data: actionTagRows } = await sb.from("person_action_tags")
+      .select("action_type, set_at").eq("person_id", id)
+      .order("set_at", { ascending: false }).limit(20)
+    const actionTagLines = (actionTagRows || []).map(function(t){
+      return "- " + t.action_type + (t.set_at ? " (" + String(t.set_at).slice(0, 10) + ")" : "")
+    }).join("\n")
+
+    const { data: latestResearch } = await sb.from("person_research_notes")
+      .select("verdict, score, confidence, summary, narrative").eq("person_id", id)
+      .order("created_at", { ascending: false }).limit(1).maybeSingle()
+
     const { data: recentComms } = await sb.from("communications")
       .select("direction, channel, step_label, body, occurred_at")
       .eq("person_id", id)
@@ -89,6 +110,18 @@ ${person.about ? "Notes on this person: " + person.about : ""}
 
 RECENT INTERACTION HISTORY (most recent last, may be empty):
 ${historyLines || "(no prior communications on file)"}
+
+STATUS TAGS (current state — do not ignore these):
+${statusTags.length ? statusTags.join(", ") : "(none)"}
+${warningTags.length ? `⚠ WARNING: this person is tagged ${warningTags.join(", ")} — Dalen should generally NOT be reaching out. Write the draft anyway (he may have a specific reason), but do not pretend this is a routine outreach; if appropriate, note the conflict plainly rather than writing a normal pitch.` : ""}
+
+ACTIVITY / INVITATION LOG (most recent first, may be empty — use this to avoid re-pitching something they've already been invited to, or to reference something they were already told):
+${actionTagLines || "(no logged activity)"}
+
+RESEARCH ASSESSMENT (AI deep-research on this person, if one exists — ground the email in real facts from here, don't invent anything not in it or in the profile above):
+${latestResearch ? `Verdict: ${latestResearch.verdict || "(none)"} — Score: ${latestResearch.score != null ? latestResearch.score + "/100" : "(none)"} — Confidence: ${latestResearch.confidence != null ? latestResearch.confidence + "%" : "(none)"}
+Summary: ${latestResearch.summary || "(none)"}
+${(latestResearch.narrative || "").slice(0, 1500)}` : "(no research note on file for this person)"}
 
 KNOWN FACTS — use these exact values whenever the instructions refer to them, never invent or guess a URL/link yourself:
 - Website: ${SENDER_CONTEXT.website}
@@ -145,7 +178,7 @@ Respond with ONLY valid JSON, no other text, in exactly this shape:
     if (!parsed.subject || !parsed.body) {
       return Response.json({ error: "AI response missing subject/body", raw: raw.slice(0, 500) }, { status: 502 })
     }
-    return Response.json({ subject: parsed.subject, body: parsed.body, has_email: !!person.email })
+    return Response.json({ subject: parsed.subject, body: parsed.body, has_email: !!person.email, warning_tags: warningTags })
   }
 
   if (mode === "create") {

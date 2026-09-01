@@ -7,6 +7,7 @@ import Avatar from "@/components/Avatar"
 import ProfileTodoCard from "@/components/ProfileTodoCard"
 import EventLinkCard from "@/components/EventLinkCard"
 import DraftEmailCard from "@/components/DraftEmailCard"
+import ResearchNoteCard from "@/components/ResearchNoteCard"
 import { SOURCES, SOURCE_KEY, sourceLabel, sourceWeight } from "@/lib/firmoSources"
 
 const ROLE_LABEL = { cfo: "CFO", sponsor_contact: "Sponsor", referral_partner: "Referral Partner" }
@@ -665,6 +666,7 @@ export default function PersonProfile() {
         ...(p.provisors_member ? [{ key: "meetings", label: "Meetings" }] : []),
         { key: "events", label: "Events" },
         { key: "draft_email", label: "Draft Email" },
+        { key: "research", label: "Research Note" },
       ]} />
 
       {/* TAB: Events — the invite tools.
@@ -682,7 +684,15 @@ export default function PersonProfile() {
           his real Outlook Drafts folder. Same never-auto-send convention as
           the Events tab's Draft email button. */}
       {tab === "draft_email" && (
-        <DraftEmailCard personId={p.id} />
+        <DraftEmailCard personId={p.id} statusTags={(data.status_tags || []).map(function(t){ return t.tag })} />
+      )}
+
+      {/* TAB: Research Note — standardized AI deep-research writeups (score,
+          verdict, dimension breakdown, full narrative). Kept separate from
+          Timeline so it never gets buried; Draft Email reads the latest one
+          for context. */}
+      {tab === "research" && (
+        <ResearchNoteCard personId={p.id} notes={data.research_notes || []} onSaved={reload} />
       )}
 
       {/* TAB: To-dos */}

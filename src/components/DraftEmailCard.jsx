@@ -63,7 +63,11 @@ function useVoiceInput() {
   return { supported, listening, text, setText, toggleListening, reset }
 }
 
-export default function DraftEmailCard({ personId }) {
+// Same list the server checks before drafting — kept here too so the
+// warning is visible the moment the tab opens, before Dalen even generates.
+const WARNING_TAGS = ["do_not_contact", "opted_out", "not_a_fit", "out_of_market"]
+
+export default function DraftEmailCard({ personId, statusTags }) {
   const initial = useVoiceInput()
   const more = useVoiceInput()
   const [generating, setGenerating] = useState(false)
@@ -137,8 +141,18 @@ export default function DraftEmailCard({ personId }) {
     <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: 16, marginBottom: 16 }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Draft Email</div>
       <div style={{ fontSize: 12, color: T.textTertiary, marginBottom: 12, lineHeight: 1.5 }}>
-        Say (or type) how you want this email to go. Claude drafts it using this person's profile and recent history. Review and edit before it goes to your Outlook Drafts — nothing is ever sent automatically.
+        Say (or type) how you want this email to go. Claude drafts it using this person's profile and recent history, current tags, and latest research note. Review and edit before it goes to your Outlook Drafts — nothing is ever sent automatically.
       </div>
+
+      {(function(){
+        const flagged = (statusTags || []).filter(function(t){ return WARNING_TAGS.indexOf(t) >= 0 })
+        if (!flagged.length) return null
+        return (
+          <div style={{ fontSize: 12, color: T.danger, marginBottom: 10, background: T.dangerBg, border: "1px solid #fecaca", borderRadius: 6, padding: "8px 10px", fontWeight: 500 }}>
+            ⚠ This person is tagged {flagged.join(", ")} — double-check before reaching out.
+          </div>
+        )
+      })()}
 
       {!initial.supported && (
         <div style={{ fontSize: 12, color: T.warning, marginBottom: 10, background: T.warningBg, border: "1px solid #fde68a", borderRadius: 6, padding: "6px 10px" }}>

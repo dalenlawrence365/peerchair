@@ -36,6 +36,13 @@ export async function GET(request, { params }) {
     .order("set_at", { ascending: false })
     .limit(20)
 
+  // Research notes — standardized AI deep-research writeups (score/verdict/
+  // dimensions), newest first. Draft Email reads the latest one for context.
+  const { data: researchNotes } = await sb.from("person_research_notes")
+    .select("id, created_at, created_by, verdict, score, confidence, dimensions, summary, narrative")
+    .eq("person_id", id)
+    .order("created_at", { ascending: false })
+
   // Next upcoming published event, as a ready-made "ws_invite_YYYYMMDD" tag —
   // lets the profile's Activity picker always offer "invite them to the next
   // workshop" without a hardcoded date going stale after each event passes.
@@ -110,6 +117,7 @@ export async function GET(request, { params }) {
     communications: comms || [],
     status_tags: statusTags || [],
     action_tags: actionTags || [],
+    research_notes: researchNotes || [],
     next_workshop_tag: nextWorkshopTag,
   })
 }
