@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { marked } from "marked"
 import { T } from "@/lib/pipelineTheme"
 
@@ -68,10 +68,40 @@ export default function ResearchNoteCard({ personId, notes, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState("")
   const [showHistory, setShowHistory] = useState(false)
+  const [researching, setResearching] = useState(false)
+  const [researchMsg, setResearchMsg] = useState("")
+  const [elapsed, setElapsed] = useState(0)
+  const timerRef = useRef(null)
 
   const list = notes || []
   const latest = list[0] || null
   const history = list.slice(1)
+
+  function runDeepResearch() {
+    setResearching(true); setResearchMsg(""); setElapsed(0)
+    timerRef.current = setInterval(function () { setElapsed(function (e) { return e + 1 }) }, 1000)
+    fetch("/api/people/" + personId + "/deep-research", { method: "POST" })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d.note && d.parse_failed) {
+          setResearchMsg("Research ran — but auto-formatting failed, so it's stored as raw text (no score/verdict). " + (d.parse_failed_reason || "")); if (onSaved) onSaved()
+        } else if (d.note) {
+          setResearchMsg("Research complete" + (d.searches_used ? " (" + d.searches_used + " searches)." : "."))
+          if (onSaved) onSaved()
+        } else {
+          setResearchMsg("Research failed" + (d.error ? (": " + d.error) : "") + ".")
+        }
+      })
+      .catch(function () { setResearchMsg("Error running research.") })
+      .finally(function () {
+        setResearching(false)
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+      })
+  }
+
+  useEffect(function () {
+    return function () { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [])
 
   function save() {
     const t = rawText.trim()
@@ -97,6 +127,20 @@ export default function ResearchNoteCard({ personId, notes, onSaved }) {
 
   return (
     <div style={{ marginBottom: 16 }}>
+      <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Run deep research</div>
+        <div style={{ fontSize: 12, color: T.textTertiary, marginBottom: 10, lineHeight: 1.5 }}>
+          Claude researches this person live — verifying their CFO status against an independent source, sizing up the company, and scoring the same way as a pasted note. Uses what's already on this profile as a starting point, so it's on par with the process you run by hand. Can take a couple of minutes.
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button disabled={researching} onClick={runDeepResearch}
+            style={{ padding: "7px 16px", fontSize: 12, borderRadius: 6, border: "none", background: researching ? T.border : "#7c3aed", color: researching ? T.textTertiary : "white", cursor: researching ? "not-allowed" : "pointer", fontWeight: 500, fontFamily: "inherit" }}>
+            {researching ? "Researching… " + elapsed + "s" : "Run deep research"}
+          </button>
+          {researchMsg && <span style={{ fontSize: 12, color: T.textTertiary }}>{researchMsg}</span>}
+        </div>
+      </div>
+
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: 16, marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Add research note</div>
         <div style={{ fontSize: 12, color: T.textTertiary, marginBottom: 10, lineHeight: 1.5 }}>

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 import { serverClient } from "@/lib/supabaseServer"
+import { extractJSON, insertParsedNote, insertRawNote } from "@/lib/researchNoteStore"
 
 // POST /api/people/[id]/research-note   { raw_text }  -> { note }
 // GET  /api/people/[id]/research-note                 -> { notes }
@@ -95,27 +96,11 @@ export async function POST(request, { params }) {
     return saveRaw(sb, id, rawText, "AI response was cut off before finishing (too long to normalize in one pass)")
   }
 
-  let parsed
-  try {
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw)
-  } catch (e) {
-    return saveRaw(sb, id, rawText, "Could not parse AI response")
-  }
+  const parsed = extractJSON(raw)
+  if (!parsed) return saveRaw(sb, id, rawText, "Could not parse AI response")
   if (!parsed.narrative) return saveRaw(sb, id, rawText, "AI response missing narrative")
 
-  const insertRow = {
-    person_id: id,
-    created_by: "dalen",
-    verdict: parsed.verdict || null,
-    score: Number.isFinite(parsed.score) ? parsed.score : null,
-    confidence: Number.isFinite(parsed.confidence) ? parsed.confidence : null,
-    dimensions: Array.isArray(parsed.dimensions) ? parsed.dimensions : [],
-    summary: parsed.summary || null,
-    narrative: parsed.narrative,
-    raw_input: rawText,
-  }
-  const { data: inserted, error: insErr } = await sb.from("person_research_notes").insert(insertRow).select().single()
+  const { data: inserted, error: insErr } = await insertParsedNote(sb, id, "dalen", parsed, rawText)
   if (insErr) return saveRaw(sb, id, rawText, "Saved but normalizing failed: " + insErr.message)
 
   return Response.json({ note: inserted })
@@ -127,15 +112,7 @@ export async function POST(request, { params }) {
 // and can re-paste later to try normalizing it again once the ceiling issue
 // above is out of the way.
 async function saveRaw(sb, personId, rawText, reason) {
-  const insertRow = {
-    person_id: personId,
-    created_by: "dalen",
-    verdict: null, score: null, confidence: null, dimensions: [],
-    summary: "(auto-formatting failed — saved as raw text: " + reason + ")",
-    narrative: rawText,
-    raw_input: rawText,
-  }
-  const { data: inserted, error: insErr } = await sb.from("person_research_notes").insert(insertRow).select().single()
+  const { data: inserted, error: insErr } = await insertRawNote(sb, personId, "dalen", rawText, reason, rawText)
   if (insErr) return Response.json({ error: reason + " — and saving the raw note also failed: " + insErr.message }, { status: 500 })
   return Response.json({ note: inserted, parse_failed: true, parse_failed_reason: reason })
 }
