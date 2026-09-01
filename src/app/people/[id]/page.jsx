@@ -83,6 +83,13 @@ function actionChoicesFor(roles) {
   ;(roles || []).forEach(function(r){ (ACTION_BY_ROLE[r] || []).forEach(add) })
   return out
 }
+// Invitations are a sub-category of activity: anything that logs an invite going out
+// (workshops today — ws_invite_MM-DD-YY — social events later under the same convention,
+// plus the legacy generic tag) is broken into its own section so it's countable at a glance.
+function isInvitationTag(actionType) {
+  const t = actionType || ""
+  return /^ws_invite_/.test(t) || /^social_invite_/.test(t) || /_invite_\d{2}-\d{2}-\d{2}$/.test(t) || t === "event_invite_sent"
+}
 const QUICK_ADD_STYLE = { padding: "3px 8px", fontSize: 11, borderRadius: 4, border: "1px dashed " + T.border, background: "transparent", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }
 function addBtnStyle(val) { const on = !!(val && val.trim()); return { padding: "5px 12px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: on ? "#3b82f6" : "white", color: on ? "white" : T.textTertiary, cursor: on ? "pointer" : "not-allowed", fontFamily: "inherit" } }
 
@@ -164,6 +171,7 @@ export default function PersonProfile() {
   const [busy, setBusy] = useState(false)
   const [newStatusTag, setNewStatusTag] = useState("")
   const [newActionTag, setNewActionTag] = useState("")
+  const [newInviteTag, setNewInviteTag] = useState("")
   const [showStateMenu, setShowStateMenu] = useState(false)
   const [showAvatarEdit, setShowAvatarEdit] = useState(false)
   const [avatarInput, setAvatarInput] = useState("")
@@ -274,6 +282,14 @@ export default function PersonProfile() {
     const asof = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
     postAction({ action: "action_tag", action_type: t, as_of_date: asof })
     setNewActionTag("")
+  }
+  function addInviteTag(tag) {
+    const t = (tag || "").trim()
+    if (!t) return
+    const d = new Date()
+    const asof = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    postAction({ action: "action_tag", action_type: t, as_of_date: asof })
+    setNewInviteTag("")
   }
 
   async function saveNote() {
@@ -794,42 +810,80 @@ export default function PersonProfile() {
 
           {/* ── ACTIVITY / ACTION (right) ── */}
           <div style={{ flex: "1 1 260px", minWidth: 240 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#15803d", display: "inline-block" }} /> ACTIVITY
-              <span style={{ fontWeight: 400, color: T.textTertiary }}>· logged events</span>
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", minHeight: 22 }}>
-              {data.action_tags.map(function(t, i){
-                return (
-                  <span key={"a_" + i} title={`${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
-                    fontSize: 11, padding: "3px 9px", borderRadius: 4, fontWeight: 500,
-                    background: "#e9f3ec", border: "1px solid #c3e0cc", color: "#1b5e36"
-                  }}>{t.action_type}{t.as_of_date ? " · " + fmtShort(t.as_of_date) : ""}</span>
-                )
-              })}
-              {data.action_tags.length === 0 && <span style={{ fontSize: 12, color: T.textTertiary }}>None</span>}
-            </div>
             {(function(){
-              var vocab = actionChoicesFor(p.roles).slice()
-              if (data.next_workshop_tag && vocab.indexOf(data.next_workshop_tag) < 0) vocab.unshift(data.next_workshop_tag)
-              var available = vocab.filter(function(c){ return !data.action_tags.some(function(t){ return t.action_type === c }) })
+              var activityTags = data.action_tags.filter(function(t){ return !isInvitationTag(t.action_type) })
+              var inviteTags = data.action_tags.filter(function(t){ return isInvitationTag(t.action_type) })
+              var activityVocabFull = actionChoicesFor(p.roles).filter(function(c){ return !isInvitationTag(c) })
+              var activityAvailable = activityVocabFull.filter(function(c){ return !activityTags.some(function(t){ return t.action_type === c }) })
+              var inviteVocabFull = []
+              if (data.next_workshop_tag) inviteVocabFull.push(data.next_workshop_tag)
+              if (inviteVocabFull.indexOf("event_invite_sent") < 0) inviteVocabFull.push("event_invite_sent")
+              var inviteAvailable = inviteVocabFull.filter(function(c){ return !inviteTags.some(function(t){ return t.action_type === c }) })
               return (
-                <datalist id="action-tag-vocab">
-                  {available.map(function(c){ return <option key={c} value={c} /> })}
-                </datalist>
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#15803d", display: "inline-block" }} /> ACTIVITY
+                    <span style={{ fontWeight: 400, color: T.textTertiary }}>· logged events</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", minHeight: 22 }}>
+                    {activityTags.map(function(t, i){
+                      return (
+                        <span key={"a_" + i} title={`${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
+                          fontSize: 11, padding: "3px 9px", borderRadius: 4, fontWeight: 500,
+                          background: "#e9f3ec", border: "1px solid #c3e0cc", color: "#1b5e36"
+                        }}>{t.action_type}{t.as_of_date ? " · " + fmtShort(t.as_of_date) : ""}</span>
+                      )
+                    })}
+                    {activityTags.length === 0 && <span style={{ fontSize: 12, color: T.textTertiary }}>None</span>}
+                  </div>
+                  <datalist id="action-tag-vocab">
+                    {activityAvailable.map(function(c){ return <option key={c} value={c} /> })}
+                  </datalist>
+                  <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                    <input
+                      list="action-tag-vocab"
+                      value={newActionTag}
+                      onChange={function(e){ setNewActionTag(e.target.value) }}
+                      onKeyDown={function(e){ if (e.key === "Enter") addActionTag(newActionTag) }}
+                      placeholder="Click to see available tags, or type a new one…"
+                      style={{ flex: 1, padding: "5px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
+                    <button disabled={!newActionTag.trim() || busy} onClick={function(){ addActionTag(newActionTag) }} style={addBtnStyle(newActionTag)}>Add</button>
+                  </div>
+                  <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 6, lineHeight: 1.4 }}>Logged as of today. Activity is an audit trail — e.g. logging a completion auto-clears its scheduled tag.</div>
+
+                  {/* ── INVITATIONS (workshops, and social events once those exist) ── */}
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginTop: 20, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, borderTop: "1px solid " + T.border, paddingTop: 16 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#7c3aed", display: "inline-block" }} /> INVITATIONS
+                    <span style={{ fontWeight: 400, color: T.textTertiary }}>· {inviteTags.length} sent</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", minHeight: 22 }}>
+                    {inviteTags.map(function(t, i){
+                      return (
+                        <span key={"i_" + i} title={`${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
+                          fontSize: 11, padding: "3px 9px", borderRadius: 4, fontWeight: 500,
+                          background: "#f3ebfd", border: "1px solid #ddc7f7", color: "#5b21b6"
+                        }}>{t.action_type}{t.as_of_date ? " · " + fmtShort(t.as_of_date) : ""}</span>
+                      )
+                    })}
+                    {inviteTags.length === 0 && <span style={{ fontSize: 12, color: T.textTertiary }}>None</span>}
+                  </div>
+                  <datalist id="invite-tag-vocab">
+                    {inviteAvailable.map(function(c){ return <option key={c} value={c} /> })}
+                  </datalist>
+                  <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                    <input
+                      list="invite-tag-vocab"
+                      value={newInviteTag}
+                      onChange={function(e){ setNewInviteTag(e.target.value) }}
+                      onKeyDown={function(e){ if (e.key === "Enter") addInviteTag(newInviteTag) }}
+                      placeholder="Click to see available invites, or type a new one…"
+                      style={{ flex: 1, padding: "5px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
+                    <button disabled={!newInviteTag.trim() || busy} onClick={function(){ addInviteTag(newInviteTag) }} style={addBtnStyle(newInviteTag)}>Add</button>
+                  </div>
+                  <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 6, lineHeight: 1.4 }}>Every invite sent — workshop or social — lands here so you can see at a glance how many times this person's been invited.</div>
+                </>
               )
             })()}
-            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-              <input
-                list="action-tag-vocab"
-                value={newActionTag}
-                onChange={function(e){ setNewActionTag(e.target.value) }}
-                onKeyDown={function(e){ if (e.key === "Enter") addActionTag(newActionTag) }}
-                placeholder="Click to see available tags, or type a new one…"
-                style={{ flex: 1, padding: "5px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
-              <button disabled={!newActionTag.trim() || busy} onClick={function(){ addActionTag(newActionTag) }} style={addBtnStyle(newActionTag)}>Add</button>
-            </div>
-            <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 6, lineHeight: 1.4 }}>Logged as of today. Activity is an audit trail — e.g. logging a completion auto-clears its scheduled tag.</div>
           </div>
 
         </div>
