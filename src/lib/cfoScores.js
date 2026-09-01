@@ -45,17 +45,35 @@ export function avgScore(rows) {
   return Math.round(rows.reduce(function (s, r) { return s + r.score }, 0) / rows.length)
 }
 
-// Red/yellow/green classification shared by the profile-page score pill and
-// the /reports/cfo-scores table. Verdict text is the primary signal (it's
-// the normalized call from the research itself); score is only a fallback
-// for notes whose verdict wording doesn't match a known bucket.
+// Red/yellow/green classification shared by the profile-page score pill,
+// the /reports/cfo-scores table, and the Research Note tab's note pills.
+// Verdict text is the primary signal; score is only a fallback for notes
+// whose verdict wording doesn't match a known bucket.
+//
+// Verdict vocabulary matches the standing CFO Circle Prospect Research
+// Protocol's score bands: Priority Recruit (90-100), Strong Prospect
+// (80-89), Investigate Further (70-79), Do Not Pursue (60-69, or any score
+// when a hard stop applies — fractional/not-sitting-CFO, actually a
+// controller, selling services, too junior, can't participate, trust risk),
+// Wrong Target (<60). IMPORTANT: check "do not pursue" / "wrong target" /
+// "hard stop" BEFORE any bare "pursue" check below, or "do not pursue"
+// would wrongly match on the substring "pursue" and render green.
+const RED = { bg: "#fee2e2", fg: "#b91c1c", border: "#fca5a5" }
+const YELLOW = { bg: "#fef3c7", fg: "#92400e", border: "#fde68a" }
+const GREEN = { bg: "#dcfce7", fg: "#15803d", border: "#86efac" }
+const GRAY = { bg: "#f1f5f9", fg: "#64748b", border: "#e2e8f0" }
+
 export function scoreColor(score, verdict) {
   const v = (verdict || "").toLowerCase()
-  if (v.indexOf("pass") >= 0) return { bg: "#fee2e2", fg: "#b91c1c", border: "#fca5a5" }
-  if (v.indexOf("maybe") >= 0) return { bg: "#fef3c7", fg: "#92400e", border: "#fde68a" }
-  if (v.indexOf("invite") >= 0 || v.indexOf("pursue") >= 0) return { bg: "#dcfce7", fg: "#15803d", border: "#86efac" }
-  if (score == null) return { bg: "#f1f5f9", fg: "#64748b", border: "#e2e8f0" }
-  if (score >= 70) return { bg: "#dcfce7", fg: "#15803d", border: "#86efac" }
-  if (score >= 40) return { bg: "#fef3c7", fg: "#92400e", border: "#fde68a" }
-  return { bg: "#fee2e2", fg: "#b91c1c", border: "#fca5a5" }
+  if (v.indexOf("hard stop") >= 0 || v.indexOf("do not pursue") >= 0 || v.indexOf("wrong target") >= 0) return RED
+  if (v.indexOf("investigate") >= 0) return YELLOW
+  if (v.indexOf("priority recruit") >= 0 || v.indexOf("strong prospect") >= 0) return GREEN
+  // Legacy verdict wording from before the protocol was standardized.
+  if (v.indexOf("pass") >= 0) return RED
+  if (v.indexOf("maybe") >= 0) return YELLOW
+  if (v.indexOf("invite") >= 0 || v.indexOf("pursue") >= 0) return GREEN
+  if (score == null) return GRAY
+  if (score >= 70) return GREEN
+  if (score >= 40) return YELLOW
+  return RED
 }

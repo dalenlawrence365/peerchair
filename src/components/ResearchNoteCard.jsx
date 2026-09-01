@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from "react"
 import { marked } from "marked"
 import { T } from "@/lib/pipelineTheme"
+import { scoreColor } from "@/lib/cfoScores"
 
 // Research Note tab — a standardized home for the AI deep-research writeups
 // Dalen runs on CFO prospects (score/verdict/dimension breakdown + full
@@ -12,15 +13,6 @@ import { T } from "@/lib/pipelineTheme"
 // drifts over time. History is kept (nothing overwritten) so past scores
 // stay visible if a person is re-researched later.
 
-function verdictColor(verdict) {
-  const v = (verdict || "").toLowerCase()
-  if (v.indexOf("strong invite") >= 0 || v.indexOf("strong pursue") >= 0) return { bg: "#e9f3ec", border: "#c3e0cc", fg: "#1b5e36" }
-  if (v.indexOf("invite") >= 0 || v.indexOf("pursue") >= 0) return { bg: "#eaf0f8", border: "#c7d5ea", fg: "#1e3a5f" }
-  if (v.indexOf("maybe") >= 0) return { bg: "#fffbeb", border: "#fde68a", fg: "#92400e" }
-  if (v.indexOf("pass") >= 0) return { bg: "#fef2f2", border: "#fecaca", fg: "#991b1b" }
-  return { bg: "#f3ebfd", border: "#ddc7f7", fg: "#5b21b6" }
-}
-
 function fmtDate(iso) {
   if (!iso) return ""
   const d = new Date(iso)
@@ -28,7 +20,7 @@ function fmtDate(iso) {
 }
 
 function NoteBody({ note }) {
-  const vc = verdictColor(note.verdict)
+  const vc = scoreColor(note.score, note.verdict)
   const html = marked.parse(note.narrative || "", { breaks: true })
   return (
     <div style={{ border: "1px solid " + T.border, borderRadius: 10, padding: 16, marginBottom: 14, background: T.cardBg }}>

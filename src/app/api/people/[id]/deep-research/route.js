@@ -9,32 +9,80 @@ import { splitNarrativeAndMeta, insertParsedNote, insertRawNote } from "@/lib/re
 
 // POST /api/people/[id]/deep-research  -> { note }
 //
-// The in-app version of the deep-research pass Dalen has been running by
-// hand: screenshot a LinkedIn Sales Navigator profile, paste it into an AI
-// research tool, let it browse IRS filings / SEC filings / company
-// registries / news / org charts to independently verify the person's CFO
-// status and assess the company, and produce a scored writeup. This does
-// the same thing using Claude's web_search tool instead of a human copy-
-// pasting a screenshot — starting from the profile facts already on file
-// (name, title, company, location, LinkedIn URL, connections) rather than
-// re-deriving them, then researching everything a screenshot can't tell you.
+// The in-app version of the CFO Circle Prospect Research Protocol Dalen
+// runs by hand: screenshot a LinkedIn Sales Navigator profile into an AI
+// research tool, have it independently verify CFO status and assess the
+// company across multiple sources, and produce a scored, opinionated
+// recommendation. This does the same thing using Claude's web_search tool,
+// starting from the profile facts already on file — but those facts are
+// treated as a last-synced starting hypothesis, not ground truth, because
+// a stale CRM record is exactly the kind of thing this process exists to
+// catch (see the "current employment" step below).
 //
 // Uses the exact same standardized shape (verdict/score/confidence/
 // dimensions/summary/narrative) as the paste-and-normalize endpoint
-// (research-note/route.js) and the same never-lose-the-output fallback —
-// research that produces something but fails to parse into JSON is still
-// saved as an unscored raw note rather than discarded.
+// (research-note/route.js) and the same never-lose-the-output fallback.
 
 const MODEL = process.env.DEEP_RESEARCH_MODEL || "claude-opus-5"
 
-const RUBRIC = `Score using these seven dimensions, summing to 100 (this is the standing CFO Circle rubric — reuse it as-is unless the research genuinely doesn't fit one of these axes):
-- CFO authenticity (0-20): is this person REALLY the CFO, verified via a source independent of their own LinkedIn self-report? SEC filings, IRS Form 990 (via ProPublica's Nonprofit Explorer or the organization's own site), state business registries, company "About/Leadership" pages, press releases, or reputable news are all independent verification. A LinkedIn title alone, with nothing corroborating it, caps this dimension low.
-- Company scale/complexity (0-20): revenue, assets, employee count, growth trajectory, regulatory/audit complexity (public company, PE-backed, nonprofit subject to single-audit, etc).
-- Strategic CFO environment (0-15): does the role look like real strategic decision-making (capital, growth, board exposure) versus a narrow bookkeeping/controller function dressed up with a CFO title.
-- Peer-room contribution (0-20): career background, pedigree (firms, credentials like CPA/CFA), what a room of other CFOs would get from having this person in it.
-- Development/need fit (0-15): plausible interest in or need for a confidential peer group — genuinely hard to assess from public sources alone, so keep this conservative and say so rather than guessing confidently.
-- Geography (0-5): proximity to CFO Circle Los Angeles's target market (LA / Southern California).
-- Cultural evidence (0-5): any public red or green flags relevant to how they'd show up in a room with other CFOs.`
+const PROTOCOL = `# CFO Circle Prospect Research Protocol
+
+You are not summarizing a resume. Your job is to determine whether this person should occupy one of the limited seats in a CFO Circle room, and tell Dalen what to do about them. CFO Circle is a curated, confidential peer advisory group where accomplished CFOs bring current business issues to experienced peers — the quality of each person admitted affects the value of the product itself. You are simultaneously answering two questions: will this CFO get real value from the room, and will putting them in the room increase the room's value for everyone already in it.
+
+## Step zero: don't trust the starting facts, verify them
+
+The "starting facts" below are the last-synced snapshot from Dalen's CRM — they can be stale. Before anything else, confirm whether this person's CURRENT title and employer, as of today, actually match what's stored. People change jobs; databases don't always catch up. If you find they've moved on, or that a title is ambiguous ("CFO / Finance Director / Interim CFO"), that discovery is the single most important thing in your writeup and should lead it, not get buried in a footnote.
+
+## Method: try to disprove the initial impression, don't just confirm it
+
+Actively look for contradictions rather than supporting evidence:
+- If a source calls them CFO, ask: is this really a sitting CFO with meaningful authority, or a controller/finance-manager title inflated by an aggregator?
+- If a source cites a dollar figure, ask what it actually measures — real company revenue, systemwide/franchise sales, GMV, AUM, enterprise value, capital raised, or just marketing language. These get conflated constantly and change the read entirely.
+- If someone has two current roles, ask whether this is a real operating CFO seat or fractional/portfolio/consulting work.
+- If sources disagree on title or employer, resolve which one is CURRENT rather than reporting both uncritically.
+
+## Source credibility — weight accordingly, and say when you're relying on a weak tier
+
+**Tier 1 (highest, treat as near-conclusive):** SEC filings (Form D/10-K/8-K and who signs them as CFO), IRS Form 990 (ProPublica Nonprofit Explorer or the org's own filing), Companies House / state corporate/business registries, official company leadership pages, press releases, investor materials.
+
+**Tier 2 (solid context, corroborating):** reputable business/trade press, industry transaction reporting, franchise disclosure documents, funding/deal announcements, recognized industry databases.
+
+**Tier 3 (leads only — do not let a qualification decision rest on these alone):** aggregator/resume-scrape databases (ZoomInfo, RocketReach, SignalHire, Muraena, ContactOut, Wiza, etc). These are almost always LinkedIn-derived and frequently stale or contradictory to each other. If Tier 1/2 sources are unavailable and you're relying on Tier 3, say so plainly and reflect it in a lower confidence score — don't manufacture false precision.
+
+## Revenue is a signal, not a filter
+
+The nominal target is roughly $20M-$500M revenue with a presumptive $15M floor, but judge organizational and economic COMPLEXITY, not a revenue number crossed. A newly formed company with a CFO managing hundreds of millions in capital commitments, financing, and infrastructure buildout can be a far stronger prospect than a simple $25M family-owned distributor CFO who merely cleared the revenue bar. For PE-context CFOs, management-company revenue is often meaningless — look at AUM, fund structures, LP reporting, portfolio companies, transaction volume, leverage, and governance complexity instead.
+
+## Score using these seven dimensions, summing to 100
+
+- **CFO Role Authenticity (0-20):** is this really a sitting CFO with meaningful authority, verified beyond their own self-report?
+- **Company Scale & Complexity (0-20):** is the enterprise substantial enough to generate genuine CFO-level problems?
+- **Strategic CFO Environment (0-15):** capital, M&A, growth, PE involvement, international operations, systems transformation, board exposure, financing — real strategic decision-making versus a narrow bookkeeping/controller function.
+- **Peer Room Value (0-20):** career background, pedigree, credentials (CPA/CFA/etc) — what would the other CFOs in the room actually get from having this person there?
+- **Development / Need Fit (0-15):** plausible benefit from peer challenge and perspective. Genuinely hard to assess from public sources alone — keep this conservative and say so rather than guessing confidently.
+- **Geography / Practical Fit (0-5):** proximity to CFO Circle Los Angeles's target market and realistic ability to participate.
+- **Cultural Evidence (0-5):** any public signal, positive or negative, about how they'd show up in a room with other CFOs.
+
+## Hard stops override the score
+
+A high point total does not save a prospect who is: fractional rather than a sitting CFO, actually a controller, primarily selling services (not running finance for one operating company), too junior, unable to realistically participate, or showing any signal likely to damage trust in the room. If a hard stop applies, the verdict is "Do Not Pursue — Hard Stop" regardless of the numeric score, and the writeup should say exactly which hard stop and why.
+
+## What research cannot tell you
+
+You cannot reliably assess from public sources whether someone has a big ego, actually listens, is intellectually curious, will expose a real problem, accepts challenge well, keeps confidences, or genuinely wants peer accountability. Say this plainly in "what remains unknown" — that judgment belongs to the fit call, not to this research.
+
+## Score bands (drive the verdict label)
+
+- 90-100: Priority Recruit — go get this person
+- 80-89: Strong Prospect — qualify the remaining open questions
+- 70-79: Investigate Further — interesting, but something material needs resolving
+- 60-69: Do Not Pursue — usually not worth recruiting energy without a compelling exception
+- Below 60: Wrong Target
+- Any hard stop present: Do Not Pursue — Hard Stop (regardless of score)
+
+## Confidence is separate from score
+
+Score = how strong the prospect is, given what you found. Confidence = how sure you are the underlying facts are right. A high score with low confidence (e.g. 84/67) means "this looks strong, but important facts are still unverified — the fit call needs to close specific gaps," and you should say exactly which gaps.`
 
 export async function POST(request, { params }) {
   const id = params?.id
@@ -50,8 +98,8 @@ export async function POST(request, { params }) {
   if (!anthropicKey) return Response.json({ error: "AI not configured" }, { status: 500 })
 
   const knownFacts = `NAME: ${person.full_name || person.first_name || "Unknown"}
-LINKEDIN-STATED TITLE: ${person.title || "(unknown)"}
-COMPANY: ${person.company || "(unknown)"}
+LAST-SYNCED TITLE (per Dalen's CRM — verify, do not assume current): ${person.title || "(unknown)"}
+LAST-SYNCED COMPANY (per Dalen's CRM — verify, do not assume current): ${person.company || "(unknown)"}
 LINKEDIN HEADLINE: ${person.headline || "(none)"}
 LOCATION: ${person.location || "(unknown)"}
 LINKEDIN URL: ${person.linkedin_url || "(none)"}
@@ -59,26 +107,35 @@ LINKEDIN CONNECTIONS: ${person.connections_count != null ? person.connections_co
 LINKEDIN ABOUT/SUMMARY: ${person.about || "(none)"}
 CONNECTED TO DALEN ON LINKEDIN: ${person.linkedin_connected ? "yes" : "no"}`
 
-  const prompt = `You are doing deep-research due diligence on a CFO prospect for Dalen Lawrence, Chapter Director of CFO Circle Los Angeles (a confidential peer advisory group for CFOs only). This is the exact same research process Dalen normally runs by hand — screenshot a LinkedIn Sales Navigator profile into an AI research tool and have it independently verify the person's CFO status and assess their company using web search across multiple sources (SEC EDGAR, IRS Form 990 via ProPublica Nonprofit Explorer, state business registries, company websites, org-chart sites like TheOrg, news coverage). You are that process now, with web search available.
+  const prompt = `You are running the CFO Circle Prospect Research Protocol for Dalen Lawrence, Chapter Director of CFO Circle Los Angeles, on the prospect below. Full protocol follows, then the prospect's starting facts, then the exact output format required.
 
-STARTING FACTS (already known from LinkedIn — do not waste searches re-deriving these, but DO verify the CFO title independently rather than taking it at face value):
+${PROTOCOL}
+
+## Prospect — starting facts (last-synced CRM snapshot; step zero above applies)
 ${knownFacts}
 
-Research this person and their company. At minimum, try to:
-1. Independently verify their CFO status/tenure through a source other than LinkedIn itself (SEC filing, IRS 990, company site, news, state registry).
-2. Assess the company's real scale: revenue, assets, employee count if findable, and growth trend over recent years.
-3. Understand the company type (public, private, PE-backed, nonprofit, family-owned) and what that implies about regulatory/audit complexity.
-4. Look into the person's career background — prior firms, credentials (CPA/CFA/etc), trajectory.
-5. Note anything that would help Dalen on a fit call, and anything genuinely uncertain that only a conversation could resolve.
+## Voice
 
-${RUBRIC}
+Write like a sharp colleague giving Dalen a real opinion, not a compliance memo. Lead with your call, in first person, before the detail — "This one is worth pursuing because..." / "I'd pass on this one — here's why." Keep each dimension's rationale to one tight sentence in the scoring table; put the actual argument in the narrative prose above it, not spread across a wall of table cells. The single most valuable thing you can surface is whatever ISN'T obvious from a LinkedIn glance — lead the narrative with that discovery.
 
-Once your research is complete, write up your findings as the LAST thing you output, in two parts:
+## Output format — write this as the LAST thing you produce, in two parts
 
-PART 1 — the narrative, as PLAIN MARKDOWN TEXT (not inside JSON, not escaped): clear markdown with headers and bold for key findings, a table for financials if you find real figures, a table for the dimension scoring breakdown, inline citation links to sources as you use them (markdown links, not bare URLs), and a numbered source list at the end. Open with a one-line verdict ("This one is worth pursuing" / "This one is a pass" / etc) before the detail. End with Dalen's actual open question for the fit call, if there is one. Getting this part complete and well-formatted matters more than anything else in your output — do not truncate or summarize it to save space.
+PART 1 — the narrative, as PLAIN MARKDOWN TEXT (not inside JSON, not escaped). Structure it as:
+- One-line recommendation + score + confidence, e.g. "**Priority Recruit — 96/100** · Research confidence: 93%"
+- The discovery: the one or two things that aren't obvious from LinkedIn and that materially affect the qualification call
+- Why they qualify (or don't)
+- What they bring to the room
+- What remains unknown (including the personality/fit signals only a conversation can resolve)
+- Red flags, if any
+- Questions to resolve on the fit call
+- Recommended recruiting approach
+- A compact dimension-by-dimension scoring table (one line of rationale each)
+- Inline citation links to sources as you use them (markdown links, not bare URLs), and a numbered source list at the end
+
+Getting this part complete and well-formatted matters more than anything else in your output — do not truncate or summarize it to save space.
 
 PART 2 — immediately after the narrative, on its own, a fenced code block starting with \`\`\`json containing ONLY this metadata (do NOT repeat the narrative inside it):
-{"verdict": "Strong Invite | Invite | Maybe | Pass", "score": 88, "confidence": 94, "summary": "one or two plain sentences, the bottom-line takeaway", "dimensions": [{"name":"CFO authenticity", "score":20, "max":20, "why":"..."}, ...all seven...]}
+{"verdict": "Priority Recruit | Strong Prospect | Investigate Further | Do Not Pursue | Do Not Pursue — Hard Stop | Wrong Target", "score": 88, "confidence": 94, "summary": "one or two plain sentences, the bottom-line takeaway including the key discovery", "dimensions": [{"name":"CFO Role Authenticity", "score":18, "max":20, "why":"..."}, {"name":"Company Scale & Complexity", "score":..., "max":20, "why":"..."}, {"name":"Strategic CFO Environment", "score":..., "max":15, "why":"..."}, {"name":"Peer Room Value", "score":..., "max":20, "why":"..."}, {"name":"Development / Need Fit", "score":..., "max":15, "why":"..."}, {"name":"Geography / Practical Fit", "score":..., "max":5, "why":"..."}, {"name":"Cultural Evidence", "score":..., "max":5, "why":"..."}]}
 
 Do not write any text after the closing \`\`\` of that code block.`
 
@@ -89,10 +146,10 @@ Do not write any text after the closing \`\`\` of that code block.`
       headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": anthropicKey },
       body: JSON.stringify({
         model: MODEL,
-        // Narrative is plain prose now, not JSON-escaped, so this budget
-        // stretches further than it did before — but a well-researched
-        // writeup (search commentary + a long narrative) is still real
-        // content, so keep real headroom rather than risk another cutoff.
+        // Narrative is plain prose, not JSON-escaped, so this budget
+        // stretches further than the character count suggests — but a
+        // well-researched writeup (search commentary + full narrative) is
+        // still real content, so keep real headroom rather than risk a cutoff.
         max_tokens: 16000,
         messages: [{ role: "user", content: prompt }],
         tools: [{
