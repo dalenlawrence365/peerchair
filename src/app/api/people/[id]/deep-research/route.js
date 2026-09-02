@@ -97,6 +97,40 @@ export async function POST(request, { params }) {
   const anthropicKey = process.env.ANTHROPIC_API_KEY
   if (!anthropicKey) return Response.json({ error: "AI not configured" }, { status: 500 })
 
+  // Full communications timeline — every logged email, LinkedIn message, and
+  // note with this person, not just the last few. Dalen has flagged that
+  // research done without reading this misses context a web search can't
+  // find: a job change the person mentioned directly, a referral, a stated
+  // objection, personal circumstances, etc. Fetched most-recent-first so a
+  // hard character budget (in case someone has an unusually long history)
+  // keeps the newest, most-relevant entries rather than the oldest, then
+  // reversed back to chronological order for the prompt.
+  const { data: commRowsDesc } = await sb.from("communications")
+    .select("direction, channel, step_label, subject, body, occurred_at")
+    .eq("person_id", id)
+    .order("occurred_at", { ascending: false })
+
+  let timelineCharBudget = 20000
+  let timelineTruncated = false
+  const timelineLinesDesc = []
+  for (const c of (commRowsDesc || [])) {
+    const when = c.occurred_at ? String(c.occurred_at).slice(0, 10) : "(no date)"
+    const dir = c.direction === "OUT" || c.direction === "outbound" ? "Dalen →"
+      : c.direction === "IN" || c.direction === "inbound" ? "← them"
+      : c.direction === "INTERNAL" ? "note"
+      : (c.direction || "")
+    const chan = c.channel || ""
+    const subj = c.subject ? " — " + c.subject : ""
+    const body = (c.body || c.step_label || "").toString().trim()
+    const line = `- ${when} [${chan}] ${dir}${subj}\n  ${body}`
+    if (timelineCharBudget - line.length < 0) { timelineTruncated = true; break }
+    timelineCharBudget -= line.length
+    timelineLinesDesc.push(line)
+  }
+  const timelineText = timelineLinesDesc.length
+    ? (timelineTruncated ? "[older entries omitted — timeline exceeded the context budget]\n\n" : "") + timelineLinesDesc.slice().reverse().join("\n\n")
+    : "(no communications logged for this person)"
+
   const knownFacts = `NAME: ${person.full_name || person.first_name || "Unknown"}
 LAST-SYNCED TITLE (per Dalen's CRM — verify, do not assume current): ${person.title || "(unknown)"}
 LAST-SYNCED COMPANY (per Dalen's CRM — verify, do not assume current): ${person.company || "(unknown)"}
@@ -113,6 +147,12 @@ ${PROTOCOL}
 
 ## Prospect — starting facts (last-synced CRM snapshot; step zero above applies)
 ${knownFacts}
+
+## Prospect — communications timeline (Dalen's own emails, LinkedIn messages, and notes with this person, oldest first)
+
+READ THIS BEFORE YOU START RESEARCHING. It often contains context web search cannot find and that should shape your research angle and conclusions — a job change or employer they've told Dalen about directly, a referral source, a stated objection or hesitation, a scheduling constraint, a personal circumstance, a prior fit-call outcome. Anything this person has told Dalen directly outranks a scraped web profile — if the timeline and a Tier 3 aggregator disagree, trust the timeline. If the timeline reveals something material (they've already said they're not interested, they've moved to a new company, there's already a hard-stop reason on record), lead with that rather than re-discovering it independently, and let it steer where you spend your searches.
+
+${timelineText}
 
 ## Voice
 
