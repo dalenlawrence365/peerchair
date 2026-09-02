@@ -7,6 +7,7 @@ import Avatar from "@/components/Avatar"
 import ProfileTodoCard from "@/components/ProfileTodoCard"
 import EventLinkCard from "@/components/EventLinkCard"
 import DraftEmailCard from "@/components/DraftEmailCard"
+import DraftDMCard from "@/components/DraftDMCard"
 import ResearchNoteCard from "@/components/ResearchNoteCard"
 import { scoreColor } from "@/lib/cfoScores"
 import { SOURCES, SOURCE_KEY, sourceLabel, sourceWeight } from "@/lib/firmoSources"
@@ -687,6 +688,7 @@ export default function PersonProfile() {
         ...(p.provisors_member ? [{ key: "meetings", label: "Meetings" }] : []),
         { key: "events", label: "Events" },
         { key: "draft_email", label: "Draft Email" },
+        { key: "draft_dm", label: "Draft DM" },
         { key: "research", label: "Research Note" },
       ]} />
 
@@ -706,6 +708,13 @@ export default function PersonProfile() {
           the Events tab's Draft email button. */}
       {tab === "draft_email" && (
         <DraftEmailCard personId={p.id} statusTags={(data.status_tags || []).map(function(t){ return t.tag })} />
+      )}
+
+      {/* TAB: Draft DM — identical idea to Draft Email but for a LinkedIn
+          direct message: shorter, no subject, ends in a Copy button instead
+          of landing in Outlook, since Dalen pastes it into LinkedIn himself. */}
+      {tab === "draft_dm" && (
+        <DraftDMCard personId={p.id} statusTags={(data.status_tags || []).map(function(t){ return t.tag })} />
       )}
 
       {/* TAB: Research Note — standardized AI deep-research writeups (score,
