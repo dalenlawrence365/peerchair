@@ -24,7 +24,7 @@ const ACTIVITY_DEFS = [
 // Status tag pills — shown only if active
 const STATUS_LABEL = {
   reserve:        { label: "Reserve",     bg: "rgba(100,116,139,0.13)", fg: "#475569" },
-  snoozed:        { label: "Snoozed",     bg: "rgba(100,116,139,0.13)", fg: "#475569" },
+  maybe_later:    { label: "Maybe later", bg: "rgba(100,116,139,0.13)", fg: "#475569" },
   not_a_fit:      { label: "Not a fit",   bg: "rgba(217, 119, 6, 0.14)",  fg: "#b45309" },
   opted_out:      { label: "Opted out",   bg: "rgba(220, 38, 38, 0.13)",  fg: "#b91c1c" },
   do_not_contact: { label: "DNC",         bg: "rgba(220, 38, 38, 0.13)",  fg: "#b91c1c" },

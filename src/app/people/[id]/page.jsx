@@ -67,7 +67,7 @@ function parseLinkedInThread(raw) {
 
 // Tag pickers — known choices are offered as one-tap quick-adds; the free-text box adds anything on the fly.
 // Status = mutable state (set/removed). Action = point-in-time event (audit trail, runs supersession).
-const STATUS_TAG_CHOICES = ["fractional", "remote", "out_of_market", "other_chapter", "do_not_contact", "not_a_fit", "opted_out", "snoozed", "reserve", "maybe_later"]
+const STATUS_TAG_CHOICES = ["fractional", "remote", "out_of_market", "other_chapter", "do_not_contact", "not_a_fit", "opted_out", "reserve", "maybe_later"]
 const ACTION_TAG_CHOICES = ["connection_sent", "connection_accepted", "reply_received", "brochure_sent", "assessment_sent", "fit_call_scheduled", "fit_call_completed", "event_invite_sent", "event_rsvp_confirmed"]
 // Quick-add activities relevant to each role. Common ones apply to everyone;
 // role-specific ones only surface for people carrying that role. Free-text box still adds anything.
