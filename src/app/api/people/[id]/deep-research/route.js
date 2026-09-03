@@ -131,6 +131,49 @@ export async function POST(request, { params }) {
     ? (timelineTruncated ? "[older entries omitted — timeline exceeded the context budget]\n\n" : "") + timelineLinesDesc.slice().reverse().join("\n\n")
     : "(no communications logged for this person)"
 
+  // Website engagement — real tracked behavior on la-cfo.com, attributed to
+  // this person via their personal tracking link. "view" alone is passive
+  // (a page loaded); everything past that (engaged, registered, opened a
+  // PDF, clicked a fit-call CTA, etc.) is a live signal of actual interest
+  // that the research prompt below is told to weigh explicitly, separate
+  // from anything self-reported on LinkedIn or said directly to Dalen.
+  const EVENT_LABELS = {
+    engaged: "spent real time reading",
+    registration_submitted: "submitted the registration form",
+    event_registered: "completed event registration",
+    pdf_opened: "opened a PDF/brochure",
+    assessment_clicked: "clicked into the self-assessment",
+    download_business_case: "downloaded the business case",
+    rsvp_top: "clicked the top RSVP button",
+    rsvp_confirmed: "confirmed their RSVP",
+    cta_fitchat: "clicked the \"book a fit call\" CTA",
+    fit_call_clicked: "clicked to book a fit call",
+  }
+  const { data: pageEventsDesc } = await sb.from("page_events")
+    .select("event, page, src, created_at")
+    .eq("person_id", id)
+    .eq("is_bot", false)
+    .order("created_at", { ascending: false })
+    .limit(200)
+
+  let engagementText = "(no tracked website visits on record for this person)"
+  if (pageEventsDesc && pageEventsDesc.length) {
+    const total = pageEventsDesc.length
+    const viewCount = pageEventsDesc.filter(function (r) { return r.event === "view" }).length
+    const meaningful = pageEventsDesc.filter(function (r) { return r.event !== "view" }).slice().reverse()
+    const distinctPages = Array.from(new Set(pageEventsDesc.map(function (r) { return r.page })))
+    const firstSeen = String(pageEventsDesc[pageEventsDesc.length - 1].created_at).slice(0, 10)
+    const lastSeen = String(pageEventsDesc[0].created_at).slice(0, 10)
+    const summaryLine = `${total} tracked event(s) (${viewCount} page view(s)) across ${distinctPages.length} page(s) — first seen ${firstSeen}, most recent ${lastSeen}.`
+    const meaningfulText = meaningful.length
+      ? meaningful.map(function (r) {
+          const label = EVENT_LABELS[r.event] || r.event
+          return `- ${String(r.created_at).slice(0, 10)}: ${label} on "${r.page}" (via ${r.src || "direct/unknown"})`
+        }).join("\n")
+      : "No interaction beyond a bare page view logged — treat this as light/passive interest only, not active intent."
+    engagementText = summaryLine + "\n\n" + meaningfulText
+  }
+
   const knownFacts = `NAME: ${person.full_name || person.first_name || "Unknown"}
 LAST-SYNCED TITLE (per Dalen's CRM — verify, do not assume current): ${person.title || "(unknown)"}
 LAST-SYNCED COMPANY (per Dalen's CRM — verify, do not assume current): ${person.company || "(unknown)"}
@@ -153,6 +196,12 @@ ${knownFacts}
 READ THIS BEFORE YOU START RESEARCHING. It often contains context web search cannot find and that should shape your research angle and conclusions — a job change or employer they've told Dalen about directly, a referral source, a stated objection or hesitation, a scheduling constraint, a personal circumstance, a prior fit-call outcome. Anything this person has told Dalen directly outranks a scraped web profile — if the timeline and a Tier 3 aggregator disagree, trust the timeline. If the timeline reveals something material (they've already said they're not interested, they've moved to a new company, there's already a hard-stop reason on record), lead with that rather than re-discovering it independently, and let it steer where you spend your searches.
 
 ${timelineText}
+
+## Prospect — website engagement (la-cfo.com visitor tracking, real tracked behavior, not self-reported)
+
+This is what this specific person has actually done on the CFO Circle website, tracked via their personal link. Treat it as a live signal of active interest, distinct from anything they've said or that a scraped profile shows — someone who registered, opened materials, or clicked to book a fit call is showing real, current intent even if their pipeline stage hasn't caught up to reflect it yet. Weave this in explicitly where it's relevant (the discovery, why they qualify, recommended recruiting approach) rather than treating it as a footnote. A bare "view" with nothing past it is weak/passive — don't oversell it into meaningful interest it isn't. If there's no tracked activity at all, say so plainly rather than assuming disinterest; most qualified prospects are still found off-platform first, so this is a supplementary signal, not a qualifying one on its own.
+
+${engagementText}
 
 ## Voice
 
