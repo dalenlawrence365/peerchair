@@ -179,33 +179,53 @@ PART 2 — immediately after the narrative, on its own, a fenced code block star
 
 Do not write any text after the closing \`\`\` of that code block.`
 
+  // 529 ("Overloaded") is Anthropic's own capacity signal, not a bug here —
+  // it happens during high load across all of Anthropic's traffic and is
+  // meant to be retried. A failed 529/500/503 attempt returns almost
+  // immediately (it's rejected before any work starts), so a couple of
+  // short-backoff retries costs very little against the 280s budget and
+  // only the eventual successful attempt spends real research time.
+  const RETRYABLE_STATUSES = [429, 500, 502, 503, 529]
+  const MAX_ATTEMPTS = 3
+  const anthropicBody = JSON.stringify({
+    model: MODEL,
+    // Narrative is plain prose, not JSON-escaped, so this budget
+    // stretches further than the character count suggests — but a
+    // well-researched writeup (search commentary + full narrative) is
+    // still real content, so keep real headroom rather than risk a cutoff.
+    max_tokens: 16000,
+    messages: [{ role: "user", content: prompt }],
+    tools: [{
+      type: "web_search_20250305",
+      name: "web_search",
+      max_uses: 15,
+      user_location: { type: "approximate", city: "Los Angeles", region: "California", country: "US" },
+    }],
+  })
+
   let aiRes
-  try {
-    aiRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": anthropicKey },
-      body: JSON.stringify({
-        model: MODEL,
-        // Narrative is plain prose, not JSON-escaped, so this budget
-        // stretches further than the character count suggests — but a
-        // well-researched writeup (search commentary + full narrative) is
-        // still real content, so keep real headroom rather than risk a cutoff.
-        max_tokens: 16000,
-        messages: [{ role: "user", content: prompt }],
-        tools: [{
-          type: "web_search_20250305",
-          name: "web_search",
-          max_uses: 15,
-          user_location: { type: "approximate", city: "Los Angeles", region: "California", country: "US" },
-        }],
-      }),
-    })
-  } catch (e) {
-    return Response.json({ error: "AI request failed: " + (e.message || e) }, { status: 500 })
-  }
-  if (!aiRes.ok) {
-    const t = await aiRes.text().catch(() => "")
-    return Response.json({ error: "AI error " + aiRes.status, detail: t.slice(0, 500) }, { status: 502 })
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": anthropicKey },
+        body: anthropicBody,
+      })
+    } catch (e) {
+      if (attempt === MAX_ATTEMPTS) return Response.json({ error: "AI request failed: " + (e.message || e) }, { status: 500 })
+      await new Promise(function (r) { setTimeout(r, attempt * 2000) })
+      continue
+    }
+    if (aiRes.ok) break
+    if (!RETRYABLE_STATUSES.includes(aiRes.status) || attempt === MAX_ATTEMPTS) {
+      const t = await aiRes.text().catch(() => "")
+      const overloaded = aiRes.status === 529
+      return Response.json({
+        error: overloaded ? "Anthropic is overloaded right now (529) — this isn't a bug, it's capacity on their end. Try again in a minute." : "AI error " + aiRes.status,
+        detail: t.slice(0, 500),
+      }, { status: 502 })
+    }
+    await new Promise(function (r) { setTimeout(r, attempt * 2000) })
   }
   const data = await aiRes.json()
 
