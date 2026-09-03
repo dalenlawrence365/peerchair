@@ -5,6 +5,7 @@ import { serverClient } from "@/lib/supabaseServer"
 import { graphFetch } from "@/lib/microsoft-auth"
 import { upsertOutlookContact } from "@/lib/outlookContacts"
 import { SENDER_CONTEXT } from "@/lib/dalenContext"
+import { WARNING_TAGS } from "@/lib/warningTags"
 
 // POST /api/people/[id]/draft-email
 //
@@ -21,10 +22,6 @@ import { SENDER_CONTEXT } from "@/lib/dalenContext"
 
 const MODEL = process.env.DRAFT_EMAIL_MODEL || "claude-sonnet-4-6"
 
-// Status tags that mean "you probably shouldn't be emailing this person" —
-// surfaced as a visible warning in the Draft Email tab, not just baked
-// silently into the AI's tone.
-const WARNING_TAGS = ["do_not_contact", "opted_out", "not_a_fit", "out_of_market"]
 
 function escapeHtml(s) {
   return String(s || "")

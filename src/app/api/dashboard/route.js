@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
 import { getCfoScoreRows, avgScore } from "@/lib/cfoScores"
+import { getAllWarmthRows } from "@/lib/warmthScore"
 
 // GET /api/dashboard — one-shot data fetch for the new dashboard.
 // Returns:
@@ -57,6 +58,12 @@ export async function GET() {
   // separate quick approximation.
   const cfoScoreRows = await getCfoScoreRows(sb)
   const cfoAvgScore = avgScore(cfoScoreRows)
+
+  // "Hot leads" tile — same navigation-shortcut framing as the CFO score
+  // tile above: how many people are currently in the Hot warmth tier,
+  // linking into /reports/warmth for the full sorted list.
+  const warmthRows = await getAllWarmthRows(sb)
+  const hotLeadsCount = warmthRows.filter(function (r) { return r.tier === "hot" }).length
 
   // Totals + sponsor companies
   const { count: sponsorCompanies } = await sb.from("companies").select("id", { count: "exact", head: true }).eq("is_sponsor", true)
@@ -293,6 +300,8 @@ export async function GET() {
       })(),
       cfo_avg_score: cfoAvgScore,
       cfo_scored_count: cfoScoreRows.length,
+      hot_leads_count: hotLeadsCount,
+      warmth_scored_count: warmthRows.length,
     },
     segments: segmentCounts || {},
     queues: {

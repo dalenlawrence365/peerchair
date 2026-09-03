@@ -10,6 +10,7 @@ import DraftEmailCard from "@/components/DraftEmailCard"
 import DraftDMCard from "@/components/DraftDMCard"
 import ResearchNoteCard from "@/components/ResearchNoteCard"
 import { scoreColor } from "@/lib/cfoScores"
+import { TIER_COLORS } from "@/lib/warmthScore"
 import { SOURCES, SOURCE_KEY, sourceLabel, sourceWeight } from "@/lib/firmoSources"
 
 const ROLE_LABEL = { cfo: "CFO", sponsor_contact: "Sponsor", referral_partner: "Referral Partner" }
@@ -458,6 +459,17 @@ export default function PersonProfile() {
                   </span>
                 )
               })()}
+              {/* Warmth Index — how engaged THEY are with Dalen right now (reply
+                  activity, event follow-through, website engagement), separate
+                  from the CFO research/qualification score above. Applies to any
+                  role, not just CFOs — a sponsor or referral partner's engagement
+                  matters just as much. */}
+              {data.warmth && (
+                <span title={`Warmth: ${data.warmth.tierLabel} (${data.warmth.score}/100)${data.warmth.flagged ? " — flagged (do-not-contact / opted-out / not-a-fit / out-of-market)" : ""}`}
+                  style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, fontWeight: 700, background: TIER_COLORS[data.warmth.tier].bg, color: TIER_COLORS[data.warmth.tier].fg, border: "1px solid " + TIER_COLORS[data.warmth.tier].border }}>
+                  {data.warmth.tierLabel} · {data.warmth.score}
+                </span>
+              )}
             </div>
             <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
               {[p.title, p.company].filter(Boolean).join(" · ") || "—"}

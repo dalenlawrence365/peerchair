@@ -2,6 +2,7 @@
 import { useState } from "react"
 import { T } from "@/lib/pipelineTheme"
 import { useVoiceInput } from "@/lib/useVoiceInput"
+import { WARNING_TAGS } from "@/lib/warningTags"
 
 // Draft Email tab — voice (or typed) instructions → Claude drafts a real,
 // personalized email using the person's profile + recent history → Dalen
@@ -16,9 +17,6 @@ import { useVoiceInput } from "@/lib/useVoiceInput"
 // hand-edited) subject/body as previous_subject/previous_body, so the model
 // revises what's there instead of throwing it away and starting over.
 
-// Same list the server checks before drafting — kept here too so the
-// warning is visible the moment the tab opens, before Dalen even generates.
-const WARNING_TAGS = ["do_not_contact", "opted_out", "not_a_fit", "out_of_market"]
 
 export default function DraftEmailCard({ personId, statusTags }) {
   const initial = useVoiceInput()

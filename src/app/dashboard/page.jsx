@@ -109,6 +109,9 @@ export default function DashboardPage() {
         {c.cfo_avg_score != null && (
           <StatTile label={`Average CFO score (${c.cfo_scored_count} scored)`} value={c.cfo_avg_score} color="#7c3aed" href="/reports/cfo-scores" />
         )}
+        {c.warmth_scored_count > 0 && (
+          <StatTile label={`Hot leads (${c.warmth_scored_count} scored)`} value={c.hot_leads_count} color="#b91c1c" href="/reports/warmth" />
+        )}
       </div>
 
       {/* Action queues */}

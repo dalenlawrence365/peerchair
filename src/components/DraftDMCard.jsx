@@ -2,6 +2,7 @@
 import { useState } from "react"
 import { T } from "@/lib/pipelineTheme"
 import { useVoiceInput } from "@/lib/useVoiceInput"
+import { WARNING_TAGS } from "@/lib/warningTags"
 
 // Draft DM tab — same idea as Draft Email (voice/typed instructions → Claude
 // drafts using this person's profile, tags, and research note → Dalen
@@ -10,9 +11,6 @@ import { useVoiceInput } from "@/lib/useVoiceInput"
 // of "Create draft in Outlook" this ends in a Copy button — Dalen copies
 // the whole body and pastes it straight into LinkedIn.
 
-// Same list the server checks before drafting — kept here too so the
-// warning is visible the moment the tab opens, before Dalen even generates.
-const WARNING_TAGS = ["do_not_contact", "opted_out", "not_a_fit", "out_of_market"]
 
 export default function DraftDMCard({ personId, statusTags }) {
   const initial = useVoiceInput()

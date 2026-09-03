@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 export const fetchCache = "force-no-store"
 import { serverClient } from "@/lib/supabaseServer"
+import { getWarmthForPerson } from "@/lib/warmthScore"
 
 // GET /api/people/[id] — full profile for the /people/[id] page.
 // Returns person row, communications (latest 50), active status & action tags,
@@ -107,6 +108,11 @@ export async function GET(request, { params }) {
   }
   const scheduled_meetings = (schedMeetings || []).map(function(m){ return Object.assign({}, m, { notes: notesByMeeting[m.id] || [] }) })
 
+  // Warmth Index — how engaged this person is with Dalen right now (separate
+  // from the CFO research score). Cheap to compute per-profile-load: a
+  // handful of small filtered queries, no AI call.
+  const warmth = await getWarmthForPerson(sb, id)
+
   return Response.json({
     person,
     scheduled_meetings,
@@ -119,5 +125,6 @@ export async function GET(request, { params }) {
     action_tags: actionTags || [],
     research_notes: researchNotes || [],
     next_workshop_tag: nextWorkshopTag,
+    warmth,
   })
 }
