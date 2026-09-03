@@ -173,9 +173,14 @@ export async function POST(request, { params }) {
     // above). Dedupe on (person_id, channel, step_label) — step_label is the
     // exact tag (e.g. ws_invite_09-16-26), which already encodes the specific
     // invite, so re-adding the same tag never double-logs the timeline entry.
+    // NOTE: a DB trigger (normalize_communications_format) lowercases
+    // `channel` on insert, so the dedupe check below has to match against
+    // the lowercased form even though the insert writes the display-cased
+    // "Workshop Invitation" — matching on the pre-trigger case here silently
+    // never finds the existing row and re-inserts a duplicate every time.
     if (isInvitationTag(actionType)) {
       const { data: existingTimeline } = await sb.from("communications")
-        .select("id").eq("person_id", id).eq("channel", "Workshop Invitation")
+        .select("id").eq("person_id", id).eq("channel", "workshop invitation")
         .eq("step_label", actionType).limit(1)
       if (!existingTimeline || !existingTimeline.length) {
         const occurredAt = body.as_of_date ? new Date(body.as_of_date + "T12:00:00").toISOString() : new Date().toISOString()
