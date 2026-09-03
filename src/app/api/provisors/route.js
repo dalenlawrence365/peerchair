@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data: people, error } = await sb
     .from("people")
-    .select("id, full_name, first_name, last_name, title, company, email, linkedin_url, photo_url, linkedin_connected, inbound_request, cfo_circle_member, roles, cfo_state, sponsor_state, referral_state, last_meaningful_touch, notes")
+    .select("id, full_name, first_name, last_name, title, company, email, linkedin_url, avatar_url, photo_url, linkedin_connected, inbound_request, cfo_circle_member, roles, cfo_state, sponsor_state, referral_state, last_meaningful_touch, notes")
     .eq("provisors_member", true)
     .limit(2000)
   if (error) return Response.json({ error: error.message }, { status: 500 })
@@ -85,7 +85,10 @@ export async function GET() {
     company: p.company,
     email: p.email,
     linkedin_url: p.linkedin_url,
-    photo_url: p.photo_url,
+    // avatar_url (LinkedIn/extension-captured photo, populated for ~1 in 3 ProVisors
+    // members) is the real picture source; photo_url is a legacy column that's
+    // never actually populated for anyone — kept only as a harmless fallback.
+    photo_url: p.avatar_url || p.photo_url,
     linkedin_connected: p.linkedin_connected,
     connection_sent: (p.id in sentByPerson),
     connection_sent_at: sentByPerson[p.id] || null,
