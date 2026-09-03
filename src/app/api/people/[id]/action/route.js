@@ -2,36 +2,7 @@ export const dynamic = "force-dynamic"
 import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
 import { stampSources, isValidSource } from "@/lib/firmoSources"
-
-// Invitations are a sub-category of action tag (ws_invite_MM-DD-YY, legacy
-// social_invite_/*_invite_MM-DD-YY, and the legacy generic event_invite_sent)
-// — kept in sync with the same check the profile UI uses to split them into
-// their own "Invitations" section. When one of these gets logged, it's
-// mirrored onto the Timeline as its own "Workshop Invitation" entry so the
-// invite is visible chronologically alongside emails/LinkedIn/notes, and so
-// deep research (which reads the timeline) knows about it without a
-// separate lookup.
-function isInvitationTag(actionType) {
-  const t = actionType || ""
-  return /^ws_invite_/.test(t) || /^social_invite_/.test(t) || /_invite_\d{2}-\d{2}-\d{2}$/.test(t) || t === "event_invite_sent"
-}
-
-function describeInviteTag(actionType) {
-  const t = actionType || ""
-  const ws = t.match(/^ws_invite_(\d{2})-(\d{2})-(\d{2})$/)
-  if (ws) return `Invited to the ${friendlyDate(ws[1], ws[2], ws[3])} workshop.`
-  const social = t.match(/^social_invite_(\d{2})-(\d{2})-(\d{2})$/)
-  if (social) return `Invited to the ${friendlyDate(social[1], social[2], social[3])} social event.`
-  const generic = t.match(/_invite_(\d{2})-(\d{2})-(\d{2})$/)
-  if (generic) return `Invited to the ${friendlyDate(generic[1], generic[2], generic[3])} event.`
-  if (t === "event_invite_sent") return "Invited to an event."
-  return `Invited (${t}).`
-}
-
-function friendlyDate(mm, dd, yy) {
-  const d = new Date(2000 + parseInt(yy, 10), parseInt(mm, 10) - 1, parseInt(dd, 10))
-  try { return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) } catch (e) { return `${mm}/${dd}/${yy}` }
-}
+import { isInvitationTag, mirrorInviteToTimeline, syncEventAttendeeFromActionTag } from "@/lib/workshopInviteSync"
 
 // POST /api/people/[id]/action
 // Body: { action, ... }
@@ -169,32 +140,18 @@ export async function POST(request, { params }) {
       return Response.json({ error: error.message }, { status: 500 })
     }
 
-    // Mirror invitation action tags onto the Timeline (see isInvitationTag
-    // above). Dedupe on (person_id, channel, step_label) — step_label is the
-    // exact tag (e.g. ws_invite_09-16-26), which already encodes the specific
-    // invite, so re-adding the same tag never double-logs the timeline entry.
-    // NOTE: a DB trigger (normalize_communications_format) lowercases
-    // `channel` on insert, so the dedupe check below has to match against
-    // the lowercased form even though the insert writes the display-cased
-    // "Workshop Invitation" — matching on the pre-trigger case here silently
-    // never finds the existing row and re-inserts a duplicate every time.
+    // Mirror invitation action tags onto the Timeline, and — for the
+    // ws_invite_MM-DD-YY convention specifically — make sure the matching
+    // event_attendees row exists too, so a tag added by hand here shows up
+    // on that event's roster exactly like a bulk invite would. This is
+    // Direction 2 of the two-way sync (see workshopInviteSync.js); Direction
+    // 1 (event_attendees invite -> tag) lives in events/attendees/route.js.
+    // Without both directions, a report that only checks one side can wrongly
+    // call someone "never invited" when they were — exactly what happened
+    // with Jenna Hardy, invited via event_attendees with no tag ever set.
     if (isInvitationTag(actionType)) {
-      const { data: existingTimeline } = await sb.from("communications")
-        .select("id").eq("person_id", id).eq("channel", "workshop invitation")
-        .eq("step_label", actionType).limit(1)
-      if (!existingTimeline || !existingTimeline.length) {
-        const occurredAt = body.as_of_date ? new Date(body.as_of_date + "T12:00:00").toISOString() : new Date().toISOString()
-        await sb.from("communications").insert({
-          person_id: id,
-          direction: "INTERNAL",
-          channel: "Workshop Invitation",
-          step_label: actionType,
-          body: describeInviteTag(actionType),
-          occurred_at: occurredAt,
-          source: "App",
-          logged_by: "Dalen Lawrence",
-        })
-      }
+      await mirrorInviteToTimeline(sb, id, actionType, body.as_of_date || null)
+      await syncEventAttendeeFromActionTag(sb, id, actionType)
     }
 
     return Response.json({ ok: true, action_tag_id: data })

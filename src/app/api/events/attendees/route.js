@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 import { serverClient } from "@/lib/supabaseServer"
+import { syncActionTagsFromEventInvite } from "@/lib/workshopInviteSync"
 import { getAccessToken } from "@/lib/microsoft-auth"
 import { upsertOutlookContact } from "@/lib/outlookContacts"
 
@@ -150,7 +151,7 @@ export async function POST(req) {
   if (!ids.length) return Response.json({ error: "no_people" }, { status: 400 })
 
   const sb = serverClient()
-  const { data: event } = await sb.from("events").select("id, slug").eq("slug", slug).maybeSingle()
+  const { data: event } = await sb.from("events").select("id, slug, event_date").eq("slug", slug).maybeSingle()
   if (!event) return Response.json({ error: "not_found" }, { status: 404 })
 
   // ignoreDuplicates → the (event_id, person_id) unique index makes this safe
@@ -161,6 +162,14 @@ export async function POST(req) {
             { onConflict: "event_id,person_id", ignoreDuplicates: true })
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
+
+  // Direction 1 of the two-way invite sync (see workshopInviteSync.js): an
+  // event_attendees invite was just created here, so make sure everyone
+  // invited also has the matching ws_invite_MM-DD-YY action tag (and its
+  // Timeline mirror) — otherwise a tag-only check elsewhere (a report, a
+  // "who hasn't been invited" query) wrongly calls them uninvited, which is
+  // exactly what happened before this existed.
+  await syncActionTagsFromEventInvite(sb, ids, event.event_date, "event_invite_bulk")
 
   const { data: rows } = await sb
     .from("event_attendees")
