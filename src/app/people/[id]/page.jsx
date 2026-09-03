@@ -120,16 +120,21 @@ function fmtShort(iso) {
 
 // Normalize the inconsistently-cased channel values into clean filter buckets.
 const TIMELINE_TYPES = [
-  { key: "email",    label: "Email",     color: "#0ea5e9" },
-  { key: "linkedin", label: "LinkedIn",  color: "#0a66c2" },
-  { key: "meeting",  label: "Meetings",  color: "#16a34a" },
-  { key: "note",     label: "Notes",     color: "#d97706" },
-  { key: "system",   label: "System",    color: "#94a3b8" },
+  { key: "email",    label: "Email",               color: "#0ea5e9" },
+  { key: "linkedin", label: "LinkedIn",             color: "#0a66c2" },
+  { key: "meeting",  label: "Meetings",             color: "#16a34a" },
+  { key: "invite",   label: "Workshop Invitation",  color: "#7c3aed" },
+  { key: "note",     label: "Notes",                color: "#d97706" },
+  { key: "system",   label: "System",               color: "#94a3b8" },
 ]
 const TIMELINE_COLOR = TIMELINE_TYPES.reduce(function(m, t){ m[t.key] = t.color; return m }, {})
 function timelineType(c) {
   const ch = (c.channel || "").toLowerCase()
   const sl = (c.step_label || "").toLowerCase()
+  // Checked before the general "note"/INTERNAL bucket below — invitation
+  // timeline rows are also logged with direction INTERNAL, but they're their
+  // own category, not a plain note.
+  if (ch.includes("invitation") || ch.includes("invite")) return "invite"
   if (ch.includes("note") || sl === "note" || c.direction === "INTERNAL") return "note"
   if (ch.includes("email")) return "email"
   if (ch.includes("linkedin") || ch.includes("inmail")) return "linkedin"
