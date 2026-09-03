@@ -45,6 +45,33 @@ export async function GET(request, { params }) {
   return Response.json({ notes: notes || [] })
 }
 
+// DELETE /api/people/[id]/research-note?note_id=xxx
+//
+// Deletes a single historical research note. Scoped intentionally: the UI
+// only ever offers this on OLDER notes (never the current/latest one), and
+// it is never triggered automatically by a rerun — "Run deep research" and
+// "Add research note" always just append. This exists purely for the rare
+// case a note is just wrong/noise and Dalen wants it gone rather than
+// collapsed behind "Show N earlier research notes".
+export async function DELETE(request, { params }) {
+  const id = params?.id
+  if (!id) return Response.json({ error: "id required" }, { status: 400 })
+  const { searchParams } = new URL(request.url)
+  const noteId = searchParams.get("note_id")
+  if (!noteId) return Response.json({ error: "note_id required" }, { status: 400 })
+
+  const sb = serverClient()
+  const { data: deleted, error } = await sb.from("person_research_notes")
+    .delete()
+    .eq("id", noteId)
+    .eq("person_id", id)
+    .select()
+    .maybeSingle()
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (!deleted) return Response.json({ error: "note not found" }, { status: 404 })
+  return Response.json({ ok: true })
+}
+
 export async function POST(request, { params }) {
   const id = params?.id
   if (!id) return Response.json({ error: "id required" }, { status: 400 })

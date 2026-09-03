@@ -19,7 +19,7 @@ function fmtDate(iso) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
 }
 
-function NoteBody({ note }) {
+function NoteBody({ note, onDelete, deleting }) {
   const vc = scoreColor(note.score, note.verdict)
   const html = marked.parse(note.narrative || "", { breaks: true })
   return (
@@ -32,7 +32,13 @@ function NoteBody({ note }) {
         )}
         {note.score != null && <span style={{ fontSize: 18, fontWeight: 700, color: T.textPrimary }}>{note.score}<span style={{ fontSize: 12, fontWeight: 500, color: T.textTertiary }}>/100</span></span>}
         {note.confidence != null && <span style={{ fontSize: 12, color: T.textTertiary }}>{note.confidence}% research confidence</span>}
-        <span style={{ fontSize: 11, color: T.textTertiary, marginLeft: "auto" }}>{fmtDate(note.created_at)}</span>
+        <span style={{ fontSize: 11, color: T.textTertiary, marginLeft: onDelete ? 0 : "auto" }}>{fmtDate(note.created_at)}</span>
+        {onDelete && (
+          <button onClick={onDelete} disabled={deleting} title="Delete this research note"
+            style={{ marginLeft: "auto", fontSize: 11, padding: "3px 9px", borderRadius: 6, border: "1px solid " + T.border, background: "none", color: deleting ? T.textTertiary : "#b91c1c", cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        )}
       </div>
       {note.summary && <div style={{ fontSize: 13, fontStyle: "italic", color: T.textSecondary, marginBottom: 12 }}>{note.summary}</div>}
       {Array.isArray(note.dimensions) && note.dimensions.length > 0 && (
@@ -63,6 +69,7 @@ export default function ResearchNoteCard({ personId, notes, onSaved }) {
   const [researching, setResearching] = useState(false)
   const [researchMsg, setResearchMsg] = useState("")
   const [elapsed, setElapsed] = useState(0)
+  const [deletingId, setDeletingId] = useState(null)
   const timerRef = useRef(null)
 
   const list = notes || []
@@ -117,6 +124,19 @@ export default function ResearchNoteCard({ personId, notes, onSaved }) {
       .finally(function () { setSaving(false) })
   }
 
+  function handleDelete(noteId) {
+    if (!window.confirm("Delete this research note? This can't be undone.")) return
+    setDeletingId(noteId)
+    fetch("/api/people/" + personId + "/research-note?note_id=" + noteId, { method: "DELETE" })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d.ok) { if (onSaved) onSaved() }
+        else { window.alert("Couldn't delete that" + (d.error ? (": " + d.error) : "") + ".") }
+      })
+      .catch(function () { window.alert("Error deleting note.") })
+      .finally(function () { setDeletingId(null) })
+  }
+
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: 16, marginBottom: 16 }}>
@@ -164,7 +184,9 @@ export default function ResearchNoteCard({ personId, notes, onSaved }) {
             style={{ fontSize: 12, color: T.textTertiary, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: "4px 0", textDecoration: "underline" }}>
             {showHistory ? "Hide" : "Show"} {history.length} earlier research note{history.length === 1 ? "" : "s"}
           </button>
-          {showHistory && history.map(function (n) { return <NoteBody key={n.id} note={n} /> })}
+          {showHistory && history.map(function (n) {
+            return <NoteBody key={n.id} note={n} onDelete={function () { handleDelete(n.id) }} deleting={deletingId === n.id} />
+          })}
         </div>
       )}
     </div>
