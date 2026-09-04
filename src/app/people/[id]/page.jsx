@@ -188,6 +188,8 @@ export default function PersonProfile() {
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [timelineFilter, setTimelineFilter] = useState("all")
+  const [checkingEmail, setCheckingEmail] = useState(false)
+  const [checkEmailMsg, setCheckEmailMsg] = useState("")
   const [activeTab, setActiveTab] = useState(null)
   const [jumpToRecapId, setJumpToRecapId] = useState(null)
   const [showWarmthModal, setShowWarmthModal] = useState(false)
@@ -249,6 +251,23 @@ export default function PersonProfile() {
         setData(res.j); setLoading(false)
       })
       .catch(function(e){ setError(e.message || String(e)); setLoading(false) })
+  }
+
+  // On-demand counterpart to the sync-email cron (which runs every 30 min).
+  // Scoped to just this person's known address(es), so it's cheap enough to
+  // fire whenever Dalen actually needs an email in the timeline right now
+  // rather than waiting for the next cron slot.
+  function checkEmailNow() {
+    setCheckingEmail(true); setCheckEmailMsg("")
+    fetch(`/api/people/${id}/sync-email-now`, { method: "POST" })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d.error) { setCheckEmailMsg(d.error); return }
+        setCheckEmailMsg(d.synced > 0 ? `Found ${d.synced} new email${d.synced === 1 ? "" : "s"}.` : `Checked — nothing new (${d.checked} message${d.checked === 1 ? "" : "s"} in range).`)
+        if (d.synced > 0) reload()
+      })
+      .catch(function () { setCheckEmailMsg("Error checking email.") })
+      .finally(function () { setCheckingEmail(false) })
   }
 
   useEffect(function(){
@@ -969,7 +988,14 @@ export default function PersonProfile() {
       {tab === "timeline" && (<>
       {/* Communications timeline */}
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 }}>Activity Timeline</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 }}>Activity Timeline</div>
+          <button disabled={checkingEmail} onClick={checkEmailNow} title="Check Outlook for a new email from this person right now, instead of waiting for the 30-min sync"
+            style={{ marginLeft: "auto", padding: "4px 11px", fontSize: 11, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: checkingEmail ? T.textTertiary : "#3b82f6", cursor: checkingEmail ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+            {checkingEmail ? "Checking…" : "Check email now"}
+          </button>
+          {checkEmailMsg && <span style={{ fontSize: 11, color: T.textTertiary }}>{checkEmailMsg}</span>}
+        </div>
 
         {/* Note composer */}
         <div style={{ marginBottom: 16 }}>
