@@ -313,10 +313,22 @@ async function enrichPersonFromLead(sb, personId, lead) {
     if (lead.location) {
       await sb.from("people").update({ location: lead.location }).eq("id", personId).is("location", null)
     }
+    // Avatar: fill-if-blank only, same reasoning as email/location — but this
+    // one matters more than it looks. Previously avatar_url was ONLY written
+    // at person-row creation (findOrCreatePerson), so anyone who already
+    // existed before their first LinkedHelper event (i.e. almost everyone,
+    // since most people arrive first via a bulk LinkedIn/Sales Navigator CSV
+    // import that never carries a photo) could never get a photo from this
+    // webhook even when a later event's payload did include lead.avatar.
+    // This closes that gap going forward without ever clobbering a photo
+    // that was set some other way (extension capture, ProVisors roster).
+    if (lead.avatar) {
+      await sb.from("people").update({ avatar_url: lead.avatar }).eq("id", personId).is("avatar_url", null)
+    }
     if (lead.connectionsCount && /^\d+$/.test(lead.connectionsCount)) {
       await sb.from("people").update({ connections_count: parseInt(lead.connectionsCount, 10) }).eq("id", personId)
     }
-  } catch(e) { console.error("people enrich (about/headline/email/location/connections) failed:", e.message) }
+  } catch(e) { console.error("people enrich (about/headline/email/location/connections/avatar) failed:", e.message) }
 }
 
 async function handleSent(sb, lead, tags, seedBatchTag, raw) {
