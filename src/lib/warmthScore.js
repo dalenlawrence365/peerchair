@@ -23,7 +23,7 @@
 // rubric: ship a reasonable weighting now, adjust the numbers later once
 // Dalen has a feel for whether the tiers match reality.
 
-import { WARNING_TAGS } from "@/lib/warningTags"
+import { WARMTH_FLOOR_TAGS } from "@/lib/warningTags"
 
 const HALF_LIFE_DAYS = 75
 
@@ -144,7 +144,7 @@ export const TIER_COLORS = TIERS.reduce(function (m, t) {
 // breakdown so the caller can show exactly how the number was built.
 export function computeWarmth(signals, statusTags, now) {
   now = now || Date.now()
-  const flaggedTags = (statusTags || []).filter(function (t) { return WARNING_TAGS.indexOf(t) >= 0 })
+  const flaggedTags = (statusTags || []).filter(function (t) { return WARMTH_FLOOR_TAGS.indexOf(t) >= 0 })
   if (flaggedTags.length) {
     const t = tierFor(0)
     return {
@@ -263,7 +263,7 @@ export async function getAllWarmthRows(sb) {
     sb.from("person_action_tags").select("person_id, action_type, as_of_date, set_at").in("action_type", RELEVANT_ACTION_TYPES),
     sb.from("event_attendees").select("person_id, status, responded_at, registered_at, invited_at"),
     sb.from("page_events").select("person_id, event, created_at").eq("is_bot", false).in("event", RELEVANT_PAGE_EVENTS).not("person_id", "is", null),
-    sb.from("person_status_tags").select("person_id, tag").is("removed_at", null).in("tag", WARNING_TAGS),
+    sb.from("person_status_tags").select("person_id, tag").is("removed_at", null).in("tag", WARMTH_FLOOR_TAGS),
     sb.from("meeting_recap_participants").select("person_id, meeting_recap_id"),
   ])
 
