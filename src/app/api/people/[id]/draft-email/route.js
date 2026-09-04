@@ -77,6 +77,24 @@ export async function POST(request, { params }) {
       .select("verdict, score, confidence, summary, narrative").eq("person_id", id)
       .order("created_at", { ascending: false }).limit(1).maybeSingle()
 
+    // Meeting recaps — Granola/note-taker recaps of real conversations with
+    // this person (could be shared with others on the same call). Ground the
+    // draft in what was actually said/committed, not just inferred facts.
+    const { data: recapLinks } = await sb.from("meeting_recap_participants")
+      .select("meeting_recap_id").eq("person_id", id)
+    let recentRecaps = []
+    if (recapLinks && recapLinks.length) {
+      const { data: recapsDesc } = await sb.from("meeting_recaps")
+        .select("occurred_at, meeting_type, summary, engagement_signal, hard_stop, hard_stop_detail, commitments")
+        .in("id", recapLinks.map(function (l) { return l.meeting_recap_id }))
+        .order("occurred_at", { ascending: false })
+        .limit(3)
+      recentRecaps = recapsDesc || []
+    }
+    const recapLines = recentRecaps.map(function (r) {
+      return `- ${r.occurred_at || ""}${r.meeting_type ? " [" + r.meeting_type + "]" : ""}: ${r.summary || "(no summary)"}${r.commitments ? " | Commitments: " + r.commitments : ""}${r.hard_stop ? " | HARD STOP FLAGGED: " + (r.hard_stop_detail || "") : ""}`
+    }).join("\n")
+
     const { data: recentComms } = await sb.from("communications")
       .select("direction, channel, step_label, body, occurred_at")
       .eq("person_id", id)
@@ -119,6 +137,9 @@ RESEARCH ASSESSMENT (AI deep-research on this person, if one exists — ground t
 ${latestResearch ? `Verdict: ${latestResearch.verdict || "(none)"} — Score: ${latestResearch.score != null ? latestResearch.score + "/100" : "(none)"} — Confidence: ${latestResearch.confidence != null ? latestResearch.confidence + "%" : "(none)"}
 Summary: ${latestResearch.summary || "(none)"}
 ${(latestResearch.narrative || "").slice(0, 1500)}` : "(no research note on file for this person)"}
+
+MEETING RECAPS (Granola/note-taker recaps of real meetings with this person, most recent first — ground the message in what was actually said/committed here; a HARD STOP means Dalen should generally not be reaching out):
+${recapLines || "(no meeting recaps on file for this person)"}
 
 KNOWN FACTS — use these exact values whenever the instructions refer to them, never invent or guess a URL/link yourself:
 - Website: ${SENDER_CONTEXT.website}

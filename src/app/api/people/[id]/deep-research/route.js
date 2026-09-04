@@ -174,6 +174,37 @@ export async function POST(request, { params }) {
     engagementText = summaryLine + "\n\n" + meaningfulText
   }
 
+  // Meeting recaps — normalized Granola (or any note-taker) post-meeting
+  // content this person participated in, possibly shared with other people
+  // on the same call. Distinct from the raw timeline above: these carry an
+  // explicit engagement read, referrals, hard-stop flags, and commitments,
+  // so surface them as their own section rather than folding into timelineText.
+  const { data: recapLinks } = await sb.from("meeting_recap_participants")
+    .select("meeting_recap_id")
+    .eq("person_id", id)
+  let meetingRecapsText = "(no meeting recaps on file for this person)"
+  if (recapLinks && recapLinks.length) {
+    const recapIds = recapLinks.map(function (l) { return l.meeting_recap_id })
+    const { data: recapsDesc } = await sb.from("meeting_recaps")
+      .select("occurred_at, meeting_type, summary, engagement_signal, referral_mentioned, referral_who, hard_stop, hard_stop_detail, fit_verdict, commitments")
+      .in("id", recapIds)
+      .order("occurred_at", { ascending: false })
+      .limit(10)
+    if (recapsDesc && recapsDesc.length) {
+      meetingRecapsText = recapsDesc.map(function (r) {
+        return [
+          `- ${r.occurred_at || "(no date)"}${r.meeting_type ? " [" + r.meeting_type + "]" : ""}`,
+          r.summary ? `  Summary: ${r.summary}` : null,
+          r.engagement_signal ? `  Engagement: ${r.engagement_signal}` : null,
+          r.referral_mentioned ? `  Referral mentioned: ${r.referral_who || "(unnamed)"}` : null,
+          r.hard_stop ? `  HARD STOP FLAGGED: ${r.hard_stop_detail || "(no detail)"}` : null,
+          r.fit_verdict ? `  Fit verdict from this call: ${r.fit_verdict}` : null,
+          r.commitments ? `  Commitments: ${r.commitments}` : null,
+        ].filter(Boolean).join("\n")
+      }).join("\n\n")
+    }
+  }
+
   const knownFacts = `NAME: ${person.full_name || person.first_name || "Unknown"}
 LAST-SYNCED TITLE (per Dalen's CRM — verify, do not assume current): ${person.title || "(unknown)"}
 LAST-SYNCED COMPANY (per Dalen's CRM — verify, do not assume current): ${person.company || "(unknown)"}
@@ -202,6 +233,12 @@ ${timelineText}
 This is what this specific person has actually done on the CFO Circle website, tracked via their personal link. Treat it as a live signal of active interest, distinct from anything they've said or that a scraped profile shows — someone who registered, opened materials, or clicked to book a fit call is showing real, current intent even if their pipeline stage hasn't caught up to reflect it yet. Weave this in explicitly where it's relevant (the discovery, why they qualify, recommended recruiting approach) rather than treating it as a footnote. A bare "view" with nothing past it is weak/passive — don't oversell it into meaningful interest it isn't. If there's no tracked activity at all, say so plainly rather than assuming disinterest; most qualified prospects are still found off-platform first, so this is a supplementary signal, not a qualifying one on its own.
 
 ${engagementText}
+
+## Prospect — meeting recaps (Granola/note-taker recaps of real conversations Dalen or a colleague had with this person, if any)
+
+These are normalized summaries of actual meetings — fit calls, sponsor check-ins, board meetings, whatever's on record — not scraped web content. Trust them over an inferred read from LinkedIn. If a HARD STOP is flagged on any recap, that overrides everything else: lead with it and the verdict should reflect it.
+
+${meetingRecapsText}
 
 ## Voice
 

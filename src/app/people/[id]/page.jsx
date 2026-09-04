@@ -9,6 +9,7 @@ import EventLinkCard from "@/components/EventLinkCard"
 import DraftEmailCard from "@/components/DraftEmailCard"
 import DraftDMCard from "@/components/DraftDMCard"
 import ResearchNoteCard from "@/components/ResearchNoteCard"
+import MeetingsCard from "@/components/MeetingsCard"
 import { scoreColor } from "@/lib/cfoScores"
 import { TIER_COLORS } from "@/lib/warmthScore"
 import { SOURCES, SOURCE_KEY, sourceLabel, sourceWeight } from "@/lib/firmoSources"
@@ -702,7 +703,8 @@ export default function PersonProfile() {
         ...((p.roles || []).includes("cfo") ? [{ key: "fitcall", label: "Fit Call" }] : []),
         ...((p.roles || []).includes("sponsor_contact") ? [{ key: "discovery", label: "Discovery Call" }] : []),
         ...(p.provisors_member ? [{ key: "groups", label: "Groups" }] : []),
-        ...(p.provisors_member ? [{ key: "meetings", label: "Meetings" }] : []),
+        ...(p.provisors_member ? [{ key: "meetings", label: "ProVisors Meetings" }] : []),
+        { key: "meeting_recaps", label: "Meetings" },
         { key: "events", label: "Events" },
         { key: "draft_email", label: "Draft Email" },
         { key: "draft_dm", label: "Draft DM" },
@@ -740,6 +742,16 @@ export default function PersonProfile() {
           for context. */}
       {tab === "research" && (
         <ResearchNoteCard personId={p.id} notes={data.research_notes || []} onSaved={reload} />
+      )}
+
+      {/* TAB: Meetings — Granola (or any AI note-taker) post-meeting recaps.
+          Not the ProVisors roster-attendance tab above; this is for pasting
+          real meeting content (fit calls, sponsor check-ins, board meetings,
+          anything) and can be posted to multiple people at once. Feeds
+          Research and Draft Email/DM, and logs a communications row per
+          participant so it counts toward the warmth score. */}
+      {tab === "meeting_recaps" && (
+        <MeetingsCard personId={p.id} personName={p.full_name || p.first_name || ""} onTagApplied={reload} />
       )}
 
       {/* TAB: To-dos */}
@@ -800,7 +812,7 @@ export default function PersonProfile() {
       {/* TAB: Meetings — ProVisors meeting instances this person attended (with Dalen) */}
       {tab === "meetings" && (
         <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Meetings Attended</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>ProVisors Meetings Attended</div>
           {(data.meetings && data.meetings.length > 0) ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {data.meetings.map(function(m){
