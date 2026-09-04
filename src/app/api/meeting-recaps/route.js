@@ -187,12 +187,22 @@ async function logCommunications(sb, personIds, recap) {
   // fit_call_completed lands, so this is a one-line trigger, not a manual
   // pipeline edit.
   if (recap.meeting_type && /fit\s*call/i.test(recap.meeting_type)) {
+    const day = recap.occurred_at || new Date().toISOString().slice(0, 10)
     for (const pid of personIds) {
       try {
+        // set_action_tag has no built-in dedup — a manual "mark fit call
+        // complete" click on the Fit Call tab and this auto-trigger can
+        // both fire for the same real-world call (e.g. Dalen marks it
+        // complete in the UI, then also logs the Granola recap). Skip if
+        // one's already on file for the same day rather than stacking a
+        // second row that would double-count in the warmth score.
+        const { data: existing } = await sb.from("person_action_tags")
+          .select("id").eq("person_id", pid).eq("action_type", "fit_call_completed").eq("as_of_date", day).limit(1)
+        if (existing && existing.length) continue
         await sb.rpc("set_action_tag", {
           p_person_id: pid,
           p_action_type: "fit_call_completed",
-          p_as_of_date: recap.occurred_at || null,
+          p_as_of_date: day,
           p_set_by: "meeting_recap",
           p_notes: "Auto-set from meeting recap " + recap.id,
         })
