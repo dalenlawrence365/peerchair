@@ -173,6 +173,7 @@ async function logCommunications(sb, personIds, recap) {
         occurred_at: occurredAtIso,
         step_label: stepLabel,
         source: "meeting_recap",
+        meeting_recap_id: recap.id,
       }
     }))
     await sb.from("people").update({ last_meaningful_touch: new Date().toISOString() }).in("id", personIds)

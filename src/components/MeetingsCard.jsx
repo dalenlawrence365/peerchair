@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { marked } from "marked"
 import { T } from "@/lib/pipelineTheme"
 
@@ -113,7 +113,7 @@ function RecapBody({ recap, onDelete, deleting, onApplyTag, applyingTag }) {
   )
 }
 
-export default function MeetingsCard({ personId, personName, onTagApplied }) {
+export default function MeetingsCard({ personId, personName, onTagApplied, scrollToRecapId }) {
   const [recaps, setRecaps] = useState([])
   const [loadingList, setLoadingList] = useState(true)
 
@@ -129,6 +129,9 @@ export default function MeetingsCard({ personId, personName, onTagApplied }) {
   const [msg, setMsg] = useState("")
   const [deletingId, setDeletingId] = useState(null)
   const [applyingTagId, setApplyingTagId] = useState(null)
+  const [highlightId, setHighlightId] = useState(null)
+  const recapRefs = useRef({})
+  const didScrollRef = useRef(false)
 
   function loadRecaps() {
     setLoadingList(true)
@@ -140,6 +143,21 @@ export default function MeetingsCard({ personId, personName, onTagApplied }) {
   }
 
   useEffect(function () { loadRecaps() }, [personId])
+
+  // Jump here from a Timeline "Meeting: <type>" click — scroll the matching
+  // recap into view and flash-highlight it. Only fires once per mount (a
+  // fresh MeetingsCard instance every time the tab is opened, since it's
+  // conditionally rendered), guarded so re-renders while the list is still
+  // loading don't retry forever.
+  useEffect(function () {
+    if (!scrollToRecapId || didScrollRef.current || loadingList) return
+    const el = recapRefs.current[scrollToRecapId]
+    if (!el) return
+    didScrollRef.current = true
+    el.scrollIntoView({ behavior: "smooth", block: "center" })
+    setHighlightId(scrollToRecapId)
+    setTimeout(function () { setHighlightId(null) }, 2500)
+  }, [scrollToRecapId, loadingList, recaps])
 
   // Reset the pinned participant if the profile itself changes (nav between people).
   useEffect(function () {
@@ -308,9 +326,12 @@ export default function MeetingsCard({ personId, personName, onTagApplied }) {
       ) : (
         recaps.map(function (r) {
           return (
-            <RecapBody key={r.id} recap={r}
-              onDelete={function () { handleDelete(r.id) }} deleting={deletingId === r.id}
-              onApplyTag={function () { handleApplyTag(r) }} applyingTag={applyingTagId === r.id} />
+            <div key={r.id} ref={function (el) { recapRefs.current[r.id] = el }}
+              style={highlightId === r.id ? { borderRadius: 10, boxShadow: "0 0 0 3px rgba(59,130,246,0.5)", transition: "box-shadow 0.3s" } : { transition: "box-shadow 0.3s" }}>
+              <RecapBody recap={r}
+                onDelete={function () { handleDelete(r.id) }} deleting={deletingId === r.id}
+                onApplyTag={function () { handleApplyTag(r) }} applyingTag={applyingTagId === r.id} />
+            </div>
           )
         })
       )}

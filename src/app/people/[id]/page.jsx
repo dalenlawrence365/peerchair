@@ -189,6 +189,7 @@ export default function PersonProfile() {
   const [dragOver, setDragOver] = useState(false)
   const [timelineFilter, setTimelineFilter] = useState("all")
   const [activeTab, setActiveTab] = useState(null)
+  const [jumpToRecapId, setJumpToRecapId] = useState(null)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({})
 
@@ -751,7 +752,7 @@ export default function PersonProfile() {
           Research and Draft Email/DM, and logs a communications row per
           participant so it counts toward the warmth score. */}
       {tab === "meeting_recaps" && (
-        <MeetingsCard personId={p.id} personName={p.full_name || p.first_name || ""} onTagApplied={reload} />
+        <MeetingsCard personId={p.id} personName={p.full_name || p.first_name || ""} onTagApplied={reload} scrollToRecapId={jumpToRecapId} />
       )}
 
       {/* TAB: To-dos */}
@@ -1002,6 +1003,24 @@ export default function PersonProfile() {
               <div style={{ color: T.textTertiary, fontSize: 13, padding: "8px 0" }}>No {timelineFilter} activity.</div>
             ) : shown.map(function(c){
             if (c._kind === "meeting") { return <MeetingEntry key={c.id} m={c.meeting} onAdd={addMeetingNote} onDelete={deleteMeetingNote} /> }
+            // Meeting-recap-derived comm row (logged automatically by the
+            // Meetings tab) — collapse to one clickable line instead of
+            // dumping the summary inline; click jumps straight to the full
+            // recap on the Meetings tab.
+            if (c.meeting_recap_id) {
+              const accentR = TIMELINE_COLOR.meeting
+              return (
+                <div key={c.id}
+                  onClick={function(){ setJumpToRecapId(c.meeting_recap_id); setActiveTab("meeting_recaps") }}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid " + T.borderSoft, borderLeft: "3px solid " + accentR, marginBottom: 4, cursor: "pointer" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.textPrimary }}>
+                    {c.step_label || "Meeting"}
+                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 400, color: "#3b82f6" }}>View →</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtDate(c.occurred_at)}</div>
+                </div>
+              )
+            }
             const isOut = c.direction === "OUT" || c.direction === "outbound"
             const isIn = c.direction === "IN" || c.direction === "inbound"
             const isNote = c._type === "note"

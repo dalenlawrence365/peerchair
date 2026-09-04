@@ -19,7 +19,7 @@ export async function GET(request, { params }) {
 
   // Communications — latest 50, matched by person_id
   const { data: comms } = await sb.from("communications")
-    .select("id, occurred_at, direction, channel, body, step_label, source, subject")
+    .select("id, occurred_at, direction, channel, body, step_label, source, subject, meeting_recap_id")
     .eq("person_id", id)
     .order("occurred_at", { ascending: false })
     .limit(50)
