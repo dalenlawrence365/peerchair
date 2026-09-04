@@ -190,6 +190,7 @@ export default function PersonProfile() {
   const [timelineFilter, setTimelineFilter] = useState("all")
   const [activeTab, setActiveTab] = useState(null)
   const [jumpToRecapId, setJumpToRecapId] = useState(null)
+  const [showWarmthModal, setShowWarmthModal] = useState(false)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({})
 
@@ -467,10 +468,14 @@ export default function PersonProfile() {
                   role, not just CFOs — a sponsor or referral partner's engagement
                   matters just as much. */}
               {data.warmth && (
-                <span title={`Warmth: ${data.warmth.tierLabel} (${data.warmth.score}/100)${data.warmth.flagged ? " — flagged (do-not-contact / opted-out / not-a-fit / out-of-market)" : ""}`}
-                  style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, fontWeight: 700, background: TIER_COLORS[data.warmth.tier].bg, color: TIER_COLORS[data.warmth.tier].fg, border: "1px solid " + TIER_COLORS[data.warmth.tier].border }}>
+                <span title={`Warmth: ${data.warmth.tierLabel} (${data.warmth.score}/100)${data.warmth.flagged ? " — flagged (do-not-contact / opted-out / not-a-fit / out-of-market)" : ""} — click to see how this was calculated`}
+                  onClick={function(){ setShowWarmthModal(true) }}
+                  style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, fontWeight: 700, background: TIER_COLORS[data.warmth.tier].bg, color: TIER_COLORS[data.warmth.tier].fg, border: "1px solid " + TIER_COLORS[data.warmth.tier].border, cursor: "pointer" }}>
                   {data.warmth.tierLabel} · {data.warmth.score}
                 </span>
+              )}
+              {showWarmthModal && data.warmth && (
+                <WarmthBreakdownModal warmth={data.warmth} personName={p.full_name || p.first_name || "This person"} onClose={function(){ setShowWarmthModal(false) }} />
               )}
             </div>
             <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
@@ -1314,6 +1319,66 @@ function ChipRow({ label, items, color }) {
         {items.map(function(it, i){
           return <span key={i} style={{ fontSize: 12, padding: "3px 9px", borderRadius: 6, background: color + "15", color: color, border: "1px solid " + color + "40" }}>{it}</span>
         })}
+      </div>
+    </div>
+  )
+}
+
+// Warmth breakdown modal — opened by clicking the warmth pill. Shows every
+// signal that fed the score (label, raw weight, recency decay, and the
+// resulting contribution), sorted strongest-first, so Dalen can judge the
+// accuracy of a given score for himself instead of trusting a bare number.
+function WarmthBreakdownModal({ warmth, personName, onClose }) {
+  const tc = TIER_COLORS[warmth.tier] || TIER_COLORS.cold
+  const breakdown = warmth.breakdown || []
+  const total = breakdown.reduce(function (sum, b) { return sum + b.contribution }, 0)
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, zIndex: 1200 }}>
+      <div onClick={function (e) { e.stopPropagation() }} style={{ background: T.cardBg, borderRadius: 14, padding: 22, maxWidth: 560, width: "100%", maxHeight: "82vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, padding: "4px 12px", borderRadius: 999, background: tc.bg, color: tc.fg, border: "1px solid " + tc.border }}>
+            {warmth.tierLabel} · {warmth.score}
+          </span>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.textPrimary }}>{personName}</div>
+          <button onClick={onClose} title="Close" style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: T.textTertiary, fontSize: 18, lineHeight: 1, padding: 4 }}>×</button>
+        </div>
+        <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 16, lineHeight: 1.5 }}>
+          How this score was calculated — every signal below decays with a 75-day half-life, so older activity counts for less. Reciprocity (things THEY did, not outbound effort) is what drives this, not the CFO qualification score.
+        </div>
+
+        {warmth.flagged ? (
+          <div style={{ padding: "12px 14px", borderRadius: 8, background: "rgba(185,28,28,0.08)", border: "1px solid rgba(185,28,28,0.25)", fontSize: 13, color: "#b91c1c" }}>
+            Floored to 0 (Cold) — flagged {(warmth.flaggedTags || []).join(", ")}. No further signals are scored while a warning tag is active.
+          </div>
+        ) : breakdown.length === 0 ? (
+          <div style={{ fontSize: 13, color: T.textTertiary }}>No scored signals on file yet — this person hasn't done anything (replied, attended, clicked, registered) that this model counts.</div>
+        ) : (
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+              {breakdown.map(function (b, i) {
+                const pos = b.contribution >= 0
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, background: i % 2 === 0 ? "transparent" : T.borderSoft || "rgba(0,0,0,0.02)" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, color: T.textPrimary }}>{b.label}</div>
+                      <div style={{ fontSize: 10.5, color: T.textTertiary, marginTop: 1 }}>
+                        base weight {b.weight > 0 ? "+" : ""}{b.weight} · {Math.round(b.decay * 100)}% strength at this age
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: pos ? "#15803d" : "#b91c1c", whiteSpace: "nowrap" }}>
+                      {pos ? "+" : ""}{b.contribution.toFixed(1)}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid " + T.border, fontSize: 13 }}>
+              <span style={{ color: T.textTertiary }}>Total (clamped 0–100)</span>
+              <span style={{ fontWeight: 700, color: T.textPrimary }}>{total.toFixed(1)} → {warmth.score}/100</span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

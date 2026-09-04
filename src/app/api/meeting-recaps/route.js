@@ -178,6 +178,27 @@ async function logCommunications(sb, personIds, recap) {
     }))
     await sb.from("people").update({ last_meaningful_touch: new Date().toISOString() }).in("id", personIds)
   } catch (e) { console.error("meeting_recap communications log failed:", e.message) }
+
+  // A logged Fit Call recap IS a completed fit call — without this, the
+  // fit_call_scheduled tag (worth less in the warmth score) just sits there
+  // forever even though the call demonstrably happened, because nothing else
+  // in this flow ever fires fit_call_completed. set_action_tag's own
+  // supersession rule retires fit_call_scheduled/fit_call_requested once
+  // fit_call_completed lands, so this is a one-line trigger, not a manual
+  // pipeline edit.
+  if (recap.meeting_type && /fit\s*call/i.test(recap.meeting_type)) {
+    for (const pid of personIds) {
+      try {
+        await sb.rpc("set_action_tag", {
+          p_person_id: pid,
+          p_action_type: "fit_call_completed",
+          p_as_of_date: recap.occurred_at || null,
+          p_set_by: "meeting_recap",
+          p_notes: "Auto-set from meeting recap " + recap.id,
+        })
+      } catch (e) { console.error("fit_call_completed auto-set failed for", pid, e.message) }
+    }
+  }
 }
 
 // Local copy of the narrative/meta split used by research-note and
