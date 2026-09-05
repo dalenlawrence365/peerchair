@@ -1,7 +1,14 @@
 export const dynamic = "force-dynamic"
+// Deep research (see triggerPostConnectResearch below) can run up to ~280s.
+// It's fired via waitUntil() so it never blocks the webhook's own response,
+// but the function instance still needs to stay alive long enough for it to
+// finish -- this is what actually grants that budget.
+export const maxDuration = 280
 import { createClient } from "@supabase/supabase-js"
+import { waitUntil } from "@vercel/functions"
 import { serverClient } from "@/lib/supabaseServer"
 import { normalizeLinkedInUrl } from "@/lib/csv"
+import { runDeepResearch } from "@/lib/deepResearch"
 
 // Campaign-name whitelist: events with ?campaign=<one of these> route to the
 // linkedin_connections table instead of the people table. Add new names here
@@ -230,21 +237,21 @@ async function findOrCreatePerson(sb, lead, eventLabel) {
       lead.profileUrl.replace("https://linkedin.com", "https://www.linkedin.com"),
     ]))
     const { data: byUrl } = await sb.from("people")
-      .select("id, cfo_state")
+      .select("id, cfo_state, roles")
       .in("linkedin_url", urlVariants)
       .limit(1)
     if (byUrl && byUrl.length) {
-      return { id: byUrl[0].id, pipeline_stage: byUrl[0].cfo_state || null, _alreadyExisted: true, _peopleOnly: true }
+      return { id: byUrl[0].id, pipeline_stage: byUrl[0].cfo_state || null, roles: byUrl[0].roles || null, _alreadyExisted: true, _peopleOnly: true }
     }
   }
 
   if (lead.firstName && lead.lastName) {
     const { data: byName } = await sb.from("people")
-      .select("id, cfo_state")
+      .select("id, cfo_state, roles")
       .ilike("full_name", `${lead.firstName}%${lead.lastName}`)
       .limit(1)
     if (byName && byName.length) {
-      return { id: byName[0].id, pipeline_stage: byName[0].cfo_state || null, _alreadyExisted: true, _peopleOnly: true }
+      return { id: byName[0].id, pipeline_stage: byName[0].cfo_state || null, roles: byName[0].roles || null, _alreadyExisted: true, _peopleOnly: true }
     }
   }
 
@@ -268,7 +275,43 @@ async function findOrCreatePerson(sb, lead, eventLabel) {
     console.error("People insert error:", error.message)
     return null
   }
-  return { id: created.id, pipeline_stage: created.cfo_state || null, _alreadyExisted: false, _peopleOnly: true }
+  return { id: created.id, pipeline_stage: created.cfo_state || null, roles: insertRow.roles, _alreadyExisted: false, _peopleOnly: true }
+}
+
+// Fired (via waitUntil, not awaited by the webhook response) the moment a
+// CFO accepts a connection request. Runs the same CFO Circle Prospect
+// Research Protocol as the manual "Run deep research" button, then drops a
+// second notification with the verdict/score so Dalen gets a quick read
+// without opening the profile -- his ask: know within a couple minutes of
+// an accept whether this is someone worth prioritizing.
+async function triggerPostConnectResearch(sb, personId, displayName) {
+  try {
+    const result = await runDeepResearch(sb, personId)
+    if (!result.ok) {
+      console.error("post-connect deep research failed:", result.error)
+      return
+    }
+    const note = result.note || {}
+    const who = displayName || "This new connection"
+    let title, body
+    if (result.parse_failed || note.score == null || !note.verdict) {
+      title = `Deep research done: ${who} (not auto-scored)`
+      body = "Research completed but couldn't be parsed into a score automatically -- open the Research tab to read it."
+    } else {
+      title = `Deep research done: ${who} -- ${note.verdict} (${note.score}/100)`
+      body = note.summary || ""
+    }
+    await sb.from("notifications").insert({
+      kind: "deep_research_done",
+      person_id: personId,
+      title,
+      body,
+      href: "/people/" + personId,
+      is_read: false
+    })
+  } catch (e) {
+    console.error("post-connect deep research/notify failed:", e.message)
+  }
 }
 
 
@@ -403,6 +446,14 @@ async function handleConnected(sb, lead, tags, seedBatchTag, raw, campaignParam)
     })
   } catch (e) { console.error("connect notification failed:", e.message) }
 
+  // Kick off deep research in the background -- everyone reaching this
+  // handler is CFO-sourced by construction (findOrCreatePerson defaults new
+  // rows to roles:["cfo"]), so only skip when an existing record explicitly
+  // carries roles WITHOUT "cfo" in it.
+  const isCfo = !Array.isArray(contact.roles) || contact.roles.includes("cfo")
+  if (isCfo) {
+    waitUntil(triggerPostConnectResearch(sb, contact.id, lead.fullName || contact.full_name))
+  }
 }
 
 async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
