@@ -4,6 +4,7 @@ export const maxDuration = 60
 import { serverClient } from "@/lib/supabaseServer"
 import { SENDER_CONTEXT } from "@/lib/dalenContext"
 import { WARNING_TAGS } from "@/lib/warningTags"
+import { getNamedLinksLines } from "@/lib/draftLinksContext"
 
 // POST /api/people/[id]/draft-dm
 //
@@ -90,6 +91,8 @@ export async function POST(request, { params }) {
     return `- ${when} [${c.channel || ""}] ${who}: ${snippet}`
   }).join("\n")
 
+  const namedLinksLines = await getNamedLinksLines(sb)
+
   const anthropicKey = process.env.ANTHROPIC_API_KEY
   if (!anthropicKey) return Response.json({ error: "AI not configured" }, { status: 500 })
 
@@ -129,6 +132,7 @@ KNOWN FACTS — use these exact values whenever the instructions refer to them, 
 - Sponsor discovery call link (first sponsor conversation only): ${SENDER_CONTEXT.calendly_links.sponsor_discovery.url}
 - General 15-minute booking link (any repeat/second conversation): ${SENDER_CONTEXT.calendly_links.the_15_min.url}
 - General 30-minute booking link (any repeat/second conversation needing more time): ${SENDER_CONTEXT.calendly_links.the_30_min.url}
+${namedLinksLines ? "\nOTHER KNOWN LINKS (Dalen's own link library — use the exact URL, referred to by these exact labels):\n" + namedLinksLines : ""}
 
 ${isRefinement ? `CURRENT DRAFT (Dalen has already reviewed and possibly hand-edited this — refine it,
 don't start over from a blank page; keep whatever still works):
@@ -145,7 +149,7 @@ Write the LinkedIn DM now. Rules:
 - Address the recipient by their first name if a greeting is used.
 - Ground it in the recipient's actual profile/history above where relevant; do not invent facts about them that weren't given.
 ${isRefinement ? "- This is a revision pass: preserve the parts of the CURRENT DRAFT that still fit, and weave in the additional instructions — don't discard good material just to sound different." : "- Follow Dalen's spoken instructions as the primary guide for content and tone, even if informal or incomplete — fill reasonable gaps yourself."}
-- When the instructions reference something covered in KNOWN FACTS above (the website, a booking link, etc.), use that exact URL as a real link — never write a placeholder, never guess a URL, never paraphrase it into something vague like "our website."
+- When the instructions reference something covered in KNOWN FACTS above (the website, a booking link, a link from OTHER KNOWN LINKS, etc.), include the exact raw URL by itself, on its own — never write a placeholder, never guess a URL, never paraphrase it into something vague like "our website." Do NOT use markdown link syntax like [label](url) here — this is a plain-text LinkedIn message, LinkedIn does not render custom link text, so a markdown-wrapped link would show up as broken literal brackets. A bare URL is the correct and only format for a DM.
 
 Respond with ONLY valid JSON, no other text, in exactly this shape:
 {"body": "..."}`

@@ -6,6 +6,7 @@ import { graphFetch } from "@/lib/microsoft-auth"
 import { upsertOutlookContact } from "@/lib/outlookContacts"
 import { SENDER_CONTEXT } from "@/lib/dalenContext"
 import { WARNING_TAGS } from "@/lib/warningTags"
+import { getNamedLinksLines } from "@/lib/draftLinksContext"
 
 // POST /api/people/[id]/draft-email
 //
@@ -28,10 +29,46 @@ function escapeHtml(s) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 }
 
+// Renders a chunk of drafted plain text as HTML, turning any markdown-style
+// link — [label](url) — into a REAL <a href> tag with that label as the
+// visible text, instead of leaving it as escaped literal text that Outlook
+// can only auto-linkify (ugly raw URL as the visible text, which is exactly
+// what Dalen had to manually rename by hand before this). A bare URL with no
+// markdown wrapper is still linkified too, just with the URL itself as the
+// label, so nothing ever reaches Outlook as dead/unlinked text.
+const LINK_OR_URL_RE = /\[([^\]\[]+)\]\((https?:\/\/[^\s)]+)\)|https?:\/\/[^\s<>")]+/g
+
+function renderInlineHtml(text) {
+  let out = ""
+  let last = 0
+  let m
+  LINK_OR_URL_RE.lastIndex = 0
+  while ((m = LINK_OR_URL_RE.exec(text)) !== null) {
+    out += escapeHtml(text.slice(last, m.index))
+    if (m[1] !== undefined) {
+      // markdown link: [label](url)
+      const label = escapeHtml(m[1])
+      const url = escapeHtml(m[2])
+      out += '<a href="' + url + '" style="color:#2563eb;text-decoration:underline">' + label + '</a>'
+    } else {
+      // bare URL — trim common trailing punctuation that isn't part of the link
+      let url = m[0]
+      let trailing = ""
+      const trailMatch = url.match(/[.,;:!?)]+$/)
+      if (trailMatch) { trailing = trailMatch[0]; url = url.slice(0, -trailing.length) }
+      const safeUrl = escapeHtml(url)
+      out += '<a href="' + safeUrl + '" style="color:#2563eb;text-decoration:underline">' + safeUrl + '</a>' + escapeHtml(trailing)
+    }
+    last = LINK_OR_URL_RE.lastIndex
+  }
+  out += escapeHtml(text.slice(last))
+  return out
+}
+
 function bodyToHtml(body) {
   const paras = String(body || "").split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
   const htmlParas = paras.map(p =>
-    '<p style="font-size:15px;line-height:1.6;margin:0 0 14px">' + escapeHtml(p).replace(/\n/g, "<br>") + '</p>'
+    '<p style="font-size:15px;line-height:1.6;margin:0 0 14px">' + renderInlineHtml(p).replace(/\n/g, "<br>") + '</p>'
   ).join("")
   return '<div style="font-family:Georgia,serif;max-width:560px;color:#20242f">' + htmlParas + '</div>'
 }
@@ -108,6 +145,8 @@ export async function POST(request, { params }) {
       return `- ${when} [${c.channel || ""}] ${who}: ${snippet}`
     }).join("\n")
 
+    const namedLinksLines = await getNamedLinksLines(sb)
+
     const anthropicKey = process.env.ANTHROPIC_API_KEY
     if (!anthropicKey) return Response.json({ error: "AI not configured" }, { status: 500 })
 
@@ -147,6 +186,7 @@ KNOWN FACTS — use these exact values whenever the instructions refer to them, 
 - Sponsor discovery call link (first sponsor conversation only): ${SENDER_CONTEXT.calendly_links.sponsor_discovery.url}
 - General 15-minute booking link (any repeat/second conversation): ${SENDER_CONTEXT.calendly_links.the_15_min.url}
 - General 30-minute booking link (any repeat/second conversation needing more time): ${SENDER_CONTEXT.calendly_links.the_30_min.url}
+${namedLinksLines ? "\nOTHER KNOWN LINKS (Dalen's own link library — use the exact URL, referred to by these exact labels):\n" + namedLinksLines : ""}
 
 ${isRefinement ? `CURRENT DRAFT (Dalen has already reviewed and possibly hand-edited this — refine it,
 don't start over from a blank page; keep whatever still works):
@@ -165,7 +205,7 @@ Write the email now. Rules:
 - Ground it in the recipient's actual profile/history above where relevant; do not invent facts about them that weren't given.
 ${isRefinement ? "- This is a revision pass: preserve the parts of the CURRENT DRAFT that still fit, and weave in the additional instructions — don't discard good material just to sound different." : "- Follow Dalen's spoken instructions as the primary guide for content and tone, even if informal or incomplete — fill reasonable gaps yourself."}
 - Separate paragraphs with a blank line.
-- When the instructions reference something covered in KNOWN FACTS above (the website, a booking link, etc.), use that exact URL as a real link — never write a placeholder, never guess a URL, never paraphrase it into something vague like "our website."
+- When the instructions reference something covered in KNOWN FACTS above (the website, a booking link, a link from OTHER KNOWN LINKS, etc.), write it as a markdown link using that exact URL and a short, natural label — like [book a quick chat](${SENDER_CONTEXT.calendly_links.the_15_min.url}) or [the workshop signup](https://example.com/rsvp) — never write a placeholder, never guess a URL, and never paste a raw naked URL into the body. This is an email that renders HTML, so the markdown link becomes a real clickable hyperlink with your label as the visible text — that's the whole point, don't skip it.
 
 Respond with ONLY valid JSON, no other text, in exactly this shape:
 {"subject": "...", "body": "..."}`
