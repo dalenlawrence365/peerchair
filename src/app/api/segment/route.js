@@ -12,6 +12,11 @@ export async function GET(request) {
   if (!VALID.includes(key)) {
     return Response.json({ error: "invalid segment key", valid: VALID }, { status: 400 })
   }
+  // days only matters for invite_lapsed — the lookback window for "sent but never
+  // accepted/replied," i.e. eligible to ask again (default 30, e.g. pass 180 for a
+  // 6-month re-invite campaign list). Ignored by every other segment key.
+  const daysParam = parseInt(searchParams.get("days"), 10)
+  const days = Number.isFinite(daysParam) && daysParam > 0 ? daysParam : 30
   const sb = serverClient()
 
   // CFO Circle is a boolean label across the whole people table — NOT a
@@ -41,7 +46,7 @@ export async function GET(request) {
     return await withStatusTags(sb, key, people)
   }
 
-  const { data, error } = await sb.rpc("connection_segment_people", { p_key: key })
+  const { data, error } = await sb.rpc("connection_segment_people", { p_key: key, p_days: days })
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return await withStatusTags(sb, key, data || [])
 }

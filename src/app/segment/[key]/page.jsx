@@ -25,12 +25,16 @@ function buildCsv(rows) {
   return lines.join("\n")
 }
 
+const DAY_PRESETS = [30, 60, 90, 180, 365]
+
 export default function SegmentPage() {
   const params = useParams()
   const key = params?.key
   const [people, setPeople] = useState(null)
   const [error, setError] = useState(null)
+  const [days, setDays] = useState(30)
   const meta = META[key] || { label: key, desc: "", action: "", color: "#64748b" }
+  const isLapsed = key === "invite_lapsed"
 
   function downloadCsv() {
     const csv = buildCsv(people || [])
@@ -45,14 +49,16 @@ export default function SegmentPage() {
 
   useEffect(function () {
     if (!key) return
-    fetch(`/api/segment?key=${key}`)
+    setPeople(null)
+    const qs = isLapsed ? `&days=${days}` : ""
+    fetch(`/api/segment?key=${key}${qs}`)
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j } }) })
       .then(function (res) {
         if (!res.ok) { setError(res.j.error || "Failed to load"); setPeople([]); return }
         setPeople(res.j.people || [])
       })
       .catch(function (e) { setError(String(e)); setPeople([]) })
-  }, [key])
+  }, [key, isLapsed, days])
 
   return (
     <main style={{ padding: "24px 28px 64px", maxWidth: 1000 }}>
@@ -72,8 +78,30 @@ export default function SegmentPage() {
           </button>
         )}
       </div>
-      <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 4 }}>{meta.desc}</div>
-      <div style={{ fontSize: 12, color: T.textTertiary, marginBottom: 18 }}>Next action: <strong style={{ color: meta.color }}>{meta.action}</strong></div>
+      <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 4 }}>
+        {isLapsed ? `Sent a connection request, never accepted or replied, and not asked again in the last ${days} days -- eligible to ask again.` : meta.desc}
+      </div>
+      <div style={{ fontSize: 12, color: T.textTertiary, marginBottom: isLapsed ? 10 : 18 }}>Next action: <strong style={{ color: meta.color }}>{isLapsed ? "Re-invite" : meta.action}</strong></div>
+
+      {isLapsed && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: T.textTertiary }}>Not asked again in the last</span>
+          <input type="number" min={1} value={days} onChange={function (e) { const v = parseInt(e.target.value, 10); setDays(Number.isFinite(v) && v > 0 ? v : 1) }}
+            style={{ width: 70, padding: "5px 8px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none", background: "white" }} />
+          <span style={{ fontSize: 12, color: T.textTertiary }}>days</span>
+          <div style={{ display: "flex", gap: 5, marginLeft: 6 }}>
+            {DAY_PRESETS.map(function (d) {
+              return (
+                <button key={d} onClick={function () { setDays(d) }}
+                  style={{ fontSize: 11, fontWeight: 500, padding: "4px 9px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                    border: "1px solid " + (days === d ? meta.color : T.border), background: days === d ? meta.color : "white", color: days === d ? "white" : T.textSecondary }}>
+                  {d >= 365 ? "1yr" : d + "d"}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {error && <div style={{ color: T.danger, fontSize: 13, marginBottom: 12 }}>⚠ {error}</div>}
       {people === null && <div style={{ fontSize: 13, color: T.textTertiary }}>Loading…</div>}
