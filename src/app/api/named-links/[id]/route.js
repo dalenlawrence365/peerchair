@@ -22,7 +22,11 @@ export async function PATCH(request, { params }) {
     if (!/^https?:\/\//i.test(url)) return Response.json({ error: "url must start with http:// or https://" }, { status: 400 })
     patch.url = url
   }
-  if (typeof b.notes === "string") patch.notes = b.notes.trim() || null
+  if (typeof b.use_for === "string") {
+    const useFor = b.use_for.trim()
+    if (!useFor) return Response.json({ error: "use_for cannot be blank" }, { status: 400 })
+    patch.use_for = useFor
+  }
   if (typeof b.active === "boolean") patch.active = b.active
 
   const sb = serverClient()

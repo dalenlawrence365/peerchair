@@ -35,9 +35,10 @@ export default function LinksPage() {
         </button>
       </div>
       <p style={{ color: T.textSecondary, fontSize: 13, marginTop: 8, marginBottom: 24, maxWidth: 640, lineHeight: 1.5 }}>
-        Named links Draft Email and Draft DM can reference by label instead of a raw URL — say "include the workshop
-        signup link" and the draft uses the label below with the real URL underneath. Rename or retire a link here
-        any time; every future draft picks it up immediately.
+        Named links Draft Email and Draft DM can reach for automatically. The label is just the display text a
+        reader sees — it's "When to use this" that does the actual matching, since how you describe a link out loud
+        ("the web page," "the signup link") usually won't be the same words as the label. Rename or retire a link
+        here any time; every future draft picks it up immediately.
       </p>
 
       {err && <div style={{ color: "#dc2626", fontSize: 13, marginBottom: 16 }}>Error: {err}</div>}
@@ -72,28 +73,29 @@ export default function LinksPage() {
 function LinkForm({ initial, onSave, onCancel }) {
   const [label, setLabel] = useState((initial && initial.label) || "")
   const [url, setUrl] = useState((initial && initial.url) || "")
-  const [notes, setNotes] = useState((initial && initial.notes) || "")
+  const [useFor, setUseFor] = useState((initial && initial.use_for) || "")
   const [saving, setSaving] = useState(false)
+  const canSave = label.trim() && url.trim() && useFor.trim()
 
   return (
     <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 20, marginBottom: 16 }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Label</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Label (what the reader sees)</div>
       <input value={label} onChange={function (e) { setLabel(e.target.value) }}
-        placeholder='e.g. "Sept 16 Workshop RSVP"' style={{ ...inputStyle, marginBottom: 10 }} />
+        placeholder='e.g. "CFO Circle Los Angeles"' style={{ ...inputStyle, marginBottom: 10 }} />
       <div style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>URL</div>
       <input value={url} onChange={function (e) { setUrl(e.target.value) }}
         placeholder="https://…" style={{ ...inputStyle, marginBottom: 10 }} />
-      <div style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Notes (optional)</div>
-      <input value={notes} onChange={function (e) { setNotes(e.target.value) }}
-        placeholder="When Claude should use this one" style={{ ...inputStyle, marginBottom: 14 }} />
+      <div style={{ fontSize: 11, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>When to use this (required — this is what Claude actually matches on)</div>
+      <input value={useFor} onChange={function (e) { setUseFor(e.target.value) }}
+        placeholder={'e.g. "Use whenever Dalen says the web page, our site, or CFO Circle\'s website"'} style={{ ...inputStyle, marginBottom: 14 }} />
       <div style={{ display: "flex", gap: 8 }}>
-        <button disabled={saving || !label.trim() || !url.trim()} onClick={async function () {
+        <button disabled={saving || !canSave} onClick={async function () {
           setSaving(true)
-          const ok = await onSave({ label: label.trim(), url: url.trim(), notes: notes.trim() })
+          const ok = await onSave({ label: label.trim(), url: url.trim(), use_for: useFor.trim() })
           setSaving(false)
           if (!ok) return
         }}
-          style={{ padding: "8px 14px", borderRadius: 6, border: "none", background: T.accent, color: "white", fontSize: 13, cursor: (saving || !label.trim() || !url.trim()) ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: 600, opacity: (saving || !label.trim() || !url.trim()) ? 0.6 : 1 }}>
+          style={{ padding: "8px 14px", borderRadius: 6, border: "none", background: T.accent, color: "white", fontSize: 13, cursor: (saving || !canSave) ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: 600, opacity: (saving || !canSave) ? 0.6 : 1 }}>
           {saving ? "Saving…" : "Save"}
         </button>
         <button disabled={saving} onClick={onCancel}
@@ -150,7 +152,9 @@ function LinkRow({ link, onChange }) {
             {!link.active && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: T.borderSoft || "#e5e7eb", color: T.textTertiary, fontWeight: 500 }}>RETIRED</span>}
           </div>
           <a href={link.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: T.accent, wordBreak: "break-all" }}>{link.url}</a>
-          {link.notes && <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 6, lineHeight: 1.4 }}>{link.notes}</div>}
+          <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 6, lineHeight: 1.4 }}>
+            <span style={{ fontWeight: 600, color: T.textTertiary }}>Use when: </span>{link.use_for}
+          </div>
         </div>
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           <button disabled={busy} onClick={function () { setEditing(true) }}

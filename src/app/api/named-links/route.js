@@ -27,13 +27,14 @@ export async function POST(request) {
 
   const label = (b.label || "").toString().trim()
   const url = (b.url || "").toString().trim()
-  const notes = (b.notes || "").toString().trim() || null
+  const useFor = (b.use_for || "").toString().trim()
   if (!label) return Response.json({ error: "label required" }, { status: 400 })
   if (!/^https?:\/\//i.test(url)) return Response.json({ error: "url must start with http:// or https://" }, { status: 400 })
+  if (!useFor) return Response.json({ error: "use_for required — this is what tells Claude when to reach for this link, since the label alone (what the reader sees) usually won't match how Dalen describes it out loud" }, { status: 400 })
 
   const sb = serverClient()
   const { data, error } = await sb.from("named_links")
-    .insert({ label, url, notes })
+    .insert({ label, url, use_for: useFor })
     .select().single()
   if (error) {
     const msg = error.code === "23505" ? "A link with that label already exists." : error.message
