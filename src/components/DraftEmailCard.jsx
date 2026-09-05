@@ -30,6 +30,7 @@ export default function DraftEmailCard({ personId, statusTags }) {
   const [creating, setCreating] = useState(false)
   const [msg, setMsg] = useState("")
   const [draftUrl, setDraftUrl] = useState(null)
+  const [copied, setCopied] = useState(false)
 
   function generateDraft(opts) {
     const refine = !!(opts && opts.refine)
@@ -55,6 +56,13 @@ export default function DraftEmailCard({ personId, statusTags }) {
       })
       .catch(function () { setMsg("Error generating draft.") })
       .finally(function () { setGenerating(false) })
+  }
+
+  function copyToClipboard() {
+    if (!body.trim()) return
+    navigator.clipboard.writeText(body.trim())
+      .then(function () { setCopied(true); setTimeout(function () { setCopied(false) }, 2000) })
+      .catch(function () { setMsg("Couldn't copy — select the text and copy manually.") })
   }
 
   function createInOutlook() {
@@ -83,7 +91,7 @@ export default function DraftEmailCard({ personId, statusTags }) {
 
   function startOver() {
     initial.reset(); more.reset()
-    setSubject(""); setBody(""); setHasDraft(false); setMsg(""); setDraftUrl(null); setShowMore(false)
+    setSubject(""); setBody(""); setHasDraft(false); setMsg(""); setDraftUrl(null); setShowMore(false); setCopied(false)
   }
 
   const inputStyle = { width: "100%", padding: "9px 11px", borderRadius: 8, border: "1px solid " + T.border, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }
@@ -179,6 +187,10 @@ export default function DraftEmailCard({ personId, statusTags }) {
                 Say more
               </button>
             )}
+            <button disabled={!body.trim()} onClick={copyToClipboard}
+              style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: copied ? (T.success || "#16a34a") : T.accent, color: "white", fontSize: 13, cursor: !body.trim() ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: 600, opacity: !body.trim() ? 0.6 : 1 }}>
+              {copied ? "Copied ✓" : "Copy"}
+            </button>
             <button disabled={creating || hasEmail === false} onClick={createInOutlook}
               style={{ flex: 1, padding: "8px 14px", borderRadius: 8, border: "none", background: T.accent, color: "white", fontSize: 13, cursor: (creating || hasEmail === false) ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: 600, opacity: (creating || hasEmail === false) ? 0.6 : 1 }}>
               {creating ? "Creating…" : "Create draft in Outlook"}
