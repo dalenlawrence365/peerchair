@@ -7,12 +7,17 @@ import { sendAlert } from "@/lib/notify"
 import { logCronRun } from "@/lib/cron-audit"
 
 // Hourly Outlook poll — the institutional half of ProVisors roster intake.
-// Scans the inbox for recent mail carrying a roster ("photo list") PDF, downloads
-// it straight from Microsoft Graph, runs the SAME parse+dedupe+stage core as the
-// manual upload path, and emails Dalen a "ready to review" alert. Nothing is ever
-// written to `people` here — every batch lands PENDING in /provisors/review for
-// one-click approve. Re-running is safe: intake dedupes on internetMessageId, so a
-// roster email is only ever staged once no matter how often we poll.
+// Scans the inbox for recent mail with a PDF attachment, downloads each PDF
+// straight from Microsoft Graph, and runs the SAME parse+dedupe+stage core as
+// the manual upload path. Claude itself decides whether a given PDF is
+// actually a roster (see notRoster in provisorsParse.js) -- there is
+// deliberately no filename/subject keyword pre-filter; that was tried and
+// silently dropped a real roster because leaders name/word things
+// inconsistently. Nothing is ever written to `people` here — every real
+// roster lands PENDING in /provisors/review for one-click approve, and Dalen
+// gets an email alert only when something actually staged. Re-running is
+// safe: intake dedupes on internetMessageId, so a roster email is only ever
+// staged once no matter how often we poll.
 //
 // Auth: Bearer CRON_SECRET (same as every other cron). Lookback defaults to 72h so
 // a missed run can't drop a roster; ?hours=N widens it for manual sweeps.
@@ -34,7 +39,9 @@ import { logCronRun } from "@/lib/cron-audit"
 // eating the whole function budget; (3) raise maxDuration to this plan's 300s
 // ceiling as a backstop, not a fix.
 
-const ROSTER_NAME = /(photo\s*list|roster)/i
+// No keyword pre-filter here anymore -- see the 2026-09-09 note in the loop
+// below for why. Any PDF attachment is a candidate; parseAndStageRoster's own
+// Claude call is the real gatekeeper on whether it's actually a roster.
 
 function withTimeout(promise, ms, label) {
   let timer
@@ -64,17 +71,10 @@ export async function GET(request) {
   // Filter on receivedDateTime ONLY (indexed, fast) -- hasAttachments is checked
   // client-side just below. Combining hasAttachments into the server-side $filter
   // is what silently hung this route for 3+ days straight (see note above).
-  // NOTE: bodyPreview is Graph's short truncated preview (~255 chars) -- a real
-  // miss on 2026-09-09 showed why that's not enough: the roster email's "PhotoList
-  // attached" sentence sat just past the truncation point, so neither the filename
-  // ("VDAM 9-9-26.pdf", no photo/roster in it) nor the truncated preview matched
-  // ROSTER_NAME, and a real roster silently fell through. Selecting the full body
-  // and testing against it (below) closes that gap -- HTML tags around the phrase
-  // don't break a plain substring/regex match against the raw content.
   const listUrl =
     `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages` +
     `?$filter=receivedDateTime ge ${since}` +
-    `&$select=id,subject,bodyPreview,body,receivedDateTime,from,internetMessageId,hasAttachments&$top=100`
+    `&$select=id,subject,receivedDateTime,from,internetMessageId,hasAttachments&$top=100`
   let res
   try { res = await withTimeout(graphFetch(listUrl), 25_000, "Outlook message list") }
   catch (e) {
@@ -131,18 +131,20 @@ export async function GET(request) {
       const aRes = await withTimeout(graphFetch(aUrl), 20_000, "Attachment list")
       if (!aRes.ok) continue
       const { value: atts } = await aRes.json()
-      // Roster signal: filename OR the email envelope (subject/body) mentions a
-      // "photo list"/"roster". Leaders name the PDF inconsistently — this one is
-      // "VDAM 7-8-2026.pdf", which the filename regex misses — but the body almost
-      // always says "photo list" (here: "Sorry for the late sending of the PhotoList").
-      // Envelope text is the reliable trigger; the Claude parser + tracked-group
-      // filter remain the final gatekeeper on whether the PDF is actually a roster.
-      const fullBodyText = (msg.body && msg.body.content) || ""
-      const envelopeIsRoster = ROSTER_NAME.test(`${msg.subject || ""} ${msg.bodyPreview || ""} ${fullBodyText}`)
+      // 2026-09-09: this used to pre-guess "is this a roster" from the filename
+      // and a keyword match against the subject/preview text ("photo list" /
+      // "roster"). That's exactly what silently dropped a real roster -- leaders
+      // name the PDF inconsistently ("VDAM 7-8-2026.pdf" has no "photo"/"roster"
+      // in it), phrase the email differently every month, and Graph's bodyPreview
+      // truncates at ~255 chars, so the trigger phrase can land past the cutoff.
+      // No amount of patching that regex closes the class of bug, only this one
+      // instance of it. So: any PDF attachment is now a candidate, full stop.
+      // parseAndStageRoster sends it to Claude, which either finds attendee cards
+      // (a real roster) or returns zero people (not a roster, see notRoster below)
+      // -- that's the actual, reliable gatekeeper, not string-matching human prose.
       const target = (atts || []).find(a => {
         const name = a.name || ""
-        const isPdf = /pdf/i.test(a.contentType || "") || /\.pdf$/i.test(name)
-        return isPdf && (ROSTER_NAME.test(name) || envelopeIsRoster)
+        return /pdf/i.test(a.contentType || "") || /\.pdf$/i.test(name)
       })
       if (!target) continue
       scanned++
@@ -162,6 +164,7 @@ export async function GET(request) {
         sourceMessageId: imid,
       })
       if (result.duplicate) { skipped.push(imid); continue }
+      if (result.notRoster) { skipped.push(imid); continue }
 
       staged.push({ batch_id: result.batch_id, group: result.meetingGroup, summary: result.summary, subject: msg.subject })
 

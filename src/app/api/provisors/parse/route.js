@@ -21,6 +21,7 @@ export async function POST(request) {
       sourceMessageId: body.sourceMessageId || null,
     })
     if (result.duplicate) return Response.json({ ok: true, duplicate: true, batch_id: result.batch_id, status: result.status })
+    if (result.notRoster) return Response.json({ ok: true, notRoster: true, meetingGroup: result.meetingGroup })
     return Response.json({ ok: true, batch_id: result.batch_id, meetingGroup: result.meetingGroup, summary: result.summary })
   } catch (e) {
     return Response.json({ error: String(e && e.message || e) }, { status: 502 })

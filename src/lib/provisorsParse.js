@@ -107,6 +107,15 @@ export async function parseAndStageRoster(sb, { pdf_base64, filename = null, sou
   const meetingDate = (parsed.meetingDate && /^\d{4}-\d{2}-\d{2}$/.test(parsed.meetingDate)) ? parsed.meetingDate : null
   const people = Array.isArray(parsed.people) ? parsed.people : []
 
+  // Not a roster -- Claude found no attendee cards on this PDF. This is the real
+  // gatekeeper now (see poll-email/route.js: the cron no longer pre-guesses "is
+  // this a roster" from filename/subject keywords, since that was the actual bug
+  // -- a real roster kept slipping past inconsistent human phrasing). Every PDF
+  // attachment gets parsed; anything that isn't a roster just quietly produces
+  // zero people and is skipped here, no batch, no alert, no noise in the review
+  // queue.
+  if (people.length === 0) return { notRoster: true, meetingGroup }
+
   // 2) Dedupe analysis — annotate each person new/existing (read-only)
   let nNew = 0, nExisting = 0
   let nSelf = 0
