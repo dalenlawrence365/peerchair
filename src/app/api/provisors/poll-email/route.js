@@ -64,10 +64,17 @@ export async function GET(request) {
   // Filter on receivedDateTime ONLY (indexed, fast) -- hasAttachments is checked
   // client-side just below. Combining hasAttachments into the server-side $filter
   // is what silently hung this route for 3+ days straight (see note above).
+  // NOTE: bodyPreview is Graph's short truncated preview (~255 chars) -- a real
+  // miss on 2026-09-09 showed why that's not enough: the roster email's "PhotoList
+  // attached" sentence sat just past the truncation point, so neither the filename
+  // ("VDAM 9-9-26.pdf", no photo/roster in it) nor the truncated preview matched
+  // ROSTER_NAME, and a real roster silently fell through. Selecting the full body
+  // and testing against it (below) closes that gap -- HTML tags around the phrase
+  // don't break a plain substring/regex match against the raw content.
   const listUrl =
     `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages` +
     `?$filter=receivedDateTime ge ${since}` +
-    `&$select=id,subject,bodyPreview,receivedDateTime,from,internetMessageId,hasAttachments&$top=100`
+    `&$select=id,subject,bodyPreview,body,receivedDateTime,from,internetMessageId,hasAttachments&$top=100`
   let res
   try { res = await withTimeout(graphFetch(listUrl), 25_000, "Outlook message list") }
   catch (e) {
@@ -130,7 +137,8 @@ export async function GET(request) {
       // always says "photo list" (here: "Sorry for the late sending of the PhotoList").
       // Envelope text is the reliable trigger; the Claude parser + tracked-group
       // filter remain the final gatekeeper on whether the PDF is actually a roster.
-      const envelopeIsRoster = ROSTER_NAME.test(`${msg.subject || ""} ${msg.bodyPreview || ""}`)
+      const fullBodyText = (msg.body && msg.body.content) || ""
+      const envelopeIsRoster = ROSTER_NAME.test(`${msg.subject || ""} ${msg.bodyPreview || ""} ${fullBodyText}`)
       const target = (atts || []).find(a => {
         const name = a.name || ""
         const isPdf = /pdf/i.test(a.contentType || "") || /\.pdf$/i.test(name)
