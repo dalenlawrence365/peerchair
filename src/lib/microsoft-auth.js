@@ -38,7 +38,16 @@ function tokenExpiryMs(jwt) {
 
 export async function getAccessToken(opts = {}) {
   const supabase = tokenClient()
-  const { data: row } = await supabase.from("microsoft_tokens").select("*").eq("id","dalen").single()
+  const { data: row, error: readErr } = await supabase.from("microsoft_tokens").select("*").eq("id","dalen").single()
+  // PGRST116 = "no rows" -- that's the real "you need to re-authorize" case.
+  // Any other error (network blip, timeout, Supabase hiccup) is NOT that, and
+  // reporting it as "No Microsoft token" sent Dalen chasing a re-auth that
+  // wasn't needed twice in one day (sync-calendar, sync-sent -- 2026-09-09).
+  // Surface what actually broke instead of flattening every failure into the
+  // same misleading message.
+  if (readErr && readErr.code !== "PGRST116") {
+    throw new Error("Microsoft token lookup failed (not a missing-token issue): " + readErr.message)
+  }
   if (!row) throw new Error("No Microsoft token. Visit /api/auth/microsoft to authorize.")
   // Prefer the token's own exp claim; fall back to the column only if it won't parse.
   const realExpiry = tokenExpiryMs(row.access_token) || new Date(row.expires_at).getTime()
