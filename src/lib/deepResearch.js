@@ -270,6 +270,10 @@ Do not write any text after the closing \`\`\` of that code block.`
     if (aiRes.ok) break
     if (!RETRYABLE_STATUSES.includes(aiRes.status) || attempt === MAX_ATTEMPTS) {
       const t = await aiRes.text().catch(() => "")
+      // Log the full body server-side -- the client only gets the first 500
+      // chars in `detail`, and until this was added, nothing surfaced the
+      // actual Anthropic error text anywhere, making a 4xx here unreadable.
+      console.error("deep-research: Anthropic error", aiRes.status, t.slice(0, 2000))
       const overloaded = aiRes.status === 529
       return {
         ok: false, status: 502,
