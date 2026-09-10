@@ -451,7 +451,22 @@ async function handleConnected(sb, lead, tags, seedBatchTag, raw, campaignParam)
   // rows to roles:["cfo"]), so only skip when an existing record explicitly
   // carries roles WITHOUT "cfo" in it.
   const isCfo = !Array.isArray(contact.roles) || contact.roles.includes("cfo")
-  if (isCfo) {
+
+  // Out-of-market CFOs can't attend in-person and aren't worth the ~2-3 min
+  // research call -- Dalen's explicit instruction (2026-09-10): never run
+  // research on an out-of-market CFO connect. Covers both directions: (a)
+  // this exact request just tagged them out_of_market above via the
+  // out-of-market webhook marker, and (b) they were already carrying an
+  // active out_of_market status tag from an earlier campaign and are simply
+  // reconnecting now through a different (non-out-of-market) URL.
+  let isOutOfMarket = campaignParam === OUT_OF_MARKET_WEBHOOK_MARKER
+  if (!isOutOfMarket) {
+    const { data: oomTag } = await sb.from("person_status_tags")
+      .select("id").eq("person_id", contact.id).eq("tag", "out_of_market").is("removed_at", null).limit(1)
+    isOutOfMarket = !!(oomTag && oomTag.length)
+  }
+
+  if (isCfo && !isOutOfMarket) {
     waitUntil(triggerPostConnectResearch(sb, contact.id, lead.fullName || contact.full_name))
   }
 }
