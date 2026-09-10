@@ -38,7 +38,18 @@ function tokenExpiryMs(jwt) {
 
 export async function getAccessToken(opts = {}) {
   const supabase = tokenClient()
-  const { data: row, error: readErr } = await supabase.from("microsoft_tokens").select("*").eq("id","dalen").single()
+  // sync-sent/sync-email/sync-calendar used to all fire on the same */30
+  // schedule (now staggered in vercel.json), which routinely stacked 3-5
+  // concurrent reads of this same row and occasionally drew a Supabase
+  // gateway timeout. Staggering removes most of that, but a lone request can
+  // still hit a transient blip on its own -- retry the read itself before
+  // treating it as a real failure.
+  let row, readErr
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    ;({ data: row, error: readErr } = await supabase.from("microsoft_tokens").select("*").eq("id","dalen").single())
+    if (!readErr || readErr.code === "PGRST116") break
+    if (attempt < 3) await new Promise((r) => setTimeout(r, 300 * attempt))
+  }
   // PGRST116 = "no rows" -- that's the real "you need to re-authorize" case.
   // Any other error (network blip, timeout, Supabase hiccup) is NOT that, and
   // reporting it as "No Microsoft token" sent Dalen chasing a re-auth that

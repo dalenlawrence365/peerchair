@@ -2,31 +2,31 @@
   "crons": [
     {
       "path": "/api/auth/microsoft/refresh",
-      "schedule": "0 14 * * *"
+      "schedule": "7 14 * * *"
     },
     {
       "path": "/api/sync-sent",
-      "schedule": "*/30 * * * *"
+      "schedule": "0,30 * * * *"
     },
     {
       "path": "/api/sync-email?hours=6",
-      "schedule": "*/30 * * * *"
+      "schedule": "5,35 * * * *"
     },
     {
       "path": "/api/sync-calendar",
-      "schedule": "*/30 * * * *"
+      "schedule": "10,40 * * * *"
     },
     {
       "path": "/api/scheduled-send",
-      "schedule": "0 16,20 * * *"
+      "schedule": "2 16,20 * * *"
     },
     {
       "path": "/api/cron-health",
-      "schedule": "0 * * * *"
+      "schedule": "45 * * * *"
     },
     {
       "path": "/api/provisors/poll-email",
-      "schedule": "0 * * * *"
+      "schedule": "15 * * * *"
     }
   ]
 }
