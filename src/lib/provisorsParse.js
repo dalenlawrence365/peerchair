@@ -49,6 +49,11 @@ ${TRACKED_GROUPS.map(g => "  • " + g).join("\n")}
 - If a person's card lists a group that is NOT one of the five above, omit it.
 - "meetingGroup" is the single group whose roster this is (the header). If it matches one of the five, use the canonical form; otherwise use the header text as-is.
 - Never invent emails or data. Leave fields empty ("") when not present.
+- Even if you determine the document is NOT a ProVisors roster (e.g. it's an invoice, an
+  unrelated list, a flyer), you must STILL respond with ONLY the JSON object above, using
+  an empty "people" array: {"meetingGroup": "", "meetingDate": "", "people": []}. Never
+  explain your reasoning in prose, before or after the JSON, no matter how confident you
+  are that it isn't a roster -- that explanation is exactly what breaks the caller's parser.
 - "location" = "City, State"; put any street address in "address" and zip in "zip".`
 
 // Returns one of:
@@ -96,11 +101,26 @@ export async function parseAndStageRoster(sb, { pdf_base64, filename = null, sou
   let parsed
   try { parsed = JSON.parse(clean) }
   catch (e) {
-    const truncated = aData.stop_reason === "max_tokens"
-    throw new Error(
-      (truncated ? "model output truncated (hit max_tokens) -- " : "could not parse model output as JSON: ")
-      + text.slice(0, 300)
-    )
+    // The model sometimes explains itself in prose instead of strictly returning JSON
+    // only -- almost always because it correctly recognized the document ISN'T a roster
+    // (an invoice, an unrelated list) and wants to say so. That's a real, useful answer,
+    // not a broken one -- salvage the JSON object embedded in the response rather than
+    // treating "wrapped in an explanation" the same as "actually malformed." This is what
+    // kept firing "provisors-poll-email is failing" alerts for a non-problem (seen
+    // 2026-08-21, 2026-09-09, 2026-09-12) instead of quietly falling through to the
+    // existing notRoster path below.
+    const first = clean.indexOf("{")
+    const last = clean.lastIndexOf("}")
+    if (first !== -1 && last > first) {
+      try { parsed = JSON.parse(clean.slice(first, last + 1)) } catch (e2) { /* fall through to the hard failure below */ }
+    }
+    if (!parsed) {
+      const truncated = aData.stop_reason === "max_tokens"
+      throw new Error(
+        (truncated ? "model output truncated (hit max_tokens) -- " : "could not parse model output as JSON: ")
+        + text.slice(0, 300)
+      )
+    }
   }
 
   const meetingGroup = parsed.meetingGroup || null
