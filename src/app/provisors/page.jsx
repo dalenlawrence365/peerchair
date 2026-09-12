@@ -173,6 +173,13 @@ export default function ProvisorsPage() {
               }}>{pending}</span>
             )}
           </Link>
+          <Link href="/provisors/potential-troika" style={{
+            fontSize: 12, padding: "6px 12px", borderRadius: 6, background: "white",
+            color: T.textSecondary, border: "1px solid " + T.border, cursor: "pointer",
+            fontWeight: 500, textDecoration: "none",
+          }}>
+            Potential Troika
+          </Link>
           <button onClick={() => setSearchOpen(v => !v)}
             style={{
               fontSize: 12, padding: "6px 12px", borderRadius: 6,
