@@ -7,16 +7,21 @@ import PersonCompanyPicker from "@/components/PersonCompanyPicker"
 // ─── Quick-add presets ───────────────────────────────────────────────────────
 // These map to the canonical action_tag taxonomy: completing a person-attached
 // todo fires the corresponding action_tag on the linked person.
-// The 'peerchair' preset is a category marker (no tag-firing) for app
-// development tasks — bugs, features, refactors of PeerChair itself.
+// The 'peerchair' and 'project' presets are category markers (no tag-firing) —
+// 'peerchair' for app development tasks (bugs, features, refactors of
+// PeerChair itself), 'project' for broader initiatives that aren't tied to a
+// single person/action tag.
+// Dropped 2026-09 (Dalen): brochure/assessment/event/fitcall quick-add
+// buttons -- his workflow moved to doing these in real time rather than
+// scheduling them as todos, and "send brochure" specifically predates the
+// website even existing. The underlying action_type values and
+// person_action_tags rows already recorded against them are untouched --
+// this only removes the quick-add buttons that used to create new ones.
 export const TODO_PRESETS = [
-  { key: "brochure",   title: "Send brochure",      action_type: "brochure_sent" },
-  { key: "assessment", title: "Send assessment",    action_type: "assessment_sent" },
-  { key: "event",      title: "Send event invite",  action_type: "event_invite_sent" },
-  { key: "fitcall",    title: "Schedule fit call",  action_type: "fit_call_scheduled" },
   { key: "followup",   title: "Personal follow-up", action_type: null },
   { key: "waiting",    title: "Waiting",            action_type: "waiting" },
   { key: "peerchair",  title: "PeerChair",          action_type: "peerchair" },
+  { key: "project",    title: "Project",            action_type: "project" },
   { key: "custom",     title: "",                   action_type: null },
 ]
 
@@ -81,9 +86,9 @@ export function TodoQuickAdd({ personId, companyId, defaultPersonName, onCreated
   const isScoped = !!(personId || companyId)
 
   function startWithPreset(preset) {
-    // PeerChair preset: empty title, user types the bug/feature
-    if (preset.key === "peerchair") {
-      setDraft({ title: "", action_type: "peerchair", scheduled_for: todayISO(), notes: "" })
+    // PeerChair / Project presets: empty title, user types what it actually is
+    if (preset.key === "peerchair" || preset.key === "project") {
+      setDraft({ title: "", action_type: preset.action_type, scheduled_for: todayISO(), notes: "" })
       setOpen(true)
       return
     }
@@ -102,12 +107,7 @@ export function TodoQuickAdd({ personId, companyId, defaultPersonName, onCreated
       setOpen(true)
       return
     }
-    const title = preset.action_type === "brochure_sent"   ? `Send brochure${refName ? " to " + refName : ""}` :
-                  preset.action_type === "assessment_sent" ? `Send assessment${refName ? " to " + refName : ""}` :
-                  preset.action_type === "event_invite_sent" ? `Send event invite${refName ? " to " + refName : ""}` :
-                  preset.action_type === "fit_call_scheduled" ? `Schedule fit call${refName ? " with " + refName : ""}` :
-                  preset.key === "followup" ? `Follow up${refName ? " with " + refName : ""}` :
-                  ""
+    const title = preset.key === "followup" ? `Follow up${refName ? " with " + refName : ""}` : ""
     setDraft({ title, action_type: preset.action_type, scheduled_for: todayISO(), notes: "" })
     setOpen(true)
   }
