@@ -28,7 +28,14 @@ export async function GET(request) {
     .order('send_at', { ascending: true })
     .limit(20)
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (error) {
+    // Surface this immediately as a cron_failure notification -- previously
+    // this path returned 500 without ever calling logCronRun, so a real
+    // failure here was invisible until cron-health's staleness check caught
+    // up (STALE: scheduled-send(28.72h), 2026-09-13) many hours later.
+    await logCronRun("scheduled-send", "scheduled_actions query failed", [error.message])
+    return Response.json({ error: error.message }, { status: 500 })
+  }
 
   for (const action of (due || [])) {
     // ── RESURFACE mode — move to queue top ───────────────────────────────

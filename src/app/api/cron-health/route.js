@@ -37,11 +37,23 @@ export async function GET(request) {
   const checks = {}
 
   for (const [name, cfg] of Object.entries(EXPECTED)) {
-    const { data, error } = await sb.from("audit_log")
-      .select("run_at")
-      .eq("audit_type", `cron_run:${name}`)
-      .order("run_at", { ascending: false })
-      .limit(1)
+    // A lone read of this table occasionally hits a transient Supabase
+    // gateway timeout (same class of blip microsoft-auth.js already
+    // retries around for the token row) -- without a retry here, that
+    // blip got misreported as "never_ran" (displayed as "(?h)" in the
+    // alert, indistinguishable from a real gap) even though the cron
+    // had just run on schedule. Retry the read itself before treating
+    // it as a real check_error.
+    let data, error
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      ;({ data, error } = await sb.from("audit_log")
+        .select("run_at")
+        .eq("audit_type", `cron_run:${name}`)
+        .order("run_at", { ascending: false })
+        .limit(1))
+      if (!error) break
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 300 * attempt))
+    }
 
     if (error) {
       checks[name] = { status: "check_error", error: error.message, max_gap_hours: cfg.maxGapHours }
