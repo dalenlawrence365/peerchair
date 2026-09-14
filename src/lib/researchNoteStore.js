@@ -43,7 +43,25 @@ export function splitNarrativeAndMeta(text) {
   return { narrative: t || null, meta: null }
 }
 
-export async function insertParsedNote(sb, personId, createdBy, meta, narrative, rawInput) {
+// tokenUsage (optional, 7th arg on both functions below) -- when the caller
+// has real Anthropic usage numbers (the live deep-research path does; the
+// paste-and-normalize path doesn't bother, since that AI call is a small
+// parsing pass, not the expensive part) it gets persisted alongside the
+// note so spend is queryable after the fact instead of only visible as a
+// surprise on the Anthropic bill. Shape: {input_tokens, output_tokens,
+// cache_creation_input_tokens, cache_read_input_tokens} -- any/all may be
+// null if the API response didn't include them.
+function usageColumns(tokenUsage) {
+  if (!tokenUsage) return {}
+  return {
+    input_tokens: tokenUsage.input_tokens ?? null,
+    output_tokens: tokenUsage.output_tokens ?? null,
+    cache_creation_input_tokens: tokenUsage.cache_creation_input_tokens ?? null,
+    cache_read_input_tokens: tokenUsage.cache_read_input_tokens ?? null,
+  }
+}
+
+export async function insertParsedNote(sb, personId, createdBy, meta, narrative, rawInput, tokenUsage) {
   const insertRow = {
     person_id: personId,
     created_by: createdBy,
@@ -54,11 +72,12 @@ export async function insertParsedNote(sb, personId, createdBy, meta, narrative,
     summary: meta.summary || null,
     narrative: narrative || meta.narrative || "(no narrative produced)",
     raw_input: rawInput || null,
+    ...usageColumns(tokenUsage),
   }
   return sb.from("person_research_notes").insert(insertRow).select().single()
 }
 
-export async function insertRawNote(sb, personId, createdBy, narrativeText, reason, rawInput) {
+export async function insertRawNote(sb, personId, createdBy, narrativeText, reason, rawInput, tokenUsage) {
   const insertRow = {
     person_id: personId,
     created_by: createdBy,
@@ -66,6 +85,7 @@ export async function insertRawNote(sb, personId, createdBy, narrativeText, reas
     summary: "(auto-formatting failed — saved as raw text: " + reason + ")",
     narrative: narrativeText || "(no content produced)",
     raw_input: rawInput || narrativeText || null,
+    ...usageColumns(tokenUsage),
   }
   return sb.from("person_research_notes").insert(insertRow).select().single()
 }

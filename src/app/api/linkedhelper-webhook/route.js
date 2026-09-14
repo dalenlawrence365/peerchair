@@ -286,7 +286,11 @@ async function findOrCreatePerson(sb, lead, eventLabel) {
 // an accept whether this is someone worth prioritizing.
 async function triggerPostConnectResearch(sb, personId, displayName) {
   try {
-    const result = await runDeepResearch(sb, personId)
+    // Capped lower than the manual button's default (15) -- this fires
+    // unattended on every LinkedIn connect accept, so it shouldn't spend at
+    // the same depth as a deliberate click. See dedup guard in
+    // handleConnected below for the other half of the cost fix.
+    const result = await runDeepResearch(sb, personId, { maxSearches: 6 })
     if (!result.ok) {
       console.error("post-connect deep research failed:", result.error)
       return
@@ -466,7 +470,23 @@ async function handleConnected(sb, lead, tags, seedBatchTag, raw, campaignParam)
     isOutOfMarket = !!(oomTag && oomTag.length)
   }
 
+  // De-dupe guard (2026-09-14): this used to fire unconditionally on every
+  // accept with no check for an existing note -- a repeat/duplicate webhook
+  // delivery, or someone disconnecting and reconnecting, could silently
+  // re-run a full paid research pass on someone already researched. A
+  // person's fundamentals (employer, role, scale) don't meaningfully change
+  // week to week, so skip if there's already a note from the last 90 days.
+  let hasRecentResearch = false
   if (isCfo && !isOutOfMarket) {
+    const { data: recentNote } = await sb.from("person_research_notes")
+      .select("id")
+      .eq("person_id", contact.id)
+      .gt("created_at", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
+      .limit(1)
+    hasRecentResearch = !!(recentNote && recentNote.length)
+  }
+
+  if (isCfo && !isOutOfMarket && !hasRecentResearch) {
     waitUntil(triggerPostConnectResearch(sb, contact.id, lead.fullName || contact.full_name))
   }
 }

@@ -14,7 +14,14 @@ import { splitNarrativeAndMeta, insertParsedNote, insertRawNote } from "@/lib/re
 // { ok:false, status, error, detail? } on failure. The route wrapper
 // translates this straight into Response.json(...).
 
-const MODEL = process.env.DEEP_RESEARCH_MODEL || "claude-opus-5"
+// Cost fix (2026-09-14): this was defaulting to Opus -- the only AI call in
+// the codebase that did (every other feature here defaults to Sonnet or
+// Haiku). Combined with the auto-fire-on-every-LinkedIn-connect webhook path
+// having no de-dupe guard, that was burning through Dalen's Anthropic budget
+// fast, silently, in the background. Sonnet is dramatically cheaper per
+// token; the structured rubric in PROTOCOL below does most of the actual
+// reasoning work, so the quality delta should be modest, not dramatic.
+const MODEL = process.env.DEEP_RESEARCH_MODEL || "claude-sonnet-4-6"
 
 const PROTOCOL = `# CFO Circle Prospect Research Protocol
 
@@ -80,7 +87,15 @@ You cannot reliably assess from public sources whether someone has a big ego, ac
 
 Score = how strong the prospect is, given what you found. Confidence = how sure you are the underlying facts are right. A high score with low confidence (e.g. 84/67) means "this looks strong, but important facts are still unverified — the fit call needs to close specific gaps," and you should say exactly which gaps.`
 
-export async function runDeepResearch(sb, id) {
+// opts.maxSearches (default 15): the manual "Run deep research" button
+// wants full depth since Dalen deliberately chose to spend the time/money.
+// The auto-fired background path (triggerPostConnectResearch, fired on
+// every LinkedIn connection accept) passes a lower cap -- each web search
+// injects its own scraped result content back into context, so search
+// count is a real cost lever, and an unattended background job firing on
+// every connect shouldn't default to the same depth as a deliberate click.
+export async function runDeepResearch(sb, id, opts = {}) {
+  const maxSearches = opts.maxSearches || 15
   if (!id) return { ok: false, status: 400, error: "id required" }
 
   const { data: person } = await sb.from("people")
@@ -249,7 +264,7 @@ Do not write any text after the closing \`\`\` of that code block.`
     tools: [{
       type: "web_search_20250305",
       name: "web_search",
-      max_uses: 15,
+      max_uses: maxSearches,
       user_location: { type: "approximate", city: "Los Angeles", region: "California", country: "US" },
     }],
   })
@@ -285,6 +300,18 @@ Do not write any text after the closing \`\`\` of that code block.`
   }
   const data = await aiRes.json()
 
+  // Capture actual token usage so spend is queryable after the fact --
+  // previously only searches_used was tracked, which said nothing about
+  // real cost. Anthropic's usage object may omit cache fields entirely on
+  // some responses, hence the ?? null throughout rather than assuming 0.
+  const u = data.usage || {}
+  const tokenUsage = {
+    input_tokens: u.input_tokens ?? null,
+    output_tokens: u.output_tokens ?? null,
+    cache_creation_input_tokens: u.cache_creation_input_tokens ?? null,
+    cache_read_input_tokens: u.cache_read_input_tokens ?? null,
+  }
+
   if (data.stop_reason === "pause_turn") {
     return { ok: false, status: 502, error: "Research ran long and paused mid-turn — this needs a continuation call that isn't wired up yet. Try again, or ask Claude to add pause_turn continuation support." }
   }
@@ -296,18 +323,18 @@ Do not write any text after the closing \`\`\` of that code block.`
   const { narrative, meta } = splitNarrativeAndMeta(raw)
 
   if (data.stop_reason === "max_tokens" && !meta) {
-    const { data: inserted, error: insErr } = await insertRawNote(sb, id, "dalen (deep research)", narrative || raw, "Response was cut off before finishing (hit the token ceiling after " + searchesUsed + " searches)", null)
+    const { data: inserted, error: insErr } = await insertRawNote(sb, id, "dalen (deep research)", narrative || raw, "Response was cut off before finishing (hit the token ceiling after " + searchesUsed + " searches)", null, tokenUsage)
     if (insErr) return { ok: false, status: 500, error: "Research cut off, and saving it also failed: " + insErr.message }
     return { ok: true, note: inserted, parse_failed: true, parse_failed_reason: "cut off before finishing" }
   }
 
   if (!meta || !narrative) {
-    const { data: inserted, error: insErr } = await insertRawNote(sb, id, "dalen (deep research)", narrative || raw, "Could not parse the research output into the standard format (used " + searchesUsed + " searches)", null)
+    const { data: inserted, error: insErr } = await insertRawNote(sb, id, "dalen (deep research)", narrative || raw, "Could not parse the research output into the standard format (used " + searchesUsed + " searches)", null, tokenUsage)
     if (insErr) return { ok: false, status: 500, error: "Could not parse research output, and saving it also failed: " + insErr.message }
     return { ok: true, note: inserted, parse_failed: true, parse_failed_reason: "could not parse" }
   }
 
-  const { data: inserted, error: insErr } = await insertParsedNote(sb, id, "dalen (deep research)", meta, narrative, null)
+  const { data: inserted, error: insErr } = await insertParsedNote(sb, id, "dalen (deep research)", meta, narrative, null, tokenUsage)
   if (insErr) return { ok: false, status: 500, error: insErr.message }
 
   return { ok: true, note: inserted, searches_used: searchesUsed }
