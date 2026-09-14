@@ -44,15 +44,21 @@ export async function GET(request) {
     // alert, indistinguishable from a real gap) even though the cron
     // had just run on schedule. Retry the read itself before treating
     // it as a real check_error.
+    // 2026-09-14: a 3-attempt/300ms-step retry (900ms total backoff) still
+    // wasn't enough during a genuine Supabase gateway-timeout window and
+    // sync-calendar got misreported as STALE ("(?h)") even though it had
+    // run cleanly every 30 minutes with no actual gap -- only this read of
+    // audit_log kept failing. Widened to 5 attempts / 500ms-step (2000ms
+    // total backoff) for more headroom against the same blip class.
     let data, error
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 5; attempt++) {
       ;({ data, error } = await sb.from("audit_log")
         .select("run_at")
         .eq("audit_type", `cron_run:${name}`)
         .order("run_at", { ascending: false })
         .limit(1))
       if (!error) break
-      if (attempt < 3) await new Promise((r) => setTimeout(r, 300 * attempt))
+      if (attempt < 5) await new Promise((r) => setTimeout(r, 500 * attempt))
     }
 
     if (error) {
