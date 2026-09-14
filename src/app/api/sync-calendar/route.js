@@ -173,7 +173,17 @@ export async function GET(request) {
   const end   = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
 
   const url = `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${start}&endDateTime=${end}&$top=200&$select=id,subject,bodyPreview,start,end,isAllDay,showAs,isCancelled,location,isOrganizer,attendees,organizer,webLink&$orderby=start/dateTime`
-  const res = await graphFetch(url, { headers: { Prefer: 'outlook.timezone="UTC"' } })
+  let res
+  try {
+    res = await graphFetch(url, { headers: { Prefer: 'outlook.timezone="UTC"' } })
+  } catch (e) {
+    // See sync-sent for why this must be caught here: graphFetch()'s internal
+    // getAccessToken() call is not covered by the earlier try/catch (that
+    // result is unused), so a transient failure used to throw uncaught with
+    // no logCronRun() call -- invisible to the audit_log-based staleness check.
+    await logCronRun("sync-calendar", "Calendar fetch threw", [e.message])
+    return Response.json({ error: e.message }, { status: 500 })
+  }
   if (!res.ok) {
     const t = await res.text().catch(() => "")
     await logCronRun("sync-calendar", "Calendar fetch failed", [`HTTP ${res.status}: ${t.slice(0,200)}`])

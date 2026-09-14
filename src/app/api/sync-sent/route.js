@@ -38,9 +38,21 @@ export async function GET(request) {
   const hours = Number.isFinite(hoursParam) && hoursParam > 0 ? Math.min(hoursParam, 720) : 2
   const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
 
-  const res = await graphFetch(
-    `https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages?$filter=sentDateTime ge ${since}&$select=id,subject,sentDateTime,toRecipients,bodyPreview&$orderby=sentDateTime desc&$top=100`
-  )
+  let res
+  try {
+    res = await graphFetch(
+      `https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages?$filter=sentDateTime ge ${since}&$select=id,subject,sentDateTime,toRecipients,bodyPreview&$orderby=sentDateTime desc&$top=100`
+    )
+  } catch (e) {
+    // graphFetch() makes its own internal getAccessToken() call that is NOT
+    // covered by the try/catch above (that one's result is unused) -- a
+    // transient failure here used to throw uncaught, 500ing with no
+    // logCronRun() call at all. That's how sync-sent went dark for hours
+    // with zero audit_log trace (2026-09-14): Vercel saw the error, but the
+    // cron-health/staleness check reading audit_log saw nothing.
+    await logCronRun("sync-sent", "Outlook fetch threw", [e.message])
+    return corsResponse({ error: e.message }, { status: 500 })
+  }
   if (!res.ok) {
     await logCronRun("sync-sent", "Outlook fetch failed", [`HTTP ${res.status}`])
     return corsResponse({ error: "Outlook fetch failed" }, { status: 500 })

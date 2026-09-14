@@ -30,9 +30,19 @@ export async function GET(request) {
   const hours = Number.isFinite(hoursParam) && hoursParam > 0 ? Math.min(hoursParam, 720) : 2
   const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
 
-  const res = await graphFetch(
-    `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$filter=receivedDateTime ge ${since}&$select=id,subject,receivedDateTime,from,bodyPreview&$orderby=receivedDateTime desc&$top=100`
-  )
+  let res
+  try {
+    res = await graphFetch(
+      `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$filter=receivedDateTime ge ${since}&$select=id,subject,receivedDateTime,from,bodyPreview&$orderby=receivedDateTime desc&$top=100`
+    )
+  } catch (e) {
+    // See sync-sent for why this must be caught here: graphFetch()'s internal
+    // getAccessToken() call is not covered by the earlier try/catch (that
+    // result is unused), so a transient failure used to throw uncaught with
+    // no logCronRun() call -- invisible to the audit_log-based staleness check.
+    await logCronRun("sync-email", "Outlook fetch threw", [e.message])
+    return Response.json({ error: e.message }, { status: 500 })
+  }
   if (!res.ok) {
     await logCronRun("sync-email", "Outlook fetch failed", [`HTTP ${res.status}`])
     return Response.json({ error: "Outlook fetch failed" }, { status: 500 })
