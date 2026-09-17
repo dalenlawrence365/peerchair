@@ -1,11 +1,10 @@
 export const dynamic = "force-dynamic"
-// Deep research (see triggerPostConnectResearch below) can run up to ~280s.
-// It's fired via waitUntil() so it never blocks the webhook's own response,
-// but the function instance still needs to stay alive long enough for it to
-// finish -- this is what actually grants that budget.
+// maxDuration used to cover triggerPostConnectResearch's ~280s run via
+// waitUntil() on every connect. That auto-trigger is disabled (see
+// handleConnected below) -- left at 280 anyway since it's a ceiling, not a
+// cost, and removing it buys nothing.
 export const maxDuration = 280
 import { createClient } from "@supabase/supabase-js"
-import { waitUntil } from "@vercel/functions"
 import { serverClient } from "@/lib/supabaseServer"
 import { normalizeLinkedInUrl } from "@/lib/csv"
 import { runDeepResearch } from "@/lib/deepResearch"
@@ -450,45 +449,13 @@ async function handleConnected(sb, lead, tags, seedBatchTag, raw, campaignParam)
     })
   } catch (e) { console.error("connect notification failed:", e.message) }
 
-  // Kick off deep research in the background -- everyone reaching this
-  // handler is CFO-sourced by construction (findOrCreatePerson defaults new
-  // rows to roles:["cfo"]), so only skip when an existing record explicitly
-  // carries roles WITHOUT "cfo" in it.
-  const isCfo = !Array.isArray(contact.roles) || contact.roles.includes("cfo")
-
-  // Out-of-market CFOs can't attend in-person and aren't worth the ~2-3 min
-  // research call -- Dalen's explicit instruction (2026-09-10): never run
-  // research on an out-of-market CFO connect. Covers both directions: (a)
-  // this exact request just tagged them out_of_market above via the
-  // out-of-market webhook marker, and (b) they were already carrying an
-  // active out_of_market status tag from an earlier campaign and are simply
-  // reconnecting now through a different (non-out-of-market) URL.
-  let isOutOfMarket = campaignParam === OUT_OF_MARKET_WEBHOOK_MARKER
-  if (!isOutOfMarket) {
-    const { data: oomTag } = await sb.from("person_status_tags")
-      .select("id").eq("person_id", contact.id).eq("tag", "out_of_market").is("removed_at", null).limit(1)
-    isOutOfMarket = !!(oomTag && oomTag.length)
-  }
-
-  // De-dupe guard (2026-09-14): this used to fire unconditionally on every
-  // accept with no check for an existing note -- a repeat/duplicate webhook
-  // delivery, or someone disconnecting and reconnecting, could silently
-  // re-run a full paid research pass on someone already researched. A
-  // person's fundamentals (employer, role, scale) don't meaningfully change
-  // week to week, so skip if there's already a note from the last 90 days.
-  let hasRecentResearch = false
-  if (isCfo && !isOutOfMarket) {
-    const { data: recentNote } = await sb.from("person_research_notes")
-      .select("id")
-      .eq("person_id", contact.id)
-      .gt("created_at", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
-      .limit(1)
-    hasRecentResearch = !!(recentNote && recentNote.length)
-  }
-
-  if (isCfo && !isOutOfMarket && !hasRecentResearch) {
-    waitUntil(triggerPostConnectResearch(sb, contact.id, lead.fullName || contact.full_name))
-  }
+  // Automatic deep research on connect is DISABLED (Dalen's explicit
+  // instruction, 2026-09-17): it ran unattended on every CFO accept --
+  // in-market or not -- and was costing too much to leave on autopilot.
+  // Deep research now runs ONLY when manually triggered from a person's
+  // profile ("Run deep research"), so he can be selective about who it's
+  // worth spending on. triggerPostConnectResearch (above) is left in place,
+  // unused, in case this gets re-enabled later.
 }
 
 async function handleReplied(sb, lead, tags, seedBatchTag, raw) {
