@@ -45,6 +45,8 @@ export default function MeetingsPage() {
   const [showPersonal, setShowPersonal] = useState(true)
   const [data, setData] = useState(null)
   const [err, setErr] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshMsg, setRefreshMsg] = useState("")
 
   async function load() {
     try {
@@ -58,6 +60,24 @@ export default function MeetingsPage() {
     } catch (e) { setErr(e.message) }
   }
   useEffect(function(){ load() }, [range, typeFilter, showPersonal])
+
+  // On-demand counterpart to the 30-min cron -- same idea as "Check email
+  // now" on a person's profile. Fires POST /api/sync-calendar (same route
+  // as the cron GET, no CRON_SECRET needed for this same-origin call), then
+  // reloads the list so a meeting you just added/edited shows up now
+  // instead of waiting for the next scheduled tick.
+  function refreshNow() {
+    setRefreshing(true); setRefreshMsg("")
+    fetch("/api/sync-calendar", { method: "POST" })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d.error) { setRefreshMsg(d.error); return }
+        setRefreshMsg(d.upserted > 0 ? `Synced — ${d.upserted} updated.` : "Synced — no changes.")
+        return load()
+      })
+      .catch(function () { setRefreshMsg("Error refreshing.") })
+      .finally(function () { setRefreshing(false) })
+  }
 
   // Group by day
   const grouped = useMemo(function(){
@@ -79,13 +99,29 @@ export default function MeetingsPage() {
 
   return (
     <main style={{ padding: "32px 36px", maxWidth: 1040 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4, gap: 14 }}>
         <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>Meetings</h1>
-        {data && data.upcoming_7d !== undefined && (
-          <div style={{ fontSize: 13, color: T.textSecondary }}>
-            <strong style={{ color: T.textPrimary }}>{data.upcoming_7d}</strong> in next 7 days
-          </div>
-        )}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+          {refreshMsg && <span style={{ fontSize: 11, color: T.textTertiary }}>{refreshMsg}</span>}
+          <button
+            onClick={refreshNow}
+            disabled={refreshing}
+            title="Pull the latest from your calendar now instead of waiting for the next sync"
+            style={{
+              fontSize: 12, padding: "5px 12px", borderRadius: 6,
+              border: "1px solid " + T.border, background: "white",
+              color: T.textSecondary, cursor: refreshing ? "default" : "pointer",
+              fontFamily: "inherit", fontWeight: 500,
+            }}
+          >
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
+          {data && data.upcoming_7d !== undefined && (
+            <div style={{ fontSize: 13, color: T.textSecondary }}>
+              <strong style={{ color: T.textPrimary }}>{data.upcoming_7d}</strong> in next 7 days
+            </div>
+          )}
+        </div>
       </div>
       <p style={{ color: T.textSecondary, fontSize: 13, marginTop: 8, marginBottom: 20, maxWidth: 720 }}>
         Everything on your calendar — Outlook + anything Calendly auto-books. Synced every 30 minutes. Click a person to jump to their profile.

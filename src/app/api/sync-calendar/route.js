@@ -157,7 +157,22 @@ export async function GET(request) {
   const auth = request.headers.get("authorization") || ""
   const expected = `Bearer ${process.env.CRON_SECRET || "cfocircle2026"}`
   if (auth !== expected) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  return doSync()
+}
 
+// POST /api/sync-calendar -- on-demand counterpart to the cron above, same
+// pattern as sync-email-now: no CRON_SECRET check (every other same-origin
+// route in this app is unauthenticated the same way), meant to be fired
+// from the Meetings page's "Refresh" button so a just-added/edited event
+// doesn't have to wait for the next scheduled run. Runs the identical
+// Graph pull/upsert logic below and writes to the same audit_log row, so
+// cron-health freshness reflects the manual run too -- a manual refresh
+// IS a real sync, not a separate thing.
+export async function POST(request) {
+  return doSync()
+}
+
+async function doSync() {
   const sb = serverClient()
 
   let accessToken
