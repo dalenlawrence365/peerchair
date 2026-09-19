@@ -12,6 +12,31 @@ import { resolvePeopleByEmail } from "@/lib/resolvePeople"
 // Lookback defaults to 2h for the cron; pass ?hours=N for a wider sweep.
 const CFO_CIRCLE_EMAIL = "dalen.lawrence@cfo-circle.com"
 
+// Graph's bodyPreview is a short plain-text SNIPPET (roughly the first ~255
+// chars) -- not the message body. sync-email and sync-email-now both used to
+// store bodyPreview verbatim as the communications.body, so every inbound
+// email in the live timeline has been hard-truncated mid-sentence since this
+// route was written. (A separate legacy route, /api/email/fetch, does fetch
+// the full body -- but nothing calls it; it's dead code, not a fix that ever
+// shipped to this path.) Ask Graph for the real `body` field and clean it up
+// instead: strip HTML down to text, collapse whitespace Outlook's markup
+// leaves behind, and cap at a generous length so a giant thread or signature
+// block doesn't bloat the row.
+function cleanEmailBody(msg) {
+  const raw = (msg.body && msg.body.content) || msg.bodyPreview || ""
+  return raw
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#39;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 5000)
+}
+
 export async function GET(request) {
   const auth = request.headers.get("authorization") || ""
   const expected = `Bearer ${process.env.CRON_SECRET || "cfocircle2026"}`
@@ -33,7 +58,7 @@ export async function GET(request) {
   let res
   try {
     res = await graphFetch(
-      `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$filter=receivedDateTime ge ${since}&$select=id,subject,receivedDateTime,from,bodyPreview&$orderby=receivedDateTime desc&$top=100`
+      `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$filter=receivedDateTime ge ${since}&$select=id,subject,receivedDateTime,from,bodyPreview,body&$orderby=receivedDateTime desc&$top=100`
     )
   } catch (e) {
     // See sync-sent for why this must be caught here: graphFetch()'s internal
@@ -112,7 +137,7 @@ export async function GET(request) {
         direction: "inbound",
         channel: "email",
         subject: msg.subject || null,
-        body: `Subject: ${msg.subject || "(no subject)"}\n\n${msg.bodyPreview || ""}`,
+        body: `Subject: ${msg.subject || "(no subject)"}\n\n${cleanEmailBody(msg)}`,
         occurred_at: msg.receivedDateTime,
         step_label: "Received Email (Outlook)",
         source: "outlook_sync",

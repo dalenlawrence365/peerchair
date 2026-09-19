@@ -19,9 +19,31 @@ import { graphFetch } from "@/lib/microsoft-auth"
 // people.email mirrored into it automatically, and a contact's second
 // address lives there too (see resolvePeople.js).
 
+// Same fix as sync-email's cron path: Graph's bodyPreview is a short
+// plain-text snippet, not the full message. Ask for `body` and clean it.
+function cleanEmailBody(msg) {
+  const raw = (msg.body && msg.body.content) || msg.bodyPreview || ""
+  return raw
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#39;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 5000)
+}
+
 export async function POST(request, { params }) {
   const id = params?.id
   if (!id) return Response.json({ error: "id required" }, { status: 400 })
+  // ?refresh_existing=true -- overwrite an already-synced row's body instead
+  // of skipping it. Off by default (normal behavior is unchanged); exists so
+  // a specific email that was captured truncated before this fix can be
+  // backfilled with the full body without deleting and re-syncing by hand.
+  const refreshExisting = new URL(request.url).searchParams.get("refresh_existing") === "true"
 
   const sb = serverClient()
   const { data: person } = await sb.from("people").select("id, full_name").eq("id", id).maybeSingle()
@@ -42,7 +64,7 @@ export async function POST(request, { params }) {
   let res
   try {
     res = await graphFetch(
-      `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$filter=${filter}&$select=id,subject,receivedDateTime,from,bodyPreview&$orderby=receivedDateTime desc&$top=50`
+      `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$filter=${filter}&$select=id,subject,receivedDateTime,from,bodyPreview,body&$orderby=receivedDateTime desc&$top=50`
     )
   } catch (e) {
     return Response.json({ error: "Outlook request failed: " + (e.message || e) }, { status: 500 })
@@ -62,14 +84,25 @@ export async function POST(request, { params }) {
       .eq("person_id", id).eq("channel", "email").eq("direction", "inbound")
       .eq("occurred_at", msg.receivedDateTime)
       .limit(1)
-    if (existing && existing.length) continue
+
+    const body = `Subject: ${msg.subject || "(no subject)"}\n\n${cleanEmailBody(msg)}`
+
+    if (existing && existing.length) {
+      if (!refreshExisting) continue
+      const { error: updErr } = await sb.from("communications")
+        .update({ body })
+        .eq("id", existing[0].id)
+      if (updErr) { errors.push(updErr.message); continue }
+      synced++
+      continue
+    }
 
     const { error: insErr } = await sb.from("communications").insert({
       person_id: id,
       direction: "inbound",
       channel: "email",
       subject: msg.subject || null,
-      body: `Subject: ${msg.subject || "(no subject)"}\n\n${msg.bodyPreview || ""}`,
+      body,
       occurred_at: msg.receivedDateTime,
       step_label: "Received Email (Outlook)",
       source: "outlook_sync_manual",
