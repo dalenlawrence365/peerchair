@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { serverClient } from "@/lib/supabaseServer"
 import { getCfoScoreRows, avgScore } from "@/lib/cfoScores"
 import { getAllWarmthRows } from "@/lib/warmthScore"
+import { getArchivedPersonIds, archivedNotInFilter } from "@/lib/archivedPeople"
 
 // GET /api/dashboard — one-shot data fetch for the new dashboard.
 // Returns:
@@ -17,6 +18,16 @@ import { getAllWarmthRows } from "@/lib/warmthScore"
 export async function GET() {
   const sb = serverClient()
 
+  // Archived people (person_status_tags tag="archived") are excluded from
+  // Pipeline and Audience -- the two figures Dalen actually watches on this
+  // dashboard. Everything else (warmth, scores, queues, activity feed) is
+  // untouched for now.
+  const archivedIds = await getArchivedPersonIds(sb)
+  const archivedFilter = archivedNotInFilter(archivedIds)
+  function excludeArchived(query, col) {
+    return archivedFilter ? query.not(col || "id", "in", archivedFilter) : query
+  }
+
   // Distributions via COUNT queries per stage — NOT row-fetch-then-tally.
   // Supabase .select() silently caps at 1000 rows, which made fetch-then-count
   // report a hard ceiling of 1000 and a wrong stage split. head:true count
@@ -28,7 +39,7 @@ export async function GET() {
   async function distribution(field, stages) {
     const out = {}
     await Promise.all(stages.map(async function(stage){
-      const { count } = await sb.from("people").select("id", { count: "exact", head: true }).eq(field, stage)
+      const { count } = await excludeArchived(sb.from("people").select("id", { count: "exact", head: true }).eq(field, stage))
       out[stage] = count || 0
     }))
     return out
@@ -38,7 +49,7 @@ export async function GET() {
   // audience = first-degree connected (derived from linkedin_connected, not a stored stage),
   // engagement stages cumulative. Stages overlap, so they are NOT summed for the total.
   async function cfoDistribution() {
-    const base = function(){ return sb.from("people").select("id", { count: "exact", head: true }).contains("roles", ["cfo"]) }
+    const base = function(){ return excludeArchived(sb.from("people").select("id", { count: "exact", head: true }).contains("roles", ["cfo"])) }
     const [pool, audience, prospect, qualified, member] = await Promise.all([
       base(),
       base().eq("linkedin_connected", true),
@@ -186,15 +197,15 @@ export async function GET() {
   // minus legacy (pre-2024); ProVisor/CFO/Sponsor are connected role cohorts that
   // overlap each other and are never summed into the total.
   const audience = await (async () => {
-    const base = function(){ return sb.from("people").select("id", { count: "exact", head: true }).eq("linkedin_connected", true) }
+    const base = function(){ return excludeArchived(sb.from("people").select("id", { count: "exact", head: true }).eq("linkedin_connected", true)) }
     const [reach, prov, cfo, spon] = await Promise.all([
       base(),
       base().eq("provisors_member", true),
       base().contains("roles", ["cfo"]),
       base().contains("roles", ["sponsor_contact"]),
     ])
-    const { count: legacy } = await sb.from("person_status_tags")
-      .select("person_id", { count: "exact", head: true }).eq("tag", "legacy").is("removed_at", null)
+    const { count: legacy } = await excludeArchived(sb.from("person_status_tags")
+      .select("person_id", { count: "exact", head: true }).eq("tag", "legacy").is("removed_at", null), "person_id")
     const reachable = reach.count || 0
     // Weekly additions by effective_date — the generated coalesce(as_of_date,
     // set_at::date). Neither input works alone: as_of_date is the true date on
@@ -204,20 +215,20 @@ export async function GET() {
     // acceptance that happened in real time was invisible — 21 CFOs accepted in
     // a week and the tile read "+1".
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    const { data: recent } = await sb.from("person_action_tags")
-      .select("person_id").eq("action_type", "connection_accepted").gte("effective_date", since)
+    const { data: recent } = await excludeArchived(sb.from("person_action_tags")
+      .select("person_id").eq("action_type", "connection_accepted").gte("effective_date", since), "person_id")
     const recentIds = [...new Set((recent || []).map(function(r){ return r.person_id }))]
     // CFO audience out-of-market: connected CFOs carrying the out_of_market status tag.
     // Pulled up ahead of the weekly split below, which needs the same id set to
     // divide this week's new CFOs into LA vs out-of-market.
-    const { data: oomRows } = await sb.from("person_status_tags")
-      .select("person_id").eq("tag", "out_of_market").is("removed_at", null)
+    const { data: oomRows } = await excludeArchived(sb.from("person_status_tags")
+      .select("person_id").eq("tag", "out_of_market").is("removed_at", null), "person_id")
     const oomIds = [...new Set((oomRows || []).map(function(r){ return r.person_id }))]
     const oomSet = new Set(oomIds)
     let cfoOutOfMarket = 0
     if (oomIds.length) {
-      const { count: oomCfo } = await sb.from("people").select("id", { count: "exact", head: true })
-        .in("id", oomIds).eq("linkedin_connected", true).contains("roles", ["cfo"])
+      const { count: oomCfo } = await excludeArchived(sb.from("people").select("id", { count: "exact", head: true })
+        .in("id", oomIds).eq("linkedin_connected", true).contains("roles", ["cfo"]))
       cfoOutOfMarket = oomCfo || 0
     }
     let wkProvisor = 0, wkCfo = 0, wkSponsor = 0, wkCfoLa = 0, wkCfoOutOfMarket = 0
@@ -225,9 +236,9 @@ export async function GET() {
       // Need the actual ids (not just a count) for CFOs, so this week's growth
       // can be split LA vs out-of-market the same way the totals above are.
       const [pw, cfoRows, sw] = await Promise.all([
-        sb.from("people").select("id", { count: "exact", head: true }).in("id", recentIds).eq("provisors_member", true),
-        sb.from("people").select("id").in("id", recentIds).contains("roles", ["cfo"]),
-        sb.from("people").select("id", { count: "exact", head: true }).in("id", recentIds).contains("roles", ["sponsor_contact"]),
+        excludeArchived(sb.from("people").select("id", { count: "exact", head: true }).in("id", recentIds).eq("provisors_member", true)),
+        excludeArchived(sb.from("people").select("id").in("id", recentIds).contains("roles", ["cfo"])),
+        excludeArchived(sb.from("people").select("id", { count: "exact", head: true }).in("id", recentIds).contains("roles", ["sponsor_contact"])),
       ])
       wkProvisor = pw.count || 0
       const recentCfoIds = (cfoRows.data || []).map(function(r){ return r.id })
