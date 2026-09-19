@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 import { serverClient } from "@/lib/supabaseServer"
+import { getArchivedPersonIds, archivedNotInFilter } from "@/lib/archivedPeople"
 
 // GET /api/provisors
 // Returns all people with provisors_member=true, plus aggregate stats
@@ -8,11 +9,21 @@ import { serverClient } from "@/lib/supabaseServer"
 export async function GET() {
   const sb = serverClient()
 
-  const { data: people, error } = await sb
+  // Archived people (person_status_tags tag="archived") are excluded here
+  // same as Pipeline/Audience -- this route's `stats` (total, by_role,
+  // connected, touched) is the ProVisors roster count Dalen actually looks
+  // at, all derived by looping the `people` array below, so filtering it out
+  // of this one query is enough to keep every stat in sync.
+  const archivedIds = await getArchivedPersonIds(sb)
+  const archivedFilter = archivedNotInFilter(archivedIds)
+
+  let peopleQuery = sb
     .from("people")
     .select("id, full_name, first_name, last_name, title, company, email, linkedin_url, avatar_url, photo_url, linkedin_connected, inbound_request, cfo_circle_member, roles, cfo_state, sponsor_state, referral_state, last_meaningful_touch, notes")
     .eq("provisors_member", true)
     .limit(2000)
+  if (archivedFilter) peopleQuery = peopleQuery.not("id", "in", archivedFilter)
+  const { data: people, error } = await peopleQuery
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
   // Group memberships: person_id -> [group name, ...]
