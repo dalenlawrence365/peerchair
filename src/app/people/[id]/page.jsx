@@ -194,6 +194,7 @@ export default function PersonProfile() {
   const [jumpToRecapId, setJumpToRecapId] = useState(null)
   const [showWarmthModal, setShowWarmthModal] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [confirmArchive, setConfirmArchive] = useState(false)
   const [form, setForm] = useState({})
 
   async function uploadAvatarFile(file) {
@@ -390,6 +391,7 @@ export default function PersonProfile() {
   if (!data) return null
 
   const p = data.person
+  const isArchived = (data.status_tags || []).some(function (t) { return t.tag === "archived" })
   const firmo = p.firmographics || {}
   const firmoRows = [["Industry", firmo.industry, "industry"], ["Revenue", firmo.revenue, "revenue"], ["Employees", firmo.employees, "employees"], ["Finance team", firmo.finance_team, "finance_team"], ["Ownership", firmo.ownership, "ownership"], ["Reports to", firmo.reports_to, "reports_to"]].filter(function(r){ return r[1] })
   const firmoSrc = firmo[SOURCE_KEY] || {}
@@ -576,6 +578,17 @@ export default function PersonProfile() {
                     style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, background: "#0a66c2", color: "white", textDecoration: "none", fontWeight: 600, whiteSpace: "nowrap" }}>in ↗</a>
                 )}
               </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <ArchiveControl
+                isArchived={isArchived}
+                confirming={confirmArchive}
+                busy={busy}
+                onArchiveClick={function () { setConfirmArchive(true) }}
+                onCancel={function () { setConfirmArchive(false) }}
+                onConfirm={function () { setConfirmArchive(false); postAction({ action: "add_tag", tag: "archived" }) }}
+                onUnarchive={function () { postAction({ action: "remove_tag", tag: "archived" }) }}
+              />
             </div>
             <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>
               {p.company || <span style={{ color: T.textTertiary, fontWeight: 400 }}>No company set</span>}
@@ -1179,6 +1192,51 @@ export default function PersonProfile() {
       </>)}
 
     </main>
+  )
+}
+
+// Archive: hides this person from pipeline/dashboard lists and figures
+// without touching their history (meetings, communications, notes all stay
+// intact -- it's a person_status_tags row, tag="archived", same soft-remove
+// mechanism as do_not_contact / not_a_fit / etc.). Inline confirm rather
+// than a browser confirm() popup, matching this page's existing style
+// (Cancel/Save pairs elsewhere on the profile).
+function ArchiveControl({ isArchived, confirming, busy, onArchiveClick, onCancel, onConfirm, onUnarchive }) {
+  const btnBase = { fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 500, whiteSpace: "nowrap" }
+
+  if (isArchived) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 11, padding: "4px 9px", borderRadius: 999, background: "rgba(100,116,139,0.12)", color: "#64748b", fontWeight: 600, letterSpacing: 0.3, textTransform: "uppercase" }}>Archived</span>
+        <button disabled={busy} onClick={onUnarchive}
+          style={Object.assign({}, btnBase, { border: "1px solid #cbd5e1", background: "white", color: "#475569" })}>
+          Unarchive
+        </button>
+      </div>
+    )
+  }
+
+  if (confirming) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 11, color: "#b91c1c" }}>Archive this person? Hidden from pipeline &amp; lists, nothing deleted.</span>
+        <button disabled={busy} onClick={onCancel}
+          style={Object.assign({}, btnBase, { border: "1px solid #cbd5e1", background: "white", color: "#475569" })}>
+          Cancel
+        </button>
+        <button disabled={busy} onClick={onConfirm}
+          style={Object.assign({}, btnBase, { border: "none", background: "#dc2626", color: "white" })}>
+          {busy ? "Archiving…" : "Confirm archive"}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button onClick={onArchiveClick}
+      style={Object.assign({}, btnBase, { border: "1px solid #fecaca", background: "white", color: "#b91c1c" })}>
+      Archive
+    </button>
   )
 }
 

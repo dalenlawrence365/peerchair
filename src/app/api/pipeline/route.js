@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 import { serverClient } from "@/lib/supabaseServer"
+import { getArchivedPersonIds, archivedNotInFilter } from "@/lib/archivedPeople"
 
 // GET /api/pipeline?type=cfo|sponsor&stage=<stage>&limit=&offset=&q=
 //
@@ -52,10 +53,20 @@ export async function GET(request) {
 
   const sb = serverClient()
 
+  // Archived people are hidden from every list/figure here -- funnel counts
+  // and the stage list both start from the same role-scoped query, so this
+  // is applied in exactly the two places that build one.
+  const archivedIds = await getArchivedPersonIds(sb)
+  const archivedFilter = archivedNotInFilter(archivedIds)
+  function excludeArchived(query) {
+    return archivedFilter ? query.not("id", "in", archivedFilter) : query
+  }
+
   // Funnel — cumulative counts per stage (head:true, uncapped)
   const funnel = {}
   await Promise.all(cfg.stages.map(async function(s){
     let cq = sb.from("people").select("id", { count: "exact", head: true }).contains("roles", [cfg.role])
+    cq = excludeArchived(cq)
     cq = applyStage(cq, cfg, s)
     const { count } = await cq
     funnel[s] = count || 0
@@ -67,6 +78,7 @@ export async function GET(request) {
   let list_total = 0
   if (stage && cfg.stages.indexOf(stage) >= 0) {
     let query = sb.from("people").select(SEL, { count: "exact" }).contains("roles", [cfg.role])
+    query = excludeArchived(query)
     query = applyStage(query, cfg, stage)
     if (q) query = query.or(`full_name.ilike.%${q}%,company.ilike.%${q}%,title.ilike.%${q}%`)
     query = query
