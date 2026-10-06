@@ -4,7 +4,7 @@ export const maxDuration = 60
 import { serverClient } from "@/lib/supabaseServer"
 import { SENDER_CONTEXT } from "@/lib/dalenContext"
 import { WARNING_TAGS } from "@/lib/warningTags"
-import { getNamedLinksLines } from "@/lib/draftLinksContext"
+import { getNamedLinksLines, getPersonEventLinksLines, PERSON_EVENT_LINK_RULE } from "@/lib/draftLinksContext"
 
 // POST /api/people/[id]/draft-dm
 //
@@ -92,6 +92,7 @@ export async function POST(request, { params }) {
   }).join("\n")
 
   const namedLinksLines = await getNamedLinksLines(sb)
+  const personEventLinks = await getPersonEventLinksLines(sb, id, "profile")
 
   const anthropicKey = process.env.ANTHROPIC_API_KEY
   if (!anthropicKey) return Response.json({ error: "AI not configured" }, { status: 500 })
@@ -132,6 +133,7 @@ KNOWN FACTS — use these exact values whenever the instructions refer to them, 
 - Sponsor discovery call link (first sponsor conversation only): ${SENDER_CONTEXT.calendly_links.sponsor_discovery.url}
 - General 15-minute booking link (any repeat/second conversation): ${SENDER_CONTEXT.calendly_links.the_15_min.url}
 - General 30-minute booking link (any repeat/second conversation needing more time): ${SENDER_CONTEXT.calendly_links.the_30_min.url}
+${personEventLinks ? "\nTHIS PERSON'S PERSONAL EVENT LINKS (" + PERSON_EVENT_LINK_RULE + "):\n" + personEventLinks : ""}
 ${namedLinksLines ? "\nOTHER KNOWN LINKS (Dalen's own link library — use the exact URL, referred to by these exact labels):\n" + namedLinksLines : ""}
 
 ${isRefinement ? `CURRENT DRAFT (Dalen has already reviewed and possibly hand-edited this — refine it,
