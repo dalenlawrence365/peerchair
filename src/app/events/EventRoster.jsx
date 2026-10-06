@@ -152,6 +152,16 @@ export default function EventRoster({ slug }) {
       .catch(function () { setMsg("Couldn't add " + w.full_name + ".") })
   }
 
+  // Permanent: tags not_a_fit (same pill as the profile), closes their promise,
+  // pulls them off any Queued list. They never come back to these lists.
+  function markNotQualified(personId, name) {
+    if (!confirm("Mark " + (name || "this person") + " as not qualified? They'll get the Not a fit tag and won't show up on this list again.")) return
+    fetch("/api/events/carry-forward", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person_id: personId, action: "not_qualified" }) })
+      .then(function (r) { return r.json() })
+      .then(function (d) { setMsg(d && d.ok ? (name || "They") + " marked not qualified — Not a fit tag added, removed from the lists." : "Couldn't mark not qualified."); load(); loadWaiting() })
+      .catch(function () { setMsg("Couldn't mark not qualified.") })
+  }
+
   function patchAttendee(id, body, okMsg) {
     setBusy(id)
     fetch("/api/events/attendees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ id: id }, body)) })
@@ -396,13 +406,10 @@ export default function EventRoster({ slug }) {
                       style={{ fontSize: 11.5, fontWeight: 600, padding: "5px 11px", borderRadius: 6, border: "none", background: "#16a34a", color: "white", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
                       Add to this session
                     </button>
-                    <button onClick={function () {
-                        if (!confirm("Stop carrying " + w.full_name + " forward? The record stays on their timeline.")) return
-                        fetch("/api/events/carry-forward", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person_id: w.person_id, action: "drop" }) })
-                          .then(function () { loadWaiting() })
-                      }}
-                      style={{ fontSize: 11.5, padding: "5px 9px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textTertiary, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
-                      Not this one
+                    <button onClick={function () { markNotQualified(w.person_id, w.full_name) }}
+                      title="You researched them and they don't fit. Tags them Not a fit and removes them from this list for good."
+                      style={{ fontSize: 11.5, padding: "5px 9px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: "#b3452f", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                      Not qualified
                     </button>
                   </div>
                 </div>
@@ -524,6 +531,7 @@ export default function EventRoster({ slug }) {
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-end", flexShrink: 0 }}>
                     <button disabled={busy === a.id} onClick={function () { patchAttendee(a.id, { action: "mark_invited" }, (a.name || "They") + " marked invited — invitation pill added.") }} style={{ fontSize: 12, fontWeight: 700, padding: "5px 11px", borderRadius: 6, border: "none", background: "#4f46e5", color: "white", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>Mark invited</button>
+                    <button disabled={busy === a.id} onClick={function () { markNotQualified(a.person_id, a.name) }} title="You researched them and they don't fit — Not a fit tag, off the list for good." style={{ background: "transparent", color: "#b3452f", border: "none", fontSize: 12, cursor: "pointer" }}>Not qualified</button>
                     <button disabled={busy === a.id} onClick={function () { patchAttendee(a.id, { action: "unqueue" }, (a.name || "They") + " taken off the queue — back on your waiting list.") }} style={{ background: "transparent", color: T.textTertiary, border: "none", fontSize: 12, cursor: "pointer" }}>Remove from queue</button>
                   </div>
                 </div>

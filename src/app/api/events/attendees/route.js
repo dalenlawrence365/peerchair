@@ -167,12 +167,17 @@ export async function POST(req) {
   // Queue-only path: just hold a place on the list. Nothing here claims an
   // invite went out, so no approved_at, no tag, no timeline row.
   if (body.queue === true) {
+    const { data: blockedRows } = await sb.from("person_status_tags")
+      .select("person_id").in("person_id", ids).in("tag", ["not_a_fit", "do_not_contact", "opted_out", "archived"]).is("removed_at", null)
+    const blockedSet = new Set((blockedRows || []).map(r => r.person_id))
+    const queueIds = ids.filter(pid => !blockedSet.has(pid))
+    if (!queueIds.length) return Response.json({ ok: false, error: "blocked", skipped: ids.length }, { status: 200 })
     const { error: qErr } = await sb
       .from("event_attendees")
-      .upsert(ids.map(pid => ({ event_id: event.id, person_id: pid, status: "Queued", source: "queued" })),
+      .upsert(queueIds.map(pid => ({ event_id: event.id, person_id: pid, status: "Queued", source: "queued" })),
               { onConflict: "event_id,person_id", ignoreDuplicates: true })
     if (qErr) return Response.json({ error: qErr.message }, { status: 500 })
-    return Response.json({ ok: true, queued: ids.length })
+    return Response.json({ ok: true, queued: queueIds.length, skipped: ids.length - queueIds.length })
   }
 
   const { error } = await sb
