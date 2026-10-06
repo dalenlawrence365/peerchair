@@ -21,10 +21,30 @@ export default function DraftDMCard({ personId, statusTags }) {
   const [showMore, setShowMore] = useState(false)
   const [msg, setMsg] = useState("")
   const [copied, setCopied] = useState(false)
+  const [briefing, setBriefing] = useState(false)
+  const [briefWarn, setBriefWarn] = useState(null) // { warnings, instructions }
+
+  // One-click "Invite to next workshop": the server builds the editable
+  // instructions from this person's history + their standing on the next event.
+  // If they already stand somewhere that makes an invite odd (confirmed, invited,
+  // declined...) we stop and show why, with a "Draft anyway" escape hatch.
+  function inviteToNextWorkshop(force) {
+    setBriefing(true); setMsg(""); setBriefWarn(null)
+    fetch("/api/people/" + personId + "/invite-brief?channel=dm", { cache: "no-store" })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (!d || !d.ok) { setMsg(d && d.error === "no_upcoming_event" ? "There's no upcoming published event to invite them to." : "Couldn't build the invite brief."); return }
+        initial.setText(d.instructions)
+        if (d.warnings && d.warnings.length && !force) { setBriefWarn({ warnings: d.warnings, instructions: d.instructions }); return }
+        generateDraft({ override: d.instructions })
+      })
+      .catch(function () { setMsg("Couldn't build the invite brief.") })
+      .finally(function () { setBriefing(false) })
+  }
 
   function generateDraft(opts) {
     const refine = !!(opts && opts.refine)
-    const instructions = (refine ? more.text : initial.text).trim()
+    const instructions = ((opts && opts.override) ? opts.override : (refine ? more.text : initial.text)).trim()
     if (!refine && !instructions) return
     setGenerating(true); setMsg(""); setCopied(false)
     if (!refine) setHasDraft(false)
@@ -63,7 +83,23 @@ export default function DraftDMCard({ personId, statusTags }) {
 
   return (
     <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 10, padding: 16, marginBottom: 16 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: T.textSecondary, marginBottom: 4 }}>Draft DM</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.textSecondary }}>Draft DM</div>
+        <button disabled={briefing || generating} onClick={function () { inviteToNextWorkshop(false) }}
+          title="Builds the message from this person's history and the next workshop, with their personal tracked link. You can edit everything after."
+          style={{ padding: "4px 11px", borderRadius: 999, border: "1px solid " + T.accent, background: "white", color: T.accent, fontSize: 12, fontWeight: 600, cursor: (briefing || generating) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (briefing || generating) ? 0.6 : 1, whiteSpace: "nowrap" }}>
+          {briefing ? "Reading history…" : "✦ Invite to next workshop"}
+        </button>
+      </div>
+      {briefWarn ? (
+        <div style={{ fontSize: 12, color: T.warning, marginBottom: 10, background: T.warningBg, border: "1px solid #fde68a", borderRadius: 6, padding: "8px 10px", lineHeight: 1.5 }}>
+          {briefWarn.warnings.map(function (w, i) { return <div key={i}>⚠ {w}</div> })}
+          <button onClick={function () { setBriefWarn(null); generateDraft({ override: briefWarn.instructions }) }}
+            style={{ marginTop: 6, padding: "4px 10px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textPrimary, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Draft anyway</button>
+          <button onClick={function () { setBriefWarn(null) }}
+            style={{ marginTop: 6, marginLeft: 6, padding: "4px 10px", borderRadius: 6, border: "none", background: "transparent", color: T.textTertiary, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Dismiss</button>
+        </div>
+      ) : null}
       <div style={{ fontSize: 12, color: T.textTertiary, marginBottom: 12, lineHeight: 1.5 }}>
         Say (or type) how you want this LinkedIn message to go. Claude drafts it using this person's profile and recent history, current tags, and latest research note. Review and edit, then copy it into LinkedIn — nothing is ever sent automatically.
       </div>
