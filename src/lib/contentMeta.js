@@ -12,6 +12,7 @@ export const DESTINATIONS = [
   { v: "investment", label: "Investment" },
   { v: "events/august-11-workshop", label: "Event · Aug 11 Workshop" },
   { v: "events/september-16-workshop", label: "Event · Sep 16 Workshop" },
+  { v: "events/november-17-workshop", label: "Event · Nov 17 Workshop" },
 ]
 
 export const DEST_PILL = {
@@ -19,6 +20,7 @@ export const DEST_PILL = {
   investment: "Investment",
   "events/august-11-workshop": "Aug 11 Event",
   "events/september-16-workshop": "Sep 16 Event",
+  "events/november-17-workshop": "Nov 17 Event",
 }
 
 // One production pipeline for every post — script text lives on the post itself

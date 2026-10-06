@@ -7,7 +7,7 @@ import { serverClient } from "@/lib/supabaseServer"
 
 // Post destinations. Any page path on la-cfo.com works — slashes are fine, the
 // URL builder concatenates directly. Add a new event here (one line) as they launch.
-const DESTINATIONS = ["none", "overview", "assessment", "meeting", "investment", "events/august-11-workshop", "events/september-16-workshop"]
+const DESTINATIONS = ["none", "overview", "assessment", "meeting", "investment", "events/august-11-workshop", "events/september-16-workshop", "events/november-17-workshop"]
 const FORMATS = ["video", "text", "carousel", "image", "poll", "article"]
 // Unified production pipeline — one status for every post, script text included
 // (transcript field). Dates only matter once a post reaches "scheduled", and the
