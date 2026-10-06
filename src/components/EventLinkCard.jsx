@@ -17,6 +17,7 @@ const STATUS_STYLE = {
   Declined:   { bg: "#fee2e2", border: "#fca5a5", color: "#991b1b", label: "Declined" },
   Unavailable:{ bg: "#fef3c7", border: "#fcd34d", color: "#92400e", label: "Unavailable — carried forward" },
   "No-show":  { bg: "#fee2e2", border: "#fca5a5", color: "#991b1b", label: "No-show" },
+  Queued:     { bg: "#e0e7ff", border: "#a5b4fc", color: "#3730a3", label: "Queued — not invited yet" },
 }
 
 export default function EventLinkCard({ personId }) {
@@ -159,8 +160,13 @@ export default function EventLinkCard({ personId }) {
         {!statusLoaded ? (
           <span style={{ fontSize: 12, color: T.textTertiary }}>Checking status…</span>
         ) : attendee ? (
-          <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 9px", borderRadius: 999, display: "inline-block", background: st.bg, border: "1px solid " + st.border, color: st.color }}>
-            {st.label}{attendee.invited_at ? " · " + fmtDate(attendee.invited_at) : ""}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 9px", borderRadius: 999, display: "inline-block", background: st.bg, border: "1px solid " + st.border, color: st.color }}>
+              {st.label}{attendee.invited_at ? " · " + fmtDate(attendee.invited_at) : ""}
+            </span>
+            {attendee.status === "Queued" ? (
+              <button disabled={busy} onClick={markInvited} style={{ fontSize: 12, fontWeight: 600, color: T.accent, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>Mark Invited</button>
+            ) : null}
           </span>
         ) : (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -12,6 +12,7 @@ function shortDate(iso) {
 function rosterDate(a) {
   if (a.status === "Unavailable" && a.unavailable_at) return "Unavailable " + shortDate(a.unavailable_at)
   if ((a.status === "Confirmed" || a.status === "Declined") && a.responded_at) return a.status + " " + shortDate(a.responded_at)
+  if (a.status === "Queued") return "Queued " + shortDate(a.invited_at)
   if (a.invited_at) return "Invited " + shortDate(a.invited_at)
   return ""
 }
@@ -26,6 +27,7 @@ function statusChip(status) {
   // Amber, not red. They didn't say no to you — they said no to a Tuesday.
   if (status === "Unavailable") return <Chip label="Unavailable" bg="#fef3c7" color="#92400e" />
   if (status === "Attended") return <Chip label="Attended" bg="#dcfce7" color="#166534" />
+  if (status === "Queued") return <Chip label="Queued" bg="#e0e7ff" color="#3730a3" />
   if (status === "Registered" || status === "Requested") return <Chip label="Registered" bg={T.qualifiedBg} color={T.qualifiedText} />
   return <Chip label="Invited" bg={T.audienceBg} color={T.audienceText} />
 }
@@ -46,6 +48,9 @@ function Pill({ label, date, bg, on }) {
   )
 }
 function PillTrack({ a }) {
+  if (a.status === "Queued") {
+    return <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><Pill label="Queued — not invited yet" date={shortDate(a.invited_at)} bg="#4f46e5" on={true} /></div>
+  }
   const isLi = a.source === "li-event"
   return (
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -132,19 +137,28 @@ export default function EventRoster({ slug }) {
   function inviteFromWaiting(w) {
     const slug = data && data.event ? data.event.slug : null
     if (!slug) return
+    // Queue only. Nothing here says an invite went out — the promise stays open
+    // until you actually invite them (tag, Mark invited, or the profile card).
     fetch("/api/events/attendees", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug: slug, person_ids: [w.person_id] }),
+      body: JSON.stringify({ slug: slug, person_ids: [w.person_id], queue: true }),
     })
       .then(function (r) { return r.json() })
-      .then(function () {
-        return fetch("/api/events/carry-forward", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ person_id: w.person_id, event_slug: slug, action: "fulfil" }),
-        })
+      .then(function (d) {
+        if (d && d.ok) { setMsg(w.full_name + " added to the Queued list — not invited yet. Send your personal invite, then click Mark invited.") }
+        else { setMsg("Couldn't add " + w.full_name + ".") }
+        load(); loadWaiting()
       })
-      .then(function () { setMsg(w.full_name + " added to this session — promise kept."); load(); loadWaiting() })
       .catch(function () { setMsg("Couldn't add " + w.full_name + ".") })
+  }
+
+  function patchAttendee(id, body, okMsg) {
+    setBusy(id)
+    fetch("/api/events/attendees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ id: id }, body)) })
+      .then(function (r) { return r.json() })
+      .then(function (d) { setMsg(d && d.ok ? okMsg : "Something went wrong."); load(); loadWaiting() })
+      .catch(function () { setMsg("Something went wrong.") })
+      .finally(function () { setBusy(null) })
   }
 
   // "Can't make it" is a different event from "no thanks", and the difference is
@@ -252,7 +266,8 @@ export default function EventRoster({ slug }) {
   const FILTERS = {
     confirmed:   function (a) { return COMMITTED_STATUSES.indexOf(a.status) !== -1 },
     registered:  awaitingReview,
-    invited:     function () { return true },   // "total on the list"
+    invited:     function (a) { return a.status !== "Queued" },   // invited, not merely queued
+    queued:      function (a) { return a.status === "Queued" },
     declined:    function (a) { return a.status === "Declined" },
     unavailable: function (a) { return a.status === "Unavailable" },
     noshow:      function (a) { return a.status === "No-show" },
@@ -269,8 +284,9 @@ export default function EventRoster({ slug }) {
       return v && String(v).toLowerCase().indexOf(needle) !== -1
     })
   }
-  const pending = all.filter(awaitingReview).filter(function (a) { return (!pred || pred(a)) && matches(a) })
-  const roster = all.filter(function (a) { return !awaitingReview(a) }).filter(function (a) { return (!pred || pred(a)) && matches(a) })
+  const pending = all.filter(function (a) { return a.status !== "Queued" }).filter(awaitingReview).filter(function (a) { return (!pred || pred(a)) && matches(a) })
+  const queuedRows = all.filter(function (a) { return a.status === "Queued" }).filter(function (a) { return (!pred || pred(a)) && matches(a) })
+  const roster = all.filter(function (a) { return a.status !== "Queued" && !awaitingReview(a) }).filter(function (a) { return (!pred || pred(a)) && matches(a) })
   const shortOf = Math.max(0, (ev.min_to_run || 8) - (c.confirmed || 0))
   function toggleFilter(key) { setFilter(function (cur) { return cur === key ? null : key }) }
 
@@ -334,7 +350,8 @@ export default function EventRoster({ slug }) {
         <Stat label="Attended" value={c.attended || 0} sub="actually showed" active={filter === "attended"} onClick={function () { toggleFilter("attended") }} />
         <Stat label="CFOs attended" value={c.cfo_attended || 0} sub="" active={filter === "cfoattended"} onClick={function () { toggleFilter("cfoattended") }} />
         <Stat label="Registered" value={c.registered || 0} sub="awaiting your review" highlight={(c.registered || 0) > 0} active={filter === "registered"} onClick={function () { toggleFilter("registered") }} />
-        <Stat label="Invited" value={c.invited || 0} sub="total on the list" active={filter === "invited"} onClick={function () { toggleFilter("invited") }} />
+        <Stat label="Queued" value={c.queued || 0} sub="on the list, not invited yet" highlight={(c.queued || 0) > 0} active={filter === "queued"} onClick={function () { toggleFilter("queued") }} />
+        <Stat label="Invited" value={c.invited || 0} sub="invite actually sent" active={filter === "invited"} onClick={function () { toggleFilter("invited") }} />
         <Stat label="Declined" value={c.declined || 0} sub="" active={filter === "declined"} onClick={function () { toggleFilter("declined") }} />
         <Stat label="Unavailable" value={c.unavailable || 0} sub="wants the next one" active={filter === "unavailable"} onClick={function () { toggleFilter("unavailable") }} />
         <Stat label="No-show" value={c.no_show || 0} sub="didn't come" active={filter === "noshow"} onClick={function () { toggleFilter("noshow") }} />
@@ -342,7 +359,7 @@ export default function EventRoster({ slug }) {
       <div style={{ minHeight: 20, marginBottom: 14 }}>
         {filter ? (
           <div style={{ fontSize: 12.5, color: T.textSecondary }}>
-            Showing <strong style={{ color: T.textPrimary }}>{filter}</strong> only — {pending.length + roster.length} {(pending.length + roster.length) === 1 ? "person" : "people"}.
+            Showing <strong style={{ color: T.textPrimary }}>{filter}</strong> only — {pending.length + roster.length + queuedRows.length} {(pending.length + roster.length + queuedRows.length) === 1 ? "person" : "people"}.
             <button onClick={function () { setFilter(null) }} style={{ marginLeft: 8, background: "transparent", border: "none", color: T.accent, fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: 0 }}>Clear filter ✕</button>
           </div>
         ) : (
@@ -481,6 +498,38 @@ export default function EventRoster({ slug }) {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Queued — added to this session, personal invite not sent yet */}
+      {queuedRows.length > 0 && (
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#3730a3", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Queued &mdash; not invited yet</div>
+          <div style={{ fontSize: 12, color: T.textTertiary, marginBottom: 10, lineHeight: 1.5 }}>On this session&rsquo;s list. No invite has gone out, no invitation pill yet. Send your personal note, then click Mark invited.</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {queuedRows.map(function (a) {
+              return (
+                <div key={a.id} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, background: "#f5f6ff", border: "1px solid #c7d2fe", borderRadius: 8, padding: "11px 14px" }}>
+                  <div style={{ display: "flex", gap: 12, minWidth: 0 }}>
+                    <Avatar name={a.name} src={a.avatar_url} size={36} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                        {a.person_id ? <Link href={"/people/" + a.person_id} style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600, textDecoration: "none" }}>{a.name || "(no name)"}</Link> : <span style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600 }}>{a.name || "(no name)"}</span>}
+                        {a.company ? <span style={{ fontSize: 13, color: T.textSecondary, fontWeight: 500 }}>{a.company}</span> : null}
+                        {statusChip("Queued")}
+                      </div>
+                      <div style={{ marginTop: 6 }}><PillTrack a={a} /></div>
+                      {a.email ? <div style={{ marginTop: 5 }}><a href={"mailto:" + a.email} style={{ fontSize: 12, color: T.accent, textDecoration: "none" }}>{a.email}</a></div> : null}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-end", flexShrink: 0 }}>
+                    <button disabled={busy === a.id} onClick={function () { patchAttendee(a.id, { action: "mark_invited" }, (a.name || "They") + " marked invited — invitation pill added.") }} style={{ fontSize: 12, fontWeight: 700, padding: "5px 11px", borderRadius: 6, border: "none", background: "#4f46e5", color: "white", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>Mark invited</button>
+                    <button disabled={busy === a.id} onClick={function () { patchAttendee(a.id, { action: "unqueue" }, (a.name || "They") + " taken off the queue — back on your waiting list.") }} style={{ background: "transparent", color: T.textTertiary, border: "none", fontSize: 12, cursor: "pointer" }}>Remove from queue</button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 

@@ -131,5 +131,30 @@ export async function syncEventAttendeeFromActionTag(sb, personId, actionType) {
     [{ event_id: match.id, person_id: personId, status: "Invited", source: "invited", approved_at: new Date().toISOString() }],
     { onConflict: "event_id,person_id", ignoreDuplicates: true }
   )
+  // If they were only Queued, the tag IS the invite — promote them.
+  await promoteQueuedAttendees(sb, match.id, [personId])
   return !error
+}
+
+
+// Queued -> Invited. "Add to this session" on the roster only QUEUES someone
+// (status 'Queued', no approved_at, no ws_invite tag, promise still open). The
+// moment an invite is actually logged — the ws_invite tag, "Mark Invited", or the
+// bulk invite POST — this promotes the row, stamps invited_at = now (the real
+// invite moment, not the queue moment) and keeps the carry-forward promise honest
+// by marking it fulfilled only now. Safe no-op for anyone who isn't Queued.
+export async function promoteQueuedAttendees(sb, eventId, personIds) {
+  if (!eventId || !personIds || !personIds.length) return 0
+  const now = new Date().toISOString()
+  const { data: promoted } = await sb.from("event_attendees")
+    .update({ status: "Invited", invited_at: now, source: "invited" })
+    .eq("event_id", eventId).in("person_id", personIds).eq("status", "Queued")
+    .select("person_id")
+  const ids = (promoted || []).map(function (r) { return r.person_id })
+  if (ids.length) {
+    await sb.from("event_carry_forward")
+      .update({ fulfilled_at: now, fulfilled_event_id: eventId })
+      .in("person_id", ids).is("fulfilled_at", null)
+  }
+  return ids.length
 }

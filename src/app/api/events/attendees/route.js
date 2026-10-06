@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic"
 import { serverClient } from "@/lib/supabaseServer"
-import { syncActionTagsFromEventInvite } from "@/lib/workshopInviteSync"
+import { syncActionTagsFromEventInvite, promoteQueuedAttendees } from "@/lib/workshopInviteSync"
 import { getAccessToken } from "@/lib/microsoft-auth"
 import { upsertOutlookContact } from "@/lib/outlookContacts"
 
@@ -14,6 +14,12 @@ import { upsertOutlookContact } from "@/lib/outlookContacts"
         → idempotently creates Invited rows. Re-posting an existing person is
           a no-op, so a fat-fingered double-click never re-tokenizes someone
           and invalidates an invitation already sitting in their inbox.
+
+   POST /api/events/attendees  { slug, person_ids: [...], queue: true }
+        → "Add to this session" from the carry-forward list: adds them as
+          status 'Queued' only. No invited/approved stamp, no ws_invite tag,
+          carry-forward promise stays open. They become Invited when the invite
+          is actually logged (tag / Mark Invited / PATCH action=mark_invited).
 
    DELETE /api/events/attendees?id=<attendee_id>
         → removes an invitation before it goes out.
@@ -78,6 +84,7 @@ export async function GET(req) {
   }))
 
   const count = s => attendees.filter(a => a.status === s).length
+  const queuedCount = count("Queued")
   // "Confirmed" as a headcount means "committed to come" and must NOT shrink when
   // you later record who showed: Attended and No-show are OUTCOMES of a confirmed
   // seat, so they stay inside the confirmed total. (Declined/Unavailable do not.)
@@ -123,7 +130,8 @@ export async function GET(req) {
     event,
     attendees,
     counts: {
-      invited: attendees.length,
+      invited: attendees.length - queuedCount,   // Queued = on the list, not yet invited
+      queued: queuedCount,
       registered,
       confirmed,
       cfo_confirmed: roleConfirmed("cfo"),
@@ -156,12 +164,26 @@ export async function POST(req) {
 
   // ignoreDuplicates → the (event_id, person_id) unique index makes this safe
   // to call repeatedly. Existing tokens are preserved.
+  // Queue-only path: just hold a place on the list. Nothing here claims an
+  // invite went out, so no approved_at, no tag, no timeline row.
+  if (body.queue === true) {
+    const { error: qErr } = await sb
+      .from("event_attendees")
+      .upsert(ids.map(pid => ({ event_id: event.id, person_id: pid, status: "Queued", source: "queued" })),
+              { onConflict: "event_id,person_id", ignoreDuplicates: true })
+    if (qErr) return Response.json({ error: qErr.message }, { status: 500 })
+    return Response.json({ ok: true, queued: ids.length })
+  }
+
   const { error } = await sb
     .from("event_attendees")
     .upsert(ids.map(pid => ({ event_id: event.id, person_id: pid, status: "Invited", source: "invited", approved_at: new Date().toISOString() })),
             { onConflict: "event_id,person_id", ignoreDuplicates: true })
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
+
+  // Anyone already sitting on the list as Queued is invited now.
+  await promoteQueuedAttendees(sb, event.id, ids)
 
   // Direction 1 of the two-way invite sync (see workshopInviteSync.js): an
   // event_attendees invite was just created here, so make sure everyone
@@ -322,6 +344,32 @@ export async function PATCH(req) {
     }
     const r = await draftConfirmationFor(sbR, id)
     return Response.json({ ok: r.ok, regenerated: true, drafted: !!r.drafted, draft_url: r.draft_url || null, error: r.error || null })
+  }
+
+  // Queued -> Invited: Dalen actually sent / is sending the invite. Stamps the real
+  // invite time, adds the ws_invite tag + timeline row, fulfils the carry-forward
+  // promise. Deliberately does NOT go through the status path below — that path
+  // treats Invited-without-approved_at as an approval and would confirm them.
+  if (body.action === "mark_invited") {
+    if (!id) return Response.json({ error: "bad_request" }, { status: 400 })
+    const sbM = serverClient()
+    const { data: row } = await sbM.from("event_attendees")
+      .select("id, status, event_id, person_id, events:event_id ( event_date )").eq("id", id).maybeSingle()
+    if (!row) return Response.json({ error: "not_found" }, { status: 404 })
+    if (row.status !== "Queued") return Response.json({ ok: true, unchanged: true, status: row.status })
+    await promoteQueuedAttendees(sbM, row.event_id, [row.person_id])
+    await syncActionTagsFromEventInvite(sbM, [row.person_id], row.events && row.events.event_date, "roster_mark_invited")
+    return Response.json({ ok: true, marked_invited: true })
+  }
+
+  // Take someone back off the Queued list (changed your mind). Their carry-forward
+  // promise was never fulfilled, so they reappear under "waiting for a session".
+  if (body.action === "unqueue") {
+    if (!id) return Response.json({ error: "bad_request" }, { status: 400 })
+    const sbU = serverClient()
+    const { error: uErr } = await sbU.from("event_attendees").delete().eq("id", id).eq("status", "Queued")
+    if (uErr) return Response.json({ error: uErr.message }, { status: 500 })
+    return Response.json({ ok: true, unqueued: true })
   }
 
   // Mark the confirmation as sent (Dalen sent it from Outlook). Truthful roster state.
