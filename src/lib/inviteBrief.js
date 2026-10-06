@@ -73,14 +73,15 @@ export async function buildInviteBrief(sb, personId, channel) {
 
   let situation = "first_invite"
   const lines = []
-  lines.push("Invite " + first + " to the " + (ev.name || "CFO Circle workshop") + " on " + when + ", " + clock(ev.event_date) + " to " + clock(ev.ends_at) + " Pacific, in " + (ev.location || "Century City, Los Angeles") + (ev.host_name ? ", hosted by " + ev.host_name : "") + ".")
+  const hrs = Math.round(((new Date(ev.ends_at) - new Date(ev.event_date)) / 3600000) * 2) / 2
+  lines.push("Invite " + first + " to the CFO Circle workshop, \"" + (ev.name || "CFO Circle workshop") + ",\" on " + when + ", " + clock(ev.event_date) + " to " + clock(ev.ends_at) + " Pacific (" + hrs + " hours), in " + (ev.location || "Century City, Los Angeles") + (ev.host_name ? ", hosted by " + ev.host_name : "") + ".")
 
   if (promise || unavail) {
     situation = "reinvite_after_unavailable"
     const reason = (promise && promise.reason) || (unavail && unavail.unavailable_note) || ""
     const fromName = (promise && promise.events && promise.events.event_date) ? longDate(promise.events.event_date) : (unavail && unavail.events && unavail.events.event_date ? longDate(unavail.events.event_date) : "the last session")
-    lines.push(first + " could not make the session on " + fromName + (reason ? ' and told me: "' + String(reason).trim() + '"' : "") + ". This is a re-invite, not a cold one.")
-    if (promise && promise.promised) lines.push('I promised them: "' + String(promise.promised).trim() + '" Make good on that naturally, without sounding like a form letter.')
+    lines.push(first + " could not make the session on " + fromName + (reason ? ' and told me: "' + String(reason).trim().replace(/[.\s]+$/, "") + '"' : "") + ". This is a re-invite, not a cold one.")
+    if (promise && promise.promised) lines.push('I promised them: "' + String(promise.promised).trim().replace(/[.\s]+$/, "") + '". Make good on that naturally, without sounding like a form letter.')
   } else if (attended) {
     situation = "returning_attendee"
     lines.push(first + " attended a previous session" + (attended.events && attended.events.event_date ? " (" + longDate(attended.events.event_date) + ")" : "") + ". Thank them for coming and invite them back. Don't re-explain what the workshop is.")
@@ -108,7 +109,7 @@ export async function buildInviteBrief(sb, personId, channel) {
     if (Array.isArray(ev.agenda) && ev.agenda.length) {
       lines.push("Optional one-line sense of the morning from this agenda: " + ev.agenda.map(function (a) { return a.time + " " + a.label }).join("; ") + ".")
     }
-    lines.push("Ask them to reserve a seat using their personal event link, worded as a short clickable label. Offer to answer any questions. Write a specific subject line that includes the date.")
+    lines.push("Ask them to reserve a seat using their personal event link, worded as a short clickable label. Offer to answer any questions. Write a specific subject line that includes the date. The session is " + hrs + " hours long; if you mention its length, use exactly that.")
   }
   lines.push("Use their personal event link for this event, exactly as given. Do not use any generic event URL.")
 
