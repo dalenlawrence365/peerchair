@@ -318,9 +318,29 @@ export default function EventRoster({ slug }) {
 
   return (
     <div style={{ padding: "28px 32px", maxWidth: 900 }}>
-      {/* Date switcher — jump between events, newest first. Only shown once
-          there's more than one event to switch to. */}
-      {allEvents.length > 1 ? (
+      {/* Event switcher — jump between events, newest first. With a handful of
+          events, one-click tabs so you can flip between the ones you're actively
+          marketing; falls back to a dropdown past 5. Shown once there's >1. */}
+      {allEvents.length > 1 && allEvents.length <= 5 ? (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+          {allEvents.map(function (e) {
+            var active = e.slug === slug
+            return (
+              <button key={e.slug} onClick={function () { if (e.slug !== slug) router.push("/events/" + e.slug) }}
+                style={{
+                  fontFamily: "inherit", fontSize: 13, fontWeight: 600, cursor: active ? "default" : "pointer",
+                  textAlign: "left", lineHeight: 1.25, padding: "8px 14px", borderRadius: 9,
+                  background: active ? T.accent : "white",
+                  color: active ? "white" : T.textSecondary,
+                  border: "1px solid " + (active ? T.accent : T.border),
+                }}>
+                <span style={{ display: "block" }}>{e.name}</span>
+                <span style={{ display: "block", fontWeight: 500, fontSize: 11.5, opacity: active ? 0.85 : 0.7 }}>{longDate(e.event_date)}</span>
+              </button>
+            )
+          })}
+        </div>
+      ) : allEvents.length > 5 ? (
         <div style={{ marginBottom: 12 }}>
           <select value={slug} onChange={function (e) { if (e.target.value !== slug) router.push("/events/" + e.target.value) }}
             style={{ fontSize: 13, fontWeight: 600, fontFamily: "inherit", color: T.textPrimary, background: "white", border: "1px solid " + T.border, borderRadius: 8, padding: "8px 30px 8px 12px", cursor: "pointer", maxWidth: 420 }}>
