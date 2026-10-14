@@ -190,18 +190,34 @@ function displayLocation(loc) {
   return s
 }
 
-function attendeeNames(m) {
+// Build the "With:" list. The raw attendee name from Outlook/Calendly is
+// whatever the invitee typed into the booking form — often garbage (wrong
+// spelling, company, pasted phrases). This meeting is linked to a known
+// person, so for the attendee that matches this profile we show the clean
+// contact name instead of the booking string; other attendees fall back to
+// their raw name/email.
+function attendeeNames(m, personName, profileEmails) {
   const seen = new Set()
   const out = []
   for (const a of (m.attendees_json || [])) {
     const addr = (a && a.address ? String(a.address) : "").toLowerCase().trim()
     if (addr && SELF_EMAILS.has(addr)) continue
-    const label = (a && (a.name || a.address)) ? String(a.name || a.address) : ""
+    let label
+    if (addr && profileEmails && profileEmails.has(addr) && personName) {
+      label = personName
+    } else {
+      label = (a && (a.name || a.address)) ? String(a.name || a.address) : ""
+    }
     if (!label) continue
     const key = label.toLowerCase()
     if (seen.has(key)) continue
     seen.add(key)
     out.push(label)
+  }
+  // Guarantee the linked contact appears even if the invite carried no
+  // address that matched (e.g. matched by a secondary email not in the row).
+  if (personName && !out.some(function (n) { return n.toLowerCase() === personName.toLowerCase() })) {
+    out.unshift(personName)
   }
   return out
 }
@@ -212,9 +228,10 @@ function attendeeNames(m) {
 // meeting, or leave it empty. A meeting that isn't on the calendar can still
 // be logged by hand below, and legacy recaps that predate this model (not
 // tied to a calendar meeting) are listed at the bottom so nothing is lost.
-export default function MeetingsCard({ personId, personName, meetings, unlinkedRecaps, onChanged, scrollToRecapId, scrollToMeetingId }) {
+export default function MeetingsCard({ personId, personName, personEmail, personEmail2, meetings, unlinkedRecaps, onChanged, scrollToRecapId, scrollToMeetingId }) {
   const mtgs = meetings || []
   const legacy = unlinkedRecaps || []
+  const profileEmails = new Set([personEmail, personEmail2].filter(Boolean).map(function (e) { return String(e).toLowerCase().trim() }))
 
   // Per-meeting recap compose (only one open at a time).
   const [composeFor, setComposeFor] = useState(null)
@@ -533,7 +550,7 @@ export default function MeetingsCard({ personId, personName, meetings, unlinkedR
       ) : null}
 
       {mtgs.map(function (m) {
-        const names = attendeeNames(m)
+        const names = attendeeNames(m, personName, profileEmails)
         const eff = effectiveStatus(m)
         const st = STATUS_STYLE[eff] || null
         const canceled = eff === "canceled"
