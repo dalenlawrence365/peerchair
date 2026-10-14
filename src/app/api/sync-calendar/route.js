@@ -142,6 +142,60 @@ async function inferTags(sb, title, bodyPreview, attendees, opts = {}) {
   return Array.from(tags)
 }
 
+// Re-link orphaned meetings whose attendee address has SINCE become
+// resolvable. The main sync only upserts the -1d/+90d Graph window, so a
+// meeting that failed to match while it was current (the person had no email
+// on file yet, or only a secondary address) and then aged out of that window
+// would stay orphaned forever — even after the person later gains an email.
+// This is exactly how real 1:1s went missing. This sweep runs every sync
+// across ALL history: for each unlinked meeting with attendees, resolve the
+// non-self addresses through person_emails and link ONLY when they point to
+// exactly one person. Zero matches (event blasts, brand-new contacts with no
+// record) and multiple distinct matches (ambiguous) are left alone rather
+// than guessed — those are the review residual, not auto-links.
+async function relinkOrphans(sb) {
+  const { data: orphans, error } = await sb
+    .from("meetings")
+    .select("id, attendees_json")
+    .is("person_id", null)
+    .eq("source", "outlook_calendar")
+    .not("attendees_json", "is", null)
+  if (error || !orphans?.length) return { scanned: 0, relinked: 0, ambiguous: 0 }
+
+  // One batch resolve for every non-self address across all orphans.
+  const allEmails = new Set()
+  for (const m of orphans) {
+    for (const a of (m.attendees_json || [])) {
+      const addr = (a?.address || "").toLowerCase().trim()
+      if (addr && addr.includes("@") && !SELF_EMAILS.has(addr)) allEmails.add(addr)
+    }
+  }
+  if (!allEmails.size) return { scanned: orphans.length, relinked: 0, ambiguous: 0 }
+  const emailToPerson = await resolvePeopleByEmail(sb, Array.from(allEmails))
+
+  let relinked = 0, ambiguous = 0
+  for (const m of orphans) {
+    const ids = new Set()
+    for (const a of (m.attendees_json || [])) {
+      const addr = (a?.address || "").toLowerCase().trim()
+      if (!addr || SELF_EMAILS.has(addr)) continue
+      const hit = emailToPerson[addr]
+      if (hit) ids.add(hit.id)
+    }
+    if (ids.size === 1) {
+      const { error: upErr } = await sb
+        .from("meetings")
+        .update({ person_id: [...ids][0], updated_at: new Date().toISOString() })
+        .eq("id", m.id)
+        .is("person_id", null) // guard against a concurrent link
+      if (!upErr) relinked++
+    } else if (ids.size > 1) {
+      ambiguous++
+    }
+  }
+  return { scanned: orphans.length, relinked, ambiguous }
+}
+
 function normalizeStatus(showAs, isCancelled, title) {
   if (isCancelled) return "canceled"
   // Outlook prepends "Canceled: " to the subject when a meeting is cancelled
@@ -311,10 +365,15 @@ async function doSync() {
     } catch (e) { errors.push(e.message) }
   }
 
+  // Sweep history and link any orphan whose attendee is now resolvable.
+  let relink = { scanned: 0, relinked: 0, ambiguous: 0 }
+  try { relink = await relinkOrphans(sb) }
+  catch (e) { errors.push("relink: " + e.message) }
+
   await logCronRun(
     "sync-calendar",
-    `upserted=${upserted} matched=${matched} canceled=${canceled} window=1d-back/90d-fwd`,
+    `upserted=${upserted} matched=${matched} canceled=${canceled} relinked=${relink.relinked}/${relink.scanned} ambiguous=${relink.ambiguous} window=1d-back/90d-fwd`,
     errors.length ? errors.slice(0, 5) : null,
   )
-  return Response.json({ upserted, matched, canceled, errors })
+  return Response.json({ upserted, matched, canceled, relink, errors })
 }
