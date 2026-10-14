@@ -212,7 +212,7 @@ function attendeeNames(m) {
 // meeting, or leave it empty. A meeting that isn't on the calendar can still
 // be logged by hand below, and legacy recaps that predate this model (not
 // tied to a calendar meeting) are listed at the bottom so nothing is lost.
-export default function MeetingsCard({ personId, personName, meetings, unlinkedRecaps, onChanged, scrollToRecapId }) {
+export default function MeetingsCard({ personId, personName, meetings, unlinkedRecaps, onChanged, scrollToRecapId, scrollToMeetingId }) {
   const mtgs = meetings || []
   const legacy = unlinkedRecaps || []
 
@@ -241,6 +241,21 @@ export default function MeetingsCard({ personId, personName, meetings, unlinkedR
   const didScrollRef = useRef(false)
   const [highlightId, setHighlightId] = useState(null)
   const [expandedRecaps, setExpandedRecaps] = useState({})
+
+  // Jump to a specific meeting (from a Timeline meeting row).
+  const meetingRefs = useRef({})
+  const didScrollMtgRef = useRef(false)
+  const [highlightMtgId, setHighlightMtgId] = useState(null)
+
+  useEffect(function () {
+    if (!scrollToMeetingId || didScrollMtgRef.current) return
+    const el = meetingRefs.current[scrollToMeetingId]
+    if (!el) return
+    didScrollMtgRef.current = true
+    el.scrollIntoView({ behavior: "smooth", block: "center" })
+    setHighlightMtgId(scrollToMeetingId)
+    setTimeout(function () { setHighlightMtgId(null) }, 2500)
+  }, [scrollToMeetingId, meetings])
 
   function toggleRecap(id) {
     setExpandedRecaps(function (s) { return Object.assign({}, s, { [id]: !s[id] }) })
@@ -526,7 +541,8 @@ export default function MeetingsCard({ personId, personName, meetings, unlinkedR
         const recaps = m.recaps || []
         const composing = composeFor === m.id
         return (
-          <div key={m.id} style={{ border: "1px solid " + T.border, borderRadius: 10, marginBottom: 14, background: T.cardBg, overflow: "hidden" }}>
+          <div key={m.id} ref={function (el) { meetingRefs.current[m.id] = el }}
+            style={Object.assign({ border: "1px solid " + T.border, borderRadius: 10, marginBottom: 14, background: T.cardBg, overflow: "hidden", transition: "box-shadow 0.3s" }, highlightMtgId === m.id ? { boxShadow: "0 0 0 3px rgba(59,130,246,0.5)" } : {})}>
             <div style={{ padding: 16 }}>
               <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: names.length ? 6 : 0 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, textDecoration: canceled ? "line-through" : "none" }}>

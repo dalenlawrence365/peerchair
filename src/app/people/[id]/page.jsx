@@ -192,6 +192,7 @@ export default function PersonProfile() {
   const [checkEmailMsg, setCheckEmailMsg] = useState("")
   const [activeTab, setActiveTab] = useState(null)
   const [jumpToRecapId, setJumpToRecapId] = useState(null)
+  const [jumpToMeetingId, setJumpToMeetingId] = useState(null)
   const [showWarmthModal, setShowWarmthModal] = useState(false)
   const [editing, setEditing] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(false)
@@ -788,7 +789,7 @@ export default function PersonProfile() {
           Research and Draft Email/DM, and logs a communications row per
           participant so it counts toward the warmth score. */}
       {tab === "meeting_recaps" && (
-        <MeetingsCard personId={p.id} personName={p.full_name || p.first_name || ""} meetings={data.scheduled_meetings || []} unlinkedRecaps={data.unlinked_recaps || []} onChanged={reload} scrollToRecapId={jumpToRecapId} />
+        <MeetingsCard personId={p.id} personName={p.full_name || p.first_name || ""} meetings={data.scheduled_meetings || []} unlinkedRecaps={data.unlinked_recaps || []} onChanged={reload} scrollToRecapId={jumpToRecapId} scrollToMeetingId={jumpToMeetingId} />
       )}
 
       {/* TAB: To-dos */}
@@ -1038,7 +1039,7 @@ export default function PersonProfile() {
             {shown.length === 0 ? (
               <div style={{ color: T.textTertiary, fontSize: 13, padding: "8px 0" }}>No {timelineFilter} activity.</div>
             ) : shown.map(function(c){
-            if (c._kind === "meeting") { return <MeetingEntry key={c.id} m={c.meeting} onAdd={addMeetingNote} onDelete={deleteMeetingNote} /> }
+            if (c._kind === "meeting") { return <MeetingEntry key={c.id} m={c.meeting} onOpen={function(mid){ setJumpToMeetingId(mid); setActiveTab("meeting_recaps") }} /> }
             // Meeting-recap-derived comm row (logged automatically by the
             // Meetings tab) — collapse to one clickable line instead of
             // dumping the summary inline; click jumps straight to the full
@@ -1232,65 +1233,29 @@ function ArchiveControl({ isArchived, confirming, busy, onArchiveClick, onCancel
   )
 }
 
-function MeetingEntry({ m, onAdd, onDelete }) {
-  const [draft, setDraft] = useState("")
-  const [saving, setSaving] = useState(false)
-  const [openNotes, setOpenNotes] = useState({})
+// Timeline meeting row — a compact, single descriptive line. It does NOT
+// manage recaps or notes; clicking it jumps to the Meetings tab and scrolls
+// to this meeting, where the recap/notes/edit live. Keeps the Timeline a
+// clean chronological index rather than a second place to edit meetings.
+function MeetingEntry({ m, onOpen }) {
   const accent = "#16a34a"
-  async function add() { if (!draft.trim()) return; setSaving(true); await onAdd(m.id, draft.trim()); setDraft(""); setSaving(false) }
+  const past = new Date(m.ends_at || m.starts_at).getTime() < Date.now()
+  const eff = m.status === "canceled" ? "Canceled" : (past ? "Completed" : "Scheduled")
+  const hasRecap = (m.recaps || []).length > 0 || (m.notes || []).length > 0
   return (
-    <div style={{ paddingTop: 12, paddingBottom: 12, borderBottom: "1px solid " + T.borderSoft, borderLeft: "3px solid " + accent, paddingLeft: 12, marginBottom: 4 }}>
+    <div onClick={function(){ onOpen(m.id) }} title="Open in Meetings tab"
+      style={{ paddingTop: 10, paddingBottom: 10, borderBottom: "1px solid " + T.borderSoft, borderLeft: "3px solid " + accent, paddingLeft: 12, marginBottom: 4, cursor: "pointer" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary }}>
           <span style={{ color: accent }}>Meeting</span>
           {m.meeting_type ? <span style={{ color: T.textTertiary, fontWeight: 400 }}>{" "}· {m.meeting_type}</span> : null}
-          {m.source ? <span style={{ color: T.textTertiary, fontWeight: 400 }}>{" "}· {m.source}</span> : null}
+          <span style={{ color: T.textTertiary, fontWeight: 400 }}>{" "}· {eff}</span>
+          {hasRecap ? <span style={{ color: T.textTertiary, fontWeight: 400 }}>{" "}· has notes</span> : null}
+          <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 400, color: "#3b82f6" }}>Open →</span>
         </div>
         <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtDate(m.starts_at)}</div>
       </div>
-      {m.title ? <div style={{ fontSize: 13, fontWeight: 500, marginTop: 4 }}>{m.title}</div> : null}
-      {m.location ? <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 2 }}>{m.location}</div> : null}
-      {(m.notes || []).length > 0 && (
-        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-          {m.notes.map(function(n){
-            return (
-              <div key={n.id} style={{ background: T.bg, border: "1px solid " + T.borderSoft, borderRadius: 8, padding: "8px 10px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, color: n.source === "manual" ? "#3b82f6" : "#7c3aed" }}>{n.source === "manual" ? "Note" : n.source}</span>
-                  <span style={{ fontSize: 10, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtDate(n.created_at)}<button onClick={function(){ onDelete(n.id) }} title="Delete note" style={{ marginLeft: 8, background: "none", border: "none", color: T.textTertiary, cursor: "pointer", fontSize: 12, padding: 0 }}>×</button></span>
-                </div>
-                {(function(){
-                  var isOpen = !!openNotes[n.id]
-                  var body = n.body || ""
-                  var longNote = body.length > 280 || body.split("\n").length > 5
-                  var clampStyle = (longNote && !isOpen) ? { display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical", overflow: "hidden" } : {}
-                  return (
-                    <div>
-                      <div style={Object.assign({ fontSize: 13, color: T.textPrimary, marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }, clampStyle)}>{body}</div>
-                      {longNote && (
-                        <button onClick={function(){ setOpenNotes(function(o){ return Object.assign({}, o, { [n.id]: !isOpen }) }) }}
-                          style={{ marginTop: 4, padding: 0, background: "none", border: "none", color: "#3b82f6", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit" }}>
-                          {isOpen ? "Show less" : "Show more"}
-                        </button>
-                      )}
-                    </div>
-                  )
-                })()}
-              </div>
-            )
-          })}
-        </div>
-      )}
-      <div style={{ marginTop: 10 }}>
-        <textarea value={draft} onChange={function(e){ setDraft(e.target.value) }} placeholder="Add a note to this meeting… (or paste a Granola / Zoom summary)" rows={draft ? 3 : 1}
-          style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 8, fontFamily: "inherit", resize: "vertical", outline: "none", lineHeight: 1.5 }} />
-        {draft.trim() && (
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
-            <button onClick={function(){ setDraft("") }} style={{ padding: "5px 12px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-            <button disabled={saving} onClick={add} style={{ padding: "5px 14px", fontSize: 12, borderRadius: 6, border: "none", background: accent, color: "white", cursor: saving ? "not-allowed" : "pointer", fontWeight: 500, fontFamily: "inherit" }}>{saving ? "Saving…" : "Add note"}</button>
-          </div>
-        )}
-      </div>
+      {m.title ? <div style={{ fontSize: 13, fontWeight: 500, marginTop: 3 }}>{m.title}</div> : null}
     </div>
   )
 }
