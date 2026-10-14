@@ -789,7 +789,7 @@ export default function PersonProfile() {
           Research and Draft Email/DM, and logs a communications row per
           participant so it counts toward the warmth score. */}
       {tab === "meeting_recaps" && (
-        <MeetingsCard personId={p.id} personName={p.full_name || p.first_name || ""} onTagApplied={reload} scrollToRecapId={jumpToRecapId} />
+        <MeetingsCard personId={p.id} personName={p.full_name || p.first_name || ""} meetings={data.scheduled_meetings || []} unlinkedRecaps={data.unlinked_recaps || []} onChanged={reload} scrollToRecapId={jumpToRecapId} />
       )}
 
       {/* TAB: To-dos */}

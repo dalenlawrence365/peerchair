@@ -4,7 +4,12 @@ export const maxDuration = 60
 import { serverClient } from "@/lib/supabaseServer"
 import { WARNING_TAGS } from "@/lib/warningTags"
 
-// POST /api/meeting-recaps   { raw_text, person_ids:[...], occurred_at?, meeting_type? }  -> { meeting_recap }
+// POST /api/meeting-recaps   { raw_text, person_ids:[...], occurred_at?, meeting_type?, meeting_id? }  -> { meeting_recap }
+//
+// meeting_id (optional) attaches the recap to a specific synced calendar
+// meeting (meetings.id), so the profile's Meetings tab can hang the recap
+// under its meeting row. Omit it for an ad-hoc meeting that isn't on the
+// calendar — the recap then stands on its own date/participants as before.
 //
 // Landing zone for Granola (or any AI note-taker) post-meeting output. A
 // recap can be posted to MULTIPLE people at once (a meeting with several
@@ -59,6 +64,7 @@ export async function POST(request) {
 
   const occurredAt = (b.occurred_at || "").toString().trim() || new Date().toISOString().slice(0, 10)
   const meetingTypeInput = (b.meeting_type || "").toString().trim() || null
+  const meetingId = (b.meeting_id || "").toString().trim() || null
 
   const sb = serverClient()
 
@@ -83,11 +89,11 @@ export async function POST(request) {
       body: JSON.stringify({ model: MODEL, max_tokens: 6000, messages: [{ role: "user", content: prompt }] }),
     })
   } catch (e) {
-    return saveRaw(sb, personIds, occurredAt, meetingTypeInput, rawText, "AI request failed: " + (e.message || e))
+    return saveRaw(sb, personIds, occurredAt, meetingTypeInput, meetingId, rawText, "AI request failed: " + (e.message || e))
   }
   if (!aiRes.ok) {
     const t = await aiRes.text().catch(() => "")
-    return saveRaw(sb, personIds, occurredAt, meetingTypeInput, rawText, "AI error " + aiRes.status + ": " + t.slice(0, 300))
+    return saveRaw(sb, personIds, occurredAt, meetingTypeInput, meetingId, rawText, "AI error " + aiRes.status + ": " + t.slice(0, 300))
   }
   const data = await aiRes.json()
   const raw = (data.content && data.content[0] && data.content[0].text) || ""
@@ -95,10 +101,10 @@ export async function POST(request) {
   const { narrative, meta } = splitNarrativeAndMeta(raw)
 
   if (data.stop_reason === "max_tokens" && !meta) {
-    return saveRaw(sb, personIds, occurredAt, meetingTypeInput, narrative || rawText, "AI response was cut off before finishing (too long to normalize in one pass)")
+    return saveRaw(sb, personIds, occurredAt, meetingTypeInput, meetingId, narrative || rawText, "AI response was cut off before finishing (too long to normalize in one pass)")
   }
-  if (!meta) return saveRaw(sb, personIds, occurredAt, meetingTypeInput, narrative || rawText, "Could not parse AI response")
-  if (!narrative) return saveRaw(sb, personIds, occurredAt, meetingTypeInput, rawText, "AI response missing narrative")
+  if (!meta) return saveRaw(sb, personIds, occurredAt, meetingTypeInput, meetingId, narrative || rawText, "Could not parse AI response")
+  if (!narrative) return saveRaw(sb, personIds, occurredAt, meetingTypeInput, meetingId, rawText, "AI response missing narrative")
 
   const suggestedTag = WARNING_TAGS.includes(meta.suggested_warning_tag) ? meta.suggested_warning_tag : null
 
@@ -116,6 +122,7 @@ export async function POST(request) {
     suggested_warning_tag: meta.hard_stop ? suggestedTag : null,
     fit_verdict: meta.fit_verdict || null,
     commitments: meta.commitments || null,
+    meeting_id: meetingId,
     created_by: "dalen",
   }
 
@@ -136,10 +143,11 @@ export async function POST(request) {
 // it. Still links participants and still logs a communications row, since
 // "a meeting happened" is true and worth counting toward warmth even when
 // the AI reshape failed.
-async function saveRaw(sb, personIds, occurredAt, meetingType, rawText, reason) {
+async function saveRaw(sb, personIds, occurredAt, meetingType, meetingId, rawText, reason) {
   const insertRow = {
     occurred_at: occurredAt,
     meeting_type: meetingType,
+    meeting_id: meetingId,
     raw_text: rawText,
     narrative: rawText,
     summary: "(auto-formatting failed — saved as raw text: " + reason + ")",

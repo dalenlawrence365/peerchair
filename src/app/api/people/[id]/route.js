@@ -93,20 +93,49 @@ export async function GET(request, { params }) {
   // Scheduled / calendar meetings with this person (Outlook + Calendly synced),
   // newest first, each with its logged notes (manual + AI summaries).
   const { data: schedMeetings } = await sb.from("meetings")
-    .select("id, title, body_preview, starts_at, ends_at, location, meeting_type, status, source, is_organizer")
+    .select("id, title, body_preview, starts_at, ends_at, location, meeting_type, status, source, is_organizer, attendees_json, tags")
     .eq("person_id", id)
     .order("starts_at", { ascending: false })
     .limit(100)
   const smIds = (schedMeetings || []).map(function(m){ return m.id })
   const notesByMeeting = {}
+  const recapsByMeeting = {}
   if (smIds.length) {
     const { data: mnotes } = await sb.from("meeting_notes")
       .select("id, meeting_id, body, source, author, created_at")
       .in("meeting_id", smIds)
       .order("created_at", { ascending: true })
     for (const n of (mnotes || [])) { (notesByMeeting[n.meeting_id] = notesByMeeting[n.meeting_id] || []).push(n) }
+
+    // Recaps attached to these calendar meetings (meeting_recaps.meeting_id).
+    const { data: mrecaps } = await sb.from("meeting_recaps")
+      .select("*")
+      .in("meeting_id", smIds)
+      .order("created_at", { ascending: false })
+    for (const r of (mrecaps || [])) { (recapsByMeeting[r.meeting_id] = recapsByMeeting[r.meeting_id] || []).push(r) }
   }
-  const scheduled_meetings = (schedMeetings || []).map(function(m){ return Object.assign({}, m, { notes: notesByMeeting[m.id] || [] }) })
+  const scheduled_meetings = (schedMeetings || []).map(function(m){
+    return Object.assign({}, m, { notes: notesByMeeting[m.id] || [], recaps: recapsByMeeting[m.id] || [] })
+  })
+
+  // Legacy / ad-hoc recaps this person is a participant in that are NOT tied
+  // to a calendar meeting (meeting_id null) — kept visible so nothing pasted
+  // before the meeting-centric model disappears.
+  let unlinked_recaps = []
+  {
+    const { data: links } = await sb.from("meeting_recap_participants")
+      .select("meeting_recap_id").eq("person_id", id)
+    const rIds = (links || []).map(function(l){ return l.meeting_recap_id })
+    if (rIds.length) {
+      const { data: urecaps } = await sb.from("meeting_recaps")
+        .select("*")
+        .in("id", rIds)
+        .is("meeting_id", null)
+        .order("occurred_at", { ascending: false })
+        .order("created_at", { ascending: false })
+      unlinked_recaps = urecaps || []
+    }
+  }
 
   // Warmth Index — how engaged this person is with Dalen right now (separate
   // from the CFO research score). Cheap to compute per-profile-load: a
@@ -116,6 +145,7 @@ export async function GET(request, { params }) {
   return Response.json({
     person,
     scheduled_meetings,
+    unlinked_recaps,
     company,
     groups,
     troika_master_of,
