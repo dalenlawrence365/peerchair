@@ -550,42 +550,39 @@ export default function MeetingsCard({ personId, personName, personEmail, person
       ) : null}
 
       {mtgs.map(function (m) {
-        const names = attendeeNames(m, personName, profileEmails)
         const eff = effectiveStatus(m)
         const st = STATUS_STYLE[eff] || null
         const canceled = eff === "canceled"
-        const loc = displayLocation(m.location)
+        const atts = m.attendees_resolved || []
         const recaps = m.recaps || []
         const composing = composeFor === m.id
         return (
           <div key={m.id} ref={function (el) { meetingRefs.current[m.id] = el }}
-            style={Object.assign({ border: "1px solid " + T.border, borderRadius: 10, marginBottom: 14, background: T.cardBg, overflow: "hidden", transition: "box-shadow 0.3s" }, highlightMtgId === m.id ? { boxShadow: "0 0 0 3px rgba(59,130,246,0.5)" } : {})}>
-            <div style={{ padding: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: names.length ? 6 : 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, textDecoration: canceled ? "line-through" : "none" }}>
-                  {fmtWhen(m.starts_at)}
-                </span>
-                {m.meeting_type && (
-                  <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, background: "rgba(100,116,139,0.13)", color: "#475569" }}>{prettyType(m.meeting_type)}</span>
-                )}
-                {st && (
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: st.bg, color: st.fg }}>{prettyType(eff)}</span>
-                )}
-                {loc && (
-                  <span style={{ fontSize: 11, color: T.textTertiary }}>· {loc}</span>
-                )}
-              </div>
-              {names.length > 0 && (
-                <div style={{ fontSize: 12, color: T.textSecondary }}>
-                  <span style={{ color: T.textTertiary }}>With:</span> {names.join(", ")}
-                </div>
+            style={Object.assign({ border: "1px solid " + T.border, borderRadius: 10, marginBottom: 10, background: T.cardBg, padding: "12px 14px", transition: "box-shadow 0.3s" }, highlightMtgId === m.id ? { boxShadow: "0 0 0 3px rgba(59,130,246,0.5)" } : {})}>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, textDecoration: canceled ? "line-through" : "none" }}>{fmtWhen(m.starts_at)}</span>
+              {m.meeting_type && (
+                <span style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: "rgba(100,116,139,0.13)", color: "#475569" }}>{prettyType(m.meeting_type)}</span>
               )}
-              {m.title && (
-                <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 4 }}>{m.title}</div>
+              {st && (
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 999, background: st.bg, color: st.fg }}>{prettyType(eff)}</span>
               )}
             </div>
+            {atts.length > 0 && (
+              <div style={{ fontSize: 12.5, color: T.textPrimary, marginTop: 4 }}>
+                {atts.map(function (a, i) {
+                  return (
+                    <span key={a.person_id || i}>
+                      {i > 0 ? ", " : ""}
+                      <span style={{ fontWeight: 600 }}>{a.name}</span>
+                      {a.company ? <span style={{ color: T.textTertiary, fontWeight: 400 }}>{" (" + a.company + ")"}</span> : null}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
 
-            <div style={{ borderTop: "1px solid " + T.borderSoft, padding: "12px 16px", background: "rgba(148,163,184,0.04)" }}>
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid " + T.borderSoft }}>
               {recaps.length > 0 ? (
                 recaps.map(function (r) { return renderRecap(r, true) })
               ) : composing ? (

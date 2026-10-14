@@ -2,6 +2,15 @@ export const dynamic = "force-dynamic"
 export const fetchCache = "force-no-store"
 import { serverClient } from "@/lib/supabaseServer"
 import { getWarmthForPerson } from "@/lib/warmthScore"
+import { resolvePeopleByEmail } from "@/lib/resolvePeople"
+
+// Dalen's own addresses — shown without a company, or dropped from a meeting's
+// attendee line since every meeting is implicitly with him.
+const SELF_MEETING_EMAILS = new Set([
+  "dalen.lawrence@cfo-circle.com",
+  "dalen.lawrence@stalliant.com",
+  "dalenlawrence365@gmail.com",
+])
 
 // GET /api/people/[id] — full profile for the /people/[id] page.
 // Returns person row, communications (latest 50), active status & action tags,
@@ -114,8 +123,52 @@ export async function GET(request, { params }) {
       .order("created_at", { ascending: false })
     for (const r of (mrecaps || [])) { (recapsByMeeting[r.meeting_id] = recapsByMeeting[r.meeting_id] || []).push(r) }
   }
+  // Resolve each meeting's attendees to the CRM record (name + company) so the
+  // UI shows clean names from Dalen's own records, not the raw booking strings
+  // Outlook/Calendly carried. Self is dropped; anyone not in the CRM is skipped.
+  const attEmails = new Set()
+  for (const m of (schedMeetings || [])) {
+    for (const a of (m.attendees_json || [])) {
+      const e = (a && a.address ? String(a.address) : "").toLowerCase().trim()
+      if (e && e.includes("@")) attEmails.add(e)
+    }
+  }
+  let emailToPerson = {}
+  if (attEmails.size) emailToPerson = await resolvePeopleByEmail(sb, Array.from(attEmails))
+  const needIds = new Set()
+  for (const e in emailToPerson) needIds.add(emailToPerson[e].id)
+  for (const m of (schedMeetings || [])) if (m.person_id) needIds.add(m.person_id)
+  let crmById = {}
+  if (needIds.size) {
+    const { data: crmPpl } = await sb.from("people").select("id, full_name, first_name, company").in("id", Array.from(needIds))
+    crmById = (crmPpl || []).reduce(function (acc, p) { acc[p.id] = p; return acc }, {})
+  }
+  function crmName(p) { return (p && (p.full_name || p.first_name)) || null }
+  function resolveAttendees(m) {
+    const out = []
+    const seen = new Set()
+    for (const a of (m.attendees_json || [])) {
+      const e = (a && a.address ? String(a.address) : "").toLowerCase().trim()
+      if (!e || SELF_MEETING_EMAILS.has(e)) continue
+      const link = emailToPerson[e]
+      const p = link && crmById[link.id]
+      if (!p || seen.has(p.id)) continue
+      seen.add(p.id)
+      out.push({ person_id: p.id, name: crmName(p) || e, company: p.company || null })
+    }
+    if (m.person_id && !seen.has(m.person_id) && crmById[m.person_id]) {
+      const p = crmById[m.person_id]
+      out.unshift({ person_id: p.id, name: crmName(p) || "", company: p.company || null })
+    }
+    return out
+  }
+
   const scheduled_meetings = (schedMeetings || []).map(function(m){
-    return Object.assign({}, m, { notes: notesByMeeting[m.id] || [], recaps: recapsByMeeting[m.id] || [] })
+    return Object.assign({}, m, {
+      notes: notesByMeeting[m.id] || [],
+      recaps: recapsByMeeting[m.id] || [],
+      attendees_resolved: resolveAttendees(m),
+    })
   })
 
   // Legacy / ad-hoc recaps this person is a participant in that are NOT tied
