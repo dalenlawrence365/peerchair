@@ -739,7 +739,6 @@ export default function PersonProfile() {
         { key: "todos", label: "To-dos" },
         { key: "timeline", label: "Timeline" },
         ...((p.roles || []).includes("cfo") ? [{ key: "fitcall", label: "Fit Call" }] : []),
-        ...((p.roles || []).includes("sponsor_contact") ? [{ key: "discovery", label: "Discovery Call" }] : []),
         ...(p.provisors_member ? [{ key: "groups", label: "Groups" }] : []),
         ...(p.provisors_member ? [{ key: "meetings", label: "ProVisors Meetings" }] : []),
         { key: "meeting_recaps", label: "Meetings" },
@@ -823,13 +822,6 @@ export default function PersonProfile() {
           No fit call recorded yet. Once you complete one, the firmographics, pressure points, buying cues, red flags, and call notes appear here.
         </div>
       ))}
-
-      {/* TAB: Discovery Call — sponsor discovery record (placeholder until capture form is built) */}
-      {tab === "discovery" && (
-        <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 32, marginBottom: 18, textAlign: "center", color: T.textTertiary, fontSize: 13, lineHeight: 1.6 }}>
-          No discovery call recorded yet. This is the sponsor-side equivalent of the Fit Call — capturing what the sponsor offers, their ideal client profile, why they'd sponsor CFO Circle, and fit notes. Tell Dalen the fields you used in the old version and the capture form goes here.
-        </div>
-      )}
 
       {/* TAB: Groups — ProVisors group memberships (provisors only) */}
       {tab === "groups" && (

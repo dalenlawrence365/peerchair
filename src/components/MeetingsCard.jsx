@@ -21,6 +21,16 @@ const ENGAGEMENT_COLOR = {
   "Not enough signal": { bg: "rgba(148,163,184,0.10)", fg: "#94a3b8", border: "rgba(148,163,184,0.25)" },
 }
 
+// Plain-English meaning for each engagement read, shown as a hover tooltip
+// so the pill isn't jargon. Warmth uses the same vocabulary (warmthScore.js).
+const ENGAGEMENT_MEANING = {
+  Reciprocal: "They engaged back — asked questions, showed real interest, or proposed their own next step. Strongest positive read.",
+  Engaged: "They were attentive and participated, but didn't drive it forward themselves.",
+  Passive: "They showed up but were mostly passive — neutral read.",
+  Guarded: "They were cautious, non-committal, or kept their distance — mild negative read.",
+  "Not enough signal": "Not enough in the recap to judge how engaged they were.",
+}
+
 const VERDICT_COLOR = {
   "Strong Invite": { bg: "rgba(22,163,74,0.12)", fg: "#15803d", border: "rgba(22,163,74,0.3)" },
   Invite: { bg: "rgba(59,130,246,0.12)", fg: "#1d4ed8", border: "rgba(59,130,246,0.3)" },
@@ -38,7 +48,7 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function RecapBody({ recap, onDelete, deleting, onApplyTag, applyingTag, expanded, onToggle }) {
+function RecapBody({ recap, onDelete, deleting, onApplyTag, applyingTag, expanded, onToggle, onEdit, nested }) {
   const eng = ENGAGEMENT_COLOR[recap.engagement_signal]
   const verdict = VERDICT_COLOR[recap.fit_verdict]
   const html = marked.parse(recap.narrative || "", { breaks: true })
@@ -47,27 +57,40 @@ function RecapBody({ recap, onDelete, deleting, onApplyTag, applyingTag, expande
   return (
     <div style={{ border: "1px solid " + T.border, borderRadius: 10, padding: 16, marginBottom: 14, background: T.cardBg }}>
       <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }}>{fmtDate(recap.occurred_at)}</span>
-        {recap.meeting_type && (
+        {nested ? (
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: T.textTertiary }}>Summary</span>
+        ) : (
+          <span style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }}>{fmtDate(recap.occurred_at)}</span>
+        )}
+        {!nested && recap.meeting_type && (
           <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, background: "rgba(100,116,139,0.13)", color: "#475569" }}>{recap.meeting_type}</span>
         )}
         {recap.fit_verdict && verdict && (
-          <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: verdict.bg, border: "1px solid " + verdict.border, color: verdict.fg }}>
+          <span title="CFO Circle invite-worthiness read from this call" style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: verdict.bg, border: "1px solid " + verdict.border, color: verdict.fg }}>
             {recap.fit_verdict}
           </span>
         )}
         {recap.engagement_signal && eng && (
-          <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, background: eng.bg, border: "1px solid " + eng.border, color: eng.fg }}>
-            {recap.engagement_signal}
+          <span title={"Engagement read — " + (ENGAGEMENT_MEANING[recap.engagement_signal] || "")}
+            style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, background: eng.bg, border: "1px solid " + eng.border, color: eng.fg, cursor: "help" }}>
+            Engagement: {recap.engagement_signal}
           </span>
         )}
         {recap.parse_failed && (
           <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, background: "rgba(217,119,6,0.12)", color: "#b45309" }}>unstructured</span>
         )}
-        <button onClick={onDelete} disabled={deleting} title="Delete this meeting recap"
-          style={{ marginLeft: "auto", fontSize: 11, padding: "3px 9px", borderRadius: 6, border: "1px solid " + T.border, background: "none", color: deleting ? T.textTertiary : "#b91c1c", cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-          {deleting ? "Deleting…" : "Delete"}
-        </button>
+        <span style={{ marginLeft: "auto", display: "inline-flex", gap: 6 }}>
+          {onEdit && (
+            <button onClick={onEdit} title="Edit this recap"
+              style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, border: "1px solid " + T.border, background: "none", color: "#1d4ed8", cursor: "pointer", fontFamily: "inherit" }}>
+              Edit
+            </button>
+          )}
+          <button onClick={onDelete} disabled={deleting} title="Delete this meeting recap"
+            style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, border: "1px solid " + T.border, background: "none", color: deleting ? T.textTertiary : "#b91c1c", cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        </span>
       </div>
 
       {recap.other_participants && recap.other_participants.length > 0 && (
@@ -223,6 +246,63 @@ export default function MeetingsCard({ personId, personName, meetings, unlinkedR
     setExpandedRecaps(function (s) { return Object.assign({}, s, { [id]: !s[id] }) })
   }
 
+  // Edit an existing recap (summary + narrative text; raw paste untouched).
+  const [editingId, setEditingId] = useState(null)
+  const [editSummary, setEditSummary] = useState("")
+  const [editNarr, setEditNarr] = useState("")
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  function startEdit(r) {
+    setEditingId(r.id); setEditSummary(r.summary || ""); setEditNarr(r.narrative || "")
+    setExpandedRecaps(function (s) { return Object.assign({}, s, { [r.id]: true }) })
+  }
+  function saveEdit(r) {
+    setSavingEdit(true)
+    fetch("/api/people/" + personId + "/meeting-recaps", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recap_id: r.id, summary: editSummary, narrative: editNarr }),
+    })
+      .then(function (res) { return res.json() })
+      .then(function (d) {
+        if (d.ok) { setEditingId(null); if (onChanged) onChanged() }
+        else window.alert("Couldn't save the edit" + (d.error ? (": " + d.error) : "") + ".")
+      })
+      .catch(function () { window.alert("Error saving edit.") })
+      .finally(function () { setSavingEdit(false) })
+  }
+
+  // Free-form notes on a meeting (separate from the recap; append-only).
+  const [noteFor, setNoteFor] = useState(null)
+  const [noteText, setNoteText] = useState("")
+  const [savingNote, setSavingNote] = useState(false)
+  const [deletingNoteId, setDeletingNoteId] = useState(null)
+
+  function addNote(meeting) {
+    const t = (noteText || "").trim()
+    if (!t) return
+    setSavingNote(true)
+    fetch("/api/meeting-notes", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meeting_id: meeting.id, body: t, author: "dalen" }),
+    })
+      .then(function (res) { return res.json() })
+      .then(function (d) {
+        if (d.ok || d.id) { setNoteFor(null); setNoteText(""); if (onChanged) onChanged() }
+        else window.alert("Couldn't add the note" + (d.error ? (": " + d.error) : "") + ".")
+      })
+      .catch(function () { window.alert("Error adding note.") })
+      .finally(function () { setSavingNote(false) })
+  }
+  function deleteNote(noteId) {
+    if (!window.confirm("Delete this note?")) return
+    setDeletingNoteId(noteId)
+    fetch("/api/meeting-notes?id=" + noteId, { method: "DELETE" })
+      .then(function (res) { return res.json() })
+      .then(function (d) { if (d.ok) { if (onChanged) onChanged() } else window.alert("Couldn't delete the note.") })
+      .catch(function () {})
+      .finally(function () { setDeletingNoteId(null) })
+  }
+
   useEffect(function () {
     setAdParticipants([{ id: personId, full_name: personName || "This person" }])
   }, [personId, personName])
@@ -351,14 +431,80 @@ export default function MeetingsCard({ personId, personName, meetings, unlinkedR
       .finally(function () { setApplyingTagId(null) })
   }
 
-  function renderRecap(r) {
+  function renderRecap(r, nested) {
+    if (editingId === r.id) {
+      return (
+        <div key={r.id} style={{ border: "1px solid " + T.border, borderRadius: 10, padding: 16, marginBottom: 14, background: T.cardBg }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: T.textTertiary, marginBottom: 8 }}>Edit recap</div>
+          <input value={editSummary} onChange={function (e) { setEditSummary(e.target.value) }}
+            placeholder="One-line summary"
+            style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1px solid " + T.border, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
+          <textarea value={editNarr} onChange={function (e) { setEditNarr(e.target.value) }}
+            rows={8}
+            style={{ width: "100%", padding: "9px 11px", borderRadius: 8, border: "1px solid " + T.border, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box", resize: "vertical", marginBottom: 8 }} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button disabled={savingEdit} onClick={function () { saveEdit(r) }}
+              style={{ padding: "7px 16px", fontSize: 12, borderRadius: 6, border: "none", background: "#3b82f6", color: "white", cursor: savingEdit ? "not-allowed" : "pointer", fontWeight: 500, fontFamily: "inherit" }}>
+              {savingEdit ? "Saving…" : "Save"}
+            </button>
+            <button onClick={function () { setEditingId(null) }}
+              style={{ padding: "7px 14px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )
+    }
     return (
       <div key={r.id} ref={function (el) { recapRefs.current[r.id] = el }}
         style={highlightId === r.id ? { borderRadius: 10, boxShadow: "0 0 0 3px rgba(59,130,246,0.5)", transition: "box-shadow 0.3s" } : { transition: "box-shadow 0.3s" }}>
-        <RecapBody recap={r}
+        <RecapBody recap={r} nested={nested} onEdit={function () { startEdit(r) }}
           onDelete={function () { handleDelete(r.id) }} deleting={deletingId === r.id}
           onApplyTag={function () { handleApplyTag(r) }} applyingTag={applyingTagId === r.id}
           expanded={!!expandedRecaps[r.id]} onToggle={function () { toggleRecap(r.id) }} />
+      </div>
+    )
+  }
+
+  function renderNotes(m) {
+    const notes = m.notes || []
+    const adding = noteFor === m.id
+    return (
+      <div style={{ marginTop: (m.recaps && m.recaps.length) ? 12 : 0 }}>
+        {notes.map(function (n) {
+          return (
+            <div key={n.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 10px", borderLeft: "3px solid #d97706", background: "rgba(217,119,6,0.05)", borderRadius: 4, marginBottom: 6 }}>
+              <div style={{ fontSize: 12.5, color: T.textPrimary, whiteSpace: "pre-wrap" }}>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "#b45309", marginRight: 8 }}>Note</span>
+                {n.body}
+              </div>
+              <button onClick={function () { deleteNote(n.id) }} disabled={deletingNoteId === n.id}
+                style={{ fontSize: 11, border: "none", background: "none", color: deletingNoteId === n.id ? T.textTertiary : "#b91c1c", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>×</button>
+            </div>
+          )
+        })}
+        {adding ? (
+          <div>
+            <textarea value={noteText} onChange={function (e) { setNoteText(e.target.value) }}
+              placeholder="Add a note to this meeting…" rows={2}
+              style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid " + T.border, fontSize: 12.5, fontFamily: "inherit", outline: "none", boxSizing: "border-box", resize: "vertical", marginBottom: 6 }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button disabled={!noteText.trim() || savingNote} onClick={function () { addNote(m) }}
+                style={{ padding: "5px 12px", fontSize: 12, borderRadius: 6, border: "none", background: noteText.trim() ? "#3b82f6" : T.border, color: noteText.trim() ? "white" : T.textTertiary, cursor: noteText.trim() && !savingNote ? "pointer" : "not-allowed", fontWeight: 500, fontFamily: "inherit" }}>
+                {savingNote ? "Saving…" : "Save note"}
+              </button>
+              <button onClick={function () { setNoteFor(null); setNoteText("") }}
+                style={{ padding: "5px 12px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={function () { setNoteFor(m.id); setNoteText("") }}
+            style={{ fontSize: 12, padding: "4px 10px", borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>
+            + Add note
+          </button>
+        )}
       </div>
     )
   }
@@ -408,7 +554,7 @@ export default function MeetingsCard({ personId, personName, meetings, unlinkedR
 
             <div style={{ borderTop: "1px solid " + T.borderSoft, padding: "12px 16px", background: "rgba(148,163,184,0.04)" }}>
               {recaps.length > 0 ? (
-                recaps.map(function (r) { return renderRecap(r) })
+                recaps.map(function (r) { return renderRecap(r, true) })
               ) : composing ? (
                 <div>
                   <textarea
@@ -439,6 +585,7 @@ export default function MeetingsCard({ personId, personName, meetings, unlinkedR
                   </button>
                 </div>
               )}
+              {renderNotes(m)}
             </div>
           </div>
         )
@@ -522,7 +669,7 @@ export default function MeetingsCard({ personId, personName, meetings, unlinkedR
           <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: "0.04em", margin: "4px 0 10px" }}>
             Recaps not linked to a calendar meeting
           </div>
-          {legacy.map(function (r) { return renderRecap(r) })}
+          {legacy.map(function (r) { return renderRecap(r, false) })}
         </div>
       )}
     </div>

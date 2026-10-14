@@ -52,13 +52,14 @@ export async function GET(request, { params }) {
   return Response.json({ recaps: out })
 }
 
-// PATCH /api/people/[id]/meeting-recaps   { recap_id, warning_tag_applied: true }
+// PATCH /api/people/[id]/meeting-recaps   { recap_id, warning_tag_applied?, narrative?, summary? }
 //
-// Marks a recap's suggested hard-stop tag as applied so the "Apply tag"
-// button doesn't keep offering itself after Dalen has already acted on it.
-// Only ever sets this to true from the UI (after the actual add_tag call
-// to /api/people/[id]/action succeeds) — this endpoint doesn't set the tag
-// itself, it just records that it was handled.
+// Two uses:
+//  - warning_tag_applied: true — marks a recap's suggested hard-stop tag as
+//    applied so the "Apply tag" button stops re-offering after Dalen acted.
+//  - narrative / summary (strings) — edits the recap text in place (the raw
+//    paste is left untouched). Lets Dalen fix or extend a recap rather than
+//    only delete it.
 export async function PATCH(request, { params }) {
   const id = params?.id
   if (!id) return Response.json({ error: "id required" }, { status: 400 })
@@ -67,12 +68,18 @@ export async function PATCH(request, { params }) {
   const recapId = (b.recap_id || "").toString()
   if (!recapId) return Response.json({ error: "recap_id required" }, { status: 400 })
 
+  const update = {}
+  if (b.warning_tag_applied === true) update.warning_tag_applied = true
+  if (typeof b.narrative === "string") update.narrative = b.narrative
+  if (typeof b.summary === "string") update.summary = b.summary
+  if (!Object.keys(update).length) return Response.json({ error: "nothing to update" }, { status: 400 })
+
   const sb = serverClient()
   const { data: link } = await sb.from("meeting_recap_participants")
     .select("meeting_recap_id").eq("meeting_recap_id", recapId).eq("person_id", id).maybeSingle()
   if (!link) return Response.json({ error: "recap not found for this person" }, { status: 404 })
 
-  const { error } = await sb.from("meeting_recaps").update({ warning_tag_applied: true }).eq("id", recapId)
+  const { error } = await sb.from("meeting_recaps").update(update).eq("id", recapId)
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json({ ok: true })
 }
