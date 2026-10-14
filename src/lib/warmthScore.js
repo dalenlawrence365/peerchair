@@ -108,6 +108,16 @@ const ENGAGEMENT_SIGNAL_WEIGHTS = {
   Guarded: -6,
 }
 
+// A meeting that actually happened is strong reciprocity on its own — they
+// gave Dalen real time — so a completed (past, not-canceled) calendar
+// meeting scores a baseline regardless of whether a recap was ever pasted.
+// The recap's engagement read (above) and referral (below) then layer ON
+// TOP as the "how it went" modifiers. To avoid double-counting "a meeting
+// happened", the recap-derived inbound `communications` row (source
+// 'meeting_recap') is excluded from INBOUND_COMM_WEIGHT below — the meeting
+// itself is now the single source of that point.
+const MEETING_COMPLETED_WEIGHT = 20
+
 // A referral offer is arguably the single strongest reciprocity signal that
 // exists — someone willing to put their own name behind an introduction —
 // so it's weighted above every other single signal in this file.
@@ -182,8 +192,13 @@ function fmtDate(iso) {
 // Build the flat, labeled signal list for one person from raw rows already
 // filtered to that person_id (used by both the single-person and bulk
 // fetchers below so the weighting logic only lives in one place).
-function buildSignals(inboundComms, actionTags, attendeeRows, pageEventsByType, meetingRecapRows) {
+function buildSignals(inboundComms, actionTags, attendeeRows, pageEventsByType, meetingRecapRows, completedMeetingRows) {
   const signals = []
+  for (const m of (completedMeetingRows || [])) {
+    const when = m.ends_at || m.starts_at
+    const mt = m.meeting_type ? " (" + m.meeting_type + ")" : ""
+    signals.push({ weight: MEETING_COMPLETED_WEIGHT, occurred_at: when, category: "meeting", label: "Meeting completed" + mt + " (" + fmtDate(when) + ")" })
+  }
   for (const c of inboundComms) {
     signals.push({
       weight: INBOUND_COMM_WEIGHT, occurred_at: c.occurred_at, category: "communication",
@@ -222,14 +237,20 @@ function buildSignals(inboundComms, actionTags, attendeeRows, pageEventsByType, 
 }
 
 export async function getWarmthForPerson(sb, personId) {
-  const [{ data: comms }, { data: actionTags }, { data: attendee }, { data: pageEvents }, { data: statusRows }, { data: recapLinks }] = await Promise.all([
-    sb.from("communications").select("occurred_at, channel, step_label").eq("person_id", personId).eq("direction", "inbound"),
+  const [{ data: comms }, { data: actionTags }, { data: attendee }, { data: pageEvents }, { data: statusRows }, { data: recapLinks }, { data: mtgRows }] = await Promise.all([
+    sb.from("communications").select("occurred_at, channel, step_label").eq("person_id", personId).eq("direction", "inbound").neq("source", "meeting_recap"),
     sb.from("person_action_tags").select("action_type, as_of_date, set_at").eq("person_id", personId).in("action_type", RELEVANT_ACTION_TYPES),
     sb.from("event_attendees").select("status, responded_at, registered_at, invited_at").eq("person_id", personId),
     sb.from("page_events").select("event, created_at").eq("person_id", personId).eq("is_bot", false).in("event", RELEVANT_PAGE_EVENTS),
     sb.from("person_status_tags").select("tag").eq("person_id", personId).is("removed_at", null),
     sb.from("meeting_recap_participants").select("meeting_recap_id").eq("person_id", personId),
+    sb.from("meetings").select("starts_at, ends_at, meeting_type, status").eq("person_id", personId).neq("status", "canceled"),
   ])
+  const nowMs = Date.now()
+  const completedMeetings = (mtgRows || []).filter(function (m) {
+    const end = new Date(m.ends_at || m.starts_at).getTime()
+    return isFinite(end) && end < nowMs
+  })
 
   const pageEventsByType = {}
   for (const pe of (pageEvents || [])) {
@@ -247,8 +268,8 @@ export async function getWarmthForPerson(sb, personId) {
     meetingRecapRows = recaps || []
   }
 
-  const signals = buildSignals(comms || [], actionTags || [], attendee || [], pageEventsByType, meetingRecapRows)
-  return computeWarmth(signals, (statusRows || []).map(function (r) { return r.tag }))
+  const signals = buildSignals(comms || [], actionTags || [], attendee || [], pageEventsByType, meetingRecapRows, completedMeetings)
+  return computeWarmth(signals, (statusRows || []).map(function (r) { return r.tag }), nowMs)
 }
 
 // Bulk version for the report page + dashboard tile — fetches each signal
@@ -257,15 +278,22 @@ export async function getWarmthForPerson(sb, personId) {
 // itemized breakdown (only the single-person path needs that, for the
 // profile page's warmth-pill popup) — keeps the bulk payload lean.
 export async function getAllWarmthRows(sb) {
-  const [{ data: people }, { data: comms }, { data: actionTags }, { data: attendee }, { data: pageEvents }, { data: statusRows }, { data: recapParticipants }] = await Promise.all([
+  const [{ data: people }, { data: comms }, { data: actionTags }, { data: attendee }, { data: pageEvents }, { data: statusRows }, { data: recapParticipants }, { data: mtgRows }] = await Promise.all([
     sb.from("people").select("id, full_name, company, roles"),
-    sb.from("communications").select("person_id, occurred_at, channel, step_label").eq("direction", "inbound").not("person_id", "is", null),
+    sb.from("communications").select("person_id, occurred_at, channel, step_label").eq("direction", "inbound").neq("source", "meeting_recap").not("person_id", "is", null),
     sb.from("person_action_tags").select("person_id, action_type, as_of_date, set_at").in("action_type", RELEVANT_ACTION_TYPES),
     sb.from("event_attendees").select("person_id, status, responded_at, registered_at, invited_at"),
     sb.from("page_events").select("person_id, event, created_at").eq("is_bot", false).in("event", RELEVANT_PAGE_EVENTS).not("person_id", "is", null),
     sb.from("person_status_tags").select("person_id, tag").is("removed_at", null).in("tag", WARMTH_FLOOR_TAGS),
     sb.from("meeting_recap_participants").select("person_id, meeting_recap_id"),
+    sb.from("meetings").select("person_id, starts_at, ends_at, meeting_type, status").neq("status", "canceled").not("person_id", "is", null),
   ])
+  const nowMs = Date.now()
+  const completedMtgBy = {}
+  for (const m of (mtgRows || [])) {
+    const end = new Date(m.ends_at || m.starts_at).getTime()
+    if (isFinite(end) && end < nowMs) (completedMtgBy[m.person_id] = completedMtgBy[m.person_id] || []).push(m)
+  }
 
   const relevantRoles = ["cfo", "sponsor_contact", "referral_partner"]
   const people_ = (people || []).filter(function (p) { return (p.roles || []).some(function (r) { return relevantRoles.indexOf(r) >= 0 }) })
@@ -305,9 +333,9 @@ export async function getAllWarmthRows(sb) {
     recapRowsByPerson[personId] = recapIdsByPerson[personId].map(function (rid) { return recapsById[rid] }).filter(Boolean)
   }
 
-  const now = Date.now()
+  const now = nowMs
   return people_.map(function (p) {
-    const signals = buildSignals(commsBy[p.id] || [], tagsBy[p.id] || [], attendeeBy[p.id] || [], pageEventsBy[p.id] || {}, recapRowsByPerson[p.id] || [])
+    const signals = buildSignals(commsBy[p.id] || [], tagsBy[p.id] || [], attendeeBy[p.id] || [], pageEventsBy[p.id] || {}, recapRowsByPerson[p.id] || [], completedMtgBy[p.id] || [])
     const w = computeWarmth(signals, statusBy[p.id] || [], now)
     return {
       person_id: p.id,

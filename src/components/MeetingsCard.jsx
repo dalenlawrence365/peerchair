@@ -38,10 +38,11 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function RecapBody({ recap, onDelete, deleting, onApplyTag, applyingTag }) {
+function RecapBody({ recap, onDelete, deleting, onApplyTag, applyingTag, expanded, onToggle }) {
   const eng = ENGAGEMENT_COLOR[recap.engagement_signal]
   const verdict = VERDICT_COLOR[recap.fit_verdict]
   const html = marked.parse(recap.narrative || "", { breaks: true })
+  const hasDetail = !!(recap.narrative || recap.commitments || recap.referral_mentioned)
 
   return (
     <div style={{ border: "1px solid " + T.border, borderRadius: 10, padding: 16, marginBottom: 14, background: T.cardBg }}>
@@ -94,21 +95,30 @@ function RecapBody({ recap, onDelete, deleting, onApplyTag, applyingTag }) {
         </div>
       )}
 
-      {recap.summary && <div style={{ fontSize: 13, fontStyle: "italic", color: T.textSecondary, marginBottom: 12 }}>{recap.summary}</div>}
+      {recap.summary && <div style={{ fontSize: 13, fontStyle: "italic", color: T.textSecondary, marginBottom: expanded ? 12 : 2 }}>{recap.summary}</div>}
 
-      {recap.referral_mentioned && (
-        <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 8 }}>
-          <strong>Referral:</strong> {recap.referral_who || "mentioned, no name captured"}
-        </div>
+      {hasDetail && (
+        <button onClick={onToggle}
+          style={{ fontSize: 11, fontWeight: 600, padding: "2px 0", background: "none", border: "none", color: "#1d4ed8", cursor: "pointer", fontFamily: "inherit" }}>
+          {expanded ? "Hide details ▴" : "Show details ▾"}
+        </button>
       )}
 
-      {recap.commitments && (
-        <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 12, padding: "8px 10px", background: "rgba(59,130,246,0.06)", borderRadius: 6 }}>
-          <strong>Commitments:</strong> {recap.commitments}
+      {expanded && (
+        <div style={{ marginTop: 8 }}>
+          {recap.referral_mentioned && (
+            <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 8 }}>
+              <strong>Referral:</strong> {recap.referral_who || "mentioned, no name captured"}
+            </div>
+          )}
+          {recap.commitments && (
+            <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 12, padding: "8px 10px", background: "rgba(59,130,246,0.06)", borderRadius: 6 }}>
+              <strong>Commitments:</strong> {recap.commitments}
+            </div>
+          )}
+          <div className="research-narrative" style={{ fontSize: 13, lineHeight: 1.6, color: T.textPrimary }} dangerouslySetInnerHTML={{ __html: html }} />
         </div>
       )}
-
-      <div className="research-narrative" style={{ fontSize: 13, lineHeight: 1.6, color: T.textPrimary }} dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   )
 }
@@ -132,9 +142,29 @@ function prettyType(t) {
 }
 
 const STATUS_STYLE = {
+  completed: { bg: "rgba(22,163,74,0.12)", fg: "#15803d" },
   scheduled: { bg: "rgba(59,130,246,0.12)", fg: "#1d4ed8" },
-  tentative: { bg: "rgba(217,119,6,0.12)", fg: "#b45309" },
   canceled:  { bg: "rgba(148,163,184,0.16)", fg: "#64748b" },
+}
+
+// Three real states, derived — Outlook never says "completed", it's just a
+// non-canceled meeting whose end time has passed. No stored flip (the sync
+// would overwrite it); no "no-show" state (Dalen deletes/cancels those).
+function effectiveStatus(m) {
+  if (m.status === "canceled") return "canceled"
+  const end = new Date(m.ends_at || m.starts_at).getTime()
+  if (isFinite(end) && end < Date.now()) return "completed"
+  return "scheduled"
+}
+
+// Hide online-meeting join URLs (Zoom/Teams links Dalen doesn't use) from the
+// meeting header; keep real venue strings like "Culver City".
+function displayLocation(loc) {
+  if (!loc) return null
+  const s = String(loc).trim()
+  if (/^https?:\/\//i.test(s)) return null
+  if (/teams\.microsoft\.com|zoom\.us|meet\.google\.com/i.test(s)) return null
+  return s
 }
 
 function attendeeNames(m) {
@@ -187,6 +217,11 @@ export default function MeetingsCard({ personId, personName, meetings, unlinkedR
   const recapRefs = useRef({})
   const didScrollRef = useRef(false)
   const [highlightId, setHighlightId] = useState(null)
+  const [expandedRecaps, setExpandedRecaps] = useState({})
+
+  function toggleRecap(id) {
+    setExpandedRecaps(function (s) { return Object.assign({}, s, { [id]: !s[id] }) })
+  }
 
   useEffect(function () {
     setAdParticipants([{ id: personId, full_name: personName || "This person" }])
@@ -197,6 +232,7 @@ export default function MeetingsCard({ personId, personName, meetings, unlinkedR
     const el = recapRefs.current[scrollToRecapId]
     if (!el) return
     didScrollRef.current = true
+    setExpandedRecaps(function (s) { return Object.assign({}, s, { [scrollToRecapId]: true }) })
     el.scrollIntoView({ behavior: "smooth", block: "center" })
     setHighlightId(scrollToRecapId)
     setTimeout(function () { setHighlightId(null) }, 2500)
@@ -321,7 +357,8 @@ export default function MeetingsCard({ personId, personName, meetings, unlinkedR
         style={highlightId === r.id ? { borderRadius: 10, boxShadow: "0 0 0 3px rgba(59,130,246,0.5)", transition: "box-shadow 0.3s" } : { transition: "box-shadow 0.3s" }}>
         <RecapBody recap={r}
           onDelete={function () { handleDelete(r.id) }} deleting={deletingId === r.id}
-          onApplyTag={function () { handleApplyTag(r) }} applyingTag={applyingTagId === r.id} />
+          onApplyTag={function () { handleApplyTag(r) }} applyingTag={applyingTagId === r.id}
+          expanded={!!expandedRecaps[r.id]} onToggle={function () { toggleRecap(r.id) }} />
       </div>
     )
   }
@@ -336,8 +373,10 @@ export default function MeetingsCard({ personId, personName, meetings, unlinkedR
 
       {mtgs.map(function (m) {
         const names = attendeeNames(m)
-        const st = STATUS_STYLE[m.status] || null
-        const canceled = m.status === "canceled"
+        const eff = effectiveStatus(m)
+        const st = STATUS_STYLE[eff] || null
+        const canceled = eff === "canceled"
+        const loc = displayLocation(m.location)
         const recaps = m.recaps || []
         const composing = composeFor === m.id
         return (
@@ -351,10 +390,10 @@ export default function MeetingsCard({ personId, personName, meetings, unlinkedR
                   <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, background: "rgba(100,116,139,0.13)", color: "#475569" }}>{prettyType(m.meeting_type)}</span>
                 )}
                 {st && (
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: st.bg, color: st.fg }}>{prettyType(m.status)}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: st.bg, color: st.fg }}>{prettyType(eff)}</span>
                 )}
-                {m.location && (
-                  <span style={{ fontSize: 11, color: T.textTertiary }}>· {m.location}</span>
+                {loc && (
+                  <span style={{ fontSize: 11, color: T.textTertiary }}>· {loc}</span>
                 )}
               </div>
               {names.length > 0 && (
