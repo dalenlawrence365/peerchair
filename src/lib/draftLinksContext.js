@@ -60,7 +60,7 @@ export async function getPersonEventLinksLines(sb, personId, src) {
 
   return events.map(function (e, i) {
     let when = ""
-    try { when = new Date(String(e.event_date).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) } catch (x) {}
+    try { when = new Date(e.event_date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles" }) } catch (x) {}
     const url = SITE + "/events/" + e.slug + "/?t=" + encodeURIComponent(token) + "&src=" + encodeURIComponent(src || "profile")
     let tag = ""
     if (i === defaultIdx) tag = " (THE DEFAULT INVITE — the next CFO Circle workshop; use this whenever the instructions say \"the workshop\", \"the event\", \"the next session\", or \"the invite\")"

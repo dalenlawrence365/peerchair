@@ -26,9 +26,16 @@ export async function buildInviteBrief(sb, personId, channel) {
   const ch = channel === "email" ? "email" : "dm"
   const today = new Date().toISOString().slice(0, 10)
 
-  const { data: ev } = await sb.from("events")
-    .select("id, slug, name, event_date, ends_at, location, venue_name, host_name, summary, agenda, parking_instructions, breakfast_note")
-    .eq("published", true).gte("event_date", today).order("event_date", { ascending: true }).limit(1).maybeSingle()
+  // "The event" to brief on is the next CFO Circle WORKSHOP, not merely the
+  // soonest thing on the calendar — a partner event (kind 'partner') or a happy
+  // hour can be sooner and must not become the default invite. Prefer the
+  // soonest upcoming workshop; fall back to soonest non-partner; last, soonest.
+  const { data: evList } = await sb.from("events")
+    .select("id, slug, name, event_date, ends_at, location, venue_name, host_name, summary, agenda, parking_instructions, breakfast_note, kind")
+    .eq("published", true).gte("event_date", today).order("event_date", { ascending: true }).limit(12)
+  const ev = (evList || []).find(function (e) { return e.kind === "workshop" })
+    || (evList || []).find(function (e) { return e.kind !== "partner" })
+    || (evList || [])[0]
   if (!ev) return { ok: false, error: "no_upcoming_event" }
 
   const { data: person } = await sb.from("people")
