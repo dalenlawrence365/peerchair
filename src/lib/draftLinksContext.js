@@ -34,10 +34,20 @@ export async function getPersonEventLinksLines(sb, personId, src) {
   const SITE = process.env.NEXT_PUBLIC_EVENT_SITE_URL || "https://la-cfo.com"
   const today = new Date().toISOString().slice(0, 10)
   const { data: events } = await sb.from("events")
-    .select("slug, name, event_date")
+    .select("slug, name, event_date, kind")
     .eq("published", true).gte("event_date", today)
     .order("event_date", { ascending: true })
   if (!events || !events.length) return ""
+
+  // Which event is "the invite" when the instructions just say "the workshop",
+  // "the event", or "the invite"? It must be the next CFO Circle WORKSHOP — not
+  // merely the soonest event on the calendar. A partner event (ACG, kind
+  // 'partner') or a happy hour is soonest often enough that "latest event" kept
+  // hijacking the default invite. So: prefer the soonest upcoming workshop;
+  // fall back to the soonest non-partner event; last resort, the soonest event.
+  let defaultIdx = events.findIndex(function (e) { return e.kind === "workshop" })
+  if (defaultIdx < 0) defaultIdx = events.findIndex(function (e) { return e.kind !== "partner" })
+  if (defaultIdx < 0) defaultIdx = 0
 
   let token = null
   const { data: existing } = await sb.from("track_tokens").select("token").eq("person_id", personId).limit(1).maybeSingle()
@@ -52,7 +62,10 @@ export async function getPersonEventLinksLines(sb, personId, src) {
     let when = ""
     try { when = new Date(String(e.event_date).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) } catch (x) {}
     const url = SITE + "/events/" + e.slug + "/?t=" + encodeURIComponent(token) + "&src=" + encodeURIComponent(src || "profile")
-    return "- " + (e.name || "CFO Circle workshop") + ", " + when + (i === 0 ? " (NEXT / LATEST UPCOMING EVENT — the default whenever the instructions say \"the workshop\", \"the event\", \"the next session\", or \"the invite\")" : "") + ": " + url
+    let tag = ""
+    if (i === defaultIdx) tag = " (THE DEFAULT INVITE — the next CFO Circle workshop; use this whenever the instructions say \"the workshop\", \"the event\", \"the next session\", or \"the invite\")"
+    else if (e.kind === "partner") tag = " (PARTNER EVENT — not a CFO Circle session; use ONLY if the message specifically names this event, never as the default invite)"
+    return "- " + (e.name || "CFO Circle workshop") + ", " + when + tag + ": " + url
   }).join("\n")
 }
 
