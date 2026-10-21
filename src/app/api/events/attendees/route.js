@@ -214,8 +214,20 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
   try {
     const hi = first_name ? ("Hi " + first_name + ",") : "Hi,"
     const ev = event || {}
-    let whenStr = "Tuesday, August 11 &middot; 8:30&ndash;11:30 AM"
-    try { if (ev.event_date) whenStr = new Date(String(ev.event_date).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) + " &middot; 8:30&ndash;11:30 AM" } catch (e) {}
+    // Date/time for the email, always from the event itself and always in
+    // Pacific (events are stored in UTC; a morning event is same-day UTC, an
+    // evening one rolls to next-day UTC, so formatting MUST pin the timeZone).
+    const fmtT = function (iso) { try { return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles" }).replace(":00 ", " ") } catch (e) { return "" } }
+    let whenStr = ""
+    let subjDate = ""
+    try {
+      if (ev.event_date) {
+        whenStr = new Date(ev.event_date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Los_Angeles" })
+        const t1 = fmtT(ev.event_date), t2 = ev.ends_at ? fmtT(ev.ends_at) : ""
+        if (t1) whenStr += " &middot; " + t1 + (t2 ? "&ndash;" + t2 : "")
+        subjDate = new Date(ev.event_date).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "America/Los_Angeles" })
+      }
+    } catch (e) {}
     const row = (label, value) => value ? ('<p style="margin:0 0 9px;font-size:15px;line-height:1.5"><strong>' + label + '</strong> ' + value + '</p>') : ""
     const where = [ev.venue_name, ev.address_line].filter(Boolean).join(", ")
     // Universal add-to-calendar: .ics (Apple/Outlook) + Google link.
@@ -247,7 +259,7 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
       '</div>'
     // POST /me/messages creates a DRAFT (not sent) so Dalen reviews before sending.
     const payload = JSON.stringify({
-      subject: "You're in — August 11 CFO Circle workshop",
+      subject: "You're in — " + (subjDate ? subjDate + " " : "") + "CFO Circle workshop",
       body: { contentType: "HTML", content: html },
       toRecipients: [{ emailAddress: { address: to } }],
     })
