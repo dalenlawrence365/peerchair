@@ -109,9 +109,9 @@ export default function DraftEmailCard({ personId, statusTags }) {
       .finally(function () { setCreating(false) })
   }
 
-  function happyHourDraft() {
+  function happyHourDraft(variant) {
     setCreating(true); setMsg(""); setDraftUrl(null)
-    fetch("/api/people/" + personId + "/happy-hour-draft", { method: "POST" })
+    fetch("/api/people/" + personId + "/happy-hour-draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ variant: variant || "cold" }) })
       .then(function (r) { return r.json() })
       .then(function (d) {
         if (d.ok) { setMsg("Happy hour email saved to your Outlook Drafts (to " + d.to + ")."); setDraftUrl(d.draft_url || null) }
@@ -145,10 +145,15 @@ export default function DraftEmailCard({ personId, statusTags }) {
           style={{ padding: "4px 11px", borderRadius: 999, border: "1px solid " + T.accent, background: "white", color: T.accent, fontSize: 12, fontWeight: 600, cursor: (briefing || generating) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (briefing || generating) ? 0.6 : 1, whiteSpace: "nowrap" }}>
           ✦ Invite to happy hour
         </button>
-        <button disabled={creating || generating} onClick={happyHourDraft}
+        <button disabled={creating || generating} onClick={function () { happyHourDraft("cold") }}
           title="One click: puts the approved November happy hour HTML email (with this person's tracked link) into your Outlook Drafts. Nothing is sent."
           style={{ padding: "4px 11px", borderRadius: 999, border: "1px solid " + T.accent, background: T.accent, color: "white", fontSize: 12, fontWeight: 600, cursor: (creating || generating) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (creating || generating) ? 0.6 : 1, whiteSpace: "nowrap" }}>
           {creating ? "Creating…" : "✉ Nov happy hour email → Outlook"}
+        </button>
+        <button disabled={creating || generating} onClick={function () { happyHourDraft("warm") }}
+          title="Warm version for people who already know you (members, past attendees). Fills in their first name and tracked link. Saved to Outlook Drafts, never sent."
+          style={{ padding: "4px 11px", borderRadius: 999, border: "1px solid " + T.accent, background: "white", color: T.accent, fontSize: 12, fontWeight: 600, cursor: (creating || generating) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (creating || generating) ? 0.6 : 1, whiteSpace: "nowrap" }}>
+          ✉ Warm happy hour email → Outlook
         </button></span>
       </div>
       {briefWarn ? (

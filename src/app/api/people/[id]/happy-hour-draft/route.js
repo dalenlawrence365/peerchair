@@ -3,7 +3,7 @@ export const maxDuration = 60
 
 import { serverClient } from "@/lib/supabaseServer"
 import { graphFetch } from "@/lib/microsoft-auth"
-import { renderHappyHourHtml, HAPPY_HOUR_SUBJECT } from "@/lib/happyHourEmail"
+import { renderHappyHourHtml, renderWarmHappyHourHtml, HAPPY_HOUR_SUBJECT, WARM_SUBJECT } from "@/lib/happyHourEmail"
 
 // POST /api/people/[id]/happy-hour-draft
 // One click: puts the approved happy-hour HTML email into Dalen's Outlook Drafts
@@ -20,6 +20,9 @@ function laTime(iso) { return new Date(iso).toLocaleTimeString("en-US", { hour: 
 
 export async function POST(request, { params }) {
   const { id } = await params
+  let body = {}
+  try { body = await request.json() } catch (e) {}
+  const warm = body && body.variant === "warm"
   const sb = serverClient()
 
   const { data: person } = await sb.from("people").select("id, first_name, full_name, email, email2").eq("id", id).maybeSingle()
@@ -46,10 +49,11 @@ export async function POST(request, { params }) {
   if (!token) return Response.json({ error: "token_failed" }, { status: 500 })
 
   const timeLine = laTime(ev.event_date) + "–" + laTime(ev.ends_at)
-  const html = renderHappyHourHtml({
+  const html = (warm ? renderWarmHappyHourHtml : renderHappyHourHtml)({
+    first_name: person.first_name || "",
     when_long: laLong(ev.event_date), time_line: timeLine,
     preheader: laShort(ev.event_date) + ", " + timeLine + ", Culver City. Complimentary. No agenda, no pitches.",
-    rsvp_url: SITE + "/events/" + ev.slug + "/?t=" + encodeURIComponent(token) + "&src=email",
+    rsvp_url: SITE + "/events/" + ev.slug + "/?t=" + encodeURIComponent(token) + "&src=" + (warm ? "email-warm" : "email"),
     list_url: SITE + "/invitations/?t=" + encodeURIComponent(token) + "&src=email",
     unsub_url: PC + "/api/unsubscribe?t=" + encodeURIComponent(token),
   })
@@ -59,7 +63,7 @@ export async function POST(request, { params }) {
     res = await graphFetch("https://graph.microsoft.com/v1.0/me/messages", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        subject: HAPPY_HOUR_SUBJECT,
+        subject: warm ? WARM_SUBJECT : HAPPY_HOUR_SUBJECT,
         body: { contentType: "HTML", content: html },
         toRecipients: [{ emailAddress: { address: email } }],
       }),
@@ -73,7 +77,7 @@ export async function POST(request, { params }) {
 
   await sb.from("communications").insert({
     person_id: id, occurred_at: new Date().toISOString(), channel: "email", direction: "outbound",
-    step_label: "Draft Created — " + ev.name + " invite", body: HAPPY_HOUR_SUBJECT,
+    step_label: "Draft Created — " + ev.name + " invite", body: warm ? WARM_SUBJECT : HAPPY_HOUR_SUBJECT,
     source: "PeerChair", logged_by: "Dalen Lawrence", send_status: "draft",
   }).then(() => {}, () => {})
 

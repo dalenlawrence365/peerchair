@@ -89,7 +89,7 @@ export async function GET(request) {
   // Happy-hour invites: when the approved "A room full of CFOs" email is actually
   // SENT, put that person on the upcoming happy hour's roster as Invited (or promote
   // a Queued row). Sending is the trigger — a draft never marks anyone invited.
-  const HH_SUBJECT = /a room full of cfos/i
+  const HH_SUBJECT = /a room full of cfos|cfo happy hour \(i.d love to see you there\)/i
   const hhMsgs = messages.filter(m => HH_SUBJECT.test(m.subject || "") && !/^\s*(re|fw|fwd)\s*:/i.test(m.subject || ""))
   let hhEvent = null
   if (hhMsgs.length) {
