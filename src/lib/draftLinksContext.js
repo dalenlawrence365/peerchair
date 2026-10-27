@@ -58,14 +58,18 @@ export async function getPersonEventLinksLines(sb, personId, src) {
   }
   if (!token) return ""
 
-  return events.map(function (e, i) {
+  let defaultGiven = false
+  return events.map(function (e) {
     let when = ""
-    try { when = new Date(e.event_date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles" }) } catch (x) {}
+    try { when = new Date(String(e.event_date).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) } catch (x) {}
+    const t = function (iso) { try { return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles" }).replace(":00", "") } catch (x) { return "" } }
+    const where = [e.venue_name, e.location].filter(Boolean).join(", ")
     const url = SITE + "/events/" + e.slug + "/?t=" + encodeURIComponent(token) + "&src=" + encodeURIComponent(src || "profile")
-    let tag = ""
-    if (i === defaultIdx) tag = " (THE DEFAULT INVITE — the next CFO Circle workshop; use this whenever the instructions say \"the workshop\", \"the event\", \"the next session\", or \"the invite\")"
-    else if (e.kind === "partner") tag = " (PARTNER EVENT — not a CFO Circle session; use ONLY if the message specifically names this event, never as the default invite)"
-    return "- " + (e.name || "CFO Circle workshop") + ", " + when + tag + ": " + url
+    const isWorkshop = /workshop/i.test(e.slug || "")
+    let flag = ""
+    if (isWorkshop && !defaultGiven) { defaultGiven = true; flag = " (NEXT WORKSHOP — the default whenever the instructions say \"the workshop\", \"the next session\", or just \"the invite\")" }
+    else if (!isWorkshop) flag = " (social event, not a workshop — use only when the instructions mention the happy hour / social)"
+    return "- " + (e.name || "CFO Circle event") + ", " + when + ", " + t(e.event_date) + " to " + t(e.ends_at) + " Pacific" + (where ? ", " + where : "") + (e.host_name ? ", host " + e.host_name : "") + flag + ": " + url
   }).join("\n")
 }
 

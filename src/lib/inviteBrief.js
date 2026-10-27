@@ -22,7 +22,7 @@ function clock(iso) {
   try { return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles" }).replace(":00", "") } catch (e) { return "" }
 }
 
-export async function buildInviteBrief(sb, personId, channel) {
+export async function buildInviteBrief(sb, personId, channel, kind) {
   const ch = channel === "email" ? "email" : "dm"
   const today = new Date().toISOString().slice(0, 10)
 
@@ -70,6 +70,20 @@ export async function buildInviteBrief(sb, personId, channel) {
   }
   if (ch === "dm" && !person.linkedin_connected) {
     warnings.push(first + " is not marked as a 1st-degree connection, so a LinkedIn DM may not be deliverable. Consider email or a connection request first.")
+  }
+
+  // ---- social event (happy hour): simple, casual, no workshop history ----
+  if (social) {
+    const sl = []
+    sl.push("Invite " + first + " to the " + (ev.name || "CFO Circle happy hour") + " on " + when + ", " + clock(ev.event_date) + " to " + clock(ev.ends_at) + " Pacific, at " + (ev.venue_name || ev.location) + (ev.location && ev.venue_name ? " in " + ev.location : "") + (ev.host_name ? ". Hospitality is provided by " + ev.host_name : "") + ".")
+    if (ev.summary) sl.push("What it is: " + ev.summary)
+    if (replies && replies[0] && replies[0].notes) sl.push('Their most recent reply to me was: "' + String(replies[0].notes).trim().slice(0, 240) + '". Pick up from there.')
+    sl.push("This is a relaxed evening, not a working session. Keep the tone casual and low-pressure, and don't describe an agenda.")
+    sl.push(ch === "dm"
+      ? "This is a LinkedIn DM: 2 to 3 sentences, casual and personal. Include their personal event link on its own line."
+      : "This is an email: 2 to 3 short paragraphs. Ask them to reserve a spot using their personal event link, worded as a short clickable label. Write a specific subject line that includes the date.")
+    sl.push("Use their personal event link for this event, exactly as given. Do not use any generic event URL.")
+    return { ok: true, channel: ch, kind: "social", situation: "social_invite", event: { slug: ev.slug, name: ev.name, date: ev.event_date }, warnings: warnings, instructions: sl.join(" ") }
   }
 
   // ---- situation ----
