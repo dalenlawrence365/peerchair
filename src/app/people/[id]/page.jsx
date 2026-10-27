@@ -180,6 +180,7 @@ export default function PersonProfile() {
   const [savingNote, setSavingNote] = useState(false)
   const [busy, setBusy] = useState(false)
   const [newStatusTag, setNewStatusTag] = useState("")
+  const [showStatusAdd, setShowStatusAdd] = useState(false)
   const [newActionTag, setNewActionTag] = useState("")
   const [newInviteTag, setNewInviteTag] = useState("")
   const [showStateMenu, setShowStateMenu] = useState(false)
@@ -870,135 +871,117 @@ export default function PersonProfile() {
       {tab === "tags" && (
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Tags</div>
-        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+        {(function(){
+          var activityTags = data.action_tags.filter(function(t){ return !isInvitationTag(t.action_type) })
+          var inviteTags = data.action_tags.filter(function(t){ return isInvitationTag(t.action_type) })
+          var activityVocabFull = actionChoicesFor(p.roles).filter(function(c){ return !isInvitationTag(c) })
+          var activityAvailable = activityVocabFull.filter(function(c){ return !activityTags.some(function(t){ return t.action_type === c }) })
+          var inviteVocabFull = []
+          if (data.next_workshop_tag) inviteVocabFull.push(data.next_workshop_tag)
+          if (inviteVocabFull.indexOf("event_invite_sent") < 0) inviteVocabFull.push("event_invite_sent")
+          var inviteAvailable = inviteVocabFull.filter(function(c){ return !inviteTags.some(function(t){ return t.action_type === c }) })
+          var evs = data.event_statuses || []
+          var inputStyle = { flex: 1, padding: "5px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 }}>
 
-          {/* ── STATUS (left) ── */}
-          <div style={{ flex: "1 1 260px", minWidth: 240, borderRight: "1px solid " + T.border, paddingRight: 24 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: "#0f3d6e", display: "inline-block" }} /> STATUS
-              <span style={{ fontWeight: 400, color: T.textTertiary }}>· current state</span>
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", minHeight: 22 }}>
-              {data.status_tags.map(function(t){
-                return (
-                  <span key={"s_" + t.tag} title={`Set ${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
-                    fontSize: 11, padding: "3px 6px 3px 9px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 500,
-                    background: t.tag === "needs_role_review" ? "#fef3c7" : (t.tag === "unmatched" ? "#ffe4d6" : "#eaf0f8"),
-                    border: "1px solid " + (t.tag === "needs_role_review" ? "#fcd34d" : (t.tag === "unmatched" ? "#f4a273" : "#c7d5ea")),
-                    color: t.tag === "needs_role_review" ? "#92400e" : (t.tag === "unmatched" ? "#9a3412" : "#1e3a5f")
-                  }}>
-                    {t.tag}
-                    <span onClick={function(){ postAction({ action: "remove_tag", tag: t.tag }) }} style={{ cursor: "pointer", opacity: 0.5, fontWeight: 700 }} title="Remove tag">×</span>
-                  </span>
-                )
-              })}
-              {data.status_tags.length === 0 && <span style={{ fontSize: 12, color: T.textTertiary }}>None</span>}
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-              {STATUS_TAG_CHOICES.filter(function(c){ return !data.status_tags.some(function(t){ return t.tag === c }) }).map(function(c){
-                return <button key={c} disabled={busy} onClick={function(){ addStatusTag(c) }} style={QUICK_ADD_STYLE}>+ {c}</button>
-              })}
-            </div>
-            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-              <input value={newStatusTag} onChange={function(e){ setNewStatusTag(e.target.value) }}
-                onKeyDown={function(e){ if (e.key === "Enter") addStatusTag(newStatusTag) }}
-                placeholder="custom status…"
-                style={{ flex: 1, padding: "5px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
-              <button disabled={!newStatusTag.trim() || busy} onClick={function(){ addStatusTag(newStatusTag) }} style={addBtnStyle(newStatusTag)}>Add</button>
-            </div>
-          </div>
+              {/* ── STATUS ── */}
+              <TagBox label="STATUS" dot={{ color: "#0f3d6e", round: false }} count={data.status_tags.length} hint="Current state"
+                footer={
+                  <>
+                    <button onClick={function(){ setShowStatusAdd(!showStatusAdd) }} style={{ ...QUICK_ADD_STYLE, border: "1px solid " + T.border }}>{showStatusAdd ? "− Hide add" : "+ Add status"}</button>
+                    {showStatusAdd && (
+                      <div style={{ marginTop: 8 }}>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {STATUS_TAG_CHOICES.filter(function(c){ return !data.status_tags.some(function(t){ return t.tag === c }) }).map(function(c){
+                            return <button key={c} disabled={busy} onClick={function(){ addStatusTag(c) }} style={QUICK_ADD_STYLE}>+ {c}</button>
+                          })}
+                        </div>
+                        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                          <input value={newStatusTag} onChange={function(e){ setNewStatusTag(e.target.value) }}
+                            onKeyDown={function(e){ if (e.key === "Enter") addStatusTag(newStatusTag) }}
+                            placeholder="custom status…" style={inputStyle} />
+                          <button disabled={!newStatusTag.trim() || busy} onClick={function(){ addStatusTag(newStatusTag) }} style={addBtnStyle(newStatusTag)}>Add</button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                }>
+                {data.status_tags.map(function(t){
+                  return (
+                    <span key={"s_" + t.tag} title={`Set ${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
+                      fontSize: 11, padding: "3px 6px 3px 9px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 500,
+                      background: t.tag === "needs_role_review" ? "#fef3c7" : (t.tag === "unmatched" ? "#ffe4d6" : "#eaf0f8"),
+                      border: "1px solid " + (t.tag === "needs_role_review" ? "#fcd34d" : (t.tag === "unmatched" ? "#f4a273" : "#c7d5ea")),
+                      color: t.tag === "needs_role_review" ? "#92400e" : (t.tag === "unmatched" ? "#9a3412" : "#1e3a5f")
+                    }}>
+                      {t.tag}
+                      <span onClick={function(){ postAction({ action: "remove_tag", tag: t.tag }) }} style={{ cursor: "pointer", opacity: 0.5, fontWeight: 700 }} title="Remove tag">×</span>
+                    </span>
+                  )
+                })}
+              </TagBox>
 
-          {/* ── ACTIVITY / ACTION (right) ── */}
-          <div style={{ flex: "1 1 260px", minWidth: 240 }}>
-            {(function(){
-              var activityTags = data.action_tags.filter(function(t){ return !isInvitationTag(t.action_type) })
-              var inviteTags = data.action_tags.filter(function(t){ return isInvitationTag(t.action_type) })
-              var activityVocabFull = actionChoicesFor(p.roles).filter(function(c){ return !isInvitationTag(c) })
-              var activityAvailable = activityVocabFull.filter(function(c){ return !activityTags.some(function(t){ return t.action_type === c }) })
-              var inviteVocabFull = []
-              if (data.next_workshop_tag) inviteVocabFull.push(data.next_workshop_tag)
-              if (inviteVocabFull.indexOf("event_invite_sent") < 0) inviteVocabFull.push("event_invite_sent")
-              var inviteAvailable = inviteVocabFull.filter(function(c){ return !inviteTags.some(function(t){ return t.action_type === c }) })
-              return (
-                <>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#15803d", display: "inline-block" }} /> ACTIVITY
-                    <span style={{ fontWeight: 400, color: T.textTertiary }}>· logged events</span>
-                  </div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", minHeight: 22 }}>
-                    {activityTags.map(function(t, i){
-                      return (
-                        <span key={"a_" + i} title={`${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
-                          fontSize: 11, padding: "3px 9px", borderRadius: 4, fontWeight: 500,
-                          background: "#e9f3ec", border: "1px solid #c3e0cc", color: "#1b5e36"
-                        }}>{t.action_type}{t.as_of_date ? " · " + fmtShort(t.as_of_date) : ""}</span>
-                      )
-                    })}
-                    {activityTags.length === 0 && <span style={{ fontSize: 12, color: T.textTertiary }}>None</span>}
-                  </div>
-                  <datalist id="action-tag-vocab">
-                    {activityAvailable.map(function(c){ return <option key={c} value={c} /> })}
-                  </datalist>
-                  <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                    <input
-                      list="action-tag-vocab"
-                      value={newActionTag}
-                      onChange={function(e){ setNewActionTag(e.target.value) }}
-                      onKeyDown={function(e){ if (e.key === "Enter") addActionTag(newActionTag) }}
-                      placeholder="Click to see available tags, or type a new one…"
-                      style={{ flex: 1, padding: "5px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
-                    <button disabled={!newActionTag.trim() || busy} onClick={function(){ addActionTag(newActionTag) }} style={addBtnStyle(newActionTag)}>Add</button>
-                  </div>
-                  <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 6, lineHeight: 1.4 }}>Logged as of today. Activity is an audit trail — e.g. logging a completion auto-clears its scheduled tag.</div>
+              {/* ── ACTIVITY ── */}
+              <TagBox label="ACTIVITY" dot={{ color: "#15803d", round: true }} count={activityTags.length} hint="Logged as of today. Activity is an audit trail — e.g. logging a completion auto-clears its scheduled tag."
+                footer={
+                  <>
+                    <datalist id="action-tag-vocab">
+                      {activityAvailable.map(function(c){ return <option key={c} value={c} /> })}
+                    </datalist>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input list="action-tag-vocab" value={newActionTag}
+                        onChange={function(e){ setNewActionTag(e.target.value) }}
+                        onKeyDown={function(e){ if (e.key === "Enter") addActionTag(newActionTag) }}
+                        placeholder="Click to see available tags, or type a new one…" style={inputStyle} />
+                      <button disabled={!newActionTag.trim() || busy} onClick={function(){ addActionTag(newActionTag) }} style={addBtnStyle(newActionTag)}>Add</button>
+                    </div>
+                  </>
+                }>
+                {activityTags.map(function(t, i){
+                  return (
+                    <span key={"a_" + i} title={`${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
+                      fontSize: 11, padding: "3px 9px", borderRadius: 4, fontWeight: 500,
+                      background: "#e9f3ec", border: "1px solid #c3e0cc", color: "#1b5e36"
+                    }}>{t.action_type}{t.as_of_date ? " · " + fmtShort(t.as_of_date) : ""}</span>
+                  )
+                })}
+              </TagBox>
 
-                  {/* ── INVITATIONS (workshops, and social events once those exist) ── */}
-                  <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginTop: 20, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, borderTop: "1px solid " + T.border, paddingTop: 16 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#7c3aed", display: "inline-block" }} /> INVITATIONS
-                    <span style={{ fontWeight: 400, color: T.textTertiary }}>· {inviteTags.length} sent</span>
-                  </div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", minHeight: 22 }}>
-                    {inviteTags.map(function(t, i){
-                      return (
-                        <span key={"i_" + i} title={`${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
-                          fontSize: 11, padding: "3px 9px", borderRadius: 4, fontWeight: 500,
-                          background: "#f3ebfd", border: "1px solid #ddc7f7", color: "#5b21b6"
-                        }}>{t.action_type}</span>
-                      )
-                    })}
-                    {inviteTags.length === 0 && <span style={{ fontSize: 12, color: T.textTertiary }}>None</span>}
-                  </div>
-                  <datalist id="invite-tag-vocab">
-                    {inviteAvailable.map(function(c){ return <option key={c} value={c} /> })}
-                  </datalist>
-                  <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                    <input
-                      list="invite-tag-vocab"
-                      value={newInviteTag}
-                      onChange={function(e){ setNewInviteTag(e.target.value) }}
-                      onKeyDown={function(e){ if (e.key === "Enter") addInviteTag(newInviteTag) }}
-                      placeholder="Click to see available invites, or type a new one…"
-                      style={{ flex: 1, padding: "5px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
-                    <button disabled={!newInviteTag.trim() || busy} onClick={function(){ addInviteTag(newInviteTag) }} style={addBtnStyle(newInviteTag)}>Add</button>
-                  </div>
-                  <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 6, lineHeight: 1.4 }}>Every invite sent — workshop or social — lands here so you can see at a glance how many times this person's been invited.</div>
-                </>
-              )
-            })()}
-          </div>
+              {/* ── EVENTS (live from the event roster) ── */}
+              <TagBox label="EVENTS" dot={{ color: "#4f46e5", round: false }} count={evs.length} hint="Updates itself from the event roster">
+                {evs.map(function (e) { return <EventStatusPill key={e.attendee_id} e={e} /> })}
+              </TagBox>
 
-        </div>
-        {/* ── EVENTS (below the two tag columns): where they stand on each event, live from the roster ── */}
-        {(data.event_statuses || []).length > 0 && (
-          <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid " + T.border }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: "#4f46e5", display: "inline-block" }} /> EVENTS
-              <span style={{ fontWeight: 400, color: T.textTertiary }}>· updates itself from the event roster</span>
+              {/* ── INVITATIONS ── */}
+              <TagBox label="INVITATIONS" dot={{ color: "#7c3aed", round: true }} count={inviteTags.length} hint="Every invite sent — workshop or social — lands here so you can see at a glance how many times this person's been invited."
+                footer={
+                  <>
+                    <datalist id="invite-tag-vocab">
+                      {inviteAvailable.map(function(c){ return <option key={c} value={c} /> })}
+                    </datalist>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input list="invite-tag-vocab" value={newInviteTag}
+                        onChange={function(e){ setNewInviteTag(e.target.value) }}
+                        onKeyDown={function(e){ if (e.key === "Enter") addInviteTag(newInviteTag) }}
+                        placeholder="Click to see available invites, or type a new one…" style={inputStyle} />
+                      <button disabled={!newInviteTag.trim() || busy} onClick={function(){ addInviteTag(newInviteTag) }} style={addBtnStyle(newInviteTag)}>Add</button>
+                    </div>
+                  </>
+                }>
+                {inviteTags.map(function(t, i){
+                  return (
+                    <span key={"i_" + i} title={`${fmtDate(t.set_at)}${t.notes ? " — " + t.notes : ""}`} style={{
+                      fontSize: 11, padding: "3px 9px", borderRadius: 4, fontWeight: 500,
+                      background: "#f3ebfd", border: "1px solid #ddc7f7", color: "#5b21b6"
+                    }}>{t.action_type}</span>
+                  )
+                })}
+              </TagBox>
+
             </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-              {data.event_statuses.map(function (e) { return <EventStatusPill key={e.attendee_id} e={e} /> })}
-            </div>
-          </div>
-        )}
+          )
+        })()}
       </div>
       )}
 
@@ -1463,5 +1446,31 @@ function EventStatusPill({ e }) {
       fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 999, textDecoration: "none", whiteSpace: "nowrap",
       background: c.bg, border: "1px solid " + c.border, color: c.fg,
     }}>{when} {what} · {label}</Link>
+  )
+}
+
+
+// A bordered tag box: header with count, a tag area that stays as short as its content and only scrolls
+// once it passes ~4 rows (CSS "scroll shadows" show when there's more above/below), and an optional footer.
+function TagBox({ label, dot, count, hint, children, footer }) {
+  const kids = Array.isArray(children) ? children.filter(Boolean) : (children ? [children] : [])
+  const empty = kids.length === 0 || (Array.isArray(children) && children.length === 0)
+  return (
+    <div style={{ border: "1px solid " + T.border, borderRadius: 10, padding: "12px 14px", background: "#ffffff", display: "flex", flexDirection: "column" }}>
+      <div title={hint || ""} style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 8, height: 8, borderRadius: dot.round ? "50%" : 2, background: dot.color, display: "inline-block" }} />
+        {label}
+        <span style={{ fontWeight: 500, color: T.textTertiary }}>· {count}</span>
+      </div>
+      <div style={{
+        display: "flex", gap: 6, flexWrap: "wrap", alignContent: "flex-start", alignItems: "center",
+        maxHeight: 118, overflowY: "auto", minHeight: 24, paddingRight: 2,
+        background: "linear-gradient(#fff 30%, rgba(255,255,255,0)) 0 0 / 100% 28px no-repeat local, linear-gradient(rgba(255,255,255,0), #fff 70%) 0 100% / 100% 28px no-repeat local, radial-gradient(farthest-side at 50% 0, rgba(0,0,0,.16), rgba(0,0,0,0)) 0 0 / 100% 9px no-repeat scroll, radial-gradient(farthest-side at 50% 100%, rgba(0,0,0,.16), rgba(0,0,0,0)) 0 100% / 100% 9px no-repeat scroll",
+        backgroundColor: "#fff",
+      }}>
+        {empty ? <span style={{ fontSize: 12, color: T.textTertiary }}>None</span> : children}
+      </div>
+      {footer ? <div style={{ marginTop: 10 }}>{footer}</div> : null}
+    </div>
   )
 }
