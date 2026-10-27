@@ -249,8 +249,8 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
     const isHappyHour = /happy|social/i.test((ev.slug || "") + " " + (ev.name || ""))
     const logoUrl = ev.host_logo_url ? (/^https?:/i.test(ev.host_logo_url) ? ev.host_logo_url : "https://la-cfo.com" + ev.host_logo_url) : ""
     const hospitalityBlock = (isHappyHour && ev.host_name)
-      ? ('<p style="font-size:13px;line-height:1.5;margin:0 0 6px;color:#54596b;text-transform:uppercase;letter-spacing:.08em">Hospitality by ' + ev.host_name + '</p>'
-          + (logoUrl ? ('<p style="margin:0 0 22px"><img src="' + logoUrl + '" alt="' + ev.host_name + '" width="200" style="display:block;width:200px;max-width:100%;height:auto;border:0" /></p>') : '<p style="margin:0 0 22px"></p>'))
+      ? ('<p style="font-size:13px;line-height:1.5;margin:0 0 6px;color:#54596b;text-transform:uppercase;letter-spacing:.08em">Hospitality by</p>'
+          + (logoUrl ? ('<p style="margin:0 0 22px"><img src="' + logoUrl + '" alt="' + ev.host_name + '" width="200" style="display:block;width:200px;max-width:100%;height:auto;border:0" /></p>') : '<p style="margin:0 0 22px;font-size:15px;color:#20242f"><strong>' + ev.host_name + '</strong></p>'))
       : ""
     const html =
       '<div style="font-family:Georgia,serif;max-width:560px;color:#20242f">' +
