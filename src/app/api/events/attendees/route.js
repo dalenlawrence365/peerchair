@@ -244,6 +244,14 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
       '<a href="' + icsUrl + '" style="display:inline-block;background:#20242f;color:#fff;padding:10px 18px;border-radius:3px;text-decoration:none;font-weight:bold;font-family:Arial,sans-serif;font-size:13px;margin:0 8px 8px 0">Apple / Outlook</a>' +
       '<a href="' + gcal + '" style="display:inline-block;background:#20242f;color:#fff;padding:10px 18px;border-radius:3px;text-decoration:none;font-weight:bold;font-family:Arial,sans-serif;font-size:13px;margin:0 8px 8px 0">Google Calendar</a>' +
       '</p>'
+    // Happy-hour confirmations credit the hospitality host, with their logo.
+    // (Workshop confirmations are unchanged.) host_logo_url is site-relative.
+    const isHappyHour = /happy|social/i.test((ev.slug || "") + " " + (ev.name || ""))
+    const logoUrl = ev.host_logo_url ? (/^https?:/i.test(ev.host_logo_url) ? ev.host_logo_url : "https://la-cfo.com" + ev.host_logo_url) : ""
+    const hospitalityBlock = (isHappyHour && ev.host_name)
+      ? ('<p style="font-size:13px;line-height:1.5;margin:0 0 6px;color:#54596b;text-transform:uppercase;letter-spacing:.08em">Hospitality by ' + ev.host_name + '</p>'
+          + (logoUrl ? ('<p style="margin:0 0 22px"><img src="' + logoUrl + '" alt="' + ev.host_name + '" width="200" style="display:block;width:200px;max-width:100%;height:auto;border:0" /></p>') : '<p style="margin:0 0 22px"></p>'))
+      : ""
     const html =
       '<div style="font-family:Georgia,serif;max-width:560px;color:#20242f">' +
       '<p style="font-size:16px;margin:0 0 14px">' + hi + '</p>' +
@@ -254,6 +262,7 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
       row("Check-in:", ev.check_in_instructions) +
       row("Breakfast:", ev.breakfast_note) +
       calBlock +
+      hospitalityBlock +
       '<p style="font-size:14px;line-height:1.6;margin:0 0 22px"><a href="' + invite_url + '" style="color:#1a2550">View all the details online &rarr;</a></p>' +
       '<p style="font-size:14px;line-height:1.6;color:#54596b;margin:0">Looking forward to it,<br>Dalen</p>' +
       '</div>'
@@ -296,7 +305,7 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
 async function draftConfirmationFor(sb, id) {
   const { data: a } = await sb
     .from("event_attendees")
-    .select("id, invite_token, approved_at, status, event_id, person_id, people:person_id ( first_name, email ), events:event_id ( slug, name, event_date, ends_at, venue_name, address_line, parking_instructions, check_in_instructions, breakfast_note )")
+    .select("id, invite_token, approved_at, status, event_id, person_id, people:person_id ( first_name, email ), events:event_id ( slug, name, event_date, ends_at, venue_name, address_line, parking_instructions, check_in_instructions, breakfast_note, host_name, host_logo_url )")
     .eq("id", id)
     .maybeSingle()
   if (!a) return { ok: false, error: "not_found" }
