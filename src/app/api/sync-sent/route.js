@@ -86,6 +86,31 @@ export async function GET(request) {
     return corsResponse({ synced: 0, message: "No matching people in sent items" })
   }
 
+  // Happy-hour invites: when the approved "A room full of CFOs" email is actually
+  // SENT, put that person on the upcoming happy hour's roster as Invited (or promote
+  // a Queued row). Sending is the trigger — a draft never marks anyone invited.
+  const HH_SUBJECT = /a room full of cfos/i
+  const hhMsgs = messages.filter(m => HH_SUBJECT.test(m.subject || "") && !/^\s*(re|fw|fwd)\s*:/i.test(m.subject || ""))
+  let hhEvent = null
+  if (hhMsgs.length) {
+    const { data: ev } = await sb.from("events").select("id").eq("kind", "happy_hour").eq("published", true)
+      .gte("event_date", new Date().toISOString()).order("event_date", { ascending: true }).limit(1).maybeSingle()
+    hhEvent = ev || null
+  }
+  let hhInvited = 0
+  async function markHappyHourInvited(personId, sentAt) {
+    try {
+      const { data: row } = await sb.from("event_attendees").select("id, status").eq("event_id", hhEvent.id).eq("person_id", personId).maybeSingle()
+      if (!row) {
+        const { error } = await sb.from("event_attendees").insert({ event_id: hhEvent.id, person_id: personId, status: "Invited", invited_at: sentAt, source: "email-invite" })
+        if (!error) hhInvited++
+      } else if (row.status === "Queued") {
+        const { error } = await sb.from("event_attendees").update({ status: "Invited", invited_at: sentAt, source: "email-invite" }).eq("id", row.id)
+        if (!error) hhInvited++
+      }
+    } catch (e) { console.error("sync-sent happy-hour invite mark failed:", e && e.message) }
+  }
+
   let synced = 0
   const loggedFor = []
   for (const msg of messages) {
@@ -93,6 +118,8 @@ export async function GET(request) {
       const email = recip.emailAddress?.address?.toLowerCase()
       const person = email && emailToPerson[email]
       if (!person) continue
+
+      if (hhEvent && hhMsgs.includes(msg)) await markHappyHourInvited(person.id, msg.sentDateTime)
 
       // Dedup on the exact send time + this person (covers rows whether they
       // were written with person_id or the legacy contact_id, same UUID).
@@ -122,10 +149,11 @@ export async function GET(request) {
 
   await logCronRun(
     "sync-sent",
-    synced > 0 ? `Synced ${synced} sent email(s)` : "No new emails to log",
+    (synced > 0 ? `Synced ${synced} sent email(s)` : "No new emails to log") + (hhInvited ? ` · ${hhInvited} happy hour invite(s) marked Invited` : ""),
   )
   return corsResponse({
     synced,
+    happy_hour_invited: hhInvited,
     lookback_hours: hours,
     recipients_logged: [...new Set(loggedFor)],
     message: synced > 0 ? `${synced} sent email(s) logged.` : "No new emails to log.",
