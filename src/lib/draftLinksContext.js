@@ -34,7 +34,7 @@ export async function getPersonEventLinksLines(sb, personId, src) {
   const SITE = process.env.NEXT_PUBLIC_EVENT_SITE_URL || "https://la-cfo.com"
   const today = new Date().toISOString().slice(0, 10)
   const { data: events } = await sb.from("events")
-    .select("slug, name, event_date, kind")
+    .select("slug, name, event_date, ends_at, venue_name, location, host_name, kind")
     .eq("published", true).gte("event_date", today)
     .order("event_date", { ascending: true })
   if (!events || !events.length) return ""
@@ -58,18 +58,17 @@ export async function getPersonEventLinksLines(sb, personId, src) {
   }
   if (!token) return ""
 
-  let defaultGiven = false
-  return events.map(function (e) {
+  return events.map(function (e, i) {
     let when = ""
-    try { when = new Date(String(e.event_date).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) } catch (x) {}
+    try { when = new Date(e.event_date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles" }) } catch (x) {}
     const t = function (iso) { try { return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles" }).replace(":00", "") } catch (x) { return "" } }
     const where = [e.venue_name, e.location].filter(Boolean).join(", ")
     const url = SITE + "/events/" + e.slug + "/?t=" + encodeURIComponent(token) + "&src=" + encodeURIComponent(src || "profile")
-    const isWorkshop = /workshop/i.test(e.slug || "")
     let flag = ""
-    if (isWorkshop && !defaultGiven) { defaultGiven = true; flag = " (NEXT WORKSHOP — the default whenever the instructions say \"the workshop\", \"the next session\", or just \"the invite\")" }
-    else if (!isWorkshop) flag = " (social event, not a workshop — use only when the instructions mention the happy hour / social)"
-    return "- " + (e.name || "CFO Circle event") + ", " + when + ", " + t(e.event_date) + " to " + t(e.ends_at) + " Pacific" + (where ? ", " + where : "") + (e.host_name ? ", host " + e.host_name : "") + flag + ": " + url
+    if (i === defaultIdx) flag = " (NEXT WORKSHOP — the default whenever the instructions say \"the workshop\", \"the next session\", or just \"the invite\")"
+    else if (e.kind === "happy_hour") flag = " (happy hour / social event, not a workshop — use only when the instructions mention the happy hour or social)"
+    else if (e.kind === "partner") flag = " (partner event — use only when the instructions name it)"
+    return "- " + (e.name || "CFO Circle event") + ", " + when + (e.ends_at ? ", " + t(e.event_date) + " to " + t(e.ends_at) + " Pacific" : "") + (where ? ", " + where : "") + (e.host_name ? ", host " + e.host_name : "") + flag + ": " + url
   }).join("\n")
 }
 
