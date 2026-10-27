@@ -870,19 +870,6 @@ export default function PersonProfile() {
       {tab === "tags" && (
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Tags</div>
-        {/* ── EVENTS: where they stand on each event, live from the event roster ── */}
-        {(data.event_statuses || []).length > 0 && (
-          <div style={{ marginBottom: 16, paddingBottom: 14, borderBottom: "1px solid " + T.border }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: "#4f46e5", display: "inline-block" }} /> EVENTS
-              <span style={{ fontWeight: 400, color: T.textTertiary }}>· updates itself from the event roster</span>
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-              {data.event_statuses.map(function (e) { return <EventStatusPill key={e.attendee_id} e={e} /> })}
-            </div>
-          </div>
-        )}
-
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
 
           {/* ── STATUS (left) ── */}
@@ -1000,6 +987,18 @@ export default function PersonProfile() {
           </div>
 
         </div>
+        {/* ── EVENTS (below the two tag columns): where they stand on each event, live from the roster ── */}
+        {(data.event_statuses || []).length > 0 && (
+          <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid " + T.border }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: "#4f46e5", display: "inline-block" }} /> EVENTS
+              <span style={{ fontWeight: 400, color: T.textTertiary }}>· updates itself from the event roster</span>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              {data.event_statuses.map(function (e) { return <EventStatusPill key={e.attendee_id} e={e} /> })}
+            </div>
+          </div>
+        )}
       </div>
       )}
 
