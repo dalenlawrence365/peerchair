@@ -29,6 +29,8 @@ export default function DraftEmailCard({ personId, statusTags }) {
   const [showMore, setShowMore] = useState(false)
   const [creating, setCreating] = useState(false)
   const [msg, setMsg] = useState("")
+  const [hhResult, setHhResult] = useState(null) // { ok, text, url } — prominent result for the happy-hour draft buttons
+  const [hhSaved, setHhSaved] = useState("") // which variant just saved, for the button check-mark
   const [draftUrl, setDraftUrl] = useState(null)
   const [copied, setCopied] = useState(false)
   const [briefing, setBriefing] = useState(false)
@@ -110,17 +112,20 @@ export default function DraftEmailCard({ personId, statusTags }) {
   }
 
   function happyHourDraft(variant) {
-    setCreating(true); setMsg(""); setDraftUrl(null)
+    setCreating(true); setMsg(""); setDraftUrl(null); setHhResult(null); setHhSaved("")
     fetch("/api/people/" + personId + "/happy-hour-draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ variant: variant || "cold" }) })
       .then(function (r) { return r.json() })
       .then(function (d) {
-        if (d.ok) { setMsg("Happy hour email saved to your Outlook Drafts (to " + d.to + ")."); setDraftUrl(d.draft_url || null) }
-        else if (d.error === "no_email") setMsg("This person has no email on file — add one first.")
-        else if (d.error === "blocked") setMsg("Not created — this person is tagged " + (d.tags || []).join(", ") + ".")
-        else if (d.error === "no_upcoming_happy_hour") setMsg("No upcoming published happy hour event found.")
-        else setMsg("Couldn't create the draft" + (d.error ? (": " + d.error) : "") + ".")
+        if (d.ok) {
+          setHhResult({ ok: true, text: "Saved to your Outlook Drafts — to " + d.to + ". Nothing has been sent.", url: d.draft_url || null })
+          setHhSaved(variant || "cold"); setTimeout(function () { setHhSaved("") }, 6000)
+        }
+        else if (d.error === "no_email") setHhResult({ ok: false, text: "No draft created — this person has no email on file." })
+        else if (d.error === "blocked") setHhResult({ ok: false, text: "No draft created — this person is tagged " + (d.tags || []).join(", ") + "." })
+        else if (d.error === "no_upcoming_happy_hour") setHhResult({ ok: false, text: "No draft created — no upcoming published happy hour event found." })
+        else setHhResult({ ok: false, text: "Draft was NOT created" + (d.error ? (": " + d.error) : "") + ". Try again." })
       })
-      .catch(function () { setMsg("Error.") })
+      .catch(function () { setHhResult({ ok: false, text: "Draft was NOT created — network error. Try again." }) })
       .finally(function () { setCreating(false) })
   }
 
@@ -148,14 +153,21 @@ export default function DraftEmailCard({ personId, statusTags }) {
         <button disabled={creating || generating} onClick={function () { happyHourDraft("cold") }}
           title="One click: puts the approved November happy hour HTML email (with this person's tracked link) into your Outlook Drafts. Nothing is sent."
           style={{ padding: "4px 11px", borderRadius: 999, border: "1px solid " + T.accent, background: T.accent, color: "white", fontSize: 12, fontWeight: 600, cursor: (creating || generating) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (creating || generating) ? 0.6 : 1, whiteSpace: "nowrap" }}>
-          {creating ? "Creating…" : "✉ Nov happy hour email → Outlook"}
+          {creating ? "Creating…" : (hhSaved === "cold" ? "✓ Saved to Outlook Drafts" : "✉ Nov happy hour email → Outlook")}
         </button>
         <button disabled={creating || generating} onClick={function () { happyHourDraft("warm") }}
           title="Warm version for people who already know you (members, past attendees). Fills in their first name and tracked link. Saved to Outlook Drafts, never sent."
           style={{ padding: "4px 11px", borderRadius: 999, border: "1px solid " + T.accent, background: "white", color: T.accent, fontSize: 12, fontWeight: 600, cursor: (creating || generating) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (creating || generating) ? 0.6 : 1, whiteSpace: "nowrap" }}>
-          ✉ Warm happy hour email → Outlook
+          {creating ? "Creating…" : (hhSaved === "warm" ? "✓ Saved to Outlook Drafts" : "✉ Warm happy hour email → Outlook")}
         </button></span>
       </div>
+      {hhResult ? (
+        <div style={{ margin: "6px 0 10px", padding: "10px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600, lineHeight: 1.5,
+          background: hhResult.ok ? "#dcfce7" : "#fee2e2", border: "1px solid " + (hhResult.ok ? "#86efac" : "#fca5a5"), color: hhResult.ok ? "#166534" : "#991b1b" }}>
+          {hhResult.ok ? "✓ " : "✕ "}{hhResult.text}{" "}
+          {hhResult.url ? <a href={hhResult.url} target="_blank" rel="noreferrer" style={{ color: "#166534", textDecoration: "underline" }}>Open in Outlook →</a> : null}
+        </div>
+      ) : null}
       {briefWarn ? (
         <div style={{ fontSize: 12, color: T.warning, marginBottom: 10, background: T.warningBg, border: "1px solid #fde68a", borderRadius: 6, padding: "8px 10px", lineHeight: 1.5 }}>
           {briefWarn.warnings.map(function (w, i) { return <div key={i}>⚠ {w}</div> })}
