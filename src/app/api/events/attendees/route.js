@@ -237,7 +237,7 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
       + "&text=" + encodeURIComponent((ev.name || "CFO Circle workshop") + " \u2014 CFO Circle Los Angeles")
       + (ev.event_date ? ("&dates=" + gcalStamp(ev.event_date) + "/" + gcalStamp(ev.ends_at || ev.event_date)) : "")
       + "&location=" + encodeURIComponent(where)
-      + "&details=" + encodeURIComponent("CFO Circle Los Angeles. See your confirmation email for parking, check-in and breakfast details.")
+      + "&details=" + encodeURIComponent("CFO Circle Los Angeles. See your confirmation email for venue and arrival details.")
     const calBlock =
       '<p style="font-size:14px;line-height:1.5;margin:20px 0 8px;color:#20242f"><strong>Add it to your calendar</strong> so it\u2019s locked in \u2014 works on any device:</p>' +
       '<p style="margin:0 0 20px">' +
@@ -247,7 +247,7 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
     const html =
       '<div style="font-family:Georgia,serif;max-width:560px;color:#20242f">' +
       '<p style="font-size:16px;margin:0 0 14px">' + hi + '</p>' +
-      '<p style="font-size:15px;line-height:1.6;margin:0 0 16px">You\u2019re confirmed for <strong>' + (ev.name || "the CFO Circle workshop") + '</strong> \u2014 CFO Circle Los Angeles. Here\u2019s everything you need:</p>' +
+      '<p style="font-size:15px;line-height:1.6;margin:0 0 16px">You\u2019re confirmed for <strong>' + (ev.name || "the CFO Circle event") + '</strong> \u2014 CFO Circle Los Angeles. Here\u2019s everything you need:</p>' +
       row("When:", whenStr) +
       row("Where:", where) +
       row("Parking:", ev.parking_instructions) +
@@ -259,7 +259,7 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
       '</div>'
     // POST /me/messages creates a DRAFT (not sent) so Dalen reviews before sending.
     const payload = JSON.stringify({
-      subject: "You're in — " + (subjDate ? subjDate + " " : "") + "CFO Circle workshop",
+      subject: "You're in — " + (subjDate ? subjDate + " " : "") + (/happy|social/i.test((ev.slug || "") + " " + (ev.name || "")) ? "CFO Circle happy hour" : "CFO Circle workshop"),
       body: { contentType: "HTML", content: html },
       toRecipients: [{ emailAddress: { address: to } }],
     })
