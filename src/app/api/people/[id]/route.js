@@ -40,6 +40,22 @@ export async function GET(request, { params }) {
     .is("removed_at", null)
     .order("set_at", { ascending: false })
 
+  // Where this person stands on each event (one row per event, straight from the
+  // roster — the single source of truth, so the profile pills can never drift
+  // from the event page). Upcoming events first, soonest first; past after.
+  const { data: eventRows } = await sb.from("event_attendees")
+    .select("id, status, invited_at, registered_at, approved_at, unavailable_at, events:event_id ( slug, name, kind, event_date )")
+    .eq("person_id", id)
+  const nowIso = new Date().toISOString()
+  const eventStatuses = (eventRows || []).filter(function (r) { return r.events }).map(function (r) {
+    return { attendee_id: r.id, status: r.status, slug: r.events.slug, name: r.events.name, kind: r.events.kind, event_date: r.events.event_date,
+             invited_at: r.invited_at, registered_at: r.registered_at, approved_at: r.approved_at }
+  }).sort(function (a, b) {
+    const au = a.event_date >= nowIso, bu = b.event_date >= nowIso
+    if (au !== bu) return au ? -1 : 1
+    return au ? (a.event_date < b.event_date ? -1 : 1) : (a.event_date < b.event_date ? 1 : -1)
+  })
+
   const { data: actionTags } = await sb.from("person_action_tags")
     .select("action_type, as_of_date, set_at, set_by, notes")
     .eq("person_id", id)
@@ -205,6 +221,7 @@ export async function GET(request, { params }) {
     meetings,
     communications: comms || [],
     status_tags: statusTags || [],
+    event_statuses: eventStatuses,
     action_tags: actionTags || [],
     research_notes: researchNotes || [],
     next_workshop_tag: nextWorkshopTag,

@@ -870,6 +870,19 @@ export default function PersonProfile() {
       {tab === "tags" && (
       <div style={{ background: T.cardBg, border: "1px solid " + T.border, borderRadius: 12, padding: 18, marginBottom: 18 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Tags</div>
+        {/* ── EVENTS: where they stand on each event, live from the event roster ── */}
+        {(data.event_statuses || []).length > 0 && (
+          <div style={{ marginBottom: 16, paddingBottom: 14, borderBottom: "1px solid " + T.border }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSecondary, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: "#4f46e5", display: "inline-block" }} /> EVENTS
+              <span style={{ fontWeight: 400, color: T.textTertiary }}>· updates itself from the event roster</span>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              {data.event_statuses.map(function (e) { return <EventStatusPill key={e.attendee_id} e={e} /> })}
+            </div>
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
 
           {/* ── STATUS (left) ── */}
@@ -1422,5 +1435,34 @@ function WarmthBreakdownModal({ warmth, personName, onClose }) {
         )}
       </div>
     </div>
+  )
+}
+
+
+// One pill per event: "Nov 12 Happy hour · Registered". The words are the roster's
+// own statuses (Queued / Invited / Registered / Confirmed / Attended / ...), so the
+// pill and the event page always say the same thing. Click → that event's roster.
+const EVENT_PILL_COLORS = {
+  Queued:      { bg: "#e0e7ff", border: "#a5b4fc", fg: "#3730a3" },
+  Invited:     { bg: "#eaf0f8", border: "#c7d5ea", fg: "#1e3a5f" },
+  Registered:  { bg: "#fff7e6", border: "#f4d58a", fg: "#8a5a00" },
+  Requested:   { bg: "#fff7e6", border: "#f4d58a", fg: "#8a5a00" },
+  Confirmed:   { bg: "#dcfce7", border: "#86efac", fg: "#166534" },
+  Attended:    { bg: "#16a34a", border: "#16a34a", fg: "#ffffff" },
+  Unavailable: { bg: "#fef3c7", border: "#fcd34d", fg: "#92400e" },
+  Declined:    { bg: "#fee2e2", border: "#fca5a5", fg: "#991b1b" },
+  "No-show":   { bg: "#fee2e2", border: "#fca5a5", fg: "#991b1b" },
+}
+function EventStatusPill({ e }) {
+  const c = EVENT_PILL_COLORS[e.status] || EVENT_PILL_COLORS.Invited
+  let when = ""
+  try { when = new Date(e.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Los_Angeles" }) } catch (x) {}
+  const what = e.kind === "workshop" ? "Workshop" : e.kind === "happy_hour" ? "Happy hour" : String(e.name || "Event").slice(0, 28)
+  const label = e.status === "Requested" ? "Registered" : e.status
+  return (
+    <Link href={"/events/" + e.slug} title={(e.name || "") + " — open the event roster"} style={{
+      fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 999, textDecoration: "none", whiteSpace: "nowrap",
+      background: c.bg, border: "1px solid " + c.border, color: c.fg,
+    }}>{when} {what} · {label}</Link>
   )
 }
