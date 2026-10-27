@@ -109,6 +109,21 @@ export default function DraftEmailCard({ personId, statusTags }) {
       .finally(function () { setCreating(false) })
   }
 
+  function happyHourDraft() {
+    setCreating(true); setMsg(""); setDraftUrl(null)
+    fetch("/api/people/" + personId + "/happy-hour-draft", { method: "POST" })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d.ok) { setMsg("Happy hour email saved to your Outlook Drafts (to " + d.to + ")."); setDraftUrl(d.draft_url || null) }
+        else if (d.error === "no_email") setMsg("This person has no email on file — add one first.")
+        else if (d.error === "blocked") setMsg("Not created — this person is tagged " + (d.tags || []).join(", ") + ".")
+        else if (d.error === "no_upcoming_happy_hour") setMsg("No upcoming published happy hour event found.")
+        else setMsg("Couldn't create the draft" + (d.error ? (": " + d.error) : "") + ".")
+      })
+      .catch(function () { setMsg("Error.") })
+      .finally(function () { setCreating(false) })
+  }
+
   function startOver() {
     initial.reset(); more.reset()
     setSubject(""); setBody(""); setHasDraft(false); setMsg(""); setDraftUrl(null); setShowMore(false); setCopied(false)
@@ -129,6 +144,11 @@ export default function DraftEmailCard({ personId, statusTags }) {
           title="Builds a casual invite to the next happy hour with their personal tracked link."
           style={{ padding: "4px 11px", borderRadius: 999, border: "1px solid " + T.accent, background: "white", color: T.accent, fontSize: 12, fontWeight: 600, cursor: (briefing || generating) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (briefing || generating) ? 0.6 : 1, whiteSpace: "nowrap" }}>
           ✦ Invite to happy hour
+        </button>
+        <button disabled={creating || generating} onClick={happyHourDraft}
+          title="One click: puts the approved November happy hour HTML email (with this person's tracked link) into your Outlook Drafts. Nothing is sent."
+          style={{ padding: "4px 11px", borderRadius: 999, border: "1px solid " + T.accent, background: T.accent, color: "white", fontSize: 12, fontWeight: 600, cursor: (creating || generating) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (creating || generating) ? 0.6 : 1, whiteSpace: "nowrap" }}>
+          {creating ? "Creating…" : "✉ Nov happy hour email → Outlook"}
         </button></span>
       </div>
       {briefWarn ? (
