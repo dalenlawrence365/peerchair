@@ -24,7 +24,7 @@ export function renderHappyHourHtml(o) {
   '<p style="margin:0 0 16px;">No presentations. No sales pitches. No formal agenda. Just good conversation and a few new acquaintances.</p></td></tr>' +
   '<tr><td style="padding:8px 32px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;border-left:4px solid #c39a4e;"><tr><td style="padding:18px 22px;font-size:16px;line-height:1.5;color:#121a3c;">' +
   '<strong>' + esc(o.when_long) + '</strong><br>' + esc(o.time_line) + '<br>Culver City &middot; Complimentary<br>' +
-  '<span style="font-size:14px;color:#5a6280;">A small room. I confirm each seat personally and share the venue once you’re in.</span></td></tr></table></td></tr>' +
+  '<span style="font-size:14px;color:#5a6280;">Attendance is limited. I confirm each seat personally and share the venue once you’re in.</span></td></tr></table></td></tr>' +
   '<tr><td align="center" style="padding:26px 32px 6px;">' + btn(o.rsvp_url, 'Request your spot', true) + '</td></tr>' +
   '<tr><td style="padding:14px 32px 8px;font-size:16px;line-height:1.6;color:#2b3350;"><p style="margin:0 0 4px;">I’d enjoy having you join us.</p></td></tr>' +
   '<tr><td style="padding:10px 32px 28px;font-size:16px;line-height:1.5;color:#2b3350;"><strong style="color:#121a3c;">Dalen Lawrence</strong><br><span style="font-size:14px;color:#5a6280;">Chapter Director | CFO Circle Los Angeles</span></td></tr>' +
@@ -58,7 +58,7 @@ export function renderWarmHappyHourHtml(o) {
   '<p style="margin:0 0 16px;">No presentations. No sales pitches. No formal agenda. Just good conversation, a few new faces, and some you already know.</p></td></tr>' +
   '<tr><td style="padding:8px 32px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;border-left:4px solid #c39a4e;"><tr><td style="padding:18px 22px;font-size:16px;line-height:1.5;color:#121a3c;">' +
   '<strong>' + esc(o.when_long) + '</strong><br>' + esc(o.time_line) + '<br>Culver City &middot; Complimentary<br>' +
-  '<span style="font-size:14px;color:#5a6280;">I’m keeping the room small, so I’m holding a seat for you.</span></td></tr></table></td></tr>' +
+  '<span style="font-size:14px;color:#5a6280;">Attendance is limited, so I’m holding a seat for you.</span></td></tr></table></td></tr>' +
   '<tr><td align="center" style="padding:26px 32px 6px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" bgcolor="#c39a4e" style="border-radius:3px;"><a href="' + o.rsvp_url + '" style="display:inline-block;padding:15px 34px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#ffffff;text-decoration:none;border-radius:3px;">Save my seat</a></td></tr></table></td></tr>' +
   '<tr><td style="padding:18px 32px 8px;font-size:16px;line-height:1.6;color:#2b3350;"><p style="margin:0 0 4px;">Can’t make this one? No problem &mdash; I’ll make sure you hear about the next.</p></td></tr>' +
   '<tr><td style="padding:10px 32px 24px;font-size:16px;line-height:1.5;color:#2b3350;">Hope to see you there,<br><strong style="color:#121a3c;">Dalen</strong><br><span style="font-size:14px;color:#5a6280;">Dalen Lawrence &middot; Chapter Director | CFO Circle Los Angeles</span></td></tr>' +
