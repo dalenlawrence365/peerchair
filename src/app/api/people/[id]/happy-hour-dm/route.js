@@ -60,11 +60,11 @@ export async function POST(request, { params }) {
   const name = String(person.first_name || "").trim()
   const link = SITE + "/events/" + ev.slug + "/?t=" + encodeURIComponent(token) + "&src=linkedin-dm"
   const message =
-    (name ? "Hi " + name + ", " : "Hi, ") +
-    "I’m hosting a CFO happy hour in Culver City on " + laLong(ev.event_date) + ", " + laTime(ev.event_date) + "–" + laTime(ev.ends_at) + " PM, with hospitality from Marsh Agency. " +
-    "No presentations, no pitches, no agenda. Just an evening with other CFOs who understand the seat. " +
-    "Sitting, fractional, or between roles, you’re welcome. Attendance is limited and I confirm each seat personally. " +
-    "Want me to save you a spot? " + link
+    (name ? "Hi " + name + "," : "Hi,") + "\n\n" +
+    "I’m hosting a CFO happy hour in Culver City on " + laLong(ev.event_date) + ", " + laTime(ev.event_date) + "–" + laTime(ev.ends_at) + " PM, with hospitality from Marsh Agency.\n\n" +
+    "No presentations, no pitches, no agenda. Just an evening with other CFOs who understand the seat. Sitting, fractional, or between roles, you’re welcome.\n\n" +
+    "Attendance is limited and I confirm each seat personally. Want me to save you a spot?\n\n" +
+    link
 
   const nowIso = new Date().toISOString()
   if (!existing) {
