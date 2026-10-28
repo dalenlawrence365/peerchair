@@ -100,6 +100,27 @@ export async function GET(request) {
       }
     })
 
+    // Event pills: where each person stands on each event (live from the roster). Upcoming events
+    // first (soonest), then past ones newest-first — same ordering as the profile's Events box.
+    if (list.length) {
+      const ids = list.map(function(r){ return r.id })
+      const { data: att } = await sb.from("event_attendees")
+        .select("person_id, status, events:event_id ( slug, name, kind, event_date )").in("person_id", ids)
+      const nowMs = Date.now()
+      const by = new Map()
+      for (const a of att || []) {
+        if (!a.events) continue
+        const arr = by.get(a.person_id) || []
+        arr.push({ status: a.status, slug: a.events.slug, name: a.events.name, kind: a.events.kind, event_date: a.events.event_date })
+        by.set(a.person_id, arr)
+      }
+      const rank = function(e){ const t = new Date(e.event_date).getTime(); return t >= nowMs ? [0, t] : [1, -t] }
+      list = list.map(function(r){
+        const evs = (by.get(r.id) || []).sort(function(x, y){ const a1 = rank(x), b1 = rank(y); return a1[0] - b1[0] || a1[1] - b1[1] })
+        return Object.assign({}, r, { events: evs })
+      })
+    }
+
     // Silent = connected CFO with no reply_received and not excluded — same definition as the dashboard funnel.
     if (type === "cfo" && list.length) {
       const ids = list.map(function(r){ return r.id })

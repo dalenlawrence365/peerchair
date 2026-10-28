@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import EventPill from "@/components/EventPill"
 import { T } from "@/lib/pipelineTheme"
 import Avatar from "@/components/Avatar"
 import PersonBadges from "@/components/PersonBadges"
@@ -164,6 +165,12 @@ export default function PipelineView({ type, stage }) {
                   </div>
                 </Link>
               </div>
+              {(p.events && p.events.length > 0) && (
+                <div style={{ flex: "0 1 400px", maxWidth: 400, display: "flex", flexWrap: "wrap", gap: 5, justifyContent: "flex-end", alignContent: "center" }}>
+                  {p.events.slice(0, 6).map(function(e, k){ return <EventPill key={k} e={e} /> })}
+                  {p.events.length > 6 && <span style={{ fontSize: 11, color: T.textTertiary, alignSelf: "center" }}>+{p.events.length - 6} more</span>}
+                </div>
+              )}
               <div style={{ fontSize: 11, color: T.textTertiary, whiteSpace: "nowrap" }}>{fmtRel(p.last_touch)}</div>
             </div>
           )
