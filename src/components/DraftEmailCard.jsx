@@ -111,14 +111,24 @@ export default function DraftEmailCard({ personId, statusTags }) {
       .finally(function () { setCreating(false) })
   }
 
-  function happyHourDraft(variant) {
+  function happyHourDraft(variant, force) {
     setCreating(true); setMsg(""); setDraftUrl(null); setHhResult(null); setHhSaved("")
-    fetch("/api/people/" + personId + "/happy-hour-draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ variant: variant || "cold" }) })
+    fetch("/api/people/" + personId + "/happy-hour-draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ variant: variant || "cold", force: force === true }) })
       .then(function (r) { return r.json() })
       .then(function (d) {
         if (d.ok) {
           setHhResult({ ok: true, text: "Saved to your Outlook Drafts — to " + d.to + ". Nothing has been sent.", url: d.draft_url || null })
           setHhSaved(variant || "cold"); setTimeout(function () { setHhSaved("") }, 6000)
+        }
+        else if (d.error === "already") {
+          const st = d.status
+          const what = st === "Queued" ? "already has a happy hour draft waiting (not sent yet)"
+            : st === "Invited" ? "was already sent the happy hour invite"
+            : (st === "Registered" || st === "Requested") ? "has already registered for the happy hour"
+            : st === "Confirmed" ? "is already confirmed for the happy hour"
+            : st === "Declined" || st === "Unavailable" ? "already said they can't make the happy hour"
+            : "is already on the happy hour roster (" + st + ")"
+          setHhResult({ ok: false, warn: true, variant: variant || "cold", text: "No draft created — this person " + what + "." })
         }
         else if (d.error === "no_email") setHhResult({ ok: false, text: "No draft created — this person has no email on file." })
         else if (d.error === "blocked") setHhResult({ ok: false, text: "No draft created — this person is tagged " + (d.tags || []).join(", ") + "." })
@@ -163,8 +173,9 @@ export default function DraftEmailCard({ personId, statusTags }) {
       </div>
       {hhResult ? (
         <div style={{ margin: "6px 0 10px", padding: "10px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600, lineHeight: 1.5,
-          background: hhResult.ok ? "#dcfce7" : "#fee2e2", border: "1px solid " + (hhResult.ok ? "#86efac" : "#fca5a5"), color: hhResult.ok ? "#166534" : "#991b1b" }}>
-          {hhResult.ok ? "✓ " : "✕ "}{hhResult.text}{" "}
+          background: hhResult.ok ? "#dcfce7" : (hhResult.warn ? "#fef3c7" : "#fee2e2"), border: "1px solid " + (hhResult.ok ? "#86efac" : (hhResult.warn ? "#fcd34d" : "#fca5a5")), color: hhResult.ok ? "#166534" : (hhResult.warn ? "#92400e" : "#991b1b") }}>
+          {hhResult.ok ? "✓ " : (hhResult.warn ? "⚠ " : "✕ ")}{hhResult.text}{" "}
+          {hhResult.warn ? <button onClick={function () { happyHourDraft(hhResult.variant, true) }} style={{ marginLeft: 6, padding: "3px 10px", borderRadius: 6, border: "1px solid #92400e", background: "white", color: "#92400e", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Create another anyway</button> : null}
           {hhResult.url ? <a href={hhResult.url} target="_blank" rel="noreferrer" style={{ color: "#166534", textDecoration: "underline" }}>Open in Outlook →</a> : null}
         </div>
       ) : null}

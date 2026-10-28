@@ -30,6 +30,15 @@ export async function POST(request, { params }) {
   const email = (person.email && person.email.trim()) || (person.email2 && person.email2.trim())
   if (!email) return Response.json({ error: "no_email" }, { status: 400 })
 
+  // Duplicate guard: if they're already on this event's roster (Queued = draft exists, Invited = sent,
+  // Registered/Confirmed/Declined...), don't create another draft unless Dalen overrides.
+  const { data: ev0 } = await sb.from("events").select("id").eq("kind", "happy_hour").eq("published", true)
+    .gte("event_date", new Date().toISOString()).order("event_date", { ascending: true }).limit(1).maybeSingle()
+  if (ev0 && !(body && body.force === true)) {
+    const { data: existing } = await sb.from("event_attendees").select("status, invited_at").eq("event_id", ev0.id).eq("person_id", id).maybeSingle()
+    if (existing) return Response.json({ error: "already", status: existing.status, at: existing.invited_at || null }, { status: 409 })
+  }
+
   const { data: tags } = await sb.from("person_status_tags").select("tag").eq("person_id", id)
   const blocked = (tags || []).map(t => t.tag).filter(t => BLOCKING.includes(t))
   if (blocked.length) return Response.json({ error: "blocked", tags: blocked }, { status: 409 })
