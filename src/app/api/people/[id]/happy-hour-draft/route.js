@@ -81,5 +81,12 @@ export async function POST(request, { params }) {
     source: "PeerChair", logged_by: "Dalen Lawrence", send_status: "draft",
   }).then(() => {}, () => {})
 
+  // Drafted but NOT sent -> show "Queued" on the roster/profile (never "Invited"; that only happens
+  // when sync-sent sees the email in Sent Items). Existing rows (Invited, Registered, ...) are untouched.
+  try {
+    const { data: row } = await sb.from("event_attendees").select("id").eq("event_id", ev.id).eq("person_id", id).maybeSingle()
+    if (!row) await sb.from("event_attendees").insert({ event_id: ev.id, person_id: id, status: "Queued", source: "queued" })
+  } catch (e) { console.error("happy-hour-draft queue mark failed:", e && e.message) }
+
   return Response.json({ ok: true, draft_url: d.webLink || null, to: email, event: ev.slug })
 }
