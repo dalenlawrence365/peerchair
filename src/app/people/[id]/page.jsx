@@ -623,7 +623,7 @@ export default function PersonProfile() {
 
         {/* Key fields */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginTop: 20, paddingTop: 18, borderTop: "1px solid " + T.borderSoft }}>
-          <Field label="Email" value={p.email} />
+          <EmailField p={p} onChanged={reload} />
           <Field label="Phone" value={p.phone || p.mobile} />
           <Field label="Location" value={p.location} />
           <Field label="Source" value={p.source} />
@@ -1471,6 +1471,69 @@ function TagBox({ label, dot, count, hint, children, footer }) {
         {empty ? <span style={{ fontSize: 12, color: T.textTertiary }}>None</span> : children}
       </div>
       {footer ? <div style={{ marginTop: 10 }}>{footer}</div> : null}
+    </div>
+  )
+}
+
+
+// Email + consent: a green "Subscribed" pill sits right next to the address when they've given
+// permission to be emailed about events; otherwise a button records it (with what they said).
+function EmailField({ p, onChanged }) {
+  const [open, setOpen] = useState(false)
+  const [note, setNote] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState("")
+  const consent = p.email_consent
+  const when = p.email_consent_at ? new Date(p.email_consent_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles" }) : ""
+
+  function save(subscribe) {
+    setBusy(true); setErr("")
+    fetch("/api/people/" + p.id + "/email-consent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscribe: subscribe, note: note }) })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d.ok) { setOpen(false); setNote(""); onChanged && onChanged() }
+        else if (d.error === "opted_out") setErr("They unsubscribed themselves" + (d.at ? " on " + new Date(d.at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "") + " — not changing that.")
+        else if (d.error === "no_email") setErr("No email on file.")
+        else setErr("Couldn't save" + (d.error ? ": " + d.error : "") + ".")
+      })
+      .catch(function () { setErr("Couldn't save — network error.") })
+      .finally(function () { setBusy(false) })
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Email</div>
+      <div style={{ fontSize: 13, color: p.email ? T.textPrimary : T.textTertiary, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {p.email || "—"}
+        {consent === "subscribed" && (
+          <span title={"Gave permission to be emailed" + (when ? " · " + when : "") + (p.email_consent_source ? " · " + p.email_consent_source : "")}
+            style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 999, background: "#dcfce7", border: "1px solid #86efac", color: "#166534", whiteSpace: "nowrap" }}>✓ Subscribed</span>
+        )}
+        {consent === "unsubscribed" && (
+          <span title="Opted out — do not email" style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 999, background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", whiteSpace: "nowrap" }}>Unsubscribed</span>
+        )}
+      </div>
+      {consent === "subscribed" && (
+        <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 3 }}>
+          {when}{p.email_consent_source ? " · " + p.email_consent_source : ""} ·{" "}
+          <span onClick={function () { if (!busy && confirm("Remove " + (p.first_name || "this person") + " from the email list?")) save(false) }} style={{ cursor: "pointer", textDecoration: "underline" }}>Unsubscribe</span>
+        </div>
+      )}
+      {consent !== "subscribed" && consent !== "unsubscribed" && p.email && !open && (
+        <button onClick={function () { setOpen(true) }} style={{ marginTop: 5, padding: "3px 10px", fontSize: 11.5, fontWeight: 600, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>Mark as subscribed</button>
+      )}
+      {open && (
+        <div style={{ marginTop: 6 }}>
+          <textarea value={note} onChange={function (e) { setNote(e.target.value) }} rows={3}
+            placeholder="What did they say? (saved to their timeline as proof of permission)"
+            style={{ width: "100%", boxSizing: "border-box", padding: "6px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
+          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+            <button disabled={busy} onClick={function () { save(true) }} style={{ padding: "4px 12px", fontSize: 12, fontWeight: 600, borderRadius: 6, border: "none", background: "#16a34a", color: "white", cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }}>{busy ? "Saving…" : "Save as subscribed"}</button>
+            <button disabled={busy} onClick={function () { setOpen(false); setErr("") }} style={{ padding: "4px 12px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textTertiary, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {err && <div style={{ fontSize: 11.5, color: "#991b1b", marginTop: 5 }}>{err}</div>}
     </div>
   )
 }
