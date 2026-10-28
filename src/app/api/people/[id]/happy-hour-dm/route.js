@@ -44,7 +44,7 @@ export async function POST(request, { params }) {
     return Response.json({ ok: true, undone: false })
   }
 
-  const { data: tags } = await sb.from("person_status_tags").select("tag").eq("person_id", id)
+  const { data: tags } = await sb.from("person_status_tags").select("tag").eq("person_id", id).is("removed_at", null)
   const blocked = (tags || []).map(t => t.tag).filter(t => BLOCKING.includes(t))
   if (blocked.length) return Response.json({ error: "blocked", tags: blocked }, { status: 409 })
 
