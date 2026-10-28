@@ -12,7 +12,8 @@ import { renderHappyHourHtml, renderWarmHappyHourHtml, HAPPY_HOUR_SUBJECT, WARM_
 
 const SITE = process.env.NEXT_PUBLIC_EVENT_SITE_URL || "https://la-cfo.com"
 const PC = "https://www.peerchair.com"
-const BLOCKING = ["not_a_fit", "do_not_contact", "opted_out", "archived"]
+// "not_a_fit" is about CFO Circle membership fit, not about happy hours — it does NOT block a happy-hour invite.
+const BLOCKING = ["do_not_contact", "opted_out", "archived"]
 
 function laLong(iso) { return new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Los_Angeles" }) }
 function laShort(iso) { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Los_Angeles" }) }

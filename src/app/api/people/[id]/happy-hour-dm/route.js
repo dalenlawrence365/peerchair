@@ -10,7 +10,8 @@ import { serverClient } from "@/lib/supabaseServer"
 // source "linkedin-dm" so it's distinguishable from a verified email send, and reversible (undo).
 
 const SITE = process.env.NEXT_PUBLIC_EVENT_SITE_URL || "https://la-cfo.com"
-const BLOCKING = ["not_a_fit", "do_not_contact", "opted_out", "archived"]
+// "not_a_fit" is about CFO Circle membership fit, not about happy hours — it does NOT block a happy-hour invite.
+const BLOCKING = ["do_not_contact", "opted_out", "archived"]
 function laLong(iso) { return new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "America/Los_Angeles" }) }
 function laTime(iso) { return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles" }).replace(":00", "").replace(" PM", "").replace(" AM", "") }
 
