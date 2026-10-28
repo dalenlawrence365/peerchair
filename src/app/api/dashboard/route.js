@@ -301,6 +301,15 @@ export async function GET() {
           .or("roles.is.null,roles.eq.{}")
         return count || 0
       })(),
+      cfo_members_total: await (async () => {
+        // Real CFO Circle members: CFOs carrying the independent "Member" stage flag
+        // (cfo_member_at) — across all circles. Distinct from cfo_circle_member, which
+        // marks chapter directors (the "Circle chapter directors" tile).
+        const { count } = await sb.from("people")
+          .select("id", { count: "exact", head: true })
+          .not("cfo_member_at", "is", null)
+        return count || 0
+      })(),
       cfo_circle_total: await (async () => {
         // CFO Circle label — boolean across ALL people, orthogonal to roles and
         // independent of LinkedIn connection (includes non-connections, e.g. Paul Wirth).
