@@ -11,7 +11,7 @@ const META = {
   invite_lapsed:      { label: "Lapsed",             desc: "Invite auto-withdrawn after 30 days, never accepted — re-invitable next pass.", action: "Re-invite next pass", color: "#9a3412" },
   silent_connections: { label: "Silent Connections", desc: "Connected, but never replied to anything.",       action: "Re-ping about CFO Circle",        color: "#0f3d6e" },
   replied:            { label: "Replied",            desc: "CFOs who have ever replied to you (recovered from threads + tags).", action: "Move into the conversation / triage", color: "#15803d" },
-  cfo_circle:         { label: "CFO Circle",          desc: "Everyone carrying the CFO Circle label — members and Blueprint affiliates, regardless of LinkedIn connection.", action: "Nurture / keep warm", color: "#ea580c" },
+  cfo_circle:         { label: "Circle chapter directors", desc: "Everyone carrying the CFO Circle label — chapter directors across Circle, regardless of LinkedIn connection.", action: "Nurture / keep warm", color: "#ea580c" },
   out_of_market:      { label: "CFO audience · Out of market", desc: "CFO first-degree connections located outside the LA market. Part of the audience, but excluded from live in-person events.", action: "Invite to virtual / Lunch & Learn only", color: "#b91c1c" },
 }
 
