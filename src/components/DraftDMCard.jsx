@@ -23,6 +23,8 @@ export default function DraftDMCard({ personId, statusTags }) {
   const [copied, setCopied] = useState(false)
   const [briefing, setBriefing] = useState(false)
   const [briefWarn, setBriefWarn] = useState(null) // { warnings, instructions }
+  const [hhDm, setHhDm] = useState(null) // { kind: ok|warn|err, text, message, variantForce }
+  const [hhBusy, setHhBusy] = useState(false)
 
   // One-click "Invite to next workshop": the server builds the editable
   // instructions from this person's history + their standing on the next event.
@@ -67,6 +69,43 @@ export default function DraftDMCard({ personId, statusTags }) {
       .finally(function () { setGenerating(false) })
   }
 
+  function happyHourDm(force) {
+    setHhBusy(true); setHhDm(null)
+    fetch("/api/people/" + personId + "/happy-hour-dm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ force: force === true }) })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d.ok) {
+          const warn = d.connected ? "" : " Heads up: they're not marked as a 1st-degree connection, so LinkedIn may not deliver a DM."
+          navigator.clipboard.writeText(d.message)
+            .then(function () { setHhDm({ kind: "ok", text: "Message copied — paste it into LinkedIn. Marked Invited (assumed sent)." + warn, message: d.message }) })
+            .catch(function () { setHhDm({ kind: "ok", text: "Marked Invited (assumed sent), but I couldn't copy automatically — copy the message below." + warn, message: d.message }) })
+        } else if (d.error === "already") {
+          const st = d.status
+          const what = st === "Queued" ? "already has a happy hour email draft waiting (not sent yet)"
+            : st === "Invited" ? "was already sent the happy hour invite"
+            : (st === "Registered" || st === "Requested") ? "has already registered for the happy hour"
+            : st === "Confirmed" ? "is already confirmed for the happy hour"
+            : st === "Declined" || st === "Unavailable" ? "already said they can't make the happy hour"
+            : "is already on the happy hour roster (" + st + ")"
+          setHhDm({ kind: "warn", text: "Nothing copied — this person " + what + "." })
+        }
+        else if (d.error === "blocked") setHhDm({ kind: "err", text: "Not created — this person is tagged " + (d.tags || []).join(", ") + "." })
+        else if (d.error === "no_upcoming_happy_hour") setHhDm({ kind: "err", text: "No upcoming published happy hour event found." })
+        else setHhDm({ kind: "err", text: "Couldn't build the message" + (d.error ? (": " + d.error) : "") + "." })
+      })
+      .catch(function () { setHhDm({ kind: "err", text: "Couldn't build the message — network error." }) })
+      .finally(function () { setHhBusy(false) })
+  }
+
+  function undoHappyHourDm() {
+    setHhBusy(true)
+    fetch("/api/people/" + personId + "/happy-hour-dm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ undo: true }) })
+      .then(function (r) { return r.json() })
+      .then(function (d) { setHhDm({ kind: "warn", text: d && d.undone ? "Undone — removed from the happy hour roster. Nothing is marked as sent." : "Nothing to undo (they were invited some other way)." }) })
+      .catch(function () { setHhDm({ kind: "err", text: "Couldn't undo — network error." }) })
+      .finally(function () { setHhBusy(false) })
+  }
+
   function copyToClipboard() {
     if (!body.trim()) return
     navigator.clipboard.writeText(body.trim())
@@ -94,8 +133,24 @@ export default function DraftDMCard({ personId, statusTags }) {
           title="Builds a casual invite to the next happy hour with their personal tracked link."
           style={{ padding: "4px 11px", borderRadius: 999, border: "1px solid " + T.accent, background: "white", color: T.accent, fontSize: 12, fontWeight: 600, cursor: (briefing || generating) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (briefing || generating) ? 0.6 : 1, whiteSpace: "nowrap" }}>
           ✦ Invite to happy hour
+        </button>
+        <button disabled={hhBusy || generating} onClick={function () { happyHourDm(false) }}
+          title="One click: copies the approved November happy hour DM (with this person's tracked link) and marks them Invited, assuming you paste and send it."
+          style={{ padding: "4px 11px", borderRadius: 999, border: "1px solid " + T.accent, background: T.accent, color: "white", fontSize: 12, fontWeight: 600, cursor: (hhBusy || generating) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (hhBusy || generating) ? 0.6 : 1, whiteSpace: "nowrap" }}>
+          {hhBusy ? "Working…" : "✉ Nov happy hour DM → copy"}
         </button></span>
       </div>
+      {hhDm ? (
+        <div style={{ margin: "6px 0 10px", padding: "10px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600, lineHeight: 1.5,
+          background: hhDm.kind === "ok" ? "#dcfce7" : (hhDm.kind === "warn" ? "#fef3c7" : "#fee2e2"),
+          border: "1px solid " + (hhDm.kind === "ok" ? "#86efac" : (hhDm.kind === "warn" ? "#fcd34d" : "#fca5a5")),
+          color: hhDm.kind === "ok" ? "#166534" : (hhDm.kind === "warn" ? "#92400e" : "#991b1b") }}>
+          {hhDm.kind === "ok" ? "✓ " : (hhDm.kind === "warn" ? "⚠ " : "✕ ")}{hhDm.text}{" "}
+          {hhDm.kind === "ok" ? <button disabled={hhBusy} onClick={undoHappyHourDm} style={{ marginLeft: 6, padding: "3px 10px", borderRadius: 6, border: "1px solid #166534", background: "white", color: "#166534", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Didn't send — undo</button> : null}
+          {hhDm.text.indexOf("Nothing copied") === 0 ? <button disabled={hhBusy} onClick={function () { happyHourDm(true) }} style={{ marginLeft: 6, padding: "3px 10px", borderRadius: 6, border: "1px solid #92400e", background: "white", color: "#92400e", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Copy anyway</button> : null}
+          {hhDm.message ? <textarea readOnly value={hhDm.message} rows={5} onFocus={function (e) { e.target.select() }} style={{ width: "100%", boxSizing: "border-box", marginTop: 8, padding: "8px 10px", fontSize: 12, fontWeight: 400, border: "1px solid #86efac", borderRadius: 6, fontFamily: "inherit", color: "#14532d", background: "white" }} /> : null}
+        </div>
+      ) : null}
       {briefWarn ? (
         <div style={{ fontSize: 12, color: T.warning, marginBottom: 10, background: T.warningBg, border: "1px solid #fde68a", borderRadius: 6, padding: "8px 10px", lineHeight: 1.5 }}>
           {briefWarn.warnings.map(function (w, i) { return <div key={i}>⚠ {w}</div> })}
