@@ -129,11 +129,6 @@ export default function DraftDMCard({ personId, statusTags }) {
           style={{ padding: "4px 11px", borderRadius: 999, border: "1px solid " + T.accent, background: "white", color: T.accent, fontSize: 12, fontWeight: 600, cursor: (briefing || generating) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (briefing || generating) ? 0.6 : 1, whiteSpace: "nowrap" }}>
           {briefing ? "Reading history…" : "✦ Invite to next workshop"}
         </button>
-        <button disabled={briefing || generating} onClick={function () { inviteToNextWorkshop(false, "social") }}
-          title="Builds a casual invite to the next happy hour with their personal tracked link."
-          style={{ padding: "4px 11px", borderRadius: 999, border: "1px solid " + T.accent, background: "white", color: T.accent, fontSize: 12, fontWeight: 600, cursor: (briefing || generating) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (briefing || generating) ? 0.6 : 1, whiteSpace: "nowrap" }}>
-          ✦ Invite to happy hour
-        </button>
         <button disabled={hhBusy || generating} onClick={function () { happyHourDm(false) }}
           title="One click: copies the approved November happy hour DM (with this person's tracked link) and marks them Invited, assuming you paste and send it."
           style={{ padding: "4px 11px", borderRadius: 999, border: "1px solid " + T.accent, background: T.accent, color: "white", fontSize: 12, fontWeight: 600, cursor: (hhBusy || generating) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (hhBusy || generating) ? 0.6 : 1, whiteSpace: "nowrap" }}>
