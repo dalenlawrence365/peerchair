@@ -24,7 +24,17 @@ export async function logCronRun(cronName, summary, errors) {
     // by hand. Surface failures in the notification badge instead.
     // Deduped per cron per day, so a persistently broken cron tells you once,
     // not every 30 minutes.
+    // A single failed run is usually a transient blip (e.g. a Microsoft 504) that the next run's
+    // lookback window covers. Only alert when the previous run of this cron (within 2h) also failed
+    // or when there's no recent successful run to lean on.
+    let blip = false
     if (errors && errors.length) {
+      const { data: prev } = await sb.from("audit_log").select("run_at, errors")
+        .eq("audit_type", `cron_run:${cronName}`).order("run_at", { ascending: false }).range(1, 1)
+      const p0 = prev && prev[0]
+      blip = !!(p0 && !(p0.errors && p0.errors.length) && Date.now() - new Date(p0.run_at).getTime() < 2 * 60 * 60 * 1000)
+    }
+    if (errors && errors.length && !blip) {
       const today = new Date().toISOString().slice(0, 10)
       await sb.from("notifications").upsert([{
         kind: "cron_failure",

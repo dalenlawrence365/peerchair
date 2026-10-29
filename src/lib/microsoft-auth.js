@@ -102,5 +102,12 @@ export async function graphFetch(url, init = {}) {
     token = await getAccessToken({ force: true })
     res = await call(token)
   }
+  // Microsoft Graph throws occasional transient gateway errors (502/503/504) and 429s.
+  // Retry briefly so a one-off blip doesn't fail a cron run or raise a false alarm.
+  for (let i = 0; i < 2 && [429, 502, 503, 504].includes(res.status); i++) {
+    const ra = Number(res.headers.get("retry-after"))
+    await new Promise(r => setTimeout(r, Math.min((Number.isFinite(ra) && ra > 0 ? ra : 1.5 * (i + 1)), 5) * 1000))
+    res = await call(token)
+  }
   return res
 }
