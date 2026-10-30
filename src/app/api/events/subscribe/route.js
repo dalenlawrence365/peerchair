@@ -42,6 +42,11 @@ export async function POST(req) {
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return json({ error: "invalid_email" }, 400)
   }
+  // LinkedIn is required: the list is CFOs only, and the URL is how Dalen
+  // confirms the seat (and how PeerChair matches to an existing record).
+  if (!/linkedin\.com\/(in|pub)\//i.test(linkedin)) {
+    return json({ error: "linkedin_required", message: "Please include your LinkedIn profile URL." }, 400)
+  }
 
   const sb = serverClient()
   const full_name = (first_name + " " + last_name).trim()
@@ -78,7 +83,7 @@ export async function POST(req) {
 
   if (matchedId) {
     const { data: m } = await sb.from("people")
-      .select("id, email, email2, city, pole").eq("id", matchedId).maybeSingle()
+      .select("id, email, email2, city, pole, linkedin_url").eq("id", matchedId).maybeSingle()
     if (m) {
       person_id = m.id
       match_status = "matched"
@@ -97,11 +102,12 @@ export async function POST(req) {
       }
 
       const patch = {
-        email_consent: "subscribed",
+        email_consent: "pending",
         email_consent_source: src,
         email_consent_at: nowIso,
         email_suppressed: false,
       }
+      if (linkedin && !clean(m.linkedin_url)) patch.linkedin_url = linkedin
       if (cityIn && !clean(m.city)) patch.city = geo ? geo.city : cityIn
       if (geo && (!m.pole || m.pole === "pending")) { patch.pole = geo.pole; patch.market = geo.market }
       await sb.from("people").update(patch).eq("id", person_id)
@@ -116,14 +122,13 @@ export async function POST(req) {
       email,
       company: company || null,
       linkedin_url: linkedin || null,
-      roles: ["cfo"],
-      cfo_state: "pool",
+      roles: [],
       inbound_request: true,
       source: "subscribe:" + src,
       city: geo ? geo.city : (cityIn || null),
       market: geo ? geo.market : null,
       pole: geo ? geo.pole : null,
-      email_consent: "subscribed",
+      email_consent: "pending",
       email_consent_source: src,
       email_consent_at: nowIso,
     }).select("id").single()
