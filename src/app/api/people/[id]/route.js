@@ -65,7 +65,7 @@ export async function GET(request, { params }) {
   // Research notes — standardized AI deep-research writeups (score/verdict/
   // dimensions), newest first. Draft Email reads the latest one for context.
   const { data: researchNotes } = await sb.from("person_research_notes")
-    .select("id, created_at, created_by, verdict, score, confidence, dimensions, summary, narrative")
+    .select("id, created_at, created_by, verdict, score, confidence, dimensions, summary, narrative, pursue_anyway")
     .eq("person_id", id)
     .order("created_at", { ascending: false })
 

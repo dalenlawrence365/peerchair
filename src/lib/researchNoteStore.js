@@ -82,13 +82,32 @@ export async function insertParsedNote(sb, personId, createdBy, meta, narrative,
   const dims = Array.isArray(meta.dimensions) ? meta.dimensions : []
   const dimSum = dims.reduce(function (a, d) { return a + (d && Number.isFinite(d.score) ? d.score : 0) }, 0)
   const computedScore = dims.length ? dimSum : (Number.isFinite(meta.score) ? meta.score : null)
+
+  // Lock the verdict LABEL to the score band so the label and the number can
+  // never disagree (the model used to upgrade the label a notch above the
+  // number). A hard stop overrides the score and is kept verbatim. When the
+  // model's own verdict reached a band ABOVE the score — its "pursue at the
+  // margin" call — keep the band label but set pursue_anyway so the card still
+  // surfaces the "worth a conversation" signal.
+  const BANDS = ["Wrong Target", "Investigate Further", "Strong Prospect", "Priority Recruit"]
+  const modelVerdict = meta.verdict || null
+  const isHardStop = typeof modelVerdict === "string" && /hard stop/i.test(modelVerdict)
+  const band = !Number.isFinite(computedScore) ? null
+    : computedScore >= 85 ? "Priority Recruit"
+    : computedScore >= 65 ? "Strong Prospect"
+    : computedScore >= 50 ? "Investigate Further"
+    : "Wrong Target"
+  const finalVerdict = isHardStop ? modelVerdict : (band || modelVerdict)
+  const pursueAnyway = (!isHardStop && band) ? (BANDS.indexOf(modelVerdict) > BANDS.indexOf(band)) : false
+
   const insertRow = {
     person_id: personId,
     created_by: createdBy,
-    verdict: meta.verdict || null,
+    verdict: finalVerdict,
     score: computedScore,
     confidence: Number.isFinite(meta.confidence) ? meta.confidence : null,
     dimensions: dims,
+    pursue_anyway: pursueAnyway,
     summary: meta.summary || null,
     narrative: narrative || meta.narrative || "(no narrative produced)",
     raw_input: rawInput || null,

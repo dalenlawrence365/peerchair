@@ -32,6 +32,11 @@ function NoteBody({ note, onDelete, deleting }) {
         )}
         {note.score != null && <span style={{ fontSize: 18, fontWeight: 700, color: T.textPrimary }}>{note.score}<span style={{ fontSize: 12, fontWeight: 500, color: T.textTertiary }}>/100</span></span>}
         {note.confidence != null && <span style={{ fontSize: 12, color: T.textTertiary }}>{note.confidence}% research confidence</span>}
+        {note.pursue_anyway && (
+          <span title="Scores in the band below, but flagged worth a conversation anyway" style={{ fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 6, background: "#fef3c7", border: "1px solid #fcd34d", color: "#92600e" }}>
+            worth a conversation
+          </span>
+        )}
         <span style={{ fontSize: 11, color: T.textTertiary, marginLeft: onDelete ? 0 : "auto" }}>{fmtDate(note.created_at)}</span>
         {onDelete && (
           <button onClick={onDelete} disabled={deleting} title="Delete this research note"
