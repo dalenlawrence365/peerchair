@@ -274,5 +274,26 @@ export async function POST(request, { params }) {
     return Response.json({ ok: true })
   }
 
+  // action="set_event_tier" — the marketing/event-audience designation (A+/A/B/C/D/O).
+  // Empty/null clears it back to unassessed. See event-tier-system-spec.
+  if (action === "set_event_tier") {
+    const VALID = ["A+", "A", "B", "C", "D", "O"]
+    const t = (body.tier == null || body.tier === "") ? null : String(body.tier)
+    if (t !== null && VALID.indexOf(t) < 0) return Response.json({ error: `invalid event_tier '${t}'` }, { status: 400 })
+    const { error } = await sb.from("people").update({ event_tier: t }).eq("id", id)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ ok: true })
+  }
+
+  // action="set_sponsor_tier" — sponsor-appeal, graded 1–3 (stars). Null clears it.
+  if (action === "set_sponsor_tier") {
+    const raw = body.sponsor_tier
+    const s = (raw == null || raw === "") ? null : Number(raw)
+    if (s !== null && (!Number.isInteger(s) || s < 1 || s > 3)) return Response.json({ error: `invalid sponsor_tier '${raw}'` }, { status: 400 })
+    const { error } = await sb.from("people").update({ sponsor_tier: s }).eq("id", id)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ ok: true })
+  }
+
   return Response.json({ error: "unknown action" }, { status: 400 })
 }

@@ -882,6 +882,22 @@ export default function PersonProfile() {
           var inviteAvailable = inviteVocabFull.filter(function(c){ return !inviteTags.some(function(t){ return t.action_type === c }) })
           var evs = data.event_statuses || []
           var inputStyle = { flex: 1, padding: "5px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }
+          const TIER_COLORS = {
+            "A+": { bg: "#f5ecd6", bd: "#c39a4e", fg: "#7a5a12" },
+            "A":  { bg: "#e9f3ec", bd: "#c3e0cc", fg: "#1b5e36" },
+            "B":  { bg: "#eaf0f8", bd: "#c7d5ea", fg: "#1e3a5f" },
+            "C":  { bg: "#fdf2e3", bd: "#f0d9b5", fg: "#92600e" },
+            "D":  { bg: "#eeeeee", bd: "#dddddd", fg: "#555555" },
+            "O":  { bg: "#fde8e8", bd: "#f1c4c4", fg: "#9a2a2a" },
+          }
+          const TIER_HINT = {
+            "A+": "VIP / top-priority audience — first call for premium & sponsor-facing events",
+            "A":  "Strong audience — proven in a room",
+            "B":  "Unknown / unproven — the default until you grade them",
+            "C":  "Lighter fit — fractional / outsourced",
+            "D":  "Never an audience — your call (not a CFO, vendor, personal contact)",
+            "O":  "Opted out — their choice. Hard stop.",
+          }
           return (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 }}>
 
@@ -920,6 +936,41 @@ export default function PersonProfile() {
                     </span>
                   )
                 })}
+              </TagBox>
+
+              {/* ── MARKETING (event-audience tier + sponsor appeal) ── */}
+              <TagBox label="MARKETING" dot={{ color: "#c39a4e", round: false }} count={p.event_tier || "—"} hint="Event-audience designation and sponsor appeal — click to set.">
+                <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Designation</div>
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                      {["A+", "A", "B", "C", "D", "O"].map(function(tv){
+                        var active = p.event_tier === tv
+                        var c = TIER_COLORS[tv]
+                        return (
+                          <button key={tv} disabled={busy} title={TIER_HINT[tv]}
+                            onClick={function(){ postAction({ action: "set_event_tier", tier: active ? "" : tv }) }}
+                            style={{ cursor: busy ? "wait" : "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, minWidth: 30, padding: "5px 9px", borderRadius: 6,
+                              border: "1px solid " + (active ? c.bd : T.border), background: active ? c.bg : "#fff", color: active ? c.fg : T.textSecondary }}>{tv}</button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Sponsor appeal</div>
+                    <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+                      {[1, 2, 3].map(function(n){
+                        var on = (p.sponsor_tier || 0) >= n
+                        return (
+                          <span key={n} title={n + (n > 1 ? " stars" : " star")}
+                            onClick={function(){ if (!busy) postAction({ action: "set_sponsor_tier", sponsor_tier: (p.sponsor_tier === n ? "" : n) }) }}
+                            style={{ cursor: busy ? "wait" : "pointer", fontSize: 20, lineHeight: 1, color: on ? "#c39a4e" : "#d8d2c4", userSelect: "none" }}>{on ? "★" : "☆"}</span>
+                        )
+                      })}
+                      <span style={{ marginLeft: 6, fontSize: 11, color: T.textTertiary }}>{p.sponsor_tier ? p.sponsor_tier + "/3" : "not set"}</span>
+                    </div>
+                  </div>
+                </div>
               </TagBox>
 
               {/* ── ACTIVITY ── */}
