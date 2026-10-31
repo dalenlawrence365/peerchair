@@ -244,8 +244,8 @@ Write like a sharp colleague giving Dalen a real opinion, not a compliance memo.
 
 ## Output format — write this as the LAST thing you produce, in two parts
 
-PART 1 — the narrative, as PLAIN MARKDOWN TEXT (not inside JSON, not escaped). Structure it as:
-- One-line recommendation + score + confidence, e.g. "**Priority Recruit — 96/100** · Research confidence: 93%"
+PART 1 — the narrative, as PLAIN MARKDOWN TEXT (not inside JSON, not escaped). Begin PART 1 with a line containing exactly <!--NOTE--> and nothing else — a hidden marker that separates your step-by-step research log from the deliverable. Write none of the writeup before that marker, and never emit <!--NOTE--> again. Then structure the writeup as:
+- One-line recommendation + confidence. Do NOT put a numeric score on this line — the score is shown separately from the structured data, and the only place a "NN/100" total may appear in the prose is inside the dimension scoring table. e.g. "**Strong Prospect** · Research confidence: 93%"
 - The discovery: the one or two things that aren't obvious from LinkedIn and that materially affect the qualification call
 - Why they could be good for the room: at least two concrete, genuine reasons, ALWAYS included regardless of verdict — this is required, not optional praise. If you truly can't find two, say that plainly rather than skipping the section; that itself is useful information.
 - Why they don't fully qualify, or what's unresolved (real concerns only — per the calibration section, don't manufacture doubt out of an absence of data)

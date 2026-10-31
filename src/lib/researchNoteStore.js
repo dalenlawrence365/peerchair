@@ -14,6 +14,19 @@
 // readable text. Splitting them out means even a failed/truncated response
 // still leaves the narrative portion as clean prose.
 
+// The live deep-research model streams step-by-step reasoning as plain text
+// BETWEEN its web searches ("I'll start by verifying…", "Good start…"), and
+// those blocks get concatenated ahead of the real writeup. The prompt now
+// marks the start of the deliverable with a hidden <!--NOTE--> line; keep only
+// what follows the last marker so the research log never lands in the note.
+// No marker (older notes, or the paste-and-normalize path) → unchanged.
+const NOTE_MARKER = "<!--NOTE-->"
+function stripResearchLog(s) {
+  if (!s) return s
+  const i = s.lastIndexOf(NOTE_MARKER)
+  return i >= 0 ? s.slice(i + NOTE_MARKER.length).trim() : s
+}
+
 export function splitNarrativeAndMeta(text) {
   const t = (text || "").trim()
 
@@ -23,7 +36,7 @@ export function splitNarrativeAndMeta(text) {
     const before = t.slice(0, fenceMatch.index).trim()
     try {
       const meta = JSON.parse(fenceMatch[1])
-      return { narrative: before || null, meta }
+      return { narrative: stripResearchLog(before) || null, meta }
     } catch (e) { /* fall through to other strategies */ }
   }
 
@@ -35,12 +48,12 @@ export function splitNarrativeAndMeta(text) {
       const before = t.slice(0, braceMatch.index).trim()
       // Backward-compat: if this JSON blob itself carries a "narrative" key
       // (the old all-in-one-object format), prefer that over the prose prefix.
-      return { narrative: meta.narrative || before || null, meta }
+      return { narrative: meta.narrative || stripResearchLog(before) || null, meta }
     } catch (e) { /* fall through */ }
   }
 
   // Nothing parseable — the whole response is just the narrative, unscored.
-  return { narrative: t || null, meta: null }
+  return { narrative: stripResearchLog(t) || null, meta: null }
 }
 
 // tokenUsage (optional, 7th arg on both functions below) -- when the caller
@@ -62,13 +75,20 @@ function usageColumns(tokenUsage) {
 }
 
 export async function insertParsedNote(sb, personId, createdBy, meta, narrative, rawInput, tokenUsage) {
+  // Score is the SUM of the dimension scores — the single source of truth — so the
+  // stored headline can never diverge from the rubric (the model used to free-type a
+  // different total into the prose). Fall back to the model's stated score only when
+  // no dimensions came back.
+  const dims = Array.isArray(meta.dimensions) ? meta.dimensions : []
+  const dimSum = dims.reduce(function (a, d) { return a + (d && Number.isFinite(d.score) ? d.score : 0) }, 0)
+  const computedScore = dims.length ? dimSum : (Number.isFinite(meta.score) ? meta.score : null)
   const insertRow = {
     person_id: personId,
     created_by: createdBy,
     verdict: meta.verdict || null,
-    score: Number.isFinite(meta.score) ? meta.score : null,
+    score: computedScore,
     confidence: Number.isFinite(meta.confidence) ? meta.confidence : null,
-    dimensions: Array.isArray(meta.dimensions) ? meta.dimensions : [],
+    dimensions: dims,
     summary: meta.summary || null,
     narrative: narrative || meta.narrative || "(no narrative produced)",
     raw_input: rawInput || null,
