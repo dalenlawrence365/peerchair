@@ -115,8 +115,12 @@ export async function POST(req) {
       company: company || null,
       title: title || null,
       linkedin_url: linkedin || null,
-      roles: ["cfo"],
-      cfo_state: "pool",
+      // Do NOT auto-assign the cfo role on self-registration. Registering for an
+      // event is not a claim to be a CFO (the form only asks for a title), and
+      // auto-tagging put non-CFOs like a BMO relationship contact into the CFO
+      // data. They come in role-less and unmatched; Dalen assigns the role (if
+      // any) when he vets them. Mirrors the same fix on /api/events/subscribe.
+      roles: [],
       inbound_request: true,
       source: "event-reg:" + slug,
     }).select("id").single()
