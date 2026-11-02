@@ -9,6 +9,10 @@ import { useParams } from "next/navigation"
 
 const NAVY = "#121a3c", BRASS = "#c39a4e", INK = "#20242f", MUTE = "#6b7080", LINE = "#e3ddcc", BG = "#f3efe4"
 
+// LinkedIn activity IDs for the posts promoting this event — shown as embeds up
+// top so the sponsor can view and reshare them. Add new IDs here as Dalen posts.
+const LI_POSTS = ["7521951242588348416", "7521327129389711361"]
+
 function fmt(iso) {
   if (!iso) return "—"
   try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Los_Angeles" }) } catch (e) { return "—" }
@@ -126,6 +130,26 @@ export default function SponsorView() {
         <div style={{ marginTop: 12 }}>
           <a href={"https://la-cfo.com/events/" + slug} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", fontSize: 13, fontWeight: 700, color: NAVY, background: BRASS, textDecoration: "none", padding: "9px 16px", borderRadius: 8 }}>See the guest registration page →</a>
         </div>
+
+        {LI_POSTS.length > 0 ? (
+          <div style={{ marginTop: 26 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: MUTE, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>LinkedIn marketing</div>
+            <div style={{ fontSize: 12.5, color: MUTE, marginBottom: 12 }}>Posts promoting the event — easy to view, and to reshare from your own LinkedIn.</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 }}>
+              {LI_POSTS.map(function (id) {
+                return (
+                  <div key={id} style={{ background: "#fff", border: "1px solid " + LINE, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                    <iframe src={"https://www.linkedin.com/embed/feed/update/urn:li:activity:" + id} title="LinkedIn post" loading="lazy" allowFullScreen
+                      style={{ width: "100%", height: 500, border: 0, display: "block", background: "#fff" }}></iframe>
+                    <div style={{ padding: "9px 13px", borderTop: "1px solid " + LINE }}>
+                      <a href={"https://www.linkedin.com/feed/update/urn:li:activity:" + id} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, fontWeight: 700, color: "#0a66c2", textDecoration: "none" }}>Open on LinkedIn to repost →</a>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "20px 0 8px" }}>
           <Tile label="Confirmed" value={st.confirmed || 0} sub={st.target_capacity ? ("of " + st.target_capacity + " seats") : "coming"} />
