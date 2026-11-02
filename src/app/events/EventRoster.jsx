@@ -474,6 +474,7 @@ export default function EventRoster({ slug }) {
                     <Avatar name={a.name} src={a.avatar_url} />
                     <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>{a.person_id ? <Link href={"/people/" + a.person_id} style={{ color: T.textPrimary, textDecoration: "none" }}>{a.name || "(no name)"}</Link> : (a.name || "(no name)")}{a.company ? <span style={{ fontWeight: 400, color: T.textSecondary }}>{"  ·  " + a.company}</span> : null}</div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}><PersonBadges a={a} /></div>
                     <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>{a.email || ""}</div>
                     {a.notes ? <div style={{ fontSize: 13, color: T.textSecondary, marginTop: 6 }}>{a.notes}</div> : null}
                     <div style={{ marginTop: 8 }}><PillTrack a={a} /></div>
@@ -543,6 +544,7 @@ export default function EventRoster({ slug }) {
                       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                         {a.person_id ? <Link href={"/people/" + a.person_id} style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600, textDecoration: "none" }}>{a.name || "(no name)"}</Link> : <span style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600 }}>{a.name || "(no name)"}</span>}
                         {a.company ? <span style={{ fontSize: 13, color: T.textSecondary, fontWeight: 500 }}>{a.company}</span> : null}
+                        <PersonBadges a={a} />
                         {statusChip("Queued")}
                       </div>
                       <div style={{ marginTop: 6 }}><PillTrack a={a} /></div>
@@ -575,11 +577,7 @@ export default function EventRoster({ slug }) {
                   <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                     {a.person_id ? <Link href={"/people/" + a.person_id} style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600, textDecoration: "none" }}>{a.name || "(no name)"}</Link> : <span style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600 }}>{a.name || "(no name)"}</span>}
-                    {(a.roles || []).includes("cfo") ? <span title="CFO" style={{ fontSize: 10, fontWeight: 700, color: "#c2410c", background: "#ffedd5", border: "1px solid #f4b183", borderRadius: 999, padding: "1px 7px", lineHeight: 1.5 }}>CFO</span> : null}
-                    {(a.roles || []).includes("sponsor_contact") ? <span title="Sponsor" style={{ fontSize: 10, fontWeight: 700, color: "#0f766e", background: "#ccfbf1", border: "1px solid #5eead4", borderRadius: 999, padding: "1px 7px", lineHeight: 1.5 }}>Sponsor</span> : null}
-                    {a.cfo_circle_member ? <span title="CFO Circle" style={{ fontSize: 10, fontWeight: 700, color: "#fff", background: "#ea580c", borderRadius: 999, padding: "1px 7px", lineHeight: 1.5 }}>CFO Circle</span> : null}
-                    {a.linkedin_url ? <a href={a.linkedin_url} target="_blank" rel="noopener noreferrer" title="Open in LinkedIn" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: 3, background: "#0a66c2", color: "#fff", fontSize: 10, fontWeight: 700, textDecoration: "none", lineHeight: 1, flexShrink: 0 }}>in</a> : null}
-                    {a.linkedin_connected ? <span title="First-degree connection — you can DM them" style={{ fontSize: 10, fontWeight: 700, color: "#0a66c2", border: "1px solid #0a66c2", borderRadius: 999, padding: "1px 6px", lineHeight: 1.5 }}>1st</span> : null}
+                    <PersonBadges a={a} />
                     {a.company ? <span style={{ fontSize: 13, color: T.textSecondary, fontWeight: 500 }}>{a.company}</span> : null}
                     {["Unavailable", "Declined", "No-show", "Attended"].indexOf(a.status) !== -1 ? statusChip(a.status) : null}
                   </div>
@@ -630,6 +628,25 @@ export default function EventRoster({ slug }) {
         </div>
       )}
     </div>
+  )
+}
+
+// Role + LinkedIn badges shown on every roster row (invited, pending, queued).
+// When there's no LinkedIn URL on file, show a red "no LinkedIn" flag rather
+// than nothing — a pending request with no profile to vet is exactly what Dalen
+// needs to see at a glance (the invitation form requires LinkedIn; the public
+// event-registration form does not, so self-registrants can arrive without one).
+function PersonBadges({ a }) {
+  return (
+    <>
+      {(a.roles || []).includes("cfo") ? <span title="CFO" style={{ fontSize: 10, fontWeight: 700, color: "#c2410c", background: "#ffedd5", border: "1px solid #f4b183", borderRadius: 999, padding: "1px 7px", lineHeight: 1.5 }}>CFO</span> : null}
+      {(a.roles || []).includes("sponsor_contact") ? <span title="Sponsor" style={{ fontSize: 10, fontWeight: 700, color: "#0f766e", background: "#ccfbf1", border: "1px solid #5eead4", borderRadius: 999, padding: "1px 7px", lineHeight: 1.5 }}>Sponsor</span> : null}
+      {a.cfo_circle_member ? <span title="CFO Circle" style={{ fontSize: 10, fontWeight: 700, color: "#fff", background: "#ea580c", borderRadius: 999, padding: "1px 7px", lineHeight: 1.5 }}>CFO Circle</span> : null}
+      {a.linkedin_url
+        ? <a href={a.linkedin_url} target="_blank" rel="noopener noreferrer" title="Open in LinkedIn" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: 3, background: "#0a66c2", color: "#fff", fontSize: 10, fontWeight: 700, textDecoration: "none", lineHeight: 1, flexShrink: 0 }}>in</a>
+        : <span title="No LinkedIn URL on file — nothing to vet" style={{ fontSize: 10, fontWeight: 600, color: "#b91c1c", background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: 999, padding: "1px 7px", lineHeight: 1.5 }}>no LinkedIn</span>}
+      {a.linkedin_connected ? <span title="First-degree connection — you can DM them" style={{ fontSize: 10, fontWeight: 700, color: "#0a66c2", border: "1px solid #0a66c2", borderRadius: 999, padding: "1px 6px", lineHeight: 1.5 }}>1st</span> : null}
+    </>
   )
 }
 
