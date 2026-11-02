@@ -86,7 +86,7 @@ export default function SponsorView() {
       <div style={Object.assign({}, wrap, { display: "flex", alignItems: "center", justifyContent: "center", padding: 20 })}>
         <div style={{ width: "100%", maxWidth: 380, background: "#fff", border: "1px solid " + LINE, borderRadius: 14, overflow: "hidden" }}>
           <div style={{ background: NAVY, padding: "22px 26px" }}>
-            <img src="https://la-cfo.com/cfo-circle-logo-white.png" alt="CFO Circle · Los Angeles" height="30" style={{ height: 30, display: "block", border: 0 }} />
+            <img src="https://la-cfo.com/cfo-circle-logo-white.png" alt="CFO Circle · Los Angeles" style={{ height: "clamp(40px,6vw,52px)", width: "auto", display: "block", border: 0 }} />
           </div>
           <form onSubmit={function (e) { e.preventDefault(); fetchRoster(key) }} style={{ padding: "26px 26px 28px" }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: NAVY, marginBottom: 4 }}>Guest list — sponsor access</div>
@@ -113,7 +113,7 @@ export default function SponsorView() {
     <div style={wrap}>
       <div style={{ background: NAVY, padding: "24px max(18px, env(safe-area-inset-left))" }}>
         <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <img src="https://la-cfo.com/cfo-circle-logo-white.png" alt="CFO Circle · Los Angeles" height="30" style={{ height: 30, display: "block", border: 0 }} />
+          <img src="https://la-cfo.com/cfo-circle-logo-white.png" alt="CFO Circle · Los Angeles" style={{ height: "clamp(40px,6vw,52px)", width: "auto", display: "block", border: 0 }} />
           {ev.host_name ? <div style={{ color: "#c5cce4", fontSize: 12, letterSpacing: ".06em", textTransform: "uppercase" }}>Hospitality by {ev.host_name}</div> : null}
         </div>
       </div>
@@ -123,11 +123,16 @@ export default function SponsorView() {
         <div style={{ fontSize: 13.5, color: MUTE, marginTop: 3 }}>
           {longDate(ev.event_date)}{ev.venue_name ? " · " + ev.venue_name : (ev.location ? " · " + ev.location : "")}
         </div>
+        <div style={{ marginTop: 12 }}>
+          <a href={"https://la-cfo.com/events/" + slug} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", fontSize: 13, fontWeight: 700, color: NAVY, background: BRASS, textDecoration: "none", padding: "9px 16px", borderRadius: 8 }}>See the guest registration page →</a>
+        </div>
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "20px 0 8px" }}>
           <Tile label="Confirmed" value={st.confirmed || 0} sub={st.target_capacity ? ("of " + st.target_capacity + " seats") : "coming"} />
           <Tile label="Registered" value={st.registered || 0} sub="pending review" />
           <Tile label="Invited" value={st.invited || 0} sub="total outreach" />
+          <Tile label="Declined" value={st.declined || 0} sub="said no" />
+          <Tile label="Unavailable" value={st.unavailable || 0} sub="date conflict" />
           <Tile label="Days to go" value={d != null && d >= 0 ? d : "—"} sub={d === 0 ? "today" : ""} />
         </div>
 

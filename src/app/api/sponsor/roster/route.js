@@ -61,6 +61,8 @@ export async function POST(req) {
     confirmed: all.filter(r => COMMITTED.has(r.status)).length,
     registered: all.filter(r => r.status === "Registered" || r.status === "Requested").length,
     invited: all.filter(r => r.status !== "Queued").length,
+    declined: all.filter(r => r.status === "Declined").length,
+    unavailable: all.filter(r => r.status === "Unavailable").length,
     target_capacity: event.target_capacity || null,
   }
 
