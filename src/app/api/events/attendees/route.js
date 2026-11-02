@@ -303,6 +303,46 @@ async function createInviteDraft({ to, first_name, invite_url, event }) {
 // looked identical to success: a Confirmed row with a blank confirmation column.
 // This persists every outcome so the roster can tell the truth, and is safe to
 // call again (regenerate) without any status change.
+// Personal decline: a warm, editable note drafted into Dalen's own Outlook
+// (the Graph connection is dalen.lawrence@cfo-circle.com — how people who know
+// him recognize the sender), NOT the canned Resend note. He personalizes it and
+// sends it himself. Plain styling on purpose — a stiff branded template fights
+// the warmth this button is for.
+async function createDeclineDraft({ to, first_name }) {
+  try {
+    const hi = first_name ? ("Hi " + first_name + ",") : "Hi,"
+    const html =
+      '<div style="font-family:Georgia,serif;font-size:15px;line-height:1.6;color:#20242f">' +
+      '<p>' + hi + '</p>' +
+      '<p>Good to see you register for the CFO happy hour — and good to reconnect.</p>' +
+      '<p>I want to be straight with you: I keep this particular room to sitting CFOs, so I’m not able to add you to this one. Nothing about that is personal.</p>' +
+      '<p>[Add a personal line here — how you know them, and how you’d like to stay in touch.]</p>' +
+      '<p>All my best,<br>Dalen</p>' +
+      '</div>'
+    const payload = JSON.stringify({
+      subject: "About the CFO Circle happy hour",
+      body: { contentType: "HTML", content: html },
+      toRecipients: [{ emailAddress: { address: to } }],
+    })
+    function post(tok) {
+      return fetch("https://graph.microsoft.com/v1.0/me/messages", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+        body: payload,
+      })
+    }
+    let token = await getAccessToken()
+    let res = await post(token)
+    if (res.status === 401) { token = await getAccessToken({ force: true }); res = await post(token) }
+    if (!res.ok) {
+      const t = await res.text().catch(() => "")
+      return { ok: false, webLink: null, error: "Graph " + res.status + (t ? (": " + t.slice(0, 160)) : "") }
+    }
+    const data = await res.json().catch(() => ({}))
+    return { ok: true, webLink: data.webLink || null }
+  } catch (e) { return { ok: false, webLink: null, error: (e && e.message) || "exception" } }
+}
+
 async function draftConfirmationFor(sb, id) {
   const { data: a } = await sb
     .from("event_attendees")
@@ -441,6 +481,34 @@ export async function PATCH(req) {
       emailed = r.ok
     }
     return Response.json({ ok: true, declined: true, emailed, no_email: !email })
+  }
+
+  // Decline AND draft a personal note into Dalen's Outlook (dalen.lawrence@
+  // cfo-circle.com) for him to edit and send himself — the warm, I-know-this-
+  // person path. Same record-keeping as decline_cfo_only (rejected + tier D),
+  // but no auto-send: the note waits in his drafts.
+  if (body.action === "decline_draft") {
+    if (!id) return Response.json({ error: "bad_request" }, { status: 400 })
+    const sbD = serverClient()
+    const { data: row } = await sbD.from("event_attendees")
+      .select("id, person_id, people:person_id ( first_name, full_name, email, email2 )")
+      .eq("id", id).maybeSingle()
+    if (!row) return Response.json({ error: "not_found" }, { status: 404 })
+    const nowIso = new Date().toISOString()
+    await sbD.from("event_attendees").update({ status: "Declined", responded_at: nowIso }).eq("id", id)
+    if (row.person_id) {
+      await sbD.from("people").update({
+        email_consent: "rejected", email_unsubscribed_at: nowIso,
+        email_unsub_reason: "not a CFO — declined (personal note) at event review", event_tier: "D",
+      }).eq("id", row.person_id)
+      await sbD.from("person_status_tags").update({ removed_at: nowIso })
+        .eq("person_id", row.person_id).eq("tag", "unmatched").is("removed_at", null)
+    }
+    const email = ((row.people && row.people.email) || "").trim() || ((row.people && row.people.email2) || "").trim()
+    const first = (row.people && row.people.first_name) || ((row.people && row.people.full_name) || "there").split(" ")[0]
+    if (!email) return Response.json({ ok: true, declined: true, drafted: false, no_email: true })
+    const d = await createDeclineDraft({ to: email, first_name: first })
+    return Response.json({ ok: true, declined: true, drafted: !!d.ok, draft_url: d.webLink || null, draft_error: d.ok ? null : (d.error || null) })
   }
 
   const status = (body.status || "").toString().trim()

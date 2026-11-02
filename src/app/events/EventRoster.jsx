@@ -235,6 +235,29 @@ export default function EventRoster({ slug }) {
       .finally(function () { setBusy(null) })
   }
 
+  // Decline + draft a personal note into Dalen's Outlook (dalen.lawrence@
+  // cfo-circle.com) to edit and send himself — the "I know this person" path.
+  function declineDraft(id, name) {
+    setBusy(id); setDraftUrl(null)
+    fetch("/api/events/attendees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id, action: "decline_draft" }) })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d && d.ok) {
+          if (d.drafted) {
+            setMsg((name || "They") + " — declined, and a personal note is drafted in your Outlook. Edit it, then send.")
+            if (d.draft_url) setDraftUrl(d.draft_url)
+          } else if (d.no_email) {
+            setMsg((name || "They") + " — declined, but no email on file, so nothing was drafted.")
+          } else {
+            setMsg((name || "They") + " — declined, but the Outlook draft failed" + (d.draft_error ? " (" + d.draft_error + ")" : "") + ".")
+          }
+        } else { setMsg("Couldn't decline " + (name || "") + ".") }
+        load()
+      })
+      .catch(function () { setMsg("Something went wrong.") })
+      .finally(function () { setBusy(null) })
+  }
+
   function regenerateConfirmation(id, name) {
     setBusy(id); setDraftUrl(null)
     fetch("/api/events/attendees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id, action: "regenerate_confirmation" }) })
@@ -500,8 +523,8 @@ export default function EventRoster({ slug }) {
                   <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap", justifyContent: "flex-end" }}>
                     <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Invited", a.name) }} style={btnPrimary}>Approve</button>
                     <button disabled={busy === a.id} onClick={function () { markUnavailable(a) }} style={btnGhost}>Can't make it</button>
-                    <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Declined", a.name) }} style={btnGhost}>Decline</button>
-                    <button disabled={busy === a.id} title="Decline and email them the gracious CFOs-only note (Option A). Also marks them off future invites." onClick={function () { if (window.confirm("Send " + (a.name || "them") + " the gracious “CFOs only” note and decline them?")) declineCfoOnly(a.id, a.name) }} style={btnGhost}>Decline — CFOs-only note</button>
+                    <button disabled={busy === a.id} title="Decline and auto-send the gracious CFOs-only note (Option A) from events@ via Resend — impersonal, hands-off." onClick={function () { if (window.confirm("Send " + (a.name || "them") + " the gracious “CFOs only” note and decline them?")) declineCfoOnly(a.id, a.name) }} style={btnGhost}>Decline · send note</button>
+                    <button disabled={busy === a.id} title="Decline and draft a personal note in your Outlook (from dalen.lawrence@cfo-circle.com) to edit and send yourself." onClick={function () { if (window.confirm("Decline " + (a.name || "them") + " and draft a personal note in your Outlook to edit and send?")) declineDraft(a.id, a.name) }} style={btnGhost}>Decline · draft email</button>
                     {a.person_id ? (
                       <button disabled={busy === a.id}
                         onClick={function () { setMergeFor(mergeFor === a.id ? null : a.id); setMergeQ(""); setMergeResults([]) }}
