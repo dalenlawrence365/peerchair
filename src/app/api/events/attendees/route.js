@@ -315,8 +315,8 @@ async function createDeclineDraft({ to, first_name }) {
       '<div style="font-family:Georgia,serif;font-size:15px;line-height:1.6;color:#20242f">' +
       '<p>' + hi + '</p>' +
       '<p>Good to see you register for the CFO happy hour — and good to reconnect.</p>' +
-      '<p>I want to be straight with you: I keep this particular room to sitting CFOs, so I’m not able to add you to this one. Nothing about that is personal.</p>' +
-      '<p>[Add a personal line here — how you know them, and how you’d like to stay in touch.]</p>' +
+      '<p>This event is for sitting CFOs only, so I’m not able to add you to this one.</p>' +
+      '<p>[Add your personal line here.]</p>' +
       '<p>All my best,<br>Dalen</p>' +
       '</div>'
     const payload = JSON.stringify({
