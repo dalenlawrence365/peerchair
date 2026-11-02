@@ -155,7 +155,7 @@ export default function SponsorView() {
           <Tile label="Confirmed" value={st.confirmed || 0} sub={st.target_capacity ? ("of " + st.target_capacity + " seats") : "coming"} />
           <Tile label="Registered" value={st.registered || 0} sub="pending review" />
           <Tile label="Invited" value={st.invited || 0} sub="total outreach" />
-          <Tile label="Declined" value={st.declined || 0} sub="said no" />
+          <Tile label="Not a fit" value={st.declined || 0} sub="screened out" />
           <Tile label="Unavailable" value={st.unavailable || 0} sub="date conflict" />
           <Tile label="Days to go" value={d != null && d >= 0 ? d : "—"} sub={d === 0 ? "today" : ""} />
         </div>
