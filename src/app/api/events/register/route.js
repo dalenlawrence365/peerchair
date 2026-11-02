@@ -36,6 +36,12 @@ export async function POST(req) {
   if (!slug || !first_name || !email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return json({ error: "missing_fields" }, 400)
   }
+  // LinkedIn URL is required on the public form — a cheap, strong "real person in
+  // the business world" filter that keeps the open event page from being stuffed
+  // with fabricated signups.
+  if (!/linkedin\.com\/(in|pub)\//i.test(linkedin)) {
+    return json({ error: "linkedin_required", message: "Please include your LinkedIn profile URL." }, 400)
+  }
 
   const sb = serverClient()
   const { data: event } = await sb

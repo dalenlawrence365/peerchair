@@ -218,6 +218,23 @@ export default function EventRoster({ slug }) {
       .finally(function () { setBusy(null) })
   }
 
+  // Decline a pending request AND send the gracious "CFOs only" note via Resend.
+  // Separate from the plain silent Decline — this is the "not a CFO, let them
+  // down gracefully" button, Dalen's judgment call per person.
+  function declineCfoOnly(id, name) {
+    setBusy(id)
+    fetch("/api/events/attendees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id, action: "decline_cfo_only" }) })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d && d.ok) {
+          setMsg((name || "They") + (d.emailed ? " — declined, and the CFOs-only note was sent." : d.no_email ? " — declined, but no email on file, so no note was sent." : " — declined, but the email send failed (check Resend)."))
+        } else { setMsg("Couldn't decline " + (name || "") + ".") }
+        load()
+      })
+      .catch(function () { setMsg("Something went wrong.") })
+      .finally(function () { setBusy(null) })
+  }
+
   function regenerateConfirmation(id, name) {
     setBusy(id); setDraftUrl(null)
     fetch("/api/events/attendees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id, action: "regenerate_confirmation" }) })
@@ -484,6 +501,7 @@ export default function EventRoster({ slug }) {
                     <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Invited", a.name) }} style={btnPrimary}>Approve</button>
                     <button disabled={busy === a.id} onClick={function () { markUnavailable(a) }} style={btnGhost}>Can't make it</button>
                     <button disabled={busy === a.id} onClick={function () { setStatus(a.id, "Declined", a.name) }} style={btnGhost}>Decline</button>
+                    <button disabled={busy === a.id} title="Decline and email them the gracious CFOs-only note (Option A). Also marks them off future invites." onClick={function () { if (window.confirm("Send " + (a.name || "them") + " the gracious “CFOs only” note and decline them?")) declineCfoOnly(a.id, a.name) }} style={btnGhost}>Decline — CFOs-only note</button>
                     {a.person_id ? (
                       <button disabled={busy === a.id}
                         onClick={function () { setMergeFor(mergeFor === a.id ? null : a.id); setMergeQ(""); setMergeResults([]) }}

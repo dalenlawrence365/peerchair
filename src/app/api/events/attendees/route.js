@@ -3,6 +3,7 @@ import { serverClient } from "@/lib/supabaseServer"
 import { syncActionTagsFromEventInvite, promoteQueuedAttendees } from "@/lib/workshopInviteSync"
 import { getAccessToken } from "@/lib/microsoft-auth"
 import { upsertOutlookContact } from "@/lib/outlookContacts"
+import { FROM, REPLY_TO, sendResend, declineHtml } from "@/lib/cfoCircleEmail"
 
 /* Admin-side attendee management. Same-origin (PeerChair UI) only — no CORS.
 
@@ -407,6 +408,40 @@ export async function PATCH(req) {
     return Response.json({ ok: true, confirmation_sent_at: val })
   }
 
+
+  // Decline a pending request AND send the gracious "CFOs only" note (Option A)
+  // via Resend — Dalen's per-person judgment call from the roster. Also marks the
+  // person email-rejected and event_tier D so they drop off future invite pulls.
+  if (body.action === "decline_cfo_only") {
+    if (!id) return Response.json({ error: "bad_request" }, { status: 400 })
+    const sbD = serverClient()
+    const { data: row } = await sbD.from("event_attendees")
+      .select("id, person_id, people:person_id ( first_name, full_name, email, email2 )")
+      .eq("id", id).maybeSingle()
+    if (!row) return Response.json({ error: "not_found" }, { status: 404 })
+    const nowIso = new Date().toISOString()
+    await sbD.from("event_attendees").update({ status: "Declined", responded_at: nowIso }).eq("id", id)
+    if (row.person_id) {
+      await sbD.from("people").update({
+        email_consent: "rejected", email_unsubscribed_at: nowIso,
+        email_unsub_reason: "not a CFO — declined at event review", event_tier: "D",
+      }).eq("id", row.person_id)
+      await sbD.from("person_status_tags").update({ removed_at: nowIso })
+        .eq("person_id", row.person_id).eq("tag", "unmatched").is("removed_at", null)
+    }
+    const email = ((row.people && row.people.email) || "").trim() || ((row.people && row.people.email2) || "").trim()
+    const first = (row.people && row.people.first_name) || ((row.people && row.people.full_name) || "there").split(" ")[0]
+    let emailed = null
+    if (email) {
+      const r = await sendResend({
+        from: FROM, to: [email], reply_to: REPLY_TO,
+        subject: "About the CFO Circle events",
+        html: declineHtml({ first_name: first }),
+      })
+      emailed = r.ok
+    }
+    return Response.json({ ok: true, declined: true, emailed, no_email: !email })
+  }
 
   const status = (body.status || "").toString().trim()
   const ALLOWED = new Set(["Registered", "Invited", "Confirmed", "Declined", "Requested", "No-show", "Unavailable", "Attended"])
