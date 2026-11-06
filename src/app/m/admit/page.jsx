@@ -37,7 +37,10 @@ export default function AdmitPage() {
     setBusy(function (b) { return { ...b, [attendee_id]: true } })
     try {
       const r = await fetch("/api/events/attendees", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        // PATCH, not POST: the approve/decline/status mutations live in the
+        // route's PATCH handler. POST is the bulk-invite endpoint (expects
+        // {slug, person_ids[]}) and returned "no_people" for these payloads.
+        method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: attendee_id, ...payload }),
       })
       const j = await r.json().catch(function () { return {} })
