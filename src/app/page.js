@@ -11,12 +11,17 @@ export default function Home() {
   const [error, setError] = useState(false)
   const [checking, setChecking] = useState(true)
 
-  // If already authed, send straight to the new dashboard
+  // Phone-width screens land on the mobile surface; desktop on the full dashboard.
+  function dest() {
+    return (typeof window !== 'undefined' && window.innerWidth < 768) ? '/m' : '/dashboard'
+  }
+
+  // If already authed, send straight to the right home for this device
   useEffect(function() {
     if (typeof window === 'undefined') return
     const v = localStorage.getItem(KEY)
     if (v === 'ok' || v === '1') {
-      router.replace('/dashboard')
+      router.replace(dest())
       return
     }
     setChecking(false)
@@ -26,7 +31,7 @@ export default function Home() {
     e.preventDefault()
     if (input === PASSWORD) {
       localStorage.setItem(KEY, 'ok')
-      router.replace('/dashboard')
+      router.replace(dest())
     } else {
       setError(true); setInput('')
       setTimeout(function(){ setError(false) }, 2000)
