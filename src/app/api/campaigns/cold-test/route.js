@@ -18,7 +18,7 @@ export async function GET(req) {
   const sb = serverClient()
   const c = await cfg(sb)
   const slug = c.slug || "november-happy-hour"
-  const origin = new URL(req.url).origin
+  const origin = process.env.INTERNAL_ORIGIN || "https://www.peerchair.com"
   let status = null
   try {
     const r = await fetch(origin + "/api/events/cold-test-status?slug=" + encodeURIComponent(slug), {

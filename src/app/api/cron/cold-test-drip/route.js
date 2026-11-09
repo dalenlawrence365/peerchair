@@ -38,7 +38,8 @@ export async function GET(req) {
   const cfg = await load(sb)
   if (!cfg) return Response.json({ ok: true, idle: "no_config" })
 
-  const origin = new URL(req.url).origin
+  // Internal calls must hit the production domain: the per-deployment *.vercel.app URL is behind Vercel deployment protection (401).
+  const origin = process.env.INTERNAL_ORIGIN || "https://www.peerchair.com"
   const H = { "Authorization": "Bearer " + process.env.CRON_SECRET, "Content-Type": "application/json" }
   const slug = cfg.slug || "november-happy-hour"
 
