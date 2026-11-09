@@ -1570,8 +1570,8 @@ function EmailField({ p, onChanged }) {
           <span onClick={function () { if (!busy && confirm("Remove " + (p.first_name || "this person") + " from the email list?")) save(false) }} style={{ cursor: "pointer", textDecoration: "underline" }}>Unsubscribe</span>
         </div>
       )}
-      {consent !== "subscribed" && consent !== "unsubscribed" && p.email && !open && (
-        <button onClick={function () { setOpen(true) }} style={{ marginTop: 5, padding: "3px 10px", fontSize: 11.5, fontWeight: 600, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>Mark as subscribed</button>
+      {consent !== "subscribed" && consent !== "unsubscribed" && !open && (
+        <button onClick={function () { setOpen(true) }} style={{ marginTop: 5, padding: "3px 10px", fontSize: 11.5, fontWeight: 600, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>{p.email ? "Mark as subscribed" : "Mark as subscribed (no email yet)"}</button>
       )}
       {open && (
         <div style={{ marginTop: 6 }}>
