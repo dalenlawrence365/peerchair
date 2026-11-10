@@ -211,8 +211,14 @@ export async function GET(request, { params }) {
   // handful of small filtered queries, no AI call.
   const warmth = await getWarmthForPerson(sb, id)
 
+  // Every address on file for this person (outbound goes to people.email; inbound matches any of these).
+  const { data: emailRows } = await sb.from("person_emails")
+    .select("email, label, is_primary, source, added_at").eq("person_id", id)
+    .order("is_primary", { ascending: false }).order("added_at", { ascending: true })
+
   return Response.json({
     person,
+    emails: emailRows || [],
     scheduled_meetings,
     unlinked_recaps,
     company,

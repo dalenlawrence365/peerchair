@@ -623,7 +623,7 @@ export default function PersonProfile() {
 
         {/* Key fields */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginTop: 20, paddingTop: 18, borderTop: "1px solid " + T.borderSoft }}>
-          <EmailField p={p} onChanged={reload} />
+          <EmailField p={p} emails={data.emails || []} onChanged={reload} />
           <Field label="Phone" value={p.phone || p.mobile} />
           <Field label="Location" value={p.location} />
           <Field label="Source" value={p.source} />
@@ -1529,7 +1529,7 @@ function TagBox({ label, dot, count, hint, children, footer }) {
 
 // Email + consent: a green "Subscribed" pill sits right next to the address when they've given
 // permission to be emailed about events; otherwise a button records it (with what they said).
-function EmailField({ p, onChanged }) {
+function EmailField({ p, emails, onChanged }) {
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
@@ -1556,6 +1556,7 @@ function EmailField({ p, onChanged }) {
       <div style={{ fontSize: 11, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Email</div>
       <div style={{ fontSize: 13, color: p.email ? T.textPrimary : T.textTertiary, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         {p.email || "—"}
+        {(emails || []).length > 1 && <span title="Outbound email goes to this address" style={{ fontSize: 10.5, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: "#e0f2fe", color: "#075985" }}>primary</span>}
         {consent === "subscribed" && (
           <span title={"Gave permission to be emailed" + (when ? " · " + when : "") + (p.email_consent_source ? " · " + p.email_consent_source : "")}
             style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 999, background: "#dcfce7", border: "1px solid #86efac", color: "#166534", whiteSpace: "nowrap" }}>✓ Subscribed</span>
@@ -1564,6 +1565,7 @@ function EmailField({ p, onChanged }) {
           <span title="Opted out — do not email" style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 999, background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", whiteSpace: "nowrap" }}>Unsubscribed</span>
         )}
       </div>
+      <OtherEmails p={p} emails={emails} onChanged={onChanged} />
       {consent === "subscribed" && (
         <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 3 }}>
           {when}{p.email_consent_source ? " · " + p.email_consent_source : ""} ·{" "}
@@ -1585,6 +1587,63 @@ function EmailField({ p, onChanged }) {
         </div>
       )}
       {err && <div style={{ fontSize: 11.5, color: "#991b1b", marginTop: 5 }}>{err}</div>}
+    </div>
+  )
+}
+
+
+// Every other address on file for this person. Inbound mail from any of them lands on this
+// profile; outbound goes to the primary. Shows where each came from, lets you add one, and
+// lets you promote one to primary.
+function OtherEmails({ p, emails, onChanged }) {
+  const [adding, setAdding] = useState(false)
+  const [val, setVal] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState("")
+  const others = (emails || []).filter(function (e) { return (e.email || "").toLowerCase() !== (p.email || "").toLowerCase() })
+
+  function add() {
+    setBusy(true); setErr("")
+    fetch("/api/people/" + p.id + "/emails", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: val }) })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d.ok) { setAdding(false); setVal(""); onChanged && onChanged() }
+        else if (d.error === "invalid_email") setErr("That doesn't look like an email address.")
+        else if (d.error === "belongs_to_other") setErr("Already on another profile: " + ((d.other && d.other.full_name) || "someone else") + ((d.other && d.other.company) ? " (" + d.other.company + ")" : "") + ". That is a duplicate to merge.")
+        else setErr("Couldn't save" + (d.error ? ": " + d.error : "") + ".")
+      })
+      .catch(function () { setErr("Couldn't save — network error.") })
+      .finally(function () { setBusy(false) })
+  }
+  function makePrimary(email) {
+    if (!confirm("Send future email to " + email + " instead of " + (p.email || "the current address") + "?")) return
+    fetch("/api/people/" + p.id + "/emails", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email }) })
+      .then(function (r) { return r.json() }).then(function (d) { if (d.ok) onChanged && onChanged() })
+  }
+  const SRC = { "backfill_primary": "", "people.email": "", "people.email2": "second address", "inbox_merge": "merged from inbox", "manual": "added by hand" }
+
+  return (
+    <div style={{ marginTop: 5 }}>
+      {others.map(function (e) {
+        const note = SRC[e.source] != null ? SRC[e.source] : (e.source || "")
+        return (
+          <div key={e.email} style={{ fontSize: 12.5, color: T.textSecondary, display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+            <span>{e.email}</span>
+            {(e.label || note) && <span style={{ fontSize: 11, color: T.textTertiary }}>{[e.label, note].filter(Boolean).join(" · ")}</span>}
+            <span onClick={function () { makePrimary(e.email) }} style={{ fontSize: 11, color: T.textTertiary, textDecoration: "underline", cursor: "pointer" }}>make primary</span>
+          </div>
+        )
+      })}
+      {!adding && <span onClick={function () { setAdding(true) }} style={{ fontSize: 11.5, color: T.textTertiary, textDecoration: "underline", cursor: "pointer" }}>+ add another email</span>}
+      {adding && (
+        <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+          <input value={val} onChange={function (e) { setVal(e.target.value) }} placeholder="name@company.com" autoFocus
+            style={{ flex: 1, minWidth: 0, padding: "4px 8px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none" }} />
+          <button disabled={busy || !val} onClick={add} style={{ padding: "4px 10px", fontSize: 12, fontWeight: 600, borderRadius: 6, border: "none", background: "#0ea5e9", color: "white", cursor: "pointer", fontFamily: "inherit" }}>{busy ? "…" : "Add"}</button>
+          <button disabled={busy} onClick={function () { setAdding(false); setErr(""); setVal("") }} style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textTertiary, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+        </div>
+      )}
+      {err && <div style={{ fontSize: 11.5, color: "#991b1b", marginTop: 4 }}>{err}</div>}
     </div>
   )
 }
