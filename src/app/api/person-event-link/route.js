@@ -6,7 +6,7 @@ import { upsertOutlookContact } from "@/lib/outlookContacts"
 const SITE = process.env.NEXT_PUBLIC_EVENT_SITE_URL || "https://la-cfo.com"
 
 async function tokenFor(sb, personId) {
-  const { data } = await sb.from("track_tokens").select("token").eq("person_id", personId).maybeSingle()
+  const { data } = await sb.from("track_tokens").select("token").eq("person_id", personId).order("created_at", { ascending: true }).limit(1).maybeSingle()
   if (data) return data.token
   const { data: minted } = await sb.from("track_tokens").insert({ person_id: personId }).select("token").single()
   return minted ? minted.token : null
