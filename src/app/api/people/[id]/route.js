@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 export const fetchCache = "force-no-store"
+import { touchRows } from "@/lib/touchTimeline"
 import { serverClient } from "@/lib/supabaseServer"
 import { getWarmthForPerson } from "@/lib/warmthScore"
 import { resolvePeopleByEmail } from "@/lib/resolvePeople"
@@ -216,9 +217,13 @@ export async function GET(request, { params }) {
     .select("email, label, is_primary, source, added_at").eq("person_id", id)
     .order("is_primary", { ascending: false }).order("added_at", { ascending: true })
 
+  let touches = []
+  try { touches = await touchRows(sb, id, comms) } catch (e) { touches = [] }
+
   return Response.json({
     person,
     emails: emailRows || [],
+    touches,
     scheduled_meetings,
     unlinked_recaps,
     company,

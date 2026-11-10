@@ -1063,11 +1063,11 @@ export default function PersonProfile() {
           )}
         </div>
 
-        {(data.communications.length === 0 && (data.scheduled_meetings || []).length === 0) ? (
+        {(data.communications.length === 0 && (data.touches || []).length === 0 && (data.scheduled_meetings || []).length === 0) ? (
           <div style={{ color: T.textTertiary, fontSize: 13, padding: "8px 0" }}>No activity yet.</div>
         ) : (() => {
           // Tag each row with its normalized type, then filter
-          const commItems = data.communications.map(function(c){ return Object.assign({ _kind: "comm", _type: timelineType(c), _date: c.occurred_at }, c) })
+          const commItems = data.communications.concat(data.touches || []).map(function(c){ return Object.assign({ _kind: "comm", _type: timelineType(c), _date: c.occurred_at }, c) })
           const meetingItems = (data.scheduled_meetings || []).map(function(m){ return { _kind: "meeting", _type: "meeting", _date: m.starts_at, id: "mtg_" + m.id, meeting: m } })
           const tagged = commItems.concat(meetingItems).sort(function(a, b){ return new Date(b._date || 0) - new Date(a._date || 0) })
           const counts = tagged.reduce(function(m, c){ m[c._type] = (m[c._type] || 0) + 1; return m }, {})
