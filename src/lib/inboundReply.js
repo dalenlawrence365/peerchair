@@ -92,7 +92,7 @@ export async function handleInboundReply(sb, ev) {
     try {
       const html = "<p style=\"font:14px/1.5 sans-serif;color:#555\">Reply from <b>" + who.replace(/</g, "&lt;") + "</b> &lt;" + from.addr +
         "&gt; to your CFO Circle invite" + (personId ? " (logged on their PeerChair profile)" : " (<b>sender not matched</b> to a person)") +
-        ".</p><hr><pre style=\"font:14px/1.5 sans-serif;white-space:pre-wrap\">" + rawText.replace(/</g, "&lt;") + "</pre>"
+        ".</p>" + (full._fetch_error ? "<p style=\"color:#b91c1c;font:14px/1.5 sans-serif\"><b>Message body could not be fetched</b> (Resend Receiving API returned " + full._fetch_error + "). Check that RESEND_API_KEY has Full access.</p>" : (!rawText ? "<p style=\"color:#92400e;font:14px/1.5 sans-serif\">(The message had no body text.)</p>" : "")) + "<hr><pre style=\"font:14px/1.5 sans-serif;white-space:pre-wrap\">" + rawText.replace(/</g, "&lt;") + "</pre>"
       const r = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: "Bearer " + process.env.RESEND_API_KEY, "Content-Type": "application/json" },
