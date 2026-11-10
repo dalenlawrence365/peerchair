@@ -33,7 +33,7 @@ export async function OPTIONS() { return new Response(null, { status: 204, heade
 const SITE = process.env.NEXT_PUBLIC_EVENT_SITE_URL || "https://la-cfo.com"
 const PC = "https://www.peerchair.com"
 const FROM = process.env.COLD_FROM || "Dalen Lawrence <invites@events.la-cfo.com>"
-const REPLY_TO = "events@la-cfo.com"
+const REPLY_TO = process.env.REPLY_INBOUND_ADDRESS || "events@la-cfo.com"
 const KIND = "event_invite_cold"
 const DAILY_CAP = parseInt(process.env.COLD_DAILY_CAP, 10) || 100
 const CFO_TITLE = /\bcfo\b|chief financial|chief finance/i

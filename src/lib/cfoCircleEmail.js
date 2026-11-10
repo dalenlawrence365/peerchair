@@ -7,7 +7,8 @@
 export const SITE = process.env.NEXT_PUBLIC_EVENT_SITE_URL || "https://la-cfo.com"
 export const PC = "https://www.peerchair.com"
 export const FROM = "Dalen Lawrence <events@la-cfo.com>"
-export const REPLY_TO = "events@la-cfo.com"
+// Set REPLY_INBOUND_ADDRESS (a Resend Receiving address) to route replies through PeerChair, which logs them and forwards a copy to events@la-cfo.com.
+export const REPLY_TO = process.env.REPLY_INBOUND_ADDRESS || "events@la-cfo.com"
 export const FOOTER_ADDRESS = "2549 Young Avenue #B, Thousand Oaks, CA 91360"
 
 export function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") }

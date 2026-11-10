@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 import { serverClient } from "@/lib/supabaseServer"
 import { verifySvix } from "@/lib/svixVerify"
+import { handleInboundReply } from "@/lib/inboundReply"
 
 /* Resend delivery webhook. Resend POSTs delivered / bounced / complained / delayed
    events here; we write them back onto email_sends so a send is no longer "sent and
@@ -43,6 +44,11 @@ export async function POST(req) {
 
   let ev = {}
   try { ev = JSON.parse(raw) } catch { return ok({ ok: true, ignored: "bad_json" }) }
+
+  if (ev.type === "email.received") {
+    const out = await handleInboundReply(serverClient(), ev)
+    return ok({ ok: true, ...out })
+  }
 
   const status = MAP[ev.type]
   const d = ev.data || {}
