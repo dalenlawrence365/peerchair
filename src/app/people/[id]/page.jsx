@@ -1629,7 +1629,7 @@ function OtherEmails({ p, emails, onChanged }) {
         return (
           <div key={e.email} style={{ fontSize: 12.5, color: T.textSecondary, display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
             <span>{e.email}</span>
-            {(e.label || note) && <span style={{ fontSize: 11, color: T.textTertiary }}>{[e.label, note].filter(Boolean).join(" · ")}</span>}
+            {(e.label !== "primary" && e.label || note) && <span style={{ fontSize: 11, color: T.textTertiary }}>{[e.label !== "primary" ? e.label : null, note].filter(Boolean).join(" · ")}</span>}
             <span onClick={function () { makePrimary(e.email) }} style={{ fontSize: 11, color: T.textTertiary, textDecoration: "underline", cursor: "pointer" }}>make primary</span>
           </div>
         )
