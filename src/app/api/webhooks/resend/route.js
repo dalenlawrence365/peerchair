@@ -47,11 +47,27 @@ export async function POST(req) {
   const status = MAP[ev.type]
   const d = ev.data || {}
   const emailId = d.email_id
-  if (!status || !emailId) return ok({ ok: true, ignored: ev.type || "no_type" })
+  const ENGAGE = { "email.opened": "opened", "email.clicked": "clicked" }
+  if (!emailId || (!status && !ENGAGE[ev.type])) return ok({ ok: true, ignored: ev.type || "no_type" })
 
   const sb = serverClient()
   const { data: row } = await sb.from("email_sends").select("id, person_id, status").eq("resend_id", emailId).maybeSingle()
   if (!row) return ok({ ok: true, ignored: "unknown_email_id" }) // e.g. a system email, not a tracked send
+
+  // Engagement events (open / click) are appended to email_events, never touching delivery status.
+  // Deduped on the Svix message id so a retried webhook can't double-count.
+  if (ENGAGE[ev.type]) {
+    const click = d.click || {}
+    await sb.from("email_events").upsert({
+      provider_event_id: req.headers.get("svix-id"),
+      email_send_id: row.id,
+      person_id: row.person_id,
+      event_type: ENGAGE[ev.type],
+      occurred_at: ev.created_at || d.created_at || new Date().toISOString(),
+      meta: ENGAGE[ev.type] === "clicked" ? { link: click.link || null } : null,
+    }, { onConflict: "provider_event_id", ignoreDuplicates: true })
+    return ok({ ok: true, recorded: ENGAGE[ev.type] })
+  }
 
   const cur = RANK[row.status] == null ? 0 : RANK[row.status]
   if (RANK[status] >= cur) {

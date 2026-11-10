@@ -37,7 +37,52 @@ export async function GET(req) {
     .eq("origin_vendor", "apollo").or("email_consent.eq.unsubscribed,email_suppressed.eq.true")
     .order("email_unsubscribed_at", { ascending: false, nullsFirst: false }).limit(15)
 
-  return Response.json({ slug, config: c, status, audience: { cold_test_total: total || 0, unsubscribed: unsub || 0, suppressed: supp || 0 }, opt_outs: recent || [] })
+  // ---- engagement: email opens/clicks (Resend) + RSVP-page behaviour (site tracking, attributed by token) ----
+  const { data: sends } = await sb.from("email_sends").select("id, person_id").eq("kind", "event_invite_cold")
+  const sentIds = Array.from(new Set((sends || []).map(x => x.person_id).filter(Boolean)))
+  const eng = { opened: 0, open_events: 0, clicked: 0, viewed: 0, engaged: 0, register_clicks: 0, registered: 0, hot: [] }
+  if (sentIds.length) {
+    const [{ data: em }, { data: pe }, { data: ppl }] = await Promise.all([
+      sb.from("email_events").select("person_id, event_type, occurred_at").in("person_id", sentIds),
+      sb.from("page_events").select("person_id, event, created_at").in("person_id", sentIds).eq("page", "event:" + slug).eq("is_bot", false),
+      sb.from("people").select("id, full_name, title, company").in("id", sentIds),
+    ])
+    const by = {}
+    const touch = (id) => (by[id] = by[id] || { opens: 0, clicks: 0, viewed: false, engaged: false, reg_click: false, registered: false, last: null })
+    const stamp = (o, t) => { if (t && (!o.last || t > o.last)) o.last = t }
+    for (const e of em || []) {
+      const o = touch(e.person_id)
+      if (e.event_type === "opened") { o.opens++; eng.open_events++ }
+      if (e.event_type === "clicked") o.clicks++
+      stamp(o, e.occurred_at)
+    }
+    for (const e of pe || []) {
+      const o = touch(e.person_id)
+      if (e.event === "view") o.viewed = true
+      if (e.event === "engaged") o.engaged = true
+      if (e.event === "hero_register_click" || e.event === "sticky_register_click") o.reg_click = true
+      if (e.event === "event_registered" || e.event === "registration_submitted") o.registered = true
+      stamp(o, e.created_at)
+    }
+    const names = {}
+    for (const p of ppl || []) names[p.id] = p
+    for (const id of Object.keys(by)) {
+      const o = by[id]
+      if (o.opens) eng.opened++
+      if (o.clicks) eng.clicked++
+      if (o.viewed) eng.viewed++
+      if (o.engaged) eng.engaged++
+      if (o.reg_click) eng.register_clicks++
+      if (o.registered) eng.registered++
+      if (o.viewed || o.reg_click || o.registered || o.clicks) {
+        const p = names[id] || {}
+        eng.hot.push({ id, name: p.full_name, title: p.title, company: p.company, opens: o.opens, clicked: o.clicks > 0, viewed: o.viewed, reg_click: o.reg_click, registered: o.registered, last: o.last })
+      }
+    }
+    eng.hot.sort((a, b) => (b.registered - a.registered) || (b.reg_click - a.reg_click) || String(b.last).localeCompare(String(a.last)))
+  }
+
+  return Response.json({ slug, config: c, status, engagement: eng, audience: { cold_test_total: total || 0, unsubscribed: unsub || 0, suppressed: supp || 0 }, opt_outs: recent || [] })
 }
 
 export async function POST(req) {

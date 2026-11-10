@@ -83,6 +83,35 @@ export default function CampaignsPage() {
         <Tile label="RSVP requests" value={t.rsvps} sub={pct(t.rsvps, sent)} color="#1565c0" />
       </div>
 
+      <Card title="Engagement" note="opens are approximate (Apple Mail and scanners preload images)">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }}>
+          <Tile label="Opened" value={d.engagement.opened} sub={pct(d.engagement.opened, sent)} color="#6a1b9a" />
+          <Tile label="Link clicked" value={d.engagement.clicked} sub={pct(d.engagement.clicked, sent)} color="#6a1b9a" />
+          <Tile label="Viewed RSVP page" value={d.engagement.viewed} sub={pct(d.engagement.viewed, sent)} color="#1565c0" />
+          <Tile label="Read the page" value={d.engagement.engaged} sub={pct(d.engagement.engaged, sent)} color="#1565c0" />
+          <Tile label="Clicked register" value={d.engagement.register_clicks} sub={pct(d.engagement.register_clicks, sent)} color="#00838f" />
+          <Tile label="Registered" value={d.engagement.registered} sub={pct(d.engagement.registered, sent)} color="#2e7d32" />
+        </div>
+      </Card>
+
+      <Card title="Who is engaging" note="follow up with these personally">
+        {d.engagement.hot.length === 0 ? <div style={{ fontSize: 13, color: T.textTertiary }}>No one has opened the RSVP page yet.</div> : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr>{["Name", "Company", "Opens", "Viewed", "Register click", "Registered", "Last activity"].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <tbody>{d.engagement.hot.map(p => (
+              <tr key={p.id}>
+                <td style={td}><a href={"/people/" + p.id} style={{ color: T.accent }}>{p.name}</a><div style={{ fontSize: 11, color: T.textTertiary }}>{p.title}</div></td>
+                <td style={td}>{p.company}</td>
+                <td style={td}>{p.opens || ""}</td>
+                <td style={td}>{p.viewed ? "✓" : ""}</td>
+                <td style={td}>{p.reg_click ? "✓" : ""}</td>
+                <td style={td}>{p.registered ? "✓" : ""}</td>
+                <td style={td}>{p.last ? new Date(p.last).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}</td>
+              </tr>))}</tbody>
+          </table>
+        )}
+      </Card>
+
       <Card title="Batches" note={t.minutes_since_last_batch != null ? t.minutes_since_last_batch + " min since last" : "none sent yet"}>
         {(s.batches || []).length === 0 ? <div style={{ fontSize: 13, color: T.textTertiary }}>No batches yet.</div> : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
