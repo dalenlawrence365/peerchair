@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 import { serverClient } from "@/lib/supabaseServer"
 import { renderColdInviteHtml, coldSubject } from "@/lib/coldInviteEmail"
+import { renderWorkshopInviteHtml, workshopSubject } from "@/lib/workshopInviteEmail"
 
 /* COLD-TEST invite sender (happy hour). Separate from /api/events/send-invite on
    purpose: that route only ever mails explicit opt-ins (email_consent='subscribed');
@@ -13,7 +14,7 @@ import { renderColdInviteHtml, coldSubject } from "@/lib/coldInviteEmail"
 
    Safety:
    - Auth-gated (Bearer CRON_SECRET). dry_run defaults TRUE.
-   - Happy-hour events only (the copy is happy-hour specific).
+   - Happy-hour and workshop events only (each has its own approved copy).
    - Sends from the dedicated subdomain (COLD_FROM), never the root domain.
    - Hard daily cap (COLD_DAILY_CAP, default 100) across all batches; batch limit max 50.
    - Every send is logged to email_sends with kind='event_invite_cold'; delivery
@@ -82,7 +83,8 @@ export async function POST(req) {
   const { data: ev } = await sb.from("events")
     .select("id, slug, name, event_date, ends_at, location, kind, host_name").eq("slug", slug).eq("published", true).maybeSingle()
   if (!ev) return json({ error: "event_not_found" }, 404)
-  if (ev.kind !== "happy_hour") return json({ error: "cold_test_supports_happy_hour_only" }, 400)
+  const isWorkshop = ev.kind === "workshop"
+  if (ev.kind !== "happy_hour" && !isWorkshop) return json({ error: "cold_send_supports_happy_hour_and_workshop_only" }, 400)
 
   const common = {
     weekday: laPart(ev.event_date, { weekday: "long" }),
@@ -91,14 +93,28 @@ export async function POST(req) {
     location: ev.location || "Culver City",
     host_name: ev.host_name || "our host",
   }
-  const subject = coldSubject(common)
+  const wsCommon = isWorkshop ? Object.assign({}, common, {
+    short_date: laPart(ev.event_date, { month: "short", day: "numeric" }),
+    city: String(ev.location || "Century City").split(",")[0].trim(),
+    host_name: ev.host_name || "our host",
+  }) : null
+  const subject = isWorkshop ? workshopSubject(wsCommon) : coldSubject(common)
+  const isApollo = function (p) { return p.origin_vendor === "apollo" || /^apollo/i.test(p.source || "") }
+  const render = function (p, urls) {
+    if (isWorkshop) return renderWorkshopInviteHtml(Object.assign({}, wsCommon, urls, { variant: isApollo(p) ? "apollo" : "known" }))
+    return renderColdInviteHtml(Object.assign({}, common, urls, {
+      company: cleanCompany(p.company), is_cfo: CFO_TITLE.test(p.title || ""),
+    }))
+  }
 
   // ---- test send: one sample to a single address ----
   if (testTo) {
-    const html = renderColdInviteHtml(Object.assign({}, common, {
-      first_name: body.first_name || "there", company: body.company || "Example Co", is_cfo: true,
+    const tUrls = {
+      first_name: body.first_name || "there",
       rsvp_url: SITE + "/events/" + slug + "/?src=cold-test", unsub_url: PC + "/api/unsubscribe?t=TEST",
-    }))
+    }
+    if (body.rsvp_url) tUrls.rsvp_url = String(body.rsvp_url)
+    const html = render({ origin_vendor: body.variant === "known" ? "" : "apollo", source: "", company: body.company || "Example Co", title: "CFO" }, tUrls)
     const r = await resendBatch([{
       from: FROM, to: [testTo], reply_to: REPLY_TO, subject: "[TEST] " + subject, html,
       headers: { "List-Unsubscribe": "<" + PC + "/api/unsubscribe?t=TEST>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
@@ -107,15 +123,33 @@ export async function POST(req) {
   }
 
   // ---- build audience ----
-  const { data: cand } = await sb.from("people")
-    .select("id, first_name, full_name, email, email2, title, company, email_consent, email_suppressed")
-    .eq("email_consent", "cold_test").eq("market", "los_angeles")
+  let cq = sb.from("people")
+    .select("id, first_name, full_name, email, email2, title, roles, company, email_consent, email_suppressed, origin_vendor, source")
+    .eq("market", "los_angeles")
+  cq = isWorkshop ? cq.or("email_consent.is.null,email_consent.in.(cold_test,subscribed)") : cq.eq("email_consent", "cold_test")
+  const { data: cand } = await cq
   const candidates = cand || []
+
+  // workshop: every email send in the last N days (any event) and every send for this event (any kind)
+  const recentDays = Number(body.recent_email_days != null ? body.recent_email_days : 3)
+  const recentCut = new Date(Date.now() - recentDays * 86400000).toISOString()
+  const bucket = { already_emailed_this_event: 0, emailed_recently: 0, on_roster: 0, same_company: 0, no_cfo_role: 0, no_valid_email: 0 }
+  const recentSet = new Set(), evSendSet = new Set()
+  let allSentToday = 0
+  if (isWorkshop) {
+    const { data: rs } = await sb.from("email_sends").select("person_id, event_id, sent_at").gte("sent_at", recentCut)
+    for (const r of rs || []) recentSet.add(r.person_id)
+    const { data: es } = await sb.from("email_sends").select("person_id").eq("event_id", ev.id)
+    for (const r of es || []) evSendSet.add(r.person_id)
+    const tk = laDayKey(new Date().toISOString())
+    const { data: ts } = await sb.from("email_sends").select("sent_at").gte("sent_at", new Date(Date.now() - 36 * 3600000).toISOString())
+    allSentToday = (ts || []).filter(r => laDayKey(r.sent_at) === tk).length
+  }
 
   const { data: sent } = await sb.from("email_sends").select("person_id, sent_at").eq("event_id", ev.id).eq("kind", KIND)
   const sentSet = new Set((sent || []).map(r => r.person_id))
   const todayKey = laDayKey(new Date().toISOString())
-  const sentToday = (sent || []).filter(r => laDayKey(r.sent_at) === todayKey).length
+  const sentToday = isWorkshop ? allSentToday : (sent || []).filter(r => laDayKey(r.sent_at) === todayKey).length
   const room = Math.max(DAILY_CAP - sentToday, 0)
 
   const { data: att } = await sb.from("event_attendees").select("person_id, status").eq("event_id", ev.id)
@@ -130,9 +164,15 @@ export async function POST(req) {
 
   const eligible = candidates.filter(function (p) {
     const email = (p.email && p.email.trim()) || (p.email2 && p.email2.trim())
-    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return false
-    if (/\.invalid$|-inactive@/i.test(email) || /\.gov$/i.test(email)) return false
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || /\.invalid$|-inactive@/i.test(email) || /\.gov$/i.test(email)) { bucket.no_valid_email++; return false }
     if (p.email_suppressed === true) return false
+    if (isWorkshop) {
+      if (!(CFO_TITLE.test(p.title || "") || (p.roles || []).map(String).some(x => /cfo/i.test(x)))) { bucket.no_cfo_role++; return false }
+      if (rosterSkip.has(p.id)) { bucket.on_roster++; return false }
+      if (evSendSet.has(p.id)) { bucket.already_emailed_this_event++; return false }
+      if (recentSet.has(p.id)) { bucket.emailed_recently++; return false }
+      return true
+    }
     if (sentSet.has(p.id) || rosterSkip.has(p.id)) return false
     if (!CFO_TITLE.test(p.title || "")) return false
     const c = cleanCompany(p.company).toLowerCase()
@@ -145,7 +185,7 @@ export async function POST(req) {
   for (const p of eligible) {
     if (batch.length >= Math.min(limit, room)) break
     const c = cleanCompany(p.company).toLowerCase()
-    if (c && seen.has(c)) continue
+    if (c && seen.has(c)) { bucket.same_company++; continue }
     if (c) seen.add(c)
     batch.push(p)
   }
@@ -155,6 +195,8 @@ export async function POST(req) {
       ok: true, mode: "dry_run", event: ev.slug, from: FROM, subject,
       total_eligible: eligible.length, would_send_now: batch.length,
       daily_cap: DAILY_CAP, sent_today: sentToday, room_today: room,
+      excluded: isWorkshop ? bucket : undefined,
+      list: isWorkshop && body.list ? eligible.map(p => ({ name: p.full_name || p.first_name, company: p.company, title: p.title, variant: isApollo(p) ? "apollo" : "known" })) : undefined,
       sample: batch.slice(0, 12).map(p => ({ name: p.full_name || p.first_name, company: p.company, email: (p.email || p.email2) })),
     })
   }
@@ -167,16 +209,16 @@ export async function POST(req) {
     const token = await getToken(sb, p.id)
     if (!token) continue
     const unsub = PC + "/api/unsubscribe?t=" + encodeURIComponent(token)
-    const html = renderColdInviteHtml(Object.assign({}, common, {
+    const src = isWorkshop ? (isApollo(p) ? "email-apollo" : "email-known") : "cold-email"
+    const html = render(p, {
       first_name: p.first_name || (p.full_name || "there").split(" ")[0],
-      company: cleanCompany(p.company), is_cfo: CFO_TITLE.test(p.title || ""),
-      rsvp_url: SITE + "/events/" + slug + "/?t=" + encodeURIComponent(token) + "&src=cold-email",
+      rsvp_url: SITE + "/events/" + slug + "/?t=" + encodeURIComponent(token) + "&src=" + src,
       unsub_url: unsub,
-    }))
+    })
     items.push({
       from: FROM, to: [email], reply_to: REPLY_TO, subject, html,
       headers: { "List-Unsubscribe": "<" + unsub + ">", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
-      tags: [{ name: "campaign", value: "cold_test_hh" }],
+      tags: [{ name: "campaign", value: isWorkshop ? "cold_test_ws" : "cold_test_hh" }],
     })
     meta.push({ person_id: p.id, email })
   }
@@ -193,7 +235,7 @@ export async function POST(req) {
   })))
   for (const m of meta) {
     const { data: row } = await sb.from("event_attendees").select("id").eq("event_id", ev.id).eq("person_id", m.person_id).maybeSingle()
-    if (!row) await sb.from("event_attendees").insert({ event_id: ev.id, person_id: m.person_id, status: "Invited", invited_at: nowIso, source: "cold-test" })
+    if (!row) await sb.from("event_attendees").insert({ event_id: ev.id, person_id: m.person_id, status: "Invited", invited_at: nowIso, source: isWorkshop ? "cold-email" : "cold-test" })
   }
 
   return json({
