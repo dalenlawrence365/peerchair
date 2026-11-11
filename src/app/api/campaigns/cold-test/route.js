@@ -17,7 +17,7 @@ async function cfg(sb) {
 export async function GET(req) {
   const sb = serverClient()
   const c = await cfg(sb)
-  const slug = c.slug || "november-happy-hour"
+  const slug = new URL(req.url).searchParams.get("slug") || c.slug || "november-happy-hour"
   const origin = process.env.INTERNAL_ORIGIN || "https://www.peerchair.com"
   let status = null
   try {
@@ -38,7 +38,15 @@ export async function GET(req) {
     .order("email_unsubscribed_at", { ascending: false, nullsFirst: false }).limit(15)
 
   // ---- engagement: email opens/clicks (Resend) + RSVP-page behaviour (site tracking, attributed by token) ----
-  const { data: sends } = await sb.from("email_sends").select("id, person_id").eq("kind", "event_invite_cold")
+  const { data: evRow } = await sb.from("events").select("id").eq("slug", slug).maybeSingle()
+  const { data: sends } = await sb.from("email_sends").select("id, person_id").eq("kind", "event_invite_cold").eq("event_id", evRow ? evRow.id : "00000000-0000-0000-0000-000000000000")
+  // every campaign that has sends, newest first (for the switcher)
+  const { data: allSends } = await sb.from("email_sends").select("event_id, sent_at").eq("kind", "event_invite_cold")
+  const agg = {}
+  for (const r of allSends || []) { const a = agg[r.event_id] = agg[r.event_id] || { n: 0, first: r.sent_at, last: r.sent_at }; a.n++; if (r.sent_at < a.first) a.first = r.sent_at; if (r.sent_at > a.last) a.last = r.sent_at }
+  const evIds = Object.keys(agg)
+  const { data: evs } = evIds.length ? await sb.from("events").select("id, slug, name").in("id", evIds) : { data: [] }
+  const campaigns = (evs || []).map(e => ({ slug: e.slug, name: e.name, sent: agg[e.id].n, first: agg[e.id].first, last: agg[e.id].last })).sort((a, b) => String(b.last).localeCompare(String(a.last)))
   const sentIds = Array.from(new Set((sends || []).map(x => x.person_id).filter(Boolean)))
   const eng = { opened: 0, open_events: 0, clicked: 0, viewed: 0, engaged: 0, register_clicks: 0, registered: 0, hot: [] }
   if (sentIds.length) {
@@ -82,7 +90,7 @@ export async function GET(req) {
     eng.hot.sort((a, b) => (b.registered - a.registered) || (b.reg_click - a.reg_click) || String(b.last).localeCompare(String(a.last)))
   }
 
-  return Response.json({ slug, config: c, status, engagement: eng, audience: { cold_test_total: total || 0, unsubscribed: unsub || 0, suppressed: supp || 0 }, opt_outs: recent || [] })
+  return Response.json({ slug, campaigns, config: c, status, engagement: eng, audience: { cold_test_total: total || 0, unsubscribed: unsub || 0, suppressed: supp || 0 }, opt_outs: recent || [] })
 }
 
 export async function POST(req) {

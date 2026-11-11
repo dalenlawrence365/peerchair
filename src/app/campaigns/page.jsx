@@ -32,11 +32,12 @@ export default function CampaignsPage() {
   const [d, setD] = useState(null)
   const [err, setErr] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [slug, setSlug] = useState("")
 
   function load() {
-    fetch("/api/campaigns/cold-test", { cache: "no-store" }).then(r => r.json()).then(setD).catch(e => setErr(String(e)))
+    fetch("/api/campaigns/cold-test" + (slug ? "?slug=" + encodeURIComponent(slug) : ""), { cache: "no-store" }).then(r => r.json()).then(setD).catch(e => setErr(String(e)))
   }
-  useEffect(function () { load(); const t = setInterval(load, 30000); return function () { clearInterval(t) } }, [])
+  useEffect(function () { load(); const t = setInterval(load, 30000); return function () { clearInterval(t) } }, [slug])
 
   async function disarm() {
     if (!confirm("Stop the drip? No further batches will send until it is re-armed.")) return
@@ -64,6 +65,19 @@ export default function CampaignsPage() {
 
   return (
     <div style={{ padding: "24px 28px", maxWidth: 1000 }}>
+      {(d.campaigns || []).length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+          {d.campaigns.map(function (c) {
+            const on = c.slug === d.slug
+            return (
+              <button key={c.slug} onClick={() => setSlug(c.slug)} style={{ textAlign: "left", cursor: "pointer", borderRadius: 8, padding: "8px 12px", border: "1px solid " + (on ? "#121a3c" : "#dfe3ee"), background: on ? "#121a3c" : "#fff", color: on ? "#fff" : "#20242f" }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{c.name || c.slug}</div>
+                <div style={{ fontSize: 11, opacity: 0.75 }}>{c.sent} sent · {new Date(c.first).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Los_Angeles" })}</div>
+              </button>
+            )
+          })}
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 600, color: T.textPrimary, margin: 0 }}>Email campaigns</h1>
