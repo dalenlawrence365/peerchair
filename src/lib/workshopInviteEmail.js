@@ -32,7 +32,7 @@ export function renderWorkshopInviteHtml(o) {
   p("We'll work together. Compare perspectives. Challenge some assumptions. And learn from the experience and judgment already sitting around the table.") +
   p("The goal is pretty simple: walk away with a different perspective on yourself, your career, and what becoming a better CFO might look like.") +
   p("No vendors. No CEOs. Just CFOs.") +
-  p(esc(o.when_short) + "<br>" + esc(o.time_range) + "<br>" + esc(o.host_name) + ", " + esc(o.city) + "<br>Complimentary for qualified CFOs") +
+  p(esc(o.when_short) + "<br>" + esc(o.time_range) + "<br>" + esc(o.host_name) + ", " + esc(o.city) + "<br>Complimentary for qualified CFOs<br>Parking is complimentary too (Century City parking is not cheap)") +
   p("If you're a CFO in the Los Angeles area and you're curious about CFO Circle, come experience it for yourself.") +
   p("Request a seat: <a href=\"" + o.rsvp_url + "\" style=\"color:#121a3c;\">" + esc(o.rsvp_url) + "</a>") +
   p("Dalen Lawrence<br>Chapter Director, CFO Circle Los Angeles") +
