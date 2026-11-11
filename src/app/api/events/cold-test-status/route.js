@@ -69,7 +69,8 @@ export async function GET(req) {
   let verdict = "GO", reason = "no sends yet"
   if (total) {
     if (complained > 0) { verdict = "HOLD"; reason = complained + " spam complaint(s)" }
-    else if (bounceRate > MAX_BOUNCE) { verdict = "HOLD"; reason = "bounce rate " + (bounceRate * 100).toFixed(1) + "% (limit 2%)" }
+    else if (total < 30 && bounced >= 2) { verdict = "HOLD"; reason = bounced + " bounces in the first " + total + " sends (small-sample rule: 2+ trips the gate)" }
+    else if (total >= 30 && bounceRate > MAX_BOUNCE) { verdict = "HOLD"; reason = "bounce rate " + (bounceRate * 100).toFixed(1) + "% (limit 2%)" }
     else if (minSince < MIN_GAP_MIN) { verdict = "WAIT"; reason = minSince + " min since last batch (need " + MIN_GAP_MIN + ")" }
     else if (resolved / total < MIN_RESOLVED) { verdict = "WAIT"; reason = Math.round(100 * resolved / total) + "% of sends resolved (need 90%)" }
     else { verdict = "GO"; reason = "gates clear" }
