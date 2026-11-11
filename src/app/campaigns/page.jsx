@@ -45,6 +45,16 @@ export default function CampaignsPage() {
     setBusy(false); load()
   }
 
+  async function sendTest(variant) {
+    setBusy(true)
+    try {
+      const r = await fetch("/api/campaigns/cold-test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "send_test", variant }) })
+      const j = await r.json()
+      alert(j.ok ? "Test (" + variant + ") sent to dalenlawrence365@gmail.com" : "Failed: " + JSON.stringify(j))
+    } catch (e) { alert("Failed: " + e) }
+    setBusy(false)
+  }
+
   if (err) return <div style={{ padding: 24, color: "#c62828" }}>{err}</div>
   if (!d) return <div style={{ padding: 24, color: T.textTertiary }}>Loading…</div>
   const s = d.status || {}
@@ -63,6 +73,8 @@ export default function CampaignsPage() {
           <span style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 999, background: armed ? "#e8f5e9" : "#eee", color: armed ? "#2e7d32" : "#555" }}>
             {armed ? "DRIP ARMED" : "DRIP OFF"}
           </span>
+          <button onClick={() => sendTest("apollo")} disabled={busy} style={{ background: "#121a3c", color: "#fff", border: 0, borderRadius: 6, padding: "8px 14px", fontWeight: 600, cursor: "pointer" }}>Test Nov 17 (Apollo)</button>
+          <button onClick={() => sendTest("known")} disabled={busy} style={{ background: "#121a3c", color: "#fff", border: 0, borderRadius: 6, padding: "8px 14px", fontWeight: 600, cursor: "pointer" }}>Test Nov 17 (network)</button>
           {armed && <button onClick={disarm} disabled={busy} style={{ background: "#c62828", color: "#fff", border: 0, borderRadius: 6, padding: "8px 14px", fontWeight: 600, cursor: "pointer" }}>Stop drip</button>}
         </div>
       </div>

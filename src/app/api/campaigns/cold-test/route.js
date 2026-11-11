@@ -88,7 +88,24 @@ export async function GET(req) {
 export async function POST(req) {
   let body = {}
   try { body = await req.json() } catch (e) {}
-  if (body.action !== "disarm") return Response.json({ error: "only disarm is supported" }, { status: 400 })
+  if (body.action === "send_test") {
+    // Sends the workshop invite ONLY to Dalen's own address, with his own tracking token, so he can click through.
+    const sb0 = serverClient()
+    const { data: me } = await sb0.from("track_tokens").select("token").eq("person_id", "1f757c46-b02e-4c91-886c-57eedd726100").order("created_at", { ascending: true }).limit(1).maybeSingle()
+    const variant = body.variant === "known" ? "known" : "apollo"
+    const origin = process.env.INTERNAL_ORIGIN || "https://www.peerchair.com"
+    const r = await fetch(origin + "/api/events/send-cold-invite", {
+      method: "POST", cache: "no-store",
+      headers: { Authorization: "Bearer " + (process.env.CRON_SECRET || ""), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        slug: "november-17-workshop", dry_run: false, test_to: "dalenlawrence365@gmail.com", first_name: "Dalen", variant,
+        rsvp_url: "https://la-cfo.com/events/november-17-workshop/?t=" + (me && me.token ? me.token : "") + "&src=email-" + variant,
+      }),
+    })
+    let j = {}; try { j = await r.json() } catch (e) {}
+    return Response.json(j, { status: r.ok ? 200 : 502 })
+  }
+  if (body.action !== "disarm") return Response.json({ error: "unsupported action" }, { status: 400 })
   const sb = serverClient()
   const c = await cfg(sb)
   c.armed = false
