@@ -134,7 +134,10 @@ async function sendAlert(subject, body) {
         'Authorization': 'Bearer ' + process.env.RESEND_API_KEY
       },
       body: JSON.stringify({
-        from: 'PeerChair <onboarding@resend.dev>',
+        // Same sandbox-sender bug as src/lib/notify.js — onboarding@resend.dev
+        // only delivers to the verified test inbox and 403s elsewhere. Use the
+        // verified events.la-cfo.com domain so scheduled-send alerts actually land.
+        from: process.env.ALERT_FROM || 'PeerChair <alerts@events.la-cfo.com>',
         to: [process.env.ALERT_EMAIL || 'dalenlawrence365@gmail.com'],
         subject: 'PeerChair: ' + subject,
         text: body

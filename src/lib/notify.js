@@ -32,7 +32,12 @@ export async function sendAlert(subject, message, html, opts = {}) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'PeerChair <onboarding@resend.dev>',
+        // onboarding@resend.dev is Resend's sandbox sender — it only delivers to
+        // the account's own verified test inbox and 403s (validation_error) for
+        // every other recipient, which silently killed all production alerts.
+        // events.la-cfo.com is verified on this RESEND_API_KEY (same domain the
+        // cold invites ship from), so alerts@ on it delivers anywhere.
+        from: process.env.ALERT_FROM || 'PeerChair <alerts@events.la-cfo.com>',
         to: [to],
         subject: subject,
         html: html || '<p>' + message + '</p>',
