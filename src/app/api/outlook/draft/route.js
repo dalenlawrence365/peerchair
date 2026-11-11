@@ -3,7 +3,7 @@ export const maxDuration = 60
 import { graphFetch } from "@/lib/microsoft-auth"
 
 // POST /api/outlook/draft?k=<key>
-// Body: { to: string|string[], cc?: string[], subject, html? , text? }
+// Body: { to: string|string[], cc?: string[], bcc?: string[], subject, html? , text? }
 // Creates ONE Outlook DRAFT via the app's Microsoft integration (never sends).
 // Uses graphFetch (the same working path as /api/events/reminder-drafts) rather
 // than the MCP Outlook connector, whose app registration lacks Mail write consent.
@@ -27,6 +27,7 @@ export async function POST(request) {
     toRecipients: to.map(a => ({ emailAddress: { address: a } })),
   }
   if (Array.isArray(b.cc) && b.cc.length) message.ccRecipients = b.cc.map(a => ({ emailAddress: { address: a } }))
+  if (Array.isArray(b.bcc) && b.bcc.length) message.bccRecipients = b.bcc.map(a => ({ emailAddress: { address: a } }))
 
   try {
     const res = await graphFetch("https://graph.microsoft.com/v1.0/me/messages", {
