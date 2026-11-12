@@ -273,7 +273,7 @@ function UnmatchedRow({ item, isExpanded, onToggle, onActioned }) {
           )}
         </div>
         {showActions && !isExpanded && (
-          <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: 300 }}>
             {isFiled && (
               <button onClick={unfile} style={btnStyle("#fffbeb", "#92400e", "#fcd34d")}>
                 Pull back into queue
