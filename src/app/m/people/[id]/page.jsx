@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useParams } from "next/navigation"
 import { T } from "@/lib/pipelineTheme"
 
@@ -48,12 +48,29 @@ export default function MobileProfile() {
   const [sendBusy, setSendBusy] = useState(false)
   const [flash, setFlash] = useState(null)
   const [draftUrl, setDraftUrl] = useState(null)
+  // Notes
+  const [notes, setNotes] = useState([])
+  const [noteText, setNoteText] = useState("")
+  const [recording, setRecording] = useState(false)
+  const [cleaning, setCleaning] = useState(false)
+  const [savingNote, setSavingNote] = useState(false)
+  const [noteMsg, setNoteMsg] = useState(null)
+  const recognitionRef = useRef(null)
+  const noteBaseRef = useRef("")
+
+  function extractNotes(comms) {
+    return (comms || []).filter(function (c) {
+      const ch = (c.channel || "").toLowerCase(), sl = (c.step_label || "").toLowerCase()
+      return ch.indexOf("note") >= 0 || sl === "note" || c.direction === "INTERNAL"
+    }).slice(0, 5)
+  }
 
   useEffect(function () {
     (async function () {
       const r = await fetch("/api/people/" + id, { cache: "no-store" })
       const j = await r.json().catch(function () { return {} })
       setPerson(j.person || j)
+      setNotes(extractNotes(j.communications))
       const er = await fetch("/api/m/events-upcoming", { cache: "no-store" })
       const ej = await er.json().catch(function () { return { events: [] } })
       setEvents(ej.events || [])
@@ -68,6 +85,54 @@ export default function MobileProfile() {
     setPicked(ev.id); setDraftUrl(null); setFlash(null)
     if (mode === "dm") setBody(dmTemplate(person, ev))
     else { const t = emailTemplate(person, ev); setSubject(t.subject); setBody(t.body) }
+  }
+
+  // Voice dictation (Web Speech API, Chrome/Edge; on iOS the keyboard mic also
+  // works straight into the box). Appends final chunks to whatever's there.
+  function toggleDictation() {
+    if (recording) { if (recognitionRef.current) recognitionRef.current.stop(); return }
+    const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition)
+    if (!SR) { setNoteMsg("Voice dictation isn't available in this browser — use your keyboard's mic, or type."); return }
+    const rec = new SR()
+    rec.continuous = true; rec.interimResults = true; rec.lang = "en-US"
+    noteBaseRef.current = noteText ? noteText.trim() + " " : ""
+    rec.onresult = function (e) {
+      let fin = ""
+      for (let i = e.resultIndex; i < e.results.length; i++) { if (e.results[i].isFinal) fin += e.results[i][0].transcript }
+      if (fin) { noteBaseRef.current = noteBaseRef.current + fin + " "; setNoteText(noteBaseRef.current.replace(/\s+/g, " ").trimStart()) }
+    }
+    rec.onend = function () { setRecording(false) }
+    rec.onerror = function () { setRecording(false) }
+    recognitionRef.current = rec
+    try { rec.start(); setRecording(true); setNoteMsg(null) } catch (e) { setRecording(false) }
+  }
+
+  async function cleanUpNote() {
+    const t = noteText.trim(); if (!t) return
+    if (recording && recognitionRef.current) recognitionRef.current.stop()
+    setCleaning(true); setNoteMsg(null)
+    try {
+      const r = await fetch("/api/people/" + id + "/clean-note", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: t }) })
+      const j = await r.json().catch(function () { return {} })
+      if (r.ok && j.note) setNoteText(j.note)
+      else setNoteMsg(j.error || "Couldn't clean that up — your note is still here.")
+    } catch (e) { setNoteMsg(String(e.message || e)) }
+    finally { setCleaning(false) }
+  }
+
+  async function saveNote() {
+    const t = noteText.trim(); if (!t) return
+    if (recording && recognitionRef.current) recognitionRef.current.stop()
+    setSavingNote(true); setNoteMsg(null)
+    try {
+      const r = await fetch("/api/people/" + id + "/action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "note", body: t }) })
+      const j = await r.json().catch(function () { return {} })
+      if (r.ok && !j.error) {
+        setNotes(function (prev) { return [{ id: "tmp" + Date.now(), occurred_at: new Date().toISOString(), channel: "Note", body: t }].concat(prev).slice(0, 5) })
+        setNoteText(""); setNoteMsg("Saved.")
+      } else setNoteMsg(j.error || "Couldn't save the note.")
+    } catch (e) { setNoteMsg(String(e.message || e)) }
+    finally { setSavingNote(false) }
   }
 
   async function craftAI() {
@@ -140,6 +205,47 @@ export default function MobileProfile() {
         </div>
         {hasEmail && <div style={{ fontSize: 13.5, color: T.textSecondary, marginTop: 11, wordBreak: "break-all" }}>{person.email}</div>}
         {hasLinkedIn && <a href={person.linkedin_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", fontSize: 13.5, color: T.accent, marginTop: 4, textDecoration: "none" }}>LinkedIn profile ↗</a>}
+      </div>
+
+      {/* Note capture — type or dictate, optional AI cleanup, lands on this person */}
+      <div className="m-card" style={{ padding: 14, marginTop: 14 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>Note</div>
+        <textarea className="m-input" rows={noteText || recording ? 4 : 2} value={noteText}
+          onChange={function (e) { setNoteText(e.target.value) }}
+          placeholder="Jot or dictate a note about this person…"
+          style={{ borderColor: recording ? "#dc2626" : T.border }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+          <button onClick={toggleDictation} className="m-btn"
+            style={{ width: "auto", minHeight: 42, padding: "0 14px", flex: "0 0 auto", fontSize: 14,
+              borderColor: recording ? "#dc2626" : T.border, color: recording ? "#dc2626" : T.textPrimary, background: recording ? "#fef2f2" : T.cardBg }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+            {recording ? "Recording…" : "Dictate"}
+          </button>
+          {noteText.trim() && (
+            <button onClick={cleanUpNote} disabled={cleaning} className="m-btn"
+              style={{ width: "auto", minHeight: 42, padding: "0 14px", flex: "1 1 auto", fontSize: 14, color: cleaning ? T.textTertiary : "#7c3aed" }}>
+              {cleaning ? "Cleaning…" : "✨ Clean up"}
+            </button>
+          )}
+        </div>
+        {noteText.trim() && (
+          <button className="m-btn m-btn-primary" disabled={savingNote} onClick={saveNote} style={{ marginTop: 8 }}>
+            {savingNote ? "Saving…" : "Save note"}
+          </button>
+        )}
+        {noteMsg && <div style={{ fontSize: 13, color: noteMsg === "Saved." ? "#065f46" : T.textSecondary, marginTop: 9, lineHeight: 1.45 }}>{noteMsg}</div>}
+        {notes.length > 0 && (
+          <div style={{ marginTop: 14, borderTop: "1px solid " + T.border, paddingTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+            {notes.map(function (n) {
+              return (
+                <div key={n.id} style={{ fontSize: 13.5, color: T.textPrimary, lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 2 }}>{fmtWhen(n.occurred_at)}</div>
+                  <div style={{ whiteSpace: "pre-wrap" }}>{n.body}</div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {!mode && (
