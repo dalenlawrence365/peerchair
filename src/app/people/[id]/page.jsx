@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { T } from "@/lib/pipelineTheme"
@@ -178,6 +178,10 @@ export default function PersonProfile() {
   const [noteText, setNoteText] = useState("")
   const [expandedComms, setExpandedComms] = useState({})
   const [savingNote, setSavingNote] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const [cleaning, setCleaning] = useState(false)
+  const recognitionRef = useRef(null)
+  const noteBaseRef = useRef("")
   const [busy, setBusy] = useState(false)
   const [newStatusTag, setNewStatusTag] = useState("")
   const [showStatusAdd, setShowStatusAdd] = useState(false)
@@ -331,6 +335,49 @@ export default function PersonProfile() {
     setSavingNote(true)
     await postAction({ action: "note", body: noteText.trim() })
     setNoteText(""); setSavingNote(false)
+  }
+
+  // Voice dictation via the browser's Web Speech API (Chrome/Edge). Appends final
+  // transcript chunks to whatever is already in the note box, so he can dictate
+  // into an empty composer or add to a typed start. Not supported in Safari/
+  // Firefox — the button says so instead of silently doing nothing.
+  function toggleDictation() {
+    if (recording) { if (recognitionRef.current) recognitionRef.current.stop(); return }
+    const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition)
+    if (!SR) { alert("Voice dictation needs Chrome or Edge — this browser doesn't support it. You can still type the note."); return }
+    const rec = new SR()
+    rec.continuous = true; rec.interimResults = true; rec.lang = "en-US"
+    noteBaseRef.current = noteText ? noteText.trim() + " " : ""
+    rec.onresult = function (e) {
+      let finalChunk = ""
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalChunk += e.results[i][0].transcript
+      }
+      if (finalChunk) { noteBaseRef.current = (noteBaseRef.current + finalChunk + " "); setNoteText(noteBaseRef.current.replace(/\s+/g, " ").trimStart()) }
+    }
+    rec.onend = function () { setRecording(false) }
+    rec.onerror = function () { setRecording(false) }
+    recognitionRef.current = rec
+    try { rec.start(); setRecording(true) } catch (e) { setRecording(false) }
+  }
+
+  // Send the raw (ranted/dictated) note to the AI cleanup endpoint, which
+  // summarizes it into a tight, factual note. Replaces the box with the result;
+  // he can still edit before saving.
+  async function cleanUpNote() {
+    const t = noteText.trim()
+    if (!t) return
+    if (recording && recognitionRef.current) { recognitionRef.current.stop() }
+    setCleaning(true)
+    try {
+      const r = await fetch(`/api/people/${id}/clean-note`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: t }),
+      })
+      const j = await r.json().catch(function () { return {} })
+      if (r.ok && j.note) setNoteText(j.note)
+      else alert(j.error || "Couldn't clean that up — the note is still here to save or edit.")
+    } catch (e) { alert(String(e.message || e)) }
+    finally { setCleaning(false) }
   }
 
   function openEdit(person) {
@@ -1049,18 +1096,29 @@ export default function PersonProfile() {
           {checkEmailMsg && <span style={{ fontSize: 11, color: T.textTertiary }}>{checkEmailMsg}</span>}
         </div>
 
-        {/* Note composer */}
+        {/* Note composer — type or dictate, optional AI cleanup */}
         <div style={{ marginBottom: 16 }}>
           <textarea value={noteText} onChange={function(e){ setNoteText(e.target.value) }}
-            placeholder="Log a note about this person…"
-            rows={noteText ? 3 : 1}
-            style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid " + T.border, borderRadius: 8, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box", lineHeight: 1.5 }} />
-          {noteText.trim() && (
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-              <button onClick={function(){ setNoteText("") }} style={{ padding: "6px 14px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-              <button disabled={savingNote} onClick={saveNote} style={{ padding: "6px 16px", fontSize: 12, borderRadius: 6, border: "none", background: "#3b82f6", color: "white", cursor: savingNote ? "not-allowed" : "pointer", fontWeight: 500, fontFamily: "inherit" }}>{savingNote ? "Saving…" : "Save note"}</button>
-            </div>
-          )}
+            placeholder="Log a note — type, or tap Dictate and talk it through…"
+            rows={noteText || recording ? 3 : 1}
+            style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid " + (recording ? "#dc2626" : T.border), borderRadius: 8, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box", lineHeight: 1.5 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+            <button onClick={toggleDictation}
+              title={recording ? "Stop dictation" : "Dictate the note by voice (Chrome/Edge)"}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "1px solid " + (recording ? "#dc2626" : T.border), background: recording ? "#fef2f2" : "white", color: recording ? "#dc2626" : T.textSecondary, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+              {recording ? "Recording… tap to stop" : "Dictate"}
+            </button>
+            {noteText.trim() && (
+              <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                <button disabled={cleaning} onClick={cleanUpNote}
+                  title="Summarize and tidy this into a clean note"
+                  style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: cleaning ? T.textTertiary : "#7c3aed", cursor: cleaning ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: 600 }}>{cleaning ? "Cleaning…" : "Clean up with AI"}</button>
+                <button onClick={function(){ setNoteText("") }} style={{ padding: "6px 14px", fontSize: 12, borderRadius: 6, border: "1px solid " + T.border, background: "white", color: T.textSecondary, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                <button disabled={savingNote} onClick={saveNote} style={{ padding: "6px 16px", fontSize: 12, borderRadius: 6, border: "none", background: "#3b82f6", color: "white", cursor: savingNote ? "not-allowed" : "pointer", fontWeight: 500, fontFamily: "inherit" }}>{savingNote ? "Saving…" : "Save note"}</button>
+              </div>
+            )}
+          </div>
         </div>
 
         {(data.communications.length === 0 && (data.touches || []).length === 0 && (data.scheduled_meetings || []).length === 0) ? (
@@ -1077,8 +1135,8 @@ export default function PersonProfile() {
             {/* Filter chips */}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
               <Chip active={timelineFilter === "all"} color="#475569" label={"All"} count={tagged.length} onClick={function(){ setTimelineFilter("all") }} />
-              {TIMELINE_TYPES.filter(function(t){ return counts[t.key] }).map(function(t){
-                return <Chip key={t.key} active={timelineFilter === t.key} color={t.color} label={t.label} count={counts[t.key]} onClick={function(){ setTimelineFilter(t.key) }} />
+              {TIMELINE_TYPES.filter(function(t){ return counts[t.key] || t.key === "note" }).map(function(t){
+                return <Chip key={t.key} active={timelineFilter === t.key} color={t.color} label={t.label} count={counts[t.key] || 0} onClick={function(){ setTimelineFilter(t.key) }} />
               })}
             </div>
 
