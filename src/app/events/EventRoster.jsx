@@ -340,6 +340,14 @@ export default function EventRoster({ slug }) {
   const roster = all.filter(function (a) { return a.status !== "Queued" && !awaitingReview(a) }).filter(function (a) { return (!pred || pred(a)) && matches(a) })
   const shortOf = Math.max(0, (ev.min_to_run || 8) - (c.confirmed || 0))
   const sponsorAttended = all.filter(FILTERS.sponsorattended).length
+  // Rate KPIs. No-show rate = no-shows / everyone who committed (confirmed set).
+  // Unavailable rate = "can't make it, want the next one" / everyone invited — a
+  // warm-signal rate Dalen tracks, so it climbs as those responses come in.
+  const committed = all.filter(function (a) { return COMMITTED_STATUSES.indexOf(a.status) !== -1 }).length
+  const invitedCount = all.filter(function (a) { return a.status !== "Queued" }).length
+  const pct = function (n, d) { return d > 0 ? Math.round((n / d) * 100) + "%" : "—" }
+  const noShowRate = pct(all.filter(function (a) { return a.status === "No-show" }).length, committed)
+  const unavailRate = pct(all.filter(function (a) { return a.status === "Unavailable" }).length, invitedCount)
   function toggleFilter(key) { setFilter(function (cur) { return cur === key ? null : key }) }
 
   // Merge the registrant (loser) INTO the existing record you picked (winner):
@@ -427,7 +435,9 @@ export default function EventRoster({ slug }) {
         <Stat label="Invited" value={c.invited || 0} sub="invite actually sent" active={filter === "invited"} onClick={function () { toggleFilter("invited") }} />
         <Stat label="Declined" value={c.declined || 0} sub="" active={filter === "declined"} onClick={function () { toggleFilter("declined") }} />
         <Stat label="Unavailable" value={c.unavailable || 0} sub="wants the next one" active={filter === "unavailable"} onClick={function () { toggleFilter("unavailable") }} />
+        <Stat label="Unavailable rate" value={unavailRate} sub="of invited · warm signal" />
         <Stat label="No-show" value={c.no_show || 0} sub="didn't come" active={filter === "noshow"} onClick={function () { toggleFilter("noshow") }} />
+        <Stat label="No-show rate" value={noShowRate} sub="of confirmed" />
       </div>
       <div style={{ minHeight: 20, marginBottom: 14 }}>
         {filter ? (
