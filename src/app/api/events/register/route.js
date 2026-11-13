@@ -45,9 +45,16 @@ export async function POST(req) {
 
   const sb = serverClient()
   const { data: event } = await sb
-    .from("events").select("id, slug, published, event_date, ends_at")
+    .from("events").select("id, slug, published, event_date, ends_at, registration_closed")
     .eq("slug", slug).eq("published", true).maybeSingle()
   if (!event) return json({ error: "not_found" }, 404)
+
+  // Registration can be closed manually (e.g. a postponed event) while the page
+  // stays published as a record. Flip events.registration_closed back to false to
+  // reopen — no redeploy needed.
+  if (event.registration_closed) {
+    return json({ error: "registration_closed", message: "Registration for this session has closed. Please check for our next date." }, 409)
+  }
   const evLabel = new Date(event.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Los_Angeles" })
 
   // Registration closes once the event is over. The page keeps working as a
