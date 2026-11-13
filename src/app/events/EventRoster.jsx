@@ -325,6 +325,7 @@ export default function EventRoster({ slug }) {
     sponsorconfirmed: function (a) { return COMMITTED_STATUSES.indexOf(a.status) !== -1 && ((a.roles || []).includes("sponsor_contact") || a.cfo_circle_member) },
     attended:    function (a) { return a.status === "Attended" },
     cfoattended: function (a) { return a.status === "Attended" && (a.roles || []).includes("cfo") },
+    sponsorattended: function (a) { return a.status === "Attended" && ((a.roles || []).includes("sponsor_contact") || a.cfo_circle_member) },
   }
   const pred = filter && FILTERS[filter] ? FILTERS[filter] : null
   const needle = q.trim().toLowerCase()
@@ -338,6 +339,7 @@ export default function EventRoster({ slug }) {
   const queuedRows = all.filter(function (a) { return a.status === "Queued" }).filter(function (a) { return (!pred || pred(a)) && matches(a) })
   const roster = all.filter(function (a) { return a.status !== "Queued" && !awaitingReview(a) }).filter(function (a) { return (!pred || pred(a)) && matches(a) })
   const shortOf = Math.max(0, (ev.min_to_run || 8) - (c.confirmed || 0))
+  const sponsorAttended = all.filter(FILTERS.sponsorattended).length
   function toggleFilter(key) { setFilter(function (cur) { return cur === key ? null : key }) }
 
   // Merge the registrant (loser) INTO the existing record you picked (winner):
@@ -417,8 +419,9 @@ export default function EventRoster({ slug }) {
         <Stat label="Total confirmed" value={c.confirmed || 0} sub={shortOf > 0 ? (shortOf + " short of " + (ev.min_to_run || 8)) : "at go threshold"} good={shortOf === 0} active={filter === "confirmed"} onClick={function () { toggleFilter("confirmed") }} />
         <Stat label="CFOs confirmed" value={c.cfo_confirmed || 0} sub="" active={filter === "cfoconfirmed"} onClick={function () { toggleFilter("cfoconfirmed") }} />
         <Stat label="Sponsors confirmed" value={c.sponsor_confirmed || 0} sub="" active={filter === "sponsorconfirmed"} onClick={function () { toggleFilter("sponsorconfirmed") }} />
-        <Stat label="Attended" value={c.attended || 0} sub="actually showed" active={filter === "attended"} onClick={function () { toggleFilter("attended") }} />
+        <Stat label="Total attended" value={c.attended || 0} sub="all who showed" active={filter === "attended"} onClick={function () { toggleFilter("attended") }} />
         <Stat label="CFOs attended" value={c.cfo_attended || 0} sub="" active={filter === "cfoattended"} onClick={function () { toggleFilter("cfoattended") }} />
+        <Stat label="Sponsors attended" value={sponsorAttended} sub="" active={filter === "sponsorattended"} onClick={function () { toggleFilter("sponsorattended") }} />
         <Stat label="Registered" value={c.registered || 0} sub="awaiting your review" highlight={(c.registered || 0) > 0} active={filter === "registered"} onClick={function () { toggleFilter("registered") }} />
         <Stat label="Queued" value={c.queued || 0} sub="on the list, not invited yet" highlight={(c.queued || 0) > 0} active={filter === "queued"} onClick={function () { toggleFilter("queued") }} />
         <Stat label="Invited" value={c.invited || 0} sub="invite actually sent" active={filter === "invited"} onClick={function () { toggleFilter("invited") }} />
