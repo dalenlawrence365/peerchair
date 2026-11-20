@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
+import { recentMeetingContext } from "@/lib/meetingContext"
 import { serverClient } from "@/lib/supabaseServer"
 import { graphFetch } from "@/lib/microsoft-auth"
 import { upsertOutlookContact } from "@/lib/outlookContacts"
@@ -128,9 +129,11 @@ export async function POST(request, { params }) {
         .limit(3)
       recentRecaps = recapsDesc || []
     }
-    const recapLines = recentRecaps.map(function (r) {
+    const recapLinesOld = recentRecaps.map(function (r) {
       return `- ${r.occurred_at || ""}${r.meeting_type ? " [" + r.meeting_type + "]" : ""}: ${r.summary || "(no summary)"}${r.commitments ? " | Commitments: " + r.commitments : ""}${r.hard_stop ? " | HARD STOP FLAGGED: " + (r.hard_stop_detail || "") : ""}`
     }).join("\n")
+    const meetingCtx = await recentMeetingContext(sb, id)
+    const recapLines = [recapLinesOld, meetingCtx].filter(Boolean).join("\n")
 
     const { data: recentComms } = await sb.from("communications")
       .select("direction, channel, step_label, body, occurred_at")
