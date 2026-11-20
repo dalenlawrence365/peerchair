@@ -23,3 +23,14 @@ export async function DELETE(req) {
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json({ ok: true })
 }
+
+// PATCH /api/meeting-notes  { id, body } — edit a note's text (summary, transcript or manual note).
+export async function PATCH(req) {
+  const sb = serverClient()
+  let b; try { b = await req.json() } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }) }
+  const body = (b.body || "").trim()
+  if (!b.id || !body) return Response.json({ error: "id and body required" }, { status: 400 })
+  const { error } = await sb.from("meeting_notes").update({ body }).eq("id", b.id)
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json({ ok: true })
+}

@@ -61,3 +61,36 @@ export async function GET(request) {
 
   return Response.json({ items: data || [], counts, upcoming_7d })
 }
+
+// POST /api/meetings — create a meeting by hand (source "manual"), e.g. a lunch that never
+// went on the calendar. Outlook-synced meetings are created by /api/sync-calendar instead.
+//   { title, starts_at, ends_at?, location?, meeting_type?, person_ids?: [uuid] }
+export async function POST(request) {
+  let b; try { b = await request.json() } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }) }
+  const title = (b.title || "").toString().trim()
+  if (!title) return Response.json({ error: "title required" }, { status: 400 })
+  if (!b.starts_at || isNaN(new Date(b.starts_at))) return Response.json({ error: "valid starts_at required" }, { status: 400 })
+  const types = ["fit_call", "sponsor_discovery", "chapter_peer", "exploratory", "other", "personal"]
+  const sb = serverClient()
+  const row = {
+    external_id: "manual-" + crypto.randomUUID(),
+    source: "manual",
+    title,
+    starts_at: new Date(b.starts_at).toISOString(),
+    ends_at: b.ends_at && !isNaN(new Date(b.ends_at)) ? new Date(b.ends_at).toISOString() : null,
+    location: b.location ? String(b.location).trim() : null,
+    meeting_type: types.includes(b.meeting_type) ? b.meeting_type : "other",
+    status: "scheduled",
+    tags: ["other"],
+    tags_manually_edited: true,
+  }
+  const { data, error } = await sb.from("meetings").insert(row).select("id").single()
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  const ids = Array.isArray(b.person_ids) ? [...new Set(b.person_ids.filter(Boolean))] : []
+  if (ids.length) {
+    const { error: aErr } = await sb.from("meeting_attendees")
+      .insert(ids.map(person_id => ({ meeting_id: data.id, person_id, role: "attendee", source: "manual" })))
+    if (aErr) return Response.json({ ok: true, id: data.id, warning: aErr.message })
+  }
+  return Response.json({ ok: true, id: data.id })
+}
