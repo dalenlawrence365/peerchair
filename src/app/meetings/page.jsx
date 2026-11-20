@@ -47,6 +47,7 @@ export default function MeetingsPage() {
   const [err, setErr] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMsg, setRefreshMsg] = useState("")
+  const [granolaBusy, setGranolaBusy] = useState(false)
 
   async function load() {
     try {
@@ -77,6 +78,22 @@ export default function MeetingsPage() {
       })
       .catch(function () { setRefreshMsg("Error refreshing.") })
       .finally(function () { setRefreshing(false) })
+  }
+
+  // Manual counterpart to the once-a-day Granola cron: run right after a
+  // meeting to pull its summary + transcript onto the matching meeting.
+  function syncGranola() {
+    setGranolaBusy(true); setRefreshMsg("")
+    fetch("/api/sync-granola", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ hours: 72 }) })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d.skipped) { setRefreshMsg("Granola not connected (GRANOLA_API_KEY missing)."); return }
+        if (d.error) { setRefreshMsg(d.error); return }
+        setRefreshMsg(d.linked > 0 ? `Granola — ${d.linked} meeting${d.linked === 1 ? "" : "s"} updated.` : "Granola — nothing new.")
+        return load()
+      })
+      .catch(function () { setRefreshMsg("Error syncing Granola.") })
+      .finally(function () { setGranolaBusy(false) })
   }
 
   // Group by day
@@ -116,6 +133,19 @@ export default function MeetingsPage() {
             }}
           >
             {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
+          <button
+            onClick={syncGranola}
+            disabled={granolaBusy}
+            title="Pull summaries and transcripts from Granola onto matching meetings"
+            style={{
+              fontSize: 12, padding: "5px 12px", borderRadius: 6,
+              border: "1px solid " + T.border, background: "white",
+              color: T.textSecondary, cursor: granolaBusy ? "default" : "pointer",
+              fontFamily: "inherit", fontWeight: 500,
+            }}
+          >
+            {granolaBusy ? "Syncing…" : "Sync to Granola"}
           </button>
           {data && data.upcoming_7d !== undefined && (
             <div style={{ fontSize: 13, color: T.textSecondary }}>
