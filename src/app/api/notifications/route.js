@@ -18,7 +18,7 @@ export async function GET() {
     .select("id", { count: "exact", head: true })
     .is("approved_at", null)
     .not("registered_at", "is", null)
-    .not("status", "in", "(Declined,No-show,Attended)")
+    .not("status", "in", "(Declined,No-show,Attended,Unavailable)")
   return Response.json({ unread: count || 0, events_pending: eventsPending || 0, items: items || [] })
 }
 

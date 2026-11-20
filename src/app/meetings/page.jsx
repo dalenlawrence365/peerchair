@@ -47,6 +47,7 @@ export default function MeetingsPage() {
   const [err, setErr] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMsg, setRefreshMsg] = useState("")
+  const [granolaBusy, setGranolaBusy] = useState(false)
 
   async function load() {
     try {
@@ -79,6 +80,22 @@ export default function MeetingsPage() {
       .finally(function () { setRefreshing(false) })
   }
 
+  // Manual counterpart to the once-a-day Granola cron: run right after a
+  // meeting to pull its summary + transcript onto the matching meeting.
+  function syncGranola() {
+    setGranolaBusy(true); setRefreshMsg("")
+    fetch("/api/sync-granola", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ hours: 72 }) })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        if (d.skipped) { setRefreshMsg("Granola not connected (GRANOLA_API_KEY missing)."); return }
+        if (d.error) { setRefreshMsg(d.error); return }
+        setRefreshMsg(d.linked > 0 ? `Granola — ${d.linked} meeting${d.linked === 1 ? "" : "s"} updated.` : "Granola — nothing new.")
+        return load()
+      })
+      .catch(function () { setRefreshMsg("Error syncing Granola.") })
+      .finally(function () { setGranolaBusy(false) })
+  }
+
   // Group by day
   const grouped = useMemo(function(){
     if (!data) return []
@@ -103,6 +120,7 @@ export default function MeetingsPage() {
         <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>Meetings</h1>
         <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
           {refreshMsg && <span style={{ fontSize: 11, color: T.textTertiary }}>{refreshMsg}</span>}
+          <Link href="/meetings/new" style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: "1px solid " + T.textPrimary, background: T.textPrimary, color: "white", textDecoration: "none", fontWeight: 500 }}>+ New meeting</Link>
           <button
             onClick={refreshNow}
             disabled={refreshing}
@@ -116,6 +134,19 @@ export default function MeetingsPage() {
           >
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
+          <button
+            onClick={syncGranola}
+            disabled={granolaBusy}
+            title="Pull summaries and transcripts from Granola onto matching meetings"
+            style={{
+              fontSize: 12, padding: "5px 12px", borderRadius: 6,
+              border: "1px solid " + T.border, background: "white",
+              color: T.textSecondary, cursor: granolaBusy ? "default" : "pointer",
+              fontFamily: "inherit", fontWeight: 500,
+            }}
+          >
+            {granolaBusy ? "Syncing…" : "Sync to Granola"}
+          </button>
           {data && data.upcoming_7d !== undefined && (
             <div style={{ fontSize: 13, color: T.textSecondary }}>
               <strong style={{ color: T.textPrimary }}>{data.upcoming_7d}</strong> in next 7 days
@@ -124,7 +155,7 @@ export default function MeetingsPage() {
         </div>
       </div>
       <p style={{ color: T.textSecondary, fontSize: 13, marginTop: 8, marginBottom: 20, maxWidth: 720 }}>
-        Everything on your calendar — Outlook + anything Calendly auto-books. Synced every 30 minutes. Click a person to jump to their profile.
+        Everything on your calendar — Outlook + anything Calendly auto-books. Synced every 30 minutes. Click a meeting to open it — add people, notes, summary and transcript. Click a person to jump to their profile.
       </p>
 
       <div style={{ display: "flex", gap: 14, alignItems: "center", borderBottom: "1px solid " + T.border, marginBottom: 16, paddingBottom: 14, flexWrap: "wrap" }}>
@@ -289,7 +320,7 @@ function MeetingRow({ m, onChanged }) {
           )}
 
           <div style={{ fontSize: 14, color: T.textPrimary, marginTop: 6, fontWeight: 500 }}>
-            {m.title || "(no title)"}
+            <Link href={`/meetings/${m.id}`} style={{ color: T.textPrimary, textDecoration: "none" }}>{m.title || "(no title)"}</Link>
           </div>
           <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
             {m.person && (

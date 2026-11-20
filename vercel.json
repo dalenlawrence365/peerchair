@@ -26,7 +26,7 @@
     },
     {
       "path": "/api/sync-granola",
-      "schedule": "20,50 * * * *"
+      "schedule": "0 5 * * *"
     },
     {
       "path": "/api/provisors/poll-email",
