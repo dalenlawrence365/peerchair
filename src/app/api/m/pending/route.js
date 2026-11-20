@@ -15,7 +15,7 @@ export async function GET() {
     .select("id, status, registered_at, notes, source, people:person_id ( id, full_name, first_name, company, title, email, linkedin_url, roles, cfo_state, cfo_circle_member, event_tier ), events:event_id ( id, name, kind, event_date, slug )")
     .is("approved_at", null)
     .not("registered_at", "is", null)
-    .not("status", "in", "(Declined,No-show,Attended)")
+    .not("status", "in", "(Declined,No-show,Attended,Unavailable)")
     .order("registered_at", { ascending: true })
 
   if (error) return Response.json({ items: [], error: error.message }, { status: 500 })
