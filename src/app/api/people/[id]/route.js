@@ -118,11 +118,21 @@ export async function GET(request, { params }) {
 
   // Scheduled / calendar meetings with this person (Outlook + Calendly synced),
   // newest first, each with its logged notes (manual + AI summaries).
-  const { data: schedMeetings } = await sb.from("meetings")
-    .select("id, title, body_preview, starts_at, ends_at, location, meeting_type, status, source, is_organizer, attendees_json, tags")
-    .eq("person_id", id)
-    .order("starts_at", { ascending: false })
-    .limit(100)
+  // Meetings count if the person is the meeting's primary person OR is listed as
+  // an attendee on the meeting page (meeting_attendees).
+  const { data: attRows } = await sb.from("meeting_attendees").select("meeting_id").eq("person_id", id)
+  const attIds = (attRows || []).map(function(r){ return r.meeting_id })
+  const meetCols = "id, title, body_preview, starts_at, ends_at, location, meeting_type, status, source, is_organizer, attendees_json, tags"
+  const { data: primaryMeetings } = await sb.from("meetings").select(meetCols).eq("person_id", id)
+    .order("starts_at", { ascending: false }).limit(100)
+  const { data: attMeetings } = attIds.length
+    ? await sb.from("meetings").select(meetCols).in("id", attIds).order("starts_at", { ascending: false }).limit(100)
+    : { data: [] }
+  const schedById = {}
+  ;(primaryMeetings || []).concat(attMeetings || []).forEach(function(m){ schedById[m.id] = m })
+  const schedMeetings = Object.values(schedById)
+    .sort(function(a, b){ return String(b.starts_at || "").localeCompare(String(a.starts_at || "")) })
+    .slice(0, 100)
   const smIds = (schedMeetings || []).map(function(m){ return m.id })
   const notesByMeeting = {}
   const recapsByMeeting = {}
