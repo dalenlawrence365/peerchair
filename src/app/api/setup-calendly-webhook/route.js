@@ -1,3 +1,4 @@
+import { cronSecret } from "@/lib/cronAuth"
 export const dynamic = "force-dynamic"
 
 // Calendly webhook subscription manager.
@@ -41,7 +42,7 @@ async function listSubscriptions(token, user) {
 
 export async function GET(request) {
   const auth = request.headers.get("authorization") || ""
-  if (auth !== "Bearer cfocircle2026") return json({ error: "Unauthorized" }, 401)
+  if (auth !== "Bearer " + cronSecret()) return json({ error: "Unauthorized" }, 401)
   const token = process.env.CALENDLY_TOKEN
   if (!token) return json({ error: "CALENDLY_TOKEN not set in Vercel env" }, 500)
 
@@ -75,7 +76,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   const auth = request.headers.get("authorization") || ""
-  if (auth !== "Bearer cfocircle2026") return json({ error: "Unauthorized" }, 401)
+  if (auth !== "Bearer " + cronSecret()) return json({ error: "Unauthorized" }, 401)
   const token = process.env.CALENDLY_TOKEN
   if (!token) return json({ error: "CALENDLY_TOKEN not set in Vercel env" }, 500)
 

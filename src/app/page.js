@@ -2,9 +2,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-const PASSWORD = '19103Darwin$'
-const KEY = 'pc_auth'
-
 export default function Home() {
   const router = useRouter()
   const [input, setInput] = useState('')
@@ -16,26 +13,26 @@ export default function Home() {
     return (typeof window !== 'undefined' && window.innerWidth < 768) ? '/m' : '/dashboard'
   }
 
-  // If already authed, send straight to the right home for this device
+  // If the server already accepts our session cookie, skip the form.
   useEffect(function() {
-    if (typeof window === 'undefined') return
-    const v = localStorage.getItem(KEY)
-    if (v === 'ok' || v === '1') {
-      router.replace(dest())
-      return
-    }
-    setChecking(false)
+    let alive = true
+    fetch('/api/auth/session', { cache: 'no-store' }).then(function(r){ return r.json() }).then(function(d){
+      if (!alive) return
+      if (d && d.ok) router.replace(dest())
+      else setChecking(false)
+    }).catch(function(){ if (alive) setChecking(false) })
+    return function(){ alive = false }
   }, [router])
 
   function submit(e) {
     e.preventDefault()
-    if (input === PASSWORD) {
-      localStorage.setItem(KEY, 'ok')
-      router.replace(dest())
-    } else {
-      setError(true); setInput('')
-      setTimeout(function(){ setError(false) }, 2000)
-    }
+    fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: input }) })
+      .then(function(r){
+        if (r.ok) { router.replace(dest()); return }
+        setError(true); setInput('')
+        setTimeout(function(){ setError(false) }, 2000)
+      })
+      .catch(function(){ setError(true); setTimeout(function(){ setError(false) }, 2000) })
   }
 
   if (checking) return null

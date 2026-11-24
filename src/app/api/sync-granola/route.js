@@ -1,3 +1,4 @@
+import { cronSecret } from "@/lib/cronAuth"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
@@ -34,7 +35,7 @@ const headers = () => ({ Authorization: `Bearer ${process.env.GRANOLA_API_KEY}` 
 
 export async function GET(request) {
   const auth = request.headers.get("authorization") || ""
-  const expected = `Bearer ${process.env.CRON_SECRET || "cfocircle2026"}`
+  const expected = `Bearer ${cronSecret()}`
   if (auth !== expected) return Response.json({ error: "Unauthorized" }, { status: 401 })
   return doSync(DEFAULT_LOOKBACK_HOURS)
 }

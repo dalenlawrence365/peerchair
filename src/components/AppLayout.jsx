@@ -14,9 +14,8 @@ export default function AppLayout({ children }) {
 
   useEffect(function(){
     if (typeof window === "undefined") return
-    const v = localStorage.getItem("pc_auth")
-    if (v === "ok" || v === "1") setAuthed(true)
-    else router.replace("/")
+    // The server (middleware) already refused anyone without a valid session cookie.
+    setAuthed(true)
     setChecked(true)
   }, [router])
 

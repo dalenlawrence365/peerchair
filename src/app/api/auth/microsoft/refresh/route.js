@@ -1,3 +1,4 @@
+import { cronSecret } from "@/lib/cronAuth"
 export const dynamic = "force-dynamic"
 
 import { logCronRun } from "@/lib/cron-audit"
@@ -5,7 +6,7 @@ import { adminClient } from "@/lib/supabaseServer"
 
 export async function GET(request) {
   const auth = request.headers.get("authorization")
-  if (auth !== "Bearer " + (process.env.CRON_SECRET || "cfocircle2026")) {
+  if (auth !== "Bearer " + cronSecret()) {
     return Response.json({ error: "unauthorized" }, { status: 401 })
   }
 

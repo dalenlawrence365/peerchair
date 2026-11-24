@@ -1,3 +1,4 @@
+import { cronSecret } from "@/lib/cronAuth"
 export const dynamic = "force-dynamic"
 import { serverClient } from "@/lib/supabaseServer"
 import { getAccessToken, graphFetch } from "@/lib/microsoft-auth"
@@ -209,7 +210,7 @@ function normalizeStatus(showAs, isCancelled, title) {
 
 export async function GET(request) {
   const auth = request.headers.get("authorization") || ""
-  const expected = `Bearer ${process.env.CRON_SECRET || "cfocircle2026"}`
+  const expected = `Bearer ${cronSecret()}`
   if (auth !== expected) return Response.json({ error: "Unauthorized" }, { status: 401 })
   return doSync()
 }

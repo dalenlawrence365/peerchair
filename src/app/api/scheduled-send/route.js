@@ -1,3 +1,4 @@
+import { cronSecret as cronSecretValue } from "@/lib/cronAuth"
 // Scheduled Send Worker
 // Runs via Vercel cron at 9am PT (4pm UTC) and 1pm PT (8pm UTC) daily
 // Fires pending scheduled_actions, verifies delivery, alerts on failure
@@ -9,8 +10,8 @@ import { logCronRun } from "@/lib/cron-audit"
 
 export async function GET(request) {
   const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET || "cfocircle2026"
-  if (authHeader !== 'Bearer ' + cronSecret) {
+  const expectedCronSecret = cronSecretValue()
+  if (authHeader !== 'Bearer ' + expectedCronSecret) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

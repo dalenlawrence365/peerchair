@@ -1,3 +1,4 @@
+import { cronSecret } from "@/lib/cronAuth"
 // Cron health monitor.
 // Runs hourly. For each tracked cron, reads the most recent
 // audit_log row of type cron_run:<name>. If the gap exceeds the
@@ -26,7 +27,7 @@ const EXPECTED = {
 
 export async function GET(request) {
   const auth = request.headers.get("authorization") || ""
-  const expected = `Bearer ${process.env.CRON_SECRET || "cfocircle2026"}`
+  const expected = `Bearer ${cronSecret()}`
   if (auth !== expected) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }

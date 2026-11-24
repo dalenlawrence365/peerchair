@@ -1,3 +1,4 @@
+import { cronSecret } from "@/lib/cronAuth"
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
@@ -41,7 +42,7 @@ export async function GET(request) {
   try {
     res = await fetch(target, {
       cache: "no-store",
-      headers: { Authorization: `Bearer ${process.env.CRON_SECRET || "cfocircle2026"}` },
+      headers: { Authorization: `Bearer ${cronSecret()}` },
     })
     bodyText = await res.text()
   } catch (e) {
