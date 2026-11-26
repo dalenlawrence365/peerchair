@@ -13,6 +13,15 @@ import { serverClient } from "@/lib/supabaseServer"
 const MAX_ROWS = 200
 const CONCURRENCY = 8
 
+// conversations.folder only allows inbox | message_request | other | archived.
+function normFolder(f) {
+  const v = String(f || "").toLowerCase().trim()
+  if (v === "inbox") return "inbox"
+  if (v === "archive" || v === "archived") return "archived"
+  if (v === "message_request" || v === "message request" || v === "requests") return "message_request"
+  return "other"
+}
+
 export async function POST(req) {
   let payload
   try { payload = await req.json() } catch (e) { return Response.json({ error: "Invalid JSON" }, { status: 400 }) }
@@ -44,7 +53,7 @@ export async function POST(req) {
           direction,
           body: String(r.body),
           sent_at: sentAt.toISOString(),
-          folder: r.folder || null,
+          folder: normFolder(r.folder),
           source,
         },
       })
