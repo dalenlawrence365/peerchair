@@ -187,6 +187,7 @@ export default function PersonProfile() {
   const [showStatusAdd, setShowStatusAdd] = useState(false)
   const [newActionTag, setNewActionTag] = useState("")
   const [newInviteTag, setNewInviteTag] = useState("")
+  const [newPole, setNewPole] = useState("")
   const [showStateMenu, setShowStateMenu] = useState(false)
   const [showAvatarEdit, setShowAvatarEdit] = useState(false)
   const [avatarInput, setAvatarInput] = useState("")
@@ -1016,6 +1017,53 @@ export default function PersonProfile() {
                       })}
                       <span style={{ marginLeft: 6, fontSize: 11, color: T.textTertiary }}>{p.sponsor_tier ? p.sponsor_tier + "/3" : "not set"}</span>
                     </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>City</div>
+                    <input defaultValue={p.city || ""} placeholder="Unknown" disabled={busy}
+                      key={"city_" + (p.city || "")}
+                      onKeyDown={function(e){ if (e.key === "Enter") e.currentTarget.blur() }}
+                      onBlur={function(e){ var v = e.target.value.trim(); if (v !== (p.city || "")) postAction({ action: "set_geo", city: v }) }}
+                      style={{ width: "100%", padding: "5px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Market (county)</div>
+                    <select value={p.market || ""} disabled={busy}
+                      onChange={function(e){ postAction({ action: "set_geo", market: e.target.value || null }) }}
+                      style={{ width: "100%", padding: "5px 9px", fontSize: 12, border: "1px solid " + T.border, borderRadius: 6, fontFamily: "inherit", background: "#fff", boxSizing: "border-box" }}>
+                      <option value="">Unknown</option>
+                      <option value="los_angeles">Los Angeles</option>
+                      <option value="orange_county">Orange</option>
+                      <option value="ventura">Ventura</option>
+                      <option value="san_diego">San Diego</option>
+                      <option value="riverside">Riverside</option>
+                      <option value="san_bernardino">San Bernardino</option>
+                    </select>
+                    {p.geo_locked && <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 4 }}>Manually set — backfill won't overwrite</div>}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Poles</div>
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 6 }}>
+                      {(p.poles || []).map(function(pl){
+                        return (
+                          <span key={pl} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, fontWeight: 500, background: "#eef2ff", border: "1px solid #c7d2fe", color: "#3730a3", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                            {pl}
+                            <span title="Remove" onClick={function(){ if (!busy) postAction({ action: "set_geo", poles: (p.poles || []).filter(function(x){ return x !== pl }) }) }} style={{ cursor: busy ? "wait" : "pointer", color: "#6366f1", fontWeight: 700 }}>×</span>
+                          </span>
+                        )
+                      })}
+                      {!(p.poles && p.poles.length) && <span style={{ fontSize: 11, color: T.textTertiary }}>Unassigned</span>}
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input value={newPole} onChange={function(e){ setNewPole(e.target.value) }}
+                        onKeyDown={function(e){ if (e.key === "Enter" && newPole.trim()) { postAction({ action: "set_geo", poles: Array.from(new Set([...(p.poles || []), newPole.trim()])) }); setNewPole("") } }}
+                        placeholder="Add a pole (hub city)…" style={inputStyle} />
+                      <button disabled={!newPole.trim() || busy} onClick={function(){ postAction({ action: "set_geo", poles: Array.from(new Set([...(p.poles || []), newPole.trim()])) }); setNewPole("") }} style={addBtnStyle(newPole)}>Add</button>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: T.textTertiary, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>LinkedIn location</div>
+                    <div style={{ fontSize: 12, color: T.textSecondary }}>{p.location || "—"}</div>
                   </div>
                 </div>
               </TagBox>

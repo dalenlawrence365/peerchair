@@ -295,5 +295,34 @@ export async function POST(request, { params }) {
     return Response.json({ ok: true })
   }
 
+  // action="set_geo" — the City / Market / Poles pills in the marketing box.
+  // Editing city or market LOCKS the record (geo_locked=true) so the Phase-2
+  // backfill never overwrites a manual correction. Poles are always manual and
+  // do NOT trigger the lock (we still want the backfill to fill city/market for
+  // someone whose poles you've set). See geo-market-system-spec.
+  if (action === "set_geo") {
+    const COUNTY = ["los_angeles", "orange_county", "ventura", "san_diego", "riverside", "san_bernardino", "unknown"]
+    const updates = {}
+    let lock = false
+    if (Object.prototype.hasOwnProperty.call(body, "city")) {
+      const v = (body.city == null || String(body.city).trim() === "") ? null : String(body.city).trim().slice(0, 120)
+      updates.city = v; lock = true
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "market")) {
+      const m = (body.market == null || body.market === "") ? null : String(body.market)
+      if (m !== null && COUNTY.indexOf(m) < 0) return Response.json({ error: `invalid market '${m}'` }, { status: 400 })
+      updates.market = m; lock = true
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "poles")) {
+      const arr = Array.isArray(body.poles) ? body.poles : []
+      updates.poles = Array.from(new Set(arr.map(x => String(x).trim()).filter(Boolean))).slice(0, 20)
+    }
+    if (Object.keys(updates).length === 0) return Response.json({ error: "no geo fields supplied" }, { status: 400 })
+    if (lock) updates.geo_locked = true
+    const { error } = await sb.from("people").update(updates).eq("id", id)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ ok: true })
+  }
+
   return Response.json({ error: "unknown action" }, { status: 400 })
 }
